@@ -1,15 +1,13 @@
-// What the public pages read, and nothing more (SPEC 20.3, 20.8, 26.4): the world's facts, a
-// profile's allowed fields, a card's public face, an open gift's card, a public drop's counts and
-// the Mythics list as handle plus name. Each returns null where the page should say "not here",
-// whether the thing never existed, belongs to nobody any more or simply is not open.
+// What the public pages read, and nothing more (SPEC 20.3, 20.8, 26.4): a profile's allowed
+// fields, a card's public face, an open gift's card, a public drop's counts and the Mythics list
+// as handle plus name. Each returns null where the page should say "not here", whether the thing
+// never existed, belongs to nobody any more or simply is not open.
 import type { ProfileResponse } from '../../plugin/hooks/core/api.ts'
-import type { BattleCard, DropReward, Species } from '../../plugin/hooks/core/types.ts'
+import type { BattleCard, DropReward } from '../../plugin/hooks/core/types.ts'
 import { normalizeDropCode } from '../../plugin/hooks/core/drops.ts'
 import { DROP_CODE_RE, GIFT_CODE_RE, HANDLE_RE, ID_RE, parseDropReward } from '../../plugin/hooks/core/schemas.ts'
-import { seasonOf, seasonStart, utcDay, worldOf } from '../../plugin/hooks/core/world.ts'
-import type { WorldState } from '../../plugin/hooks/core/world.ts'
+import { utcDay } from '../../plugin/hooks/core/world.ts'
 import type { Db } from './db.ts'
-import { DAY, ensureSeason } from './game/ctx.ts'
 import { cardsByIds, publicCard, queryCards } from './game/mint.ts'
 import { profileOf } from './game/social-board.ts'
 import type { DropRow, GiftRow } from './schema.ts'
@@ -17,35 +15,24 @@ import type { DropRow, GiftRow } from './schema.ts'
 export const MYTHICS_SHOWN = 12
 export const FOR_TRADE_SHOWN = 24
 
-export type Landing = {
-  world: WorldState
-  species: readonly Species[]
-  /** species of this season somebody has found (the gallery shows the rest as silhouettes) */
-  found: ReadonlySet<string>
-  /** newest first; handle is the finder's at the catch, null once they rerolled it or left */
+/** The Mythics found, newest first: name and the finder's handle while it is still theirs, nothing else (SPEC 18, 20.8). */
+export type MythicsShown = {
+  /** handle is the finder's while it is the one they found it under, null once they rerolled it or left */
   mythics: { name: string; handle: string | null }[]
   mythicCount: number
-  /** 1-based day of the season, and days until the next one */
-  seasonDay: number
-  daysLeft: number
 }
 
-export async function landing(db: Db, now: number): Promise<Landing> {
-  const season = seasonOf(now)
-  const { species } = await ensureSeason(db, season)
-  const [found, mythics, count] = await Promise.all([
-    db.all<{ species: string }>('SELECT species FROM firsts WHERE season = ?', season),
+export async function mythicsShown(db: Db): Promise<MythicsShown> {
+  const [mythics, count] = await Promise.all([
+    // the finder's current handle, read now, and only while it is the one the Mythic was found under
     db.all<{ name: string; handle: string | null }>(
-      'SELECT name, handle FROM mythics ORDER BY day DESC, card_id LIMIT ?',
+      `SELECT m.name, p.handle FROM mythics m LEFT JOIN players p ON p.id = m.finder_id AND p.handle = m.handle
+       ORDER BY m.day DESC, m.card_id LIMIT ?`,
       MYTHICS_SHOWN,
     ),
     db.get<{ n: number }>('SELECT COUNT(*) AS n FROM mythics'),
   ])
-  const seasonDay = Math.floor((now - seasonStart(season)) / DAY) + 1
-  return {
-    world: worldOf(now), species, found: new Set(found.map(r => r.species)), mythics, mythicCount: count?.n ?? 0,
-    seasonDay, daysLeft: Math.ceil((seasonStart(season + 1) - now) / DAY),
-  }
+  return { mythics, mythicCount: count?.n ?? 0 }
 }
 
 /** Exactly ProfileResponse's fields (SPEC 20.3), the API's own profile with fewer cards for trade. */

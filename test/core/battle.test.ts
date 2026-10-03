@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { BattleCard, BattleLog, BattleSetup, DailyRule, Family, TraitId } from '../../plugin/hooks/core/types.ts'
-import { RULES_VERSION, applyRating, battleRewards, eloDelta, paceMs, participants, perfectRounds, simulateBattle } from '../../plugin/hooks/core/battle.ts'
+import { RULES_VERSION, applyRating, battleRewards, eloDelta, participants, perfectRounds, simulateBattle } from '../../plugin/hooks/core/battle.ts'
+import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { cardStats, toBattleCard } from '../../plugin/hooks/core/cards.ts'
 import { FAMILY_INFO, typeMult } from '../../plugin/hooks/core/families.ts'
 import { rollPack, rollWildTeam } from '../../plugin/hooks/core/packs.ts'
@@ -451,8 +452,7 @@ test("battle rewards by result and kind: every battle pays; revenge and beginner
   assert.deepEqual(battleRewards('duel', 'win', 'calm', { rival: true }), { sparks: 12, xp: 20, catchChance: 0, bountyChance: 0 }, 'a Rival pays no bounty')
 })
 
-test('pace by effort is cosmetic and falls back to medium', () => {
-  assert.deepEqual(['low', 'medium', 'high', 'xhigh', 'max'].map(paceMs), [1800, 2200, 2500, 3000, 3500])
-  assert.equal(paceMs(42), 2200)
-  assert.equal(paceMs('toString'), 2200)
+test('every round plays at one pace, comfortably above the finish minimum', () => {
+  assert.equal(ECONOMY.battle.roundMs, 2200)
+  assert.ok(ECONOMY.battle.roundMs > ECONOMY.battle.minRoundMs, 'a live battle never waits on the server')
 })

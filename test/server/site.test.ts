@@ -1,6 +1,7 @@
-// The website (SPEC 9 Shares, 12 Pages, 20, 25, 26, 29-31): every page renders, every value is
-// escaped, the headers are strict, nothing loads from elsewhere, and nothing about a player shows
-// beyond what SPEC 20 allows. Pages run on the real app over node:sqlite.
+// The website (SPEC 9 Shares, 12 Pages, 20, 25, 26, 29-31, 36): every page renders, every value is
+// escaped, the headers are strict, only first-party scripts run (and only where they should), nothing
+// loads from elsewhere, and nothing about a player shows beyond what SPEC 20 allows. Pages run on the
+// real app over node:sqlite.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
@@ -12,7 +13,8 @@ import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 import { RULE_INFO, utcDay, worldOf } from '../../plugin/hooks/core/world.ts'
 import { stmt } from '../../server/src/db.ts'
 import { mintCards } from '../../server/src/game/mint.ts'
-import { INSTALL, PAGE_CSP, REPO, SCRIPT_CSP } from '../../server/src/pages-html.ts'
+import { INSTALL, PAGE_CSP, REPO, SCRIPT_CSP, SITE_CSP } from '../../server/src/pages-html.ts'
+import { SITE_ASSETS } from '../../server/static/site.gen.ts'
 import { counts, DAY, MINUTE, server } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
 
@@ -38,24 +40,44 @@ function assertHeaders(p: Page, csp = PAGE_CSP) {
   for (const k of p.headers.keys()) assert.ok(!k.startsWith('access-control-'), `no CORS header (${k})`)
 }
 
+const SKY_TAG = `<script src="/static/${SITE_ASSETS.sky}"></script>`
+const SITE_TAG = `<script type="module" src="/static/${SITE_ASSETS.site}"></script>`
+
 /** Nothing loads from another origin, nothing runs inline, and only our repo is linked from outside. */
 function assertSelfContained(html: string, origin = ORIGIN) {
   assert.doesNotMatch(html, /<(iframe|object|embed|form|base|meta http-equiv)\b/i)
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i, 'no inline event handlers')
   assert.doesNotMatch(html, /javascript:/i)
   assert.doesNotMatch(html, /@import/i)
-  for (const [, tag] of html.matchAll(/<script\b([^>]*)>/gi)) assert.equal(tag, ' src="/static/passkey.js" defer', 'only the first-party passkey script')
+  const allowed = [' src="/static/passkey.js" defer', ` src="/static/${SITE_ASSETS.sky}"`, ` type="module" src="/static/${SITE_ASSETS.site}"`]
+  for (const [, tag] of html.matchAll(/<script\b([^>]*)>/gi)) assert.ok(allowed.includes(tag!), `only first-party scripts (${tag})`)
   assert.doesNotMatch(html, /<script\b[^>]*>[^<]+<\/script>/i, 'no inline script')
   for (const [, url] of html.matchAll(/\ssrc="([^"]*)"/gi)) assert.match(url!, /^\//, `src ${url} is same-origin`)
   for (const [, tag] of html.matchAll(/<link\b([^>]*)>/gi)) assert.match(tag!, /href="data:/, 'links are inline data only')
-  for (const [, url] of html.matchAll(/url\(\s*["']?([^"')]*)/gi)) assert.match(url!, /^data:/, `css url ${url} is inline`)
+  for (const [, url] of html.matchAll(/url\(\s*["']?([^"')]*)/gi)) assert.match(url!, /^(data:|#[a-z0-9-]+$)/, `css url ${url} is inline or in this document`)
   for (const [url] of html.matchAll(/https?:\/\/[^\s"'<>)]+/gi)) {
     assert.ok(url.startsWith(REPO) || url.startsWith(origin + '/'), `${url} is our repo or this origin`)
   }
-  for (const [, href] of html.matchAll(/<a\b[^>]*href="([^"]*)"/gi)) assert.ok(href!.startsWith('/') || href!.startsWith(REPO), `link ${href}`)
+  for (const [, href] of html.matchAll(/<a\b[^>]*href="([^"]*)"/gi)) assert.ok(href!.startsWith('/') || href!.startsWith(REPO) || /^#[a-z0-9-]+$/.test(href!), `link ${href}`)
 }
 
-const textOf = (html: string) => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
+const textOf = (html: string) => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/ ([,.])/g, '$1')
+
+/** A site page: SITE_CSP, the sky script synchronously in <head> and the site module, once each. */
+function assertSiteScripts(p: Page) {
+  assertHeaders(p, SITE_CSP)
+  const head = p.html.slice(0, p.html.indexOf('</head>'))
+  assert.equal(head.split(SKY_TAG).length, 2, 'one synchronous sky.js in <head>')
+  assert.equal(p.html.split(SITE_TAG).length, 2, 'one site.js module')
+  assert.equal((p.html.match(/<script\b/g) ?? []).length, 2)
+}
+
+/** SPEC 36: marketing pages never defend themselves, and privacy and odds sit quietly in the footer. */
+function assertNotDefensive(p: Page) {
+  assert.doesNotMatch(textOf(p.html), /never reads|read your work|no account|no tracking|we don't|privacy promise/i)
+  assert.doesNotMatch(p.html, /<meta[^>]+content="[^"]*(never reads|read your work)/i)
+  assert.ok(p.html.includes('href="/privacy"') && p.html.includes('href="/odds"'))
+}
 
 async function world(o: { origin?: string } = {}) {
   const s = server(o)
@@ -72,11 +94,9 @@ async function looseCard(s: Server, p: Player, seed = 'loose') {
   return cards[0]!
 }
 
-/** A Mythic as a catch makes it: stamped with its finder's handle, unless `stamped` is false. */
-async function mythicFor(s: Server, p: Player, seed: string, stamped = true) {
-  const mythic = generateMythic({ seed, dna: 7, now: s.now(), origin: 'catch' })
-  const form = stamped ? { ...mythic.form!, discoveredBy: p.me.player.handle } : mythic.form!
-  const { cards, stmts } = await mintCards(env(s), p.id, [{ ...mythic, form }])
+/** A Mythic as a catch makes it: `p` found it, and the loaders name them while that handle is theirs. */
+async function mythicFor(s: Server, p: Player, seed: string) {
+  const { cards, stmts } = await mintCards(env(s), p.id, [generateMythic({ seed, dna: 7, now: s.now(), origin: 'catch' })])
   await s.db.batch(stmts)
   return cards[0]!
 }
@@ -105,44 +125,57 @@ async function drop(s: Server, o: { plain?: string | null; reward?: unknown; sup
 // ---- every page --------------------------------------------------------------------------------
 
 describe('site pages', () => {
-  it('render as strict, script-free pages that load nothing from anywhere else', async () => {
+  it('render as strict pages: first-party scripts on site pages, none on /odds, /privacy and "not here"', async () => {
     const { s, a } = await world()
     const card = await mythicFor(s, a, 'aa11')
     const code = await gift(s, a, (await looseCard(s, a)).id)
     await drop(s)
-    const ok = ['/', '/odds', '/privacy', `/u/${a.me.player.handle}`, `/c/${card.id}`, `/g/${code}`, '/d/founders']
-    for (const path of ok) {
+    const scripted = ['/', `/u/${a.me.player.handle}`, `/c/${card.id}`, `/g/${code}`, '/d/founders', '/w/20261002-dusk-abcdefgh']
+    const quiet = ['/odds', '/privacy']
+    for (const path of [...scripted, ...quiet]) {
       const p = await get(s, path)
       assert.equal(p.status, 200, path)
-      assertHeaders(p)
+      if (scripted.includes(path)) assertSiteScripts(p)
+      else {
+        assertHeaders(p)
+        assert.doesNotMatch(p.html, /<script/i, `${path} has no script`)
+      }
       assertSelfContained(p.html)
-      assert.doesNotMatch(p.html, /<script/i, `${path} has no script`)
-      assert.match(p.html, /^<!doctype html>\n<html lang="en">/)
+      assert.match(p.html, /^<!doctype html>\n<html lang="en"[ >]/)
       assert.match(p.html, /<meta name="viewport" content="width=device-width, initial-scale=1">/)
       assert.match(p.html, /<meta name="color-scheme" content="light dark">/)
       assert.match(p.html, /<title>[^<]+<\/title>/)
     }
-    for (const path of ['/u/nobody-here-11', '/c/zzzzzzzzzzzzzzzzzzzzzzzzzz', '/g/no-such-gift-0000', '/d/nothing']) {
+    for (const path of ['/u/nobody-here-11', '/c/zzzzzzzzzzzzzzzzzzzzzzzzzz', '/g/no-such-gift-0000', '/d/nothing', '/w/not-a-seed', '/static/site.nope.js', '/og/meadow-19990101.png']) {
       const p = await get(s, path)
       assert.equal(p.status, 404, path)
       assertHeaders(p)
       assertSelfContained(p.html)
+      assert.doesNotMatch(p.html, /<script/i, `${path}: the "not here" page runs nothing`)
       assert.match(p.html, /<meta name="robots" content="noindex">/)
+      assert.match(textOf(p.html), /Nothing in this patch of grass\./)
+      assert.ok(p.html.includes('<a class="back" href="/">Back to the meadow</a>'))
     }
   })
 
-  it('carry the one-line install, privacy promise and open-source links on the landing page', async () => {
-    const { s } = await world()
+  it('carry the one-line install and open-source links, and never a defensive word, on the marketing pages', async () => {
+    const { s, a } = await world()
     const p = await get(s, '/')
     const text = textOf(p.html)
     assert.ok(text.includes(INSTALL), 'the SPEC 34 install line')
     assert.match(p.html, /class="w">--marketplace<\/span>/, 'the command never breaks inside a word')
-    assert.match(text, /0 lines of your work we read/)
     assert.ok(p.html.includes(`href="${REPO}"`))
-    assert.ok(p.html.includes('href="/privacy"') && p.html.includes('href="/odds"'))
     assert.equal(p.headers.get('cache-control'), 'public, max-age=60')
     assert.match(p.html, /@media \(prefers-color-scheme:dark\)/)
     assert.match(p.html, /@media \(prefers-reduced-motion:reduce\)/)
+    assert.match(p.html, /<title>Spinlings: wild creatures that find you while Claude works<\/title>/)
+    assert.ok(text.includes('Wild creatures find you while Claude works.'), 'the pixel H1 keeps its real words')
+    assert.ok(p.html.includes('<a class="skip" href="#install-cmd">Skip to the install command</a>'))
+    for (const id of ['meet', 'battle', 'collect', 'trade', 'install']) assert.match(p.html, new RegExp(`<section [^>]*id="${id}" aria-labelledby="${id}-h"`))
+    const card = await mythicFor(s, a, 'nd01')
+    const code = await gift(s, a, (await looseCard(s, a)).id)
+    await drop(s)
+    for (const path of ['/', `/c/${card.id}`, `/g/${code}`, '/d/founders', '/w/20261002-morning-abcdefgh']) assertNotDefensive(await get(s, path))
   })
 
   it('answer HEAD like GET without a body, and refuse other methods', async () => {
@@ -150,7 +183,7 @@ describe('site pages', () => {
     const head = await s.request('HEAD', '/')
     assert.equal(head.status, 200)
     assert.equal(await head.text(), '')
-    assert.equal(head.headers.get('content-security-policy'), PAGE_CSP)
+    assert.equal(head.headers.get('content-security-policy'), SITE_CSP)
     const post = await s.request('POST', '/', { body: {} })
     assert.equal(post.status, 405)
     assert.equal((await s.request('DELETE', '/u/someone-11')).status, 405)
@@ -166,7 +199,8 @@ describe('site pages', () => {
     const signin = ticket((await s.call('authStart', {})).url)
     const paths = [
       '/', '/odds', '/privacy', `/u/${a.me.player.handle}`, `/c/${card.id}`, `/c/${card.id}.png`, `/g/${code}`, '/d/founders',
-      `/passkey/add?t=${add}`, `/passkey/signin?t=${signin}`, '/static/passkey.js',
+      `/passkey/add?t=${add}`, `/passkey/signin?t=${signin}`, '/static/passkey.js', `/static/${SITE_ASSETS.site}`,
+      '/w/20261002-night-abcdefgh', '/w/20261002-night-abcdefgh.png', '/og/meadow-20261002.png',
     ]
     for (const path of paths) await get(s, path) // the first visit may freeze the season
     const tables = (await s.db.all<{ name: string }>(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)).map(r => r.name)
@@ -197,11 +231,15 @@ describe('site escaping', () => {
   it('escapes every value that comes from the database', async () => {
     const { s, a } = await world()
     const card = await mythicFor(s, a, 'bb22')
-    await s.db.batch([stmt('UPDATE mythics SET name = ?, handle = ? WHERE card_id = ?', EVIL, `x"><b>${'y'}`, card.id)])
+    const evilHandle = `x"><b>${'y'}`
+    await s.db.batch([
+      stmt('UPDATE mythics SET name = ?, handle = ? WHERE card_id = ?', EVIL, evilHandle, card.id),
+      stmt('UPDATE players SET handle = ? WHERE id = ?', evilHandle, a.id),
+    ])
     const landing = await get(s, '/')
     assert.ok(landing.html.includes('&lt;script&gt;alert(1)&lt;/script&gt;&quot;&#39;&amp;&lt;img src=x&gt;'))
     assert.ok(landing.html.includes('x&quot;&gt;&lt;b&gt;y'))
-    assert.doesNotMatch(landing.html, /<script>alert|<img src=x|"><b>/)
+    assert.doesNotMatch(landing.html, /<script>alert|<img src=x|x"><b>y/)
     assertSelfContained(landing.html)
 
     // a card whose embedded form carries markup in its names
@@ -251,8 +289,10 @@ describe('landing page', () => {
       else assert.ok(!shown, `${sp.id} unfound: no name, only its shadow`)
     }
     assert.ok(text.includes(`${found.size} of 36 found`))
-    assert.equal((p.html.match(/<li class="sp dark/g) ?? []).length, 36 - found.size)
-    assert.equal((p.html.match(/<span aria-hidden="true">\?\?\?<\/span>/g) ?? []).length, 36 - found.size)
+    assert.equal((p.html.match(/<li class="nk unfound/g) ?? []).length, 36 - found.size)
+    assert.equal((p.html.match(/<li class="nk found/g) ?? []).length, found.size)
+    // an unfound species is a plain silhouette: one currentColor path, never its colours
+    for (const nook of p.html.split('<li class="nk unfound').slice(1)) assert.match(nook.slice(0, nook.indexOf('</li>')), /<svg class="shd"[^>]*><path fill="currentColor" d="[^"]*"\/><\/svg>/)
     assert.ok(text.includes(`Season ${w.season}`))
     assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b/, 'no dates anywhere')
     void a
@@ -271,26 +311,45 @@ describe('landing page', () => {
     for (const html of [(await get(s, '/')).html, (await get(s, `/c/${m.id}`)).html]) {
       assert.ok(!html.includes(a.me.player.handle) && !html.includes(handle))
     }
-    assert.ok(textOf((await get(s, '/')).html).includes(`${name} found by a keeper`))
+    assert.ok(textOf((await get(s, '/')).html).includes(`${name} found by a trainer`))
+    assert.ok(textOf((await get(s, `/c/${m.id}`)).html).includes('Discovered by a trainer'))
     const b2 = await mythicFor(s, b, 'dd44')
     await b.call('deleteMe', {})
     text = textOf((await get(s, '/')).html)
-    assert.ok(text.includes(`${b2.form!.names[2]} found by a keeper`))
+    assert.ok(text.includes(`${b2.form!.names[2]} found by a trainer`))
     assert.ok(!text.includes(b.me.player.handle))
   })
 
-  it('says what will fill an empty Mythics list', async () => {
+  it('hangs a string of dark lanterns for the first Mythic instead of an empty list', async () => {
     const { s } = await world()
-    const text = textOf((await get(s, '/')).html)
-    assert.ok(text.includes('0 so far'))
-    assert.match(text, /No Mythic has been caught yet/)
+    const html = (await get(s, '/')).html
+    const text = textOf(html)
+    assert.ok(text.includes('The first Mythic lights a lantern.'))
+    assert.doesNotMatch(text, /0 so far|Mythics found/, 'no empty stall')
+    assert.equal((html.match(/class="lantern unlit"/g) ?? []).length, 12, 'a full string of lanterns, all dark')
+    assert.doesNotMatch(html, /class="lantern l\d+"/)
+    assert.ok(!html.includes('class="mythlist"'))
+  })
+
+  it('lights one lantern per Mythic, middle first, each tied to its line in the list', async () => {
+    const { s, a } = await world()
+    for (const seed of ['ln01', 'ln02', 'ln03']) await mythicFor(s, a, seed)
+    const html = (await get(s, '/')).html
+    assert.equal((html.match(/class="lantern unlit"/g) ?? []).length, 9)
+    for (const i of [0, 1, 2]) {
+      assert.equal((html.match(new RegExp(`class="lantern l${i}"`, 'g')) ?? []).length, 1, `lantern ${i}`)
+      assert.match(html, new RegExp(`<li class="m${i}"><b>`), `list line ${i}`)
+    }
+    // the list hangs right under the string, before the Trader's cart
+    assert.ok(html.indexOf('class="mythlist"') < html.indexOf('class="cart"'))
+    assert.ok(html.indexOf('class="lstring"') < html.indexOf('class="mythlist"'))
   })
 
   it('freezes the season once when many first visits race, and every visit agrees', async () => {
     const s = server()
     const pages = await Promise.all(Array.from({ length: 6 }, (_, i) => get(s, '/', { ip: `203.0.113.${i}` })))
     for (const p of pages) assert.equal(p.status, 200)
-    const gallery = (h: string) => h.slice(h.indexOf('id="season"'), h.indexOf('id="mythics"'))
+    const gallery = (h: string) => h.slice(h.indexOf('id="collect"'), h.indexOf('id="trade"'))
     for (const p of pages) assert.equal(gallery(p.html), gallery(pages[0]!.html))
     assert.deepEqual(await counts(s.db, ['seasons']), { seasons: 1 })
   })
@@ -310,7 +369,7 @@ describe('profile pages', () => {
     ])
     const p = await get(s, `/u/${a.me.player.handle}`)
     assert.equal(p.status, 200)
-    assertHeaders(p)
+    assertHeaders(p, SITE_CSP)
     assert.match(p.html, /<meta name="robots" content="noindex">/)
     const text = textOf(p.html)
     assert.ok(text.includes(a.me.player.handle))
@@ -319,8 +378,11 @@ describe('profile pages', () => {
     assert.ok(text.includes(`${album} species in their album`))
     for (const secret of ['1555', '98765', '4321', ' 17 ', a.me.player.joinedDay]) assert.ok(!text.includes(secret), `never shows ${secret}`)
     assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b|\b(sparks|rating|battles|won|joined|last seen)\b/i)
-    const team = (p.html.match(/<li class="card/g) ?? []).length
-    assert.equal(team, 3 + 1, 'three team cards and the one free card for trade')
+    assert.equal((p.html.match(/<ul class="campers circle">(.*?)<\/ul>/s)?.[1]?.match(/<li class="camper">/g) ?? []).length, 3, 'three around the fire')
+    assert.equal((text.match(/league/g) ?? []).length, 1, 'one league badge')
+    assert.equal((p.html.match(/<li class="tile">/g) ?? []).length, 1, 'and the one free card pinned for trade')
+    assert.ok(text.includes(`/spin trade ${a.me.player.handle}`))
+    assert.match(p.html, /<pre aria-label="The trade command"><span class="gt" aria-hidden="true">&gt;<\/span><code>[\s\S]*?<\/pre><button class="pbtn copy js-only" type="button" data-copy>/, 'a prompt line to copy')
     assert.ok(p.html.includes(`href="/c/${loose.id}"`))
   })
 
@@ -355,11 +417,13 @@ describe('profile pages', () => {
 
 describe('card pages', () => {
   it('show the public card, unfurl with og tags, and never name the owner', async () => {
-    const { s, a } = await world({ origin: 'https://spinlings.dev' })
-    const m = await mythicFor(s, a, 'dd44', false)
+    const { s, a, b } = await world({ origin: 'https://spinlings.dev' })
+    // b found it, a holds it now
+    const m = await mythicFor(s, b, 'dd44')
+    await s.db.batch([stmt('UPDATE cards SET owner_id = ? WHERE id = ?', a.id, m.id)])
     const p = await get(s, `/c/${m.id}`)
     assert.equal(p.status, 200)
-    assertHeaders(p)
+    assertHeaders(p, SITE_CSP)
     assertSelfContained(p.html, 'https://spinlings.dev')
     assert.ok(p.html.includes(`<meta property="og:image" content="https://spinlings.dev/c/${m.id}.png">`))
     assert.ok(p.html.includes(`<meta property="og:url" content="https://spinlings.dev/c/${m.id}">`))
@@ -367,6 +431,7 @@ describe('card pages', () => {
     assert.ok(p.html.includes(`<meta property="og:title" content="${m.form!.names[2]}, a mythic`))
     const text = textOf(p.html)
     assert.ok(text.includes(m.form!.names[2]!) && text.includes('Final form') && text.includes('Mythic, 1 of 1') && text.includes('Foil'))
+    assert.ok(text.includes(`Discovered by ${b.me.player.handle}`), 'its finder')
     assert.ok(!text.includes(a.me.player.handle), 'no owner')
     assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b|Raised under|minted|locked|tired/i)
     assert.doesNotMatch(p.html, /undefined|null/, 'every stamp is words')
@@ -409,7 +474,7 @@ describe('gift pages', () => {
     const code = await gift(s, a, card.id)
     const p = await get(s, `/g/${code}`)
     assert.equal(p.status, 200)
-    assertHeaders(p)
+    assertHeaders(p, SITE_CSP)
     assert.equal(p.headers.get('cache-control'), 'no-store', 'the URL is the secret')
     assert.match(p.html, /<meta name="robots" content="noindex">/)
     const text = textOf(p.html)
@@ -453,10 +518,10 @@ describe('drop pages', () => {
     await s.db.batch([stmt('INSERT INTO redemptions (drop_id, player_id, day) VALUES (?, ?, ?)', 'd-FOUNDERS', a.id, utcDay(s.now()))])
     let p = await get(s, '/d/founders')
     assert.equal(p.status, 200)
-    assertHeaders(p)
+    assertHeaders(p, SITE_CSP)
     let text = textOf(p.html)
     assert.ok(text.includes('FOUNDERS'))
-    assert.ok(text.includes('204 redeemed so far, 1,296 of 1,500 left'))
+    assert.ok(text.includes('204 hatched so far, 1,296 left in the nest.'))
     assert.ok(text.includes('/spin redeem FOUNDERS'))
     assert.ok(text.includes('Founder, Oct 2026'))
     assert.ok(!text.includes('Founderling'), 'the creature stays a silhouette until it hatches')
@@ -466,7 +531,7 @@ describe('drop pages', () => {
     // the count is live, and codes are read the way the mod normalises them
     await s.db.batch([stmt('UPDATE drops SET redeemed = 205')])
     text = textOf((await get(s, '/d/Found-ers')).html)
-    assert.ok(text.includes('205 redeemed so far, 1,295 of 1,500 left'))
+    assert.ok(text.includes('205 hatched so far, 1,295 left in the nest.'))
     // supply gone: ended
     await s.db.batch([stmt('UPDATE drops SET redeemed = 1500')])
     p = await get(s, '/d/FOUNDERS')
@@ -492,7 +557,7 @@ describe('drop pages', () => {
     assert.match(textOf((await get(s, '/d/over')).html), /This drop has ended/)
     const packs = textOf((await get(s, '/d/packs')).html)
     assert.ok(packs.includes('Redeem PACKS in Spinlings for 2 Opus packs.'))
-    assert.ok(packs.includes('204 redeemed so far.'), 'no supply, no "left"')
+    assert.ok(packs.includes('204 hatched so far.'), 'no supply, no "left"')
   })
 })
 

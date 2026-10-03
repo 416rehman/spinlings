@@ -139,6 +139,10 @@ export const motesSvg = (() => {
 // ---- the og:image (1200 x 630) -----------------------------------------------------------------
 
 const OG = { w: 1200, h: 630 }
+/** Family places (sky, ground, shade), as the site paints them. */
+const PLACE_COLORS: Record<BattleCard['family'], [string, string, string]> = {
+  haiku: ['#dcefe2', '#5fbf8f', '#1f5a45'], sonnet: ['#dbe6fa', '#5b8def', '#1d3570'], opus: ['#f8e0d3', '#e8744f', '#6a2a17'], fable: ['#e7defa', '#a874e8', '#3a2262'],
+}
 const INK = '#eceaf3', SOFT = '#a6a4b8', BG = '#141a26', PANEL = '#1d2534'
 
 /** Fits text into `max` px wide at the largest scale from `big` down to `small`. */
@@ -174,8 +178,19 @@ export async function cardPng(card: BattleCard, host: string): Promise<Uint8Arra
   const rarityColor = mythic ? MYTHIC_COLOR : RARITY_COLOR[card.rarity]
   const family = FAMILY_COLOR[card.family]
 
+  // the family's place behind the card: its sky, a shaded ridge in stepped pixels, its ground
+  const [sky, ground, shade] = PLACE_COLORS[card.family]
+  c.fillRect(0, 0, 560, OG.h, sky)
+  for (let x = 0; x < 560; x += 8) {
+    const h = Math.round(140 + 40 * Math.sin(x / 90) + 24 * Math.sin(x / 37 + 1))
+    c.fillRect(x, OG.h - h, 8, h, shade)
+  }
+  c.fillRect(0, OG.h - 96, 560, 96, ground)
+
   // the card: a rarity frame, a family-coloured floor, the sprite at 24x
   const fx = 84, fy = 51, fw = 448, fh = 528
+  // foil: pixel rainbow bands all round the frame
+  if (card.foil) ['#a874e8', '#5b8def', '#9ed36a', '#f2b33d', '#ff7ac6'].forEach((col, i) => c.fillRect(fx - 30 + i * 6, fy - 30 + i * 6, fw + 60 - i * 12, fh + 60 - i * 12, col))
   c.fillRect(fx, fy, fw, fh, rarityColor)
   c.fillRect(fx + 10, fy + 10, fw - 20, fh - 20, PANEL)
   c.fillRect(fx + 10, fy + fh - 106, fw - 20, 96, family)

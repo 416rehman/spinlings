@@ -5,7 +5,7 @@
 import type { ApiOp, ApiRequest, ApiResponse, CardsResponse, MeResponse, VersionResponse } from '../core/api.ts'
 import { API_ROUTES } from '../core/api.ts'
 import type { BattleLog, Card, Family, Rarity } from '../core/types.ts'
-import { RULES_VERSION, paceMs, perfectRounds, simulateBattle } from '../core/battle.ts'
+import { RULES_VERSION, perfectRounds, simulateBattle } from '../core/battle.ts'
 import { cardName, rarityRank } from '../core/cards.ts'
 import { ECONOMY, finishAfter, leagueOf } from '../core/economy.ts'
 import { FAMILY_INFO, familyOfModel } from '../core/families.ts'
@@ -51,7 +51,7 @@ const MAX_AGENTS = 32
  * so a pace that followed the effort setting would tell the server that setting through the request's timing, and the
  * input window of every round has to have closed before the request leaves (SPEC 15, 20.2).
  */
-export const ROUND_MS = paceMs('medium')
+export const ROUND_MS = ECONOMY.battle.roundMs
 
 // ---------- the initial state of every $.state value ----------
 

@@ -80,7 +80,8 @@ export const ECONOMY = {
     catchWindowMs: 10 * MIN,
     catchAutoPickMs: 20_000,
     resultBandMs: 12_000,
-    paceMs: { low: 1800, medium: 2200, high: 2500, xhigh: 3000, max: 3500 } as Record<string, number>,
+    /** every round plays at this pace, the same for everyone (SPEC 5, 20.2) */
+    roundMs: 2200,
   },
 
   traits: {

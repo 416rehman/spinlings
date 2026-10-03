@@ -249,7 +249,3 @@ export function battleRewards(kind: BattleKind, result: BattleResult, rule: Dail
   }
 }
 
-/** Cosmetic pace in ms per round for an effort setting; numbers and unknown values fall back to medium. */
-export function paceMs(effort: unknown): number {
-  return typeof effort === 'string' && Object.hasOwn(ECONOMY.battle.paceMs, effort) ? ECONOMY.battle.paceMs[effort]! : ECONOMY.battle.paceMs.medium!
-}
