@@ -310,7 +310,7 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
     case 'server': {
       const host = hostOf(m.origin)
       const a = env.state.account
-      // already in use (the Server URL option is the player's own OK), it only says so; offline, it is kept for later
+      // already in use (a server already in play is the player's own OK), it only says so; offline, it is kept for later
       const act = a.server === m.origin ? actionsRow(c, m, 'Got it', null)
         : a.world === 'offline' ? actionsRow(c, m, 'Use it online', 'Cancel') : actionsRow(c, m, 'Connect', 'Cancel')
       return beside(c, null, [

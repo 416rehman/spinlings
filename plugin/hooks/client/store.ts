@@ -42,11 +42,11 @@ export type StoredPrefs = {
   sound: boolean
   /** the active world; null before the first run */
   world: World | null
-  /** the `world` option as last applied: a change in /config switches the world once */
+  /** 0.1.0's `world` option as last applied; kept as stored, never read (the option is gone) */
   worldOption: World | null
-  /** the server in use, from /spin server or the server_url option, whichever changed last; null uses the option */
+  /** the server in use, from /spin server (or 0.1.0's server_url option); null falls back to serverOption */
   server: string | null
-  /** the server_url option as last applied: a change in /config moves to that server once, as /spin server does */
+  /** 0.1.0's server_url option as last applied: the server while /spin server never chose one; never rewritten */
   serverOption: string | null
   /** one-time hints already shown (SPEC 21.3) */
   hints: string[]

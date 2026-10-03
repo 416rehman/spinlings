@@ -55,9 +55,11 @@ const GUIDED: [string, RegExp][] = [
   ['Band · Claude is resting: only the status line speaks', /Claude is resting until/],
 ]
 
-test('/spin demo: every pane screen and band moment passes the gate at 40, 80 and 120 columns on both surfaces', { options: { world: 'offline' }, timeoutMs: 600_000 }, async ($, on) => {
+test('/spin demo: every pane screen and band moment passes the gate at 40, 80 and 120 columns on both surfaces', { timeoutMs: 600_000 }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
-  engine(on)
+  const w = engine(on)
+  // offline from the start: the world a player chose with /spin world, as the store keeps it
+  w.store.set('prefs', { world: 'offline' })
   await $.session.start(SESSION)
   await settle(clock)
   expect(await $.command.run(RUN('demo'))).toEqual({})

@@ -2,8 +2,8 @@
 // module reloaded asks again and lands on how it went (SPEC 13.4: the server already decided), and a catch whose
 // answer never comes lets the band go instead of holding every waiting battle back.
 // Also the pane's esc order: the update row first, then the view on top, then the pane (SPEC 32).
-// And answers that outlive the world or server they were asked of: a switch, by command or by a reload with other
-// options, drops them, sends nothing more to the place left behind, and carries none of its state over (SPEC 28, 33).
+// And answers that outlive the world or server they were asked of: a switch, by command or by a reload after another
+// session switched, drops them, sends nothing more to the place left behind, and carries none of its state over (SPEC 28, 33).
 // A battle's finish waits for the rounds its presses play and for any Retry-After a "still playing" names (SPEC 15).
 import { expect, test } from 'claude-code/testing'
 import type { ApiOp, StartBattleResponse, VersionResponse } from '../hooks/core/api.ts'
@@ -98,7 +98,7 @@ test('a catch picked before a reload asks again, and the server\'s one-shot answ
   const w = world({ moments: [catching()] })
   const asked: unknown[] = []
   const game = createGame({
-    serverUrl: ORIGIN, world: 'online', slots,
+    slots,
     remote: () => backend({
       version: () => Promise.reject(new BackendError('unavailable', 'network', 0, 'offline')),
       me: async () => server.me,
@@ -116,7 +116,7 @@ test('a catch picked before a reload asks again, and the server\'s one-shot answ
 test('a catch whose answer never comes lets the band go, so waiting battles start again', async () => {
   const w = world({ moments: [catching()] })
   const game = createGame({
-    serverUrl: ORIGIN, world: 'online', slots,
+    slots,
     remote: () => backend({
       version: () => Promise.reject(new BackendError('unavailable', 'network', 0, 'offline')),
       me: async () => server.me,
@@ -136,7 +136,7 @@ test('a collection bigger than one answer arrives whole, a page at a time, read 
   const asked: unknown[] = []
   let version = server.me.player.cardsVersion
   const game = createGame({
-    serverUrl: ORIGIN, world: 'online', slots,
+    slots,
     remote: () => backend({
       version: () => Promise.reject(new BackendError('unavailable', 'network', 0, 'offline')),
       me: async () => server.me,
@@ -158,7 +158,7 @@ test('a collection bigger than one answer arrives whole, a page at a time, read 
 
 test('esc closes the update row first, then the view on top, then the pane; a new tab or view closes the row too', async () => {
   const w = world({ pane: { ...INITIAL.pane, showUpdate: true, stack: [{ kind: 'privacy' }] }, account: { ...INITIAL.account, latest: '0.2.0' } })
-  const game = createGame({ serverUrl: ORIGIN, world: 'online', slots, remote: () => backend({}) })
+  const game = createGame({ slots, remote: () => backend({}) })
   // the person's esc: the row alone, and the pane stays open
   expect(await game.paneClosing(w.fx, true)).toBe(true)
   expect(w.state.pane).toMatchObject({ showUpdate: false, stack: [{ kind: 'privacy' }] })
@@ -202,7 +202,7 @@ test('going offline while the first join is under way: no join is sent, no sessi
   const sent: string[] = []
   let answer: (v: unknown) => void = () => undefined
   const game = createGame({
-    serverUrl: ORIGIN, world: 'online', slots: both,
+    slots: both,
     remote: () => backend({
       version: () => Promise.reject(unreachable()),
       challenge: () => { sent.push('challenge'); return new Promise(r => { answer = r }) },
@@ -231,7 +231,7 @@ test('a reconnect still waiting when play goes offline: its failure never marks 
   let fail: (err: unknown) => void = () => undefined
   let tries = 0
   const game = createGame({
-    serverUrl: ORIGIN, world: 'online', slots: both,
+    slots: both,
     remote: () => backend({
       version: () => Promise.reject(unreachable()),
       me: () => (++tries === 1 ? Promise.reject(unreachable()) : new Promise((_, reject) => { fail = reject })),
@@ -257,7 +257,7 @@ test('a refresh still out when play goes offline: nothing it brings lands, and t
   let hold = false
   let late: (me: unknown) => void = () => undefined
   const game = createGame({
-    serverUrl: ORIGIN, world: 'online', slots: both,
+    slots: both,
     remote: () => backend({
       version: async () => { asked.push('version'); return VERSION },
       me: () => { asked.push('me'); return hold ? new Promise(r => { late = r }) : Promise.resolve(server.me) },
@@ -290,7 +290,7 @@ test('switching servers while the old one still answers: nothing it says lands o
   let late: (me: unknown) => void = () => undefined
   const asked: string[] = []
   const game = createGame({
-    serverUrl: ORIGIN, world: 'online', slots,
+    slots,
     remote: (deps: RemoteDeps) => backend({
       version: () => Promise.reject(unreachable()),
       me: () => { asked.push(`me ${deps.origin}`); return deps.origin === COMMUNITY ? new Promise(r => { late = r }) : Promise.resolve(server.me) },
@@ -310,19 +310,20 @@ test('switching servers while the old one still answers: nothing it says lands o
   expect(w.store.has(`server:${COMMUNITY}:cache`)).toBe(false)
 })
 
-test('a reload into the other world (the World option changed) carries nothing over: the offline battle is never finished online', async () => {
+test('a reload into the other world (/spin world in another session) carries nothing over: the offline battle is never finished online', async () => {
   const w = world({})
   w.store.set('prefs', { world: 'offline', worldOption: 'offline' })
-  const first = createGame({ serverUrl: ORIGIN, world: 'offline', slots: { ...both, battle: hang }, remote: () => backend({}) })
+  const first = createGame({ slots: { ...both, battle: hang }, remote: () => backend({}) })
   await first.boot(w.fx, { model: null })
   await w.advance(100)
   await first.command(w.fx, 'battle')
   const offline = { battle: w.state.battle?.id ?? null, cards: w.state.cards.map(c => c.id) }
   expect(offline.battle).not.toBeNull()
-  // /plugin configure set World to online: the module loads again, $.state and $.store as they were
+  // another session ran /spin world online: this one's module loads again, $.state and $.store as they were
+  w.store.set('prefs', { ...(w.store.get('prefs') as object), world: 'online' })
   const finishes: unknown[] = []
   const second = createGame({
-    serverUrl: ORIGIN, world: 'online', slots: { ...both, battle: settleAtOnce },
+    slots: { ...both, battle: settleAtOnce },
     remote: () => backend({
       version: () => Promise.reject(unreachable()),
       me: async () => server.me,
@@ -338,45 +339,39 @@ test('a reload into the other world (the World option changed) carries nothing o
   expect(w.state.cards.some(c => offline.cards.includes(c.id))).toBe(false)
 })
 
-test('the Server URL option moves play to its server when it changes, even after /spin server, and says once whose server it is', async () => {
+test('0.1.0 prefs whose world option chose offline boot offline and ask no server anything', async () => {
   const w = world({})
-  // /spin server default chose spinlings.dev earlier; then the option was set in /plugin configure
-  w.store.set('prefs', { world: 'online', worldOption: 'online', server: ORIGIN, serverOption: ORIGIN, communityOk: [] })
+  w.store.set('prefs', { world: 'offline', worldOption: 'offline', serverOption: ORIGIN, server: ORIGIN })
+  const asked: string[] = []
+  w.fx.fetch = url => { asked.push(String(url)); return Promise.reject(new Error('offline')) }
+  const game = createGame({ slots: both, remote: (deps: RemoteDeps) => backend({ version: async () => { asked.push(deps.origin); return VERSION } }) })
+  await game.boot(w.fx, { model: null })
+  await w.advance(60_000)
+  await game.command(w.fx, 'battle')
+  await w.advance(60_000)
+  expect(asked).toEqual([])
+  expect(w.state.account.world).toBe('offline')
+  expect(w.store.get('prefs')).toMatchObject({ world: 'offline', worldOption: 'offline', serverOption: ORIGIN, server: ORIGIN })
+})
+
+test('a community server chosen through the server_url option of 0.1.0, with no /spin server choice, stays the server in play', async () => {
+  const w = world({})
+  w.store.set('prefs', { world: 'online', worldOption: 'online', server: null, serverOption: COMMUNITY, communityOk: [COMMUNITY] })
   w.store.set(`server:${COMMUNITY}:session`, TOKEN)
-  w.state.me = server.me
   const asked: string[] = []
   const remote = (deps: RemoteDeps) => backend({
     version: () => Promise.reject(unreachable()),
-    me: async () => { asked.push(deps.origin); return deps.origin === COMMUNITY ? server.other : server.me },
-    cards: async () => ({ cards: server.cards, version: server.me.player.cardsVersion }),
+    me: async () => { asked.push(deps.origin); return server.other },
+    cards: async () => ({ cards: server.cards, version: server.other.player.cardsVersion }),
   })
-  const reload = async (serverUrl: string) => {
-    await createGame({ serverUrl, world: 'online', slots, remote }).boot(w.fx, { model: null })
+  for (let reload = 0; reload < 2; reload++) {
+    await createGame({ slots, remote }).boot(w.fx, { model: null })
+    await w.advance(1000)
+    expect(w.state.account).toMatchObject({ world: 'online', server: COMMUNITY, host: 'cards.example.org', community: true })
   }
-  await reload(COMMUNITY)
-  expect(w.state.account).toMatchObject({ server: COMMUNITY, host: 'cards.example.org', community: true })
-  // the old server's player is gone before the new one answers
-  expect(w.state.me).toBeNull()
-  expect(w.state.moments.map(m => m.id)).toEqual([`server:${COMMUNITY}`])
-  await w.advance(1000)
-  expect(asked).toEqual([COMMUNITY])
-  expect(w.state.me?.player.handle).toBe(server.other.player.handle)
-  // the notice is once, and already in use it only says so: Got it keeps the server
-  const game = createGame({ serverUrl: COMMUNITY, world: 'online', slots, remote })
-  await game.actions(w.fx).act(`server:${COMMUNITY}`)
-  expect(w.state.moments.some(m => m.kind === 'server')).toBe(false)
-  await reload(COMMUNITY)
-  expect(w.state.moments.some(m => m.kind === 'server')).toBe(false)
-  expect(w.state.account.server).toBe(COMMUNITY)
-  // a later /spin server stands while the option stays as it was
-  await game.command(w.fx, 'server default')
-  expect(w.state.account.server).toBe(ORIGIN)
-  await reload(COMMUNITY)
-  expect(w.state.account.server).toBe(ORIGIN)
-  // a mod from before the option was tracked keeps the /spin server choice it had
-  w.store.set('prefs', { world: 'online', worldOption: 'online', server: COMMUNITY, communityOk: [COMMUNITY] })
-  await reload(ORIGIN)
-  expect(w.state.account.server).toBe(COMMUNITY)
+  expect(asked.length).toBeGreaterThan(0)
+  expect(asked.every(o => o === COMMUNITY)).toBe(true)
+  expect(w.store.get('prefs')).toMatchObject({ worldOption: 'online', server: null, serverOption: COMMUNITY })
 })
 
 test('offline, /spin server for a community server asks it nothing: the band keeps it for when play goes online', async () => {
@@ -386,7 +381,7 @@ test('offline, /spin server for a community server asks it nothing: the band kee
   const logs: string[] = []
   w.fx.ui.log = text => { logs.push(text) }
   const game = createGame({
-    serverUrl: ORIGIN, world: 'online', slots: both,
+    slots: both,
     remote: (deps: RemoteDeps) => backend({ version: async () => { asked.push(deps.origin); return VERSION } }),
   })
   await game.boot(w.fx, { model: null })
@@ -406,7 +401,7 @@ test('a pane action answered after play went offline is dropped: the account del
   const w = world({})
   let answer: (res: unknown) => void = () => undefined
   const game = createGame({
-    serverUrl: ORIGIN, world: 'online', slots: both,
+    slots: both,
     remote: () => backend({
       version: () => Promise.reject(unreachable()),
       me: async () => server.me,
@@ -432,35 +427,29 @@ test('a pane action answered after play went offline is dropped: the account del
   expect(w.state.pane.message).toBe('')
 })
 
-test('/spin server default, or a usable Server URL option, connects play held back by an option Spinlings can\'t use', async () => {
-  for (const fix of ['command', 'option']) {
-    const w = world({})
-    const asked: string[] = []
-    const logs: string[] = []
-    w.fx.ui.log = text => { logs.push(text) }
-    const remote = (deps: RemoteDeps) => backend({
-      version: () => Promise.reject(unreachable()),
-      me: async () => { asked.push(deps.origin); return server.me },
-      cards: async () => ({ cards: server.cards, version: server.me.player.cardsVersion }),
-    })
-    // http is for localhost alone: no server is asked, and the account says why
-    const game = createGame({ serverUrl: 'http://cards.example.org', world: 'online', slots, remote })
-    await game.boot(w.fx, { model: null })
-    await w.advance(100)
-    expect(asked).toEqual([])
-    expect(w.state.account).toMatchObject({ server: ORIGIN, link: 'unreachable' })
-    expect(w.state.account.note).toMatch(/^The server address/)
-    if (fix === 'command') {
-      await game.command(w.fx, 'server default')
-      expect(logs.at(-1)).toBe('Server: spinlings.dev')
-    } else {
-      // the option set right in /plugin configure: the module loads again
-      await createGame({ serverUrl: ORIGIN, world: 'online', slots, remote }).boot(w.fx, { model: null })
-    }
-    await w.advance(100)
-    expect(asked).toEqual([ORIGIN])
-    expect(w.state.account).toMatchObject({ server: ORIGIN, link: 'ready', note: '' })
-  }
+test('/spin server default connects play held back by a stored 0.1.0 server address Spinlings can\'t use', async () => {
+  const w = world({})
+  w.store.set('prefs', { world: 'online', worldOption: 'online', server: null, serverOption: 'http://cards.example.org' })
+  const asked: string[] = []
+  const logs: string[] = []
+  w.fx.ui.log = text => { logs.push(text) }
+  const remote = (deps: RemoteDeps) => backend({
+    version: () => Promise.reject(unreachable()),
+    me: async () => { asked.push(deps.origin); return server.me },
+    cards: async () => ({ cards: server.cards, version: server.me.player.cardsVersion }),
+  })
+  // http is for localhost alone: no server is asked, and the account says why
+  const game = createGame({ slots, remote })
+  await game.boot(w.fx, { model: null })
+  await w.advance(100)
+  expect(asked).toEqual([])
+  expect(w.state.account).toMatchObject({ server: ORIGIN, link: 'unreachable' })
+  expect(w.state.account.note).toMatch(/^The server address/)
+  await game.command(w.fx, 'server default')
+  expect(logs.at(-1)).toBe('Server: spinlings.dev')
+  await w.advance(100)
+  expect(asked).toEqual([ORIGIN])
+  expect(w.state.account).toMatchObject({ server: ORIGIN, link: 'ready', note: '' })
 })
 
 // ---------- finishing a battle (SPEC 15) ----------
@@ -477,7 +466,7 @@ test('a finish called early waits the Retry-After the server names, then lands; 
     const w = world({})
     const finishes: number[] = []
     const game = createGame({
-      serverUrl: ORIGIN, world: 'online', slots: { ...slots, battle: settleAtOnce },
+      slots: { ...slots, battle: settleAtOnce },
       remote: () => backend({
         version: () => Promise.reject(unreachable()),
         me: async () => server.me,
@@ -523,7 +512,7 @@ test('a finish that answers, or a settle still refreshing, once play moved to an
       let answer: () => void = () => undefined
       const hold = () => new Promise<void>(r => { answer = r })
       const game = createGame({
-        serverUrl: ORIGIN, world: 'online', slots: { ...both, battle: settleAtOnce },
+        slots: { ...both, battle: settleAtOnce },
         remote: (deps: RemoteDeps) => backend({
           version: () => Promise.reject(unreachable()),
           me: async () => { if (held === 'refresh' && settled && deps.origin === COMMUNITY) await hold(); return server.me },
@@ -563,7 +552,7 @@ test('a wrapped gift is marked copied only when the copy took', async () => {
     w.fx.ui.copy = async () => takes
     const gift = { code: 'quiet-otter-lamp-4821', card: server.cards[1]!, createdAt: NOW, expiresAt: NOW + 14 * 86_400_000 }
     const game = createGame({
-      serverUrl: ORIGIN, world: 'online', slots,
+      slots,
       remote: () => backend({
         version: () => Promise.reject(unreachable()),
         me: async () => server.me,

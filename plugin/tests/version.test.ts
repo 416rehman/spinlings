@@ -77,9 +77,10 @@ async function press(ui: Mounted, key: string, clock: { settle(): Promise<void> 
 }
 
 /** A session on a fresh machine against `server`, settled. */
-async function started($: { session: { start(e: never): Promise<unknown> } }, on: On, server = fakeServer()) {
+async function started($: { session: { start(e: never): Promise<unknown> } }, on: On, server = fakeServer(), prefs?: object) {
   const clock = mock.clock(on, { now: NOW })
   const w = engine(on, server)
+  if (prefs) w.store.set('prefs', prefs)
   await $.session.start(SESSION as never)
   await settle(clock)
   return { clock, w }
@@ -90,7 +91,7 @@ const versionChecks = (w: Engine) => w.requests.filter(r => new URL(r.url).pathn
 // ---------- pure: what each part says ----------
 
 test('the update target: latestClient when newer, minClient when a lagging server names nothing newer, else none', () => {
-  expect(versionStatus(VERSION, '0.1.0').target).toBeNull()
+  expect(versionStatus(VERSION, CLIENT_VERSION).target).toBeNull()
   expect(versionStatus({ ...VERSION, latestClient: '0.2.0' }, '0.1.0')).toMatchObject({ target: '0.2.0', readOnly: false, update: '0.2.0' })
   expect(versionStatus({ ...VERSION, minClient: '0.2.0', latestClient: '0.3.0' }, '0.1.0')).toMatchObject({ target: '0.3.0', readOnly: true })
   expect(versionStatus({ ...VERSION, minClient: '0.2.0', latestClient: '0.1.0' }, '0.1.0')).toMatchObject({ target: '0.2.0', readOnly: true, update: null })
@@ -292,8 +293,8 @@ test('read-only below minClient: the warning above, the chip to the version the 
   expect(w.logs.at(-1)?.split('\n').at(-1)).toBe(`Read-only on spinlings.dev until you update to ${NEWER} · ${UPDATE_COMMAND}`)
 })
 
-test('offline: the plain version where there is room, no update, and /spin version names no server and sends nothing', { ...LONG, options: { world: 'offline' } }, async ($, on) => {
-  const { clock, w } = await started($, on, fakeServer({ latestClient: NEWER }))
+test('offline: the plain version where there is room, no update, and /spin version names no server and sends nothing', LONG, async ($, on) => {
+  const { clock, w } = await started($, on, fakeServer({ latestClient: NEWER }), { world: 'offline' })
   expect(w.status.at(-1)).toBe('spinlings · Offline · 2 packs')
   for (const surface of SURFACES) {
     for (const columns of WIDTHS) {

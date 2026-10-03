@@ -12,7 +12,6 @@ import type {
 import { INITIAL, createGame, spinnerSuffix } from './client/game.ts'
 import { createLocalBackend } from './client/local/index.ts'
 import { momentDriver, playBattle } from './client/scheduler.ts'
-import { DEFAULT_SERVER } from './core/servers.ts'
 import { band } from './ui/band.tsx'
 import { ceremony } from './ui/ceremony.tsx'
 import { pane } from './ui/pane.tsx'
@@ -208,14 +207,11 @@ async function modelOf($: $): Promise<string | null> {
   }
 }
 
-let game = createGame({ serverUrl: DEFAULT_SERVER, world: 'online', slots: SLOTS })
+let game = createGame({ slots: SLOTS })
 
-export const register: Register = (on, options) => {
-  game = createGame({
-    serverUrl: typeof options.server_url === 'string' && options.server_url.trim() !== '' ? options.server_url : DEFAULT_SERVER,
-    world: options.world === 'offline' ? 'offline' : 'online',
-    slots: SLOTS,
-  })
+// no plugin options: the world and the server are switched with /spin world and /spin server
+export const register: Register = on => {
+  game = createGame({ slots: SLOTS })
 
   on('session.start', async ($, e, next) => {
     await quietly($, 'command', () => $.command.register({ name: 'spin', description: 'Spinlings: your team, cards, album and trades', argumentHint: '[battle | pack | team | trade | gift | claim | world | quiet | privacy | …]', immediate: true }))

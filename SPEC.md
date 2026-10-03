@@ -1186,7 +1186,7 @@ Section 30 removed link codes and recovery codes; a passkey is the only way to b
 **Offline cards never enter the online world.** No server endpoint accepts card data, stats or rolls from a client: the server mints every online card itself. Offline shares say "offline save" and link only to the landing page. The UI never offers any import or merge path.
 
 ### Choosing a world (no wall, smart default)
-- **First run** asks nothing: the world is online by default, or offline when the `world` userConfig option says so (section 34). Either way the welcome flow (section 6) starts in that world.
+- **First run** asks nothing: the world is online (section 34). Either way the welcome flow (section 6) starts in that world.
 - **`/spin world online|offline`** switches the active world at any time. Each world keeps its own collection; switching never deletes anything. Going online for the first time creates a fresh online account with the normal starter team and welcome packs.
 - **Always visible:** the pane header and the status line show the active world (`Offline` / `Online`).
 - **Online-only actions in offline mode** show one line instead: `This needs the online world · [1] Join online (fresh collection) · esc Stay offline`.
@@ -1273,7 +1273,7 @@ Passkeys are bound to `rp.id` forever. The production domain must be final befor
 
 - **Single origin.** The production server is `https://spinlings.dev`, served by the Worker as a Cloudflare custom domain on the account's `spinlings.dev` zone. The API, every page, the passkey pages and all share links (`/c/:id`, `/g/:code`, `/d/:code`, `/u/:handle`) live on this one origin.
 - **Passkeys.** `rp.id` is `spinlings.dev`, and the passkey pages check that the origin is exactly `https://spinlings.dev` (a self-hosted server uses its own configured origin through the `ORIGIN` environment variable). This must never change.
-- **The mod's default** `server_url` is `https://spinlings.dev`.
+- **The mod's default** server is `https://spinlings.dev`; `/spin server` changes it.
 - **workers.dev is off** (`workers_dev: false`) once the custom domain serves, so there is exactly one origin.
 - **`.dev` is HSTS-preloaded,** so HTTPS is mandatory, which suits passkeys.
 - **Deploy.** `wrangler.jsonc` declares `routes: [{ "pattern": "spinlings.dev", "custom_domain": true }]`. If the deploy token lacks zone permission, an admin attaches the custom domain once in the dashboard: Workers, then spinlings, then Settings, then Domains & Routes.
@@ -1370,7 +1370,7 @@ A `Dockerfile` is provided, built from a `node:22-alpine` image pinned by digest
 1. **Install is two commands inside Claude Code:** `/plugin marketplace add 416rehman/spinlings`, then `/plugin install spinlings@spinlings`. The README also offers "just ask Claude: *install the Spinlings mod from 416rehman/spinlings*".
 2. **No question at first run.**
    - The default world is **online**: anonymous, with no sign-up and nothing personal (section 30).
-   - A player who wants offline from the start sets the `world` userConfig option to `offline` before first run, or switches any time with `/spin world offline`. The README states the default and the offline switch plainly.
+   - The plugin declares no options, so installing asks nothing. A player who wants offline switches any time with `/spin world offline`. The README states the default and the offline switch plainly.
 3. **Instant payoff.**
    - On the first session start after install, the mod joins silently and the band shows `✦ A Spinling hatched! [1] Open your welcome pack`.
    - The pack ceremony plays, and the starter team is already set.

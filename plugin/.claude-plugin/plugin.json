@@ -1,7 +1,7 @@
 {
   "name": "spinlings",
   "displayName": "Spinlings",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A creature card game above your prompt. Wild creatures, Rivals and other players' teams come to battle while Claude works. Catch, fuse, trade and gift one-of-a-kind cards.",
   "author": {
     "name": "416rehman",
@@ -18,23 +18,5 @@
     "battles",
     "mod"
   ],
-  "types": "./types/index.d.ts",
-  "userConfig": {
-    "server_url": {
-      "type": "string",
-      "title": "Server URL",
-      "description": "The Spinlings server this mod talks to, and the only host it ever contacts. Must be https (http is allowed for localhost and 127.0.0.1).",
-      "default": "https://spinlings.dev"
-    },
-    "world": {
-      "type": "string",
-      "title": "World",
-      "description": "Where you play: online (the default: trade, duel and climb the boards with other players) or offline (on this machine only). /spin world switches any time; each world keeps its own collection.",
-      "options": [
-        "online",
-        "offline"
-      ],
-      "default": "online"
-    }
-  }
+  "types": "./types/index.d.ts"
 }

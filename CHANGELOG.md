@@ -2,6 +2,13 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.1.1 (2026-10-03)
+
+- **Installing asks nothing.** The plugin no longer declares options, so Claude Code goes straight from install to play. `/spin world` and `/spin server` still switch the world and the server.
+- **Install steps fixed.** Installing is two commands inside Claude Code: `/plugin marketplace add 416rehman/spinlings`, then `/plugin install spinlings@spinlings`. Needs Claude Code 2.1.287 or later.
+- **Plainer descriptions** in the plugin and the marketplace listing.
+- **Compatibility:** API `/v1`, rules 1, generator 2. `minClient` stays 0.1.0, so 0.1.0 keeps working.
+
 ## 0.1.0 (2026-10-03)
 
 The first release: Spinlings season 1, the mod and the server, live at [spinlings.dev](https://spinlings.dev).

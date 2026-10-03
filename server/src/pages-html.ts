@@ -494,7 +494,7 @@ export function installBlock(id = 'install', label = 'Type these inside Claude C
 <p class="label" id="${id}-label">${label}</p>
 ${INSTALL_STEPS.map((step, i) => html`<div class="prompt"><pre id="${id}-cmd${i ? i + 1 : ''}" aria-labelledby="${id}-label" tabindex="-1">${GT}${command(step)}${i === INSTALL_STEPS.length - 1 ? raw('<span class="caret" aria-hidden="true"></span>') : ''}</pre>
 ${COPY}</div>`)}
-<p class="ask">Then start a new session. Or just ask Claude: <q>${ASK}</q></p>
+<p class="ask">Then start a new session. Needs Claude Code 2.1.287 or later (<code>claude update</code>). Or just ask Claude: <q>${ASK}</q></p>
 </div>`
 }
 

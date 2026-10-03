@@ -6,7 +6,7 @@
 // every request the mod sent must be exactly a documented shape (SPEC 20.9, 26, 32).
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { createRemoteBackend } from '../../plugin/hooks/client/remote.ts'
+import { CLIENT_VERSION, createRemoteBackend } from '../../plugin/hooks/client/remote.ts'
 import { BackendError } from '../../plugin/hooks/client/types.ts'
 import { API_ROUTES } from '../../plugin/hooks/core/api.ts'
 import type { ApiErrorCode, ApiOp, ApiRequest, OfferView } from '../../plugin/hooks/core/api.ts'
@@ -305,7 +305,7 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
       for (const w of who.wire) {
         const op = opOf(w)
         assert.ok(op, `${w.method} ${w.url} is an API operation`)
-        assert.equal(w.headers['x-spinlings-client'], '0.1.0')
+        assert.equal(w.headers['x-spinlings-client'], CLIENT_VERSION)
         assert.equal('authorization' in w.headers, API_ROUTES[op].auth, `${op}: the token rides only on authenticated routes`)
         assert.ok(!Object.keys(w.headers).some(h => h === 'cookie'))
         for (const [k, v] of new URL(w.url).searchParams) {

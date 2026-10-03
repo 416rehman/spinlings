@@ -37,9 +37,11 @@ function offlineValues(w: Engine): { strings: string[]; numbers: number[]; spark
   return { strings: [...strings], numbers: s.cards.map(c => c.dna).filter(d => d >= 1000), sparks: s.sparks }
 }
 
-test('offline, /spin server for a community server sends nothing; the server is first asked once play goes online', { options: { world: 'offline' }, timeoutMs: 120_000 }, async ($, on) => {
+test('offline, /spin server for a community server sends nothing; the server is first asked once play goes online', { timeoutMs: 120_000 }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   const w = engine(on)
+  // offline from the start: the world a player chose with /spin world, as the store keeps it
+  w.store.set('prefs', { world: 'offline' })
   const COMMUNITY = 'https://cards.example.org'
   await $.session.start(SESSION)
   await settle(clock)
@@ -62,9 +64,11 @@ test('offline, /spin server for a community server sends nothing; the server is 
   expect(new URL(w.requests[0]!.url).pathname).toBe('/v1/version')
 })
 
-test('an offline session, then online: nothing from the offline save reaches the server, and neither world reads the other\'s keys', { options: { world: 'offline' }, timeoutMs: 300_000 }, async ($, on) => {
+test('an offline session, then online: nothing from the offline save reaches the server, and neither world reads the other\'s keys', { timeoutMs: 300_000 }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   const w = engine(on)
+  // offline from the start: the world a player chose with /spin world, as the store keeps it
+  w.store.set('prefs', { world: 'offline' })
   const status = () => w.status.at(-1) ?? ''
   const until = async (done: () => boolean, seconds = 150) => {
     for (let i = 0; i < seconds && !done(); i++) await clock.advance(1000)

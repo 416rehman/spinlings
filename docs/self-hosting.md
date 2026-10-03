@@ -109,7 +109,7 @@ The top of the script lists every option. Codes are printed once; unique codes a
 
 ## Pointing the mod at your server
 
-Your players run `/spin server https://your.host` in Claude Code, or set the **Server URL** option with `/plugin configure spinlings@spinlings`. The mod shows them a one-time notice that this is a community server run by someone else, then talks to that host and no other. Their account on each server is separate, so they start fresh, and `/spin server default` takes them back to `https://spinlings.dev`. The pane header and `/spin privacy` always show which server they are on.
+Your players run `/spin server https://your.host` in Claude Code. The mod shows them a one-time notice that this is a community server run by someone else, then talks to that host and no other. Their account on each server is separate, so they start fresh, and `/spin server default` takes them back to `https://spinlings.dev`. The pane header and `/spin privacy` always show which server they are on.
 
 ## What you owe your players
 

@@ -139,9 +139,11 @@ test('first run with no network plays offline instead, and says how to go online
   await band.unmount()
 })
 
-test('the offline world never sends a request', { options: { world: 'offline' }, timeoutMs: 60_000 }, async ($, on) => {
+test('the offline world never sends a request', { timeoutMs: 60_000 }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   const w = engine(on)
+  // offline from the start: the world a player chose with /spin world, as the store keeps it
+  w.store.set('prefs', { world: 'offline' })
   await $.session.start(SESSION)
   await settle(clock)
   await clock.advance(5 * 60_000)
@@ -150,6 +152,37 @@ test('the offline world never sends a request', { options: { world: 'offline' },
   await settle(clock)
   expect(w.fetches).toBe(0)
   expect((w.store.get('prefs') as { world: string }).world).toBe('offline')
+})
+
+test('upgrading from 0.1.0 with the world option on offline stays offline and sends nothing', { timeoutMs: 60_000 }, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on)
+  // what 0.1.0 stored once its world option had applied: the option itself is gone, and nothing reads it now
+  const old = { quiet: false, motion: true, sound: false, world: 'offline', worldOption: 'offline', server: ORIGIN, serverOption: ORIGIN, communityOk: [] }
+  w.store.set('prefs', old)
+  await $.session.start(SESSION)
+  await settle(clock)
+  expect(w.status.at(-1)).toMatch(/^spinlings · Offline/)
+  await clock.advance(5 * 60_000)
+  await $.command.run(RUN('battle'))
+  await $.session.start(SESSION)
+  await settle(clock)
+  for (let i = 0; i < 5; i++) await clock.advance(60_000)
+  await settle(clock)
+  expect(w.fetches).toBe(0)
+  expect(w.store.get('prefs')).toMatchObject({ world: 'offline', worldOption: 'offline', server: ORIGIN, serverOption: ORIGIN })
+})
+
+test('a fresh install plays online on spinlings.dev', { timeoutMs: 60_000 }, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on)
+  await $.session.start(SESSION)
+  await settle(clock)
+  expect(w.fetches).toBeGreaterThan(0)
+  expect(w.server.calls[0]?.path).toBe('/v1/version')
+  expect(w.store.get('prefs')).toMatchObject({ world: 'online', worldOption: null, server: null, serverOption: null })
+  expect(w.store.get(`server:${ORIGIN}:session`)).toBe(TOKEN)
+  expect(w.status.at(-1)).toBe('spinlings · Online · 2 packs')
 })
 
 test('hooks never stand in the way: results pass through untouched', { timeoutMs: 60_000 }, async ($, on) => {

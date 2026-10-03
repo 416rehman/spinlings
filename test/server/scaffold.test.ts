@@ -14,7 +14,7 @@ import { GENERATOR_VERSION, getSpecies, isBlocked, seasonSpecies } from '../../p
 import { mintFor } from '../../plugin/hooks/core/trader.ts'
 import type { Card, Species } from '../../plugin/hooks/core/types.ts'
 import { seasonStart, utcDay, worldOf } from '../../plugin/hooks/core/world.ts'
-import { tooOld } from '../../server/src/app.ts'
+import { MIN_CLIENT, tooOld } from '../../server/src/app.ts'
 import { proofBits } from '../../server/src/auth.ts'
 import type { PlayerCtx } from '../../server/src/app.ts'
 import { Conflict, stmt } from '../../server/src/db.ts'
@@ -29,7 +29,7 @@ import {
   battleFinished, checkCharge, checkWildStart, markCharge, nextChargeAt, pairDuels, recentCharges, trusted,
 } from '../../server/src/game/pacing.ts'
 import { sweepGame } from '../../server/src/game/retention.ts'
-import { roughCount } from '../../server/src/routes/account.ts'
+import { LATEST_CLIENT, SERVER_VERSION, roughCount } from '../../server/src/routes/account.ts'
 import { counts, DAY, exact, HOUR, MINUTE, server, T0 } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
 
@@ -68,7 +68,7 @@ describe('the version handshake', () => {
     assert.equal(res.headers.get('cache-control'), 'public, max-age=3600')
     const v = exact('version', await res.json())
     assert.deepEqual({ ...v, features: [] }, {
-      api: 1, server: '0.1.0', rules: RULES_VERSION, generator: GENERATOR_VERSION, minClient: '0.1.0', latestClient: '0.1.0', features: [],
+      api: 1, server: SERVER_VERSION, rules: RULES_VERSION, generator: GENERATOR_VERSION, minClient: MIN_CLIENT, latestClient: LATEST_CLIENT, features: [],
     })
     assert.deepEqual(v.features, [...FEATURES])
   })

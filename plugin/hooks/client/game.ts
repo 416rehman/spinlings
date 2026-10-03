@@ -294,10 +294,6 @@ export async function allCards(backend: Pick<Backend, 'cards'>): Promise<CardsRe
 // ---------- the game ----------
 
 export type GameOptions = {
-  /** the server_url option */
-  serverUrl: string
-  /** the world option: the first-run world (SPEC 34) */
-  world: World
   slots: Slots
   /** test seam */
   remote?: (deps: RemoteDeps) => Backend
@@ -683,33 +679,23 @@ export function createGame(o: GameOptions): Game {
     if (!rt.holder) rt.holder = Math.floor(fx.random() * 2 ** 48).toString(36) + now.toString(36)
     if (e.model) rt.family = familyOfModel(e.model)
     const prefs = await prefsRecord(fx)
-    let world: World = prefs.world ?? o.world
+    // the world and the server are the player's own choices, made with /spin world and /spin server (SPEC 33, 34); a
+    // first run plays online. 0.1.0's world and server_url options are gone: what they last applied stays in prefs as
+    // it was, and a server chosen through server_url (before /spin server chose one) is still the server in play
     const firstRun = prefs.world === null
-    if (prefs.worldOption !== null && prefs.worldOption !== o.world) world = o.world
-    // the Server URL option moves play to its server once it changed (or while /spin server never chose one), as /spin
-    // server does; until it changes again, /spin server's later choice stands (SPEC 33)
-    const option = o.serverUrl.slice(0, 200)
-    const optionMoved = prefs.serverOption === null ? prefs.server === null : prefs.serverOption !== option
-    const origin = serverOrigin(optionMoved ? o.serverUrl : prefs.server ?? o.serverUrl)
-    // setting it in /config is the player's own OK to a community server; the band still says once whose server it is
-    const notice = optionMoved && origin !== null && origin !== DEFAULT_SERVER && !prefs.communityOk.includes(origin)
-    const was = { world: prefs.world, server: serverOrigin(prefs.server ?? prefs.serverOption ?? o.serverUrl) }
-    await savePrefs(fx, {
-      world, worldOption: o.world, serverOption: option,
-      ...(optionMoved ? { server: origin, communityOk: notice ? [...prefs.communityOk, origin!] : prefs.communityOk } : {}),
-    })
+    const world: World = prefs.world ?? 'online'
+    const origin = serverOrigin(prefs.server ?? prefs.serverOption ?? DEFAULT_SERVER)
+    if (firstRun) await savePrefs(fx, { world })
     await put(fx, 'prefs', { quiet: prefs.quiet, motion: prefs.motion, sound: prefs.sound })
     await upd(fx, 'signals', s => ({ ...s, family: rt.family }))
     await put(fx, 'clock', now)
     await put(fx, 'privacy', parseSent(await fx.store.get(KEYS.privacy)))
-    // a reload into another world or server (an option changed in /config) brings nothing of the old one along: not its
+    // a reload into another world or server (switched in another session) brings nothing of the old one along: not its
     // collection, its moments, or a battle to finish against the other (SPEC 28, 33)
     const before = await get(fx, 'account')
     const moved = before.world !== world || (world === 'online' && origin !== null && before.server !== origin)
     await setAccount(fx, world, origin)
     if (moved) await clearWorldState(fx)
-    if (!firstRun && (world !== was.world || (world === 'online' && origin !== was.server))) await unblock(fx, 'any')
-    if (notice) await pushMoment(fx, { kind: 'server', id: `server:${origin}`, origin: origin!, until: null })
     if (world === 'online' && origin && !(await get(fx, 'me'))) {
       const cache = readCache(await fx.store.get(KEYS.cache(origin)))
       if (cache) {
@@ -734,7 +720,7 @@ export function createGame(o: GameOptions): Game {
     fx.after(0, () => { void connect(cur(fx), { firstRun, explicit: false, fallback: firstRun }) })
   }
 
-  /** Online with a Server URL option Spinlings can't use (setAccount without an origin): no server is asked anything. */
+  /** Online with a stored server address Spinlings can't use (setAccount without an origin): no server is asked anything. */
   const badAddress = (a: Account) => a.link === 'unreachable' && a.note.startsWith('The server address')
 
   async function setAccount(fx: Fx, world: World, origin: string | null): Promise<void> {
@@ -744,7 +730,7 @@ export function createGame(o: GameOptions): Game {
     const moving = current.world !== world || (world === 'online' && current.server !== server)
     // work for the place being left stops now, and again once the account says so, for any that read it just before
     if (moving) rt.place++
-    // a usable address where the option held one that isn't: the link starts over, even on the same server
+    // a usable address where prefs held one that isn't: the link starts over, even on the same server
     const kept = (a: Account) => a.world === world && !(origin && badAddress(a))
     await upd(fx, 'account', a => ({
       ...a, world, server, host: hostOf(server), community: server !== DEFAULT_SERVER,
@@ -1647,7 +1633,7 @@ export function createGame(o: GameOptions): Game {
     await savePrefs(fx, { server: origin, communityOk: origin === DEFAULT_SERVER ? prefs.communityOk : [...new Set([...prefs.communityOk, origin])] })
     await dropMoment(fx, `server:${origin}`)
     const account = await get(fx, 'account')
-    // in play already, unless an unusable Server URL option held play back from it: then it connects as a switch does
+    // in play already, unless an unusable stored address held play back from it: then it connects as a switch does
     if (account.server === origin && !badAddress(account)) return
     // the move first, so what the old server still sends back is dropped; offline only the server to go online to changes
     await setAccount(fx, account.world, origin)

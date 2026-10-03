@@ -17,8 +17,8 @@ import { noticesOf } from '../game/notices.ts'
 import { handleRerollFrom, nextChargeAt, nextDuelAt, nextWildAt, restedNow, trusted } from '../game/pacing.ts'
 
 /** This server's release, and the newest mod it knows of (SPEC 32). */
-export const SERVER_VERSION = '0.1.0'
-export const LATEST_CLIENT = '0.1.0'
+export const SERVER_VERSION = '0.1.1'
+export const LATEST_CLIENT = '0.1.1'
 
 const OFFERS_SHOWN = 50
 

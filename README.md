@@ -48,7 +48,7 @@ claude plugin validate spinlings/plugin
 
 **First run.** There is nothing to type. Instead of a sign-up, the mod solves a quick anti-spam puzzle and joins [spinlings.dev](https://spinlings.dev) on its own. You get a starter team of three, two welcome packs and 100 sparks. The band says it once: `✦ A Spinling hatched!`, with `[1] Open your welcome pack`. Then creatures find you while Claude works, and `/spin` opens your collection whenever you like.
 
-**Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. To play entirely offline, where nothing ever leaves your machine, set the **World** option to `offline` before your first session (`/plugin configure spinlings@spinlings`, or add `--config world=offline` to the shell install), or run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
+**Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. To play entirely offline, where nothing leaves your machine, run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
 
 `/spin quiet` silences everything. To leave for good, delete your account from `/spin privacy`, then run `claude plugin uninstall spinlings@spinlings`.
 
@@ -275,7 +275,7 @@ SECRET="$(node -e "console.log(crypto.randomBytes(32).toString('base64url'))")" 
 
 For other people, also set `ORIGIN` to the https address players reach it at (it is the passkey domain, and every link is built from it). A `Dockerfile` runs the same Node server as a non-root user with its data in `/data`.
 
-Then point the mod at it with `/spin server https://your.host`, or set the **Server URL** option with `/plugin configure spinlings@spinlings`. The mod allows plain http only for `localhost` and `127.0.0.1`, so a server for other people needs https.
+Then point the mod at it with `/spin server https://your.host`. The mod allows plain http only for `localhost` and `127.0.0.1`, so a server for other people needs https.
 
 The details, including reverse proxies, updates and what you owe your players' privacy, are in [docs/self-hosting.md](docs/self-hosting.md).
 
