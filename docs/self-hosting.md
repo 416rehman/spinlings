@@ -18,16 +18,18 @@ You need a Cloudflare account and Node 22.18 or later.
    npx wrangler login
    ```
 
-2. **Create the database.**
+2. **Point `wrangler.jsonc` at your account.** It is set up for `spinlings.dev`, and Wrangler uses its `account_id` before your login, so set `account_id` to your own first (`npx wrangler whoami` shows it).
+
+3. **Create the database, then make the rest of `wrangler.jsonc` yours.**
 
    ```sh
    npx wrangler d1 create spinlings
    ```
 
-3. **Make `wrangler.jsonc` yours.** It is set up for `spinlings.dev`; change:
-   - `database_id` to the id the last step printed, and `account_id` to your own (`npx wrangler whoami` shows it);
+   Then change:
+   - `database_id` to the id it printed;
    - `vars.ORIGIN` to your server's https address, such as `https://cards.example.org`. It is the passkey domain, and every link is built from it;
-   - `routes` to your domain, as `[{ "pattern": "cards.example.org", "custom_domain": true }]`, with `workers_dev` set to `false` so there is only one address. To serve from `workers.dev` instead, remove `routes`, keep `workers_dev: true`, and set `ORIGIN` to the `https://spinlings.<your-subdomain>.workers.dev` address `wrangler deploy` prints.
+   - `routes` to your domain, as `[{ "pattern": "cards.example.org", "custom_domain": true }]`, keeping `workers_dev` at `false` so there is only one address. To serve from `workers.dev` instead, remove `routes`, set `workers_dev` to `true`, and set `ORIGIN` to the `https://spinlings.<your-subdomain>.workers.dev` address `wrangler deploy` prints.
 
    Leave `observability` and `logpush` off.
 

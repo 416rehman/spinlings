@@ -264,8 +264,8 @@ The default server is [`https://spinlings.dev`](https://spinlings.dev), run by t
 ```sh
 git clone https://github.com/416rehman/spinlings && cd spinlings
 npm ci --ignore-scripts
-npx wrangler login
-npx wrangler d1 create spinlings      # in wrangler.jsonc: this database_id, your account_id, your domain in ORIGIN and routes
+npx wrangler login                    # then set account_id in wrangler.jsonc to yours (npx wrangler whoami)
+npx wrangler d1 create spinlings      # in wrangler.jsonc: this database_id, your domain in ORIGIN and routes
 node -e "console.log(crypto.randomBytes(32).toString('base64url'))" | npx wrangler secret put SECRET
 npx wrangler d1 migrations apply spinlings --remote
 npx wrangler deploy
