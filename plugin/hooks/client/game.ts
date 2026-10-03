@@ -2,7 +2,7 @@
 // handshake (32), presence and pack charging (6), waiting battles on the encounter timing (13), the content-blind
 // signal handlers (10), and every action the band and the pane can take. Pure in the sense the mod needs: it touches
 // the world only through the injected Fx, so it never reads a clock, rolls a die or sends a request on its own.
-import type { ApiOp, ApiRequest, ApiResponse, CardsResponse, MeResponse } from '../core/api.ts'
+import type { ApiOp, ApiRequest, ApiResponse, CardsResponse, MeResponse, VersionResponse } from '../core/api.ts'
 import { API_ROUTES } from '../core/api.ts'
 import type { BattleLog, Card, Family, Rarity } from '../core/types.ts'
 import { RULES_VERSION, paceMs, perfectRounds, simulateBattle } from '../core/battle.ts'
@@ -11,12 +11,14 @@ import { ECONOMY, leagueOf } from '../core/economy.ts'
 import { FAMILY_INFO, familyOfModel } from '../core/families.ts'
 import { parseSeasonResponse } from '../core/schemas.ts'
 import { DEFAULT_SERVER } from '../core/servers.ts'
-import { installSeason } from '../core/species.ts'
+import { GENERATOR_VERSION, installSeason } from '../core/species.ts'
 import { emojiMosaic, miniSprite, spriteFor } from '../core/sprite.ts'
 import { seasonOf, utcDay } from '../core/world.ts'
 import { findCard, parseCommand } from './commands.ts'
 import { hostOf, pageUrl, parseSent, pushSent, serverOrigin } from './net.ts'
-import { createRemoteBackend, forgetToken, joinServer, loadToken, saveToken, versionDue, versionStatus } from './remote.ts'
+import {
+  CLIENT_VERSION, UPDATE_COMMAND, createRemoteBackend, forgetToken, joinServer, loadToken, saveToken, versionDue, versionStatus,
+} from './remote.ts'
 import type { RemoteDeps } from './remote.ts'
 import {
   HEARTBEAT_MS, REACTION_MS, afterCharge, chargeDue, comfortLine, effortOf, encounterDue, leaseFor, mayHold, nextCheckIn,
@@ -29,13 +31,15 @@ import type {
   RevealControl, Sent, Slots, StateKey, Tab, Timer, View, World,
 } from './types.ts'
 import { BackendError, isBackendError, isUnreachable } from './types.ts'
-import { dots, plural, safe, title } from './text.ts'
+import { dayLabel, dots, plural, safe, title } from './text.ts'
 
 const B = ECONOMY.battle
 const PANE_REFRESH_MS = 5 * 60_000
 const HOLD_MS = 2000
 const PACK_READY_MS = 6000
 const HINT_MS = 10_000
+/** After a failed version handshake, /spin version reports the last answer at once for this long rather than wait again. */
+const VERSION_RETRY_MS = 10 * 60_000
 /** A picked catch waits this long for its answer before the band lets it go (the request times out sooner). */
 const CATCH_WAIT_MS = 20_000
 const POLL_MS = ECONOMY.client.pollEveryMs
@@ -50,7 +54,7 @@ export const OFFLINE_FEATURES = ['rivals', 'trader', 'mythics', 'seasons']
 export const INITIAL: GameState = {
   account: {
     world: 'online', server: DEFAULT_SERVER, host: hostOf(DEFAULT_SERVER), community: false, link: 'starting', note: '',
-    readOnly: false, features: [ONLINE_FEATURES_UNKNOWN], signIn: null, devices: null,
+    readOnly: false, latest: null, features: [ONLINE_FEATURES_UNKNOWN], signIn: null, devices: null,
   },
   me: null,
   cards: [],
@@ -61,7 +65,7 @@ export const INITIAL: GameState = {
   social: { board: null, profile: null, trader: null, leaderboard: null, gift: null, loading: [] },
   pane: {
     tab: 'team', stack: [], family: 'all', rarity: 'all', album: 'haiku', page: 0, flipped: 0, hold: null, hello: false,
-    message: '', busy: null, busySince: 0,
+    showUpdate: false, message: '', tone: 'warn', busy: null, busySince: 0,
   },
   prefs: { quiet: false, motion: true, sound: false },
   presence: { minutes: 0, need: ECONOMY.packs.presenceMinutes, blocked: null },
@@ -163,9 +167,26 @@ export function headMoment(list: readonly Moment[]): Moment | null {
   return best
 }
 
-/** The status line (SPEC 9, 17, 28): the world always shows; never sparks; empty while quiet. */
+/**
+ * The newer mod the active world knows of (SPEC 32): online only, and null while this one is current or before the
+ * first handshake. A `$.state` value from before the field existed reads as null.
+ */
+export function newerMod(account: Pick<Account, 'world'> & { latest?: string | null }): string | null {
+  return account.world === 'online' && typeof account.latest === 'string' && account.latest !== '' ? safe(account.latest, 48) : null
+}
+
+/**
+ * The status line (SPEC 9, 17, 28): the world always shows; never sparks; empty while quiet. A newer mod adds a
+ * quiet ` · update 0.2.0` to whatever it says (SPEC 32), in words, never a glyph alone.
+ */
 export function statusLine(s: Pick<GameState, 'account' | 'me' | 'battle' | 'prefs' | 'signals'>): string | undefined {
   if (s.prefs.quiet) return undefined
+  const latest = newerMod(s.account)
+  const text = statusText(s)
+  return latest ? `${text} · update ${latest}` : text
+}
+
+function statusText(s: Pick<GameState, 'account' | 'me' | 'battle' | 'signals'>): string {
   if (s.signals.restingUntil !== null) return `spinlings · ${comfortLine(s.signals.restingUntil)}`
   if (s.battle) {
     const lead = s.battle.setup.defender[0] ?? null
@@ -208,11 +229,35 @@ export function failureText(err: unknown, host: string): string {
     case 'conflict': return 'That already happened.'
     case 'not_allowed': return 'That can\'t be done here.'
     case 'expired': return 'That has expired.'
-    case 'upgrade_required': return `This version is read-only on ${host} · claude plugin update spinlings@spinlings`
+    case 'upgrade_required': return `This version is read-only on ${host} · ${UPDATE_COMMAND}`
     case 'unauthorized': return `This computer is signed out of ${host}.`
     case 'unavailable': return isUnreachable(err) ? `Can't reach ${host} right now.` : safe(err.message, 80)
     default: return safe(err.message, 80) || 'That did not work.'
   }
+}
+
+/**
+ * `/spin version` (SPEC 32): this mod's version and world; online, the server's host and its server, rules and
+ * generator versions, then "Up to date." or the update line. Offline names no server, since none is asked.
+ */
+export function versionReport(account: Pick<Account, 'world' | 'host' | 'community'>, v: VersionResponse | null, client = CLIENT_VERSION): string {
+  const ours = (word: string, theirs: number, mine: number) => `${word} ${theirs}${theirs === mine ? '' : ` (this mod: ${mine})`}`
+  if (account.world === 'offline') {
+    return [`Spinlings ${client} · offline, so no server is asked`, `Rules ${RULES_VERSION} · generator ${GENERATOR_VERSION}`].join('\n')
+  }
+  const host = safe(account.host, 80)
+  const where = `online on ${host}${account.community ? ' (a community server)' : ''}`
+  if (!v) return [`Spinlings ${client} · ${where}`, `Can't tell whether an update is out until ${host} answers.`].join('\n')
+  const s = versionStatus(v, client)
+  // a version is named only when it is a release: a pre-release tag is the server's free text
+  const status = s.readOnly ? `Read-only on ${host} until you update${s.target ? ` to ${s.target}` : ''} · ${UPDATE_COMMAND}`
+    : s.target ? `Spinlings ${s.target} is out · ${UPDATE_COMMAND}`
+    : 'Up to date.'
+  return [
+    `Spinlings ${client} · ${where} · server ${safe(v.server, 48)}`,
+    dots(ours('Rules', v.rules, RULES_VERSION), ours('generator', v.generator, GENERATOR_VERSION)),
+    status,
+  ].join('\n')
 }
 
 /** Far more pages of GET /v1/cards than any collection needs, so a server that never ends cannot hold the mod. */
@@ -297,6 +342,8 @@ export function createGame(o: GameOptions): Game {
     /** server clock minus local clock, from the last me() */
     skew: 0,
     lastRefresh: 0,
+    /** when the last version handshake failed in this load: /spin version does not wait on another for a while */
+    versionFailedAt: -Infinity,
     local: null as Backend | null,
     remote: null as { origin: string; backend: Backend } | null,
     sites: { band: null as string | null, pane: null as string | null },
@@ -449,8 +496,9 @@ export function createGame(o: GameOptions): Game {
 
   // ---------- pane feedback ----------
 
-  async function message(fx: Fx, text: string): Promise<void> {
-    await upd(fx, 'pane', p => ({ ...p, message: text, busy: null }))
+  /** The pane's one feedback line: a warning unless it says something went right (`good`). */
+  async function message(fx: Fx, text: string, tone: 'warn' | 'good' = 'warn'): Promise<void> {
+    await upd(fx, 'pane', p => ({ ...p, message: text, tone, busy: null }))
   }
 
   /**
@@ -634,6 +682,8 @@ export function createGame(o: GameOptions): Game {
       note: world === 'online' && !origin ? 'The server address in settings is not one Spinlings can use (https only)' : a.world === world ? a.note : '',
       features: world === 'offline' ? OFFLINE_FEATURES : a.world === 'offline' || a.server !== server ? [ONLINE_FEATURES_UNKNOWN] : a.features,
       readOnly: world === 'offline' ? false : a.readOnly,
+      // what a server said about newer mods holds for that server alone; the handshake says it again
+      latest: world === 'offline' || a.server !== server ? null : a.latest ?? null,
     }))
   }
 
@@ -721,7 +771,7 @@ export function createGame(o: GameOptions): Game {
   async function fallbackOffline(fx: Fx, firstRun: boolean, err: unknown): Promise<void> {
     await savePrefs(fx, { world: 'offline' })
     const account = await get(fx, 'account')
-    await upd(fx, 'account', a => ({ ...a, world: 'offline', link: 'starting', note: '', features: OFFLINE_FEATURES, readOnly: false }))
+    await upd(fx, 'account', a => ({ ...a, world: 'offline', link: 'starting', note: '', features: OFFLINE_FEATURES, readOnly: false, latest: null }))
     await clearWorldState(fx)
     await connectOffline(fx)
     // on the first run the welcome itself says so, so the payoff is never held back by a line (SPEC 34.3, 34.4)
@@ -765,11 +815,14 @@ export function createGame(o: GameOptions): Game {
         await saveMeta(fx, origin, { version, versionDay: today })
       } catch {
         // an older server without /v1/version, or a blip: keep the last answer
+        rt.versionFailedAt = now
       }
     }
     if (!version) return
     const v = versionStatus(version)
-    await upd(fx, 'account', a => ({ ...a, readOnly: v.readOnly, features: v.features }))
+    await upd(fx, 'account', a => ({
+      ...a, readOnly: v.readOnly, features: v.features, latest: a.world === 'online' && a.server === origin ? v.target : a.latest ?? null,
+    }))
     if (v.update) {
       const prefs = await prefsRecord(fx)
       if (prefs.updateSeen !== v.update) {
@@ -1255,21 +1308,26 @@ export function createGame(o: GameOptions): Game {
     const hello = prefs.helloDay !== today
     if (hello) await savePrefs(fx, { helloDay: today })
     await upd(fx, 'pane', p => ({
-      ...p, hello: p.hello || hello, tab: to?.tab ?? p.tab,
+      ...p, hello: p.hello || hello, tab: to?.tab ?? p.tab, showUpdate: to ? false : p.showUpdate,
       stack: to?.view ? [...p.stack.filter(v => v.kind !== to.view!.kind), to.view] : p.stack,
     }))
     await fx.ui.openPane()
   }
 
+  /** esc: the update row first (while it shows), then the view on top, then the pane itself. */
   async function paneClosing(fx: Fx, byPerson: boolean): Promise<boolean> {
     const p = await get(fx, 'pane')
+    if (byPerson && p.showUpdate && newerMod(await get(fx, 'account'))) {
+      await upd(fx, 'pane', x => ({ ...x, showUpdate: false, message: '' }))
+      return true
+    }
     if (byPerson && p.stack.length > 0) {
       const top = p.stack[p.stack.length - 1]!
       if (top.kind === 'reveal') await doneReveal(fx)
       else await upd(fx, 'pane', x => ({ ...x, stack: x.stack.slice(0, -1), hold: null, message: '' }))
       return true
     }
-    await upd(fx, 'pane', x => ({ ...x, hold: null, message: '', busy: null, hello: false }))
+    await upd(fx, 'pane', x => ({ ...x, hold: null, message: '', busy: null, hello: false, showUpdate: false }))
     return false
   }
 
@@ -1424,6 +1482,38 @@ export function createGame(o: GameOptions): Game {
     await useServer(fx, origin)
   }
 
+  /**
+   * `/spin version`: the report goes to the log. Online it rests on the day's handshake, asked first (with a line
+   * saying so) only when today's is missing and the server is not known to be out of reach; otherwise the last answer
+   * is reported at once, with the day it came from (SPEC 21.6: never a silent wait). Offline nothing is sent.
+   */
+  async function versionCommand(fx: Fx): Promise<void> {
+    const account = await get(fx, 'account')
+    if (account.world === 'offline') {
+      fx.ui.log(versionReport(account, null))
+      return
+    }
+    if (account.link === 'unreachable' && account.note.startsWith('The server address')) {
+      fx.ui.log(dots(`Spinlings ${CLIENT_VERSION}`, account.note))
+      return
+    }
+    const now = await fx.now()
+    const today = utcDay(now)
+    const host = safe(account.host, 80)
+    let meta = await metaOf(fx, account.server)
+    const fresh = !!meta.version && !versionDue(meta.versionDay, today)
+    const reachable = account.link !== 'unreachable' && now - rt.versionFailedAt >= VERSION_RETRY_MS
+    if (!fresh && reachable) {
+      fx.ui.log(`Asking ${host}…`)
+      await handshake(fx, account.server)
+      meta = await metaOf(fx, account.server)
+    }
+    const report = versionReport(await get(fx, 'account'), meta.version)
+    const stale = !!meta.version && versionDue(meta.versionDay, today)
+    fx.ui.log(stale ? `${report}\nCan't reach ${host} right now, so that is its answer from ${dayLabel(meta.versionDay, today)}.` : report)
+    await publish(fx)
+  }
+
   async function useServer(fx: Fx, origin: string): Promise<void> {
     const prefs = await prefsRecord(fx)
     await savePrefs(fx, { server: origin, communityOk: origin === DEFAULT_SERVER ? prefs.communityOk : [...new Set([...prefs.communityOk, origin])] })
@@ -1564,6 +1654,7 @@ export function createGame(o: GameOptions): Game {
       }
       case 'privacy': return openPane(fx, { view: { kind: 'privacy' } })
       case 'server': return setServer(fx, cmd.url)
+      case 'version': return versionCommand(fx)
       case 'demo': return openPane(fx, { view: { kind: 'demo', step: 0 } })
       case 'leaderboard': return leaderboardCommand(fx, cmd.on)
       case 'handle': return handleCommand(fx, cmd.reroll)
@@ -1698,8 +1789,8 @@ export function createGame(o: GameOptions): Game {
       dismiss: id => after(dismiss(fx, id)),
       open: to => after(openPane(fx, to)),
       close: () => after(fx.ui.closePane()),
-      tab: tab => after(upd(fx, 'pane', p => ({ ...p, tab, stack: [], page: 0, hold: null, message: '', hello: false }))),
-      push: view => after(upd(fx, 'pane', p => ({ ...p, stack: [...p.stack, view].slice(-8), hold: null, message: '' }))),
+      tab: tab => after(upd(fx, 'pane', p => ({ ...p, tab, stack: [], page: 0, hold: null, message: '', hello: false, showUpdate: false }))),
+      push: view => after(upd(fx, 'pane', p => ({ ...p, stack: [...p.stack, view].slice(-8), hold: null, message: '', showUpdate: false }))),
       back: () => after(paneClosing(fx, true)),
       pane: fn => after(upd(fx, 'pane', fn)),
       hold: (action, target) => after(hold(fx, action, target)),
@@ -1724,6 +1815,11 @@ export function createGame(o: GameOptions): Game {
         if (res) { await upd(fx, 'me', m => (m ? { ...m, packs: res.packs } : m)); await refresh(fx) }
       })()),
       share: cardId => after(share(fx, cardId ?? null, false)),
+      copyUpdate: () => after((async () => {
+        const copied = await fx.ui.copy(UPDATE_COMMAND)
+        if (copied) await message(fx, 'Copied. Run it in a terminal.', 'good')
+        else await message(fx, 'Could not reach the clipboard here.')
+      })()),
       duel: revenge => after(startBattle(fx, 'duel', revenge)),
       profile: handle => after(loadProfile(fx, handle)),
       load: what => after((async () => {

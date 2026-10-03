@@ -19,6 +19,7 @@ import {
 } from '../client/battleview.ts'
 import { catchOrder, headMoment, nameOf } from '../client/game.ts'
 import { hostOf } from '../client/net.ts'
+import { UPDATE_COMMAND } from '../client/remote.ts'
 import { fit, plural, safe } from '../client/text.ts'
 import type { Actions, Battle, BandView, El, Moment, Surface } from '../client/types.ts'
 import {
@@ -298,7 +299,7 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
     }
     case 'update': return beside(c, null, [
       <Text wrap="truncate-end">{`Spinlings ${safe(m.version, 20)} is out`}</Text>,
-      <Text dimColor wrap="truncate-end">claude plugin update spinlings@spinlings</Text>,
+      <Text dimColor wrap="truncate-end">{UPDATE_COMMAND}</Text>,
     ], { act: actionsRow(c, m, 'Got it', null) })
     case 'passkey': return beside(c, null, [
       <Text bold wrap="truncate-end">Save your collection with a passkey · no email, no password</Text>,

@@ -15,10 +15,13 @@ import { traderDeals } from '../core/trader.ts'
 import { dailyRule, seasonOf, utcDay } from '../core/world.ts'
 import { EVOLVE_SHOW, catchPreMs } from './battleview.ts'
 import { INITIAL } from './game.ts'
+import { CLIENT_VERSION } from './remote.ts'
 import type { Actions, Battle, GameState, Moment, Outcome, PaneUi, Reveal, View } from './types.ts'
 
 const MIN = 60_000
 const DAY = 86_400_000
+/** A mod newer than this one, for the screens that show the update chip. */
+const NEWER = CLIENT_VERSION.replace(/^(\d+)\.(\d+)\..*$/, (_, major: string, minor: string) => `${major}.${Number(minor) + 1}.0`)
 
 /** One demo state; a band step draws the band above the prompt, the rest draw the pane. */
 export type DemoStep = { title: string; state: GameState; band?: true }
@@ -29,7 +32,7 @@ const done = async () => undefined
 export const INERT: Actions = {
   press: done, pickCatch: done, act: done, dismiss: done, open: done, close: done, tab: done, push: done, back: done,
   pane: done, hold: done, openPack: done, flip: done, doneReveal: done, setTeam: done, setForTrade: done, craft: done,
-  buyPack: done, share: done, duel: done, profile: done, load: done, offer: done, respond: done, counter: done,
+  buyPack: done, share: done, copyUpdate: done, duel: done, profile: done, load: done, offer: done, respond: done, counter: done,
   claim: done, redeem: done, wishlist: done, trade: done, world: done, connect: done, passkey: done, rerollHandle: done,
   leaderboard: done, prefs: done,
 }
@@ -175,7 +178,10 @@ function steps(now: number): DemoStep[] {
     { title: 'Offline · privacy', state: view(offline, { kind: 'privacy' }) },
     { title: 'Feedback · busy and a message', state: pane(s, { tab: 'cards', busy: 'Opening the pack', message: 'Not enough sparks for that yet.' }) },
     { title: 'Link · cannot reach the server', state: { ...pane(s, { tab: 'team' }), account: { ...s.account, link: 'unreachable', note: 'Can\'t reach spinlings.dev right now' } } },
-    { title: 'Link · read-only below minClient', state: { ...pane(s, { tab: 'team' }), account: { ...s.account, readOnly: true } } },
+    { title: 'Link · read-only below minClient', state: { ...pane(s, { tab: 'team' }), account: { ...s.account, readOnly: true, latest: NEWER } } },
+    { title: 'Version · a newer mod is out: the footer chip', state: { ...pane(s, { tab: 'cards' }), account: { ...s.account, latest: NEWER } } },
+    { title: 'Version · the update command, ready to copy', state: { ...pane(s, { tab: 'trade', page: 0, showUpdate: true }), account: { ...s.account, latest: NEWER } } },
+    { title: 'Version · the update command copied', state: { ...pane(s, { tab: 'trade', page: 0, showUpdate: true, message: 'Copied. Run it in a terminal.', tone: 'good' }), account: { ...s.account, latest: NEWER } } },
     { title: 'First run · hatching', state: { ...INITIAL, account: { ...INITIAL.account, link: 'joining' }, clock: now } },
     { title: 'Start · this computer is signed out', state: { ...pane(s, { tab: 'team' }), account: { ...s.account, link: 'signed-out', note: 'This computer is signed out of spinlings.dev · /spin world online starts fresh', devices: null } } },
     { title: 'Start · the offline save cannot be opened', state: { ...INITIAL, account: { ...INITIAL.account, world: 'offline', features: offline.account.features, link: 'unreachable', note: 'This save is from a newer Spinlings. Update the mod to open it.' }, clock: now } },

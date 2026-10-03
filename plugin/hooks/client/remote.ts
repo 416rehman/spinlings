@@ -21,6 +21,8 @@ import { BackendError } from './types.ts'
  * plugin.json's `version` (test/e2e/manifest.test.ts holds the two, and the server's LATEST_CLIENT, equal).
  */
 export const CLIENT_VERSION = '0.1.0'
+/** How a player updates the mod: the one line the band, the pane's version chip and /spin version all give. */
+export const UPDATE_COMMAND = 'claude plugin update spinlings@spinlings'
 export const TIMEOUT_MS = 15_000
 
 export type RemoteDeps = {
@@ -155,11 +157,24 @@ export function compareSemver(a: string, b: string): number {
   return x.pre < y.pre ? -1 : 1
 }
 
+/**
+ * A release, `1.2.3`: the only kind of version the mod offers as an update. A pre-release tag is a server's free
+ * text (a community server could write anything there), and the marketplace carries releases.
+ */
+export function isRelease(v: string): boolean {
+  return /^\d{1,4}\.\d{1,4}\.\d{1,6}$/.test(v)
+}
+
 export type VersionStatus = {
   /** this mod is older than minClient: online actions are read-only, the offline world keeps working */
   readOnly: boolean
-  /** a newer mod to announce once, or null */
+  /** a newer release to announce once, or null */
   update: string | null
+  /**
+   * the release to update to, or null when this one is current: latestClient, or minClient when a lagging server's
+   * latestClient is not above it (read-only with nothing newer named). Never a pre-release.
+   */
+  target: string | null
   features: string[]
   /** the server simulates battles with this mod's rules: live animation and Perfect timing */
   rulesMatch: boolean
@@ -168,9 +183,12 @@ export type VersionStatus = {
 }
 
 export function versionStatus(v: VersionResponse, client = CLIENT_VERSION): VersionStatus {
+  const newer = (x: string) => isRelease(x) && compareSemver(x, client) > 0
+  const target = [v.latestClient, v.minClient].filter(newer).reduce<string | null>((best, x) => (best === null || compareSemver(x, best) > 0 ? x : best), null)
   return {
     readOnly: compareSemver(client, v.minClient) < 0,
-    update: compareSemver(v.latestClient, client) > 0 ? v.latestClient : null,
+    update: newer(v.latestClient) ? v.latestClient : null,
+    target,
     features: v.features.slice(0, 64),
     rulesMatch: v.rules === RULES_VERSION,
     generatorMatch: v.generator === GENERATOR_VERSION,

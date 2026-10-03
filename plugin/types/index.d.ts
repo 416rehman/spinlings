@@ -207,6 +207,12 @@ export type SpinAccount = {
   note: string
   /** this mod is older than the server's minClient: online actions are read-only (SPEC 32) */
   readOnly: boolean
+  /**
+   * a newer release the server names (latestClient, or minClient when only that is newer; never a pre-release): the
+   * pane footer's `Update to` chip and the status line's ` · update` show it. Null when this mod is current, before
+   * the first handshake, and offline.
+   */
+  latest: string | null
   /** what the server says it supports; anything it does not list is hidden */
   features: string[]
   signIn: SpinSignIn | null
@@ -366,8 +372,12 @@ export type SpinPane = {
   hold: SpinHold | null
   /** the daily hello banner: the first pane open of each UTC day */
   hello: boolean
+  /** the update command is showing above the hint row, opened from the footer's version chip */
+  showUpdate: boolean
   /** one plain feedback line, '' when none */
   message: string
+  /** how that line reads: 'good' for a success (the copied update command), drawn in the good ink; else a warning */
+  tone: 'warn' | 'good'
   /** a request in flight: its label (a dim placeholder shows after 300 ms) */
   busy: string | null
   busySince: number

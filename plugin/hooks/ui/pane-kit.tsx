@@ -1,12 +1,16 @@
 // The pane's building blocks (SPEC 21): the header on every screen (tabs left; daily rule, pack meter, world and
-// server right), the one button, the card at the pane's sizes, the 2-second hold line, feedback and the hint row.
+// server right), the one button, the card at the pane's sizes, the 2-second hold line, feedback and the hint row, whose
+// hints fit whole (the way out always stays) and whose right end carries the mod's version where there is room and,
+// when the server names a newer one, the chip that gives the update command.
 // Keys: on a tab's own screen 1-4 switch tabs and `o` opens a pack; a pushed view or a ceremony keeps 1-3 for its own
 // choices and the tabs stay pressable without keys, so a key never means two things on one screen.
 import type { RenderElement } from 'claude-code'
 import type { Form } from '../core/types.ts'
 import { RULE_INFO, dailyRule } from '../core/world.ts'
 import type { Actions, El, GameState, HoldAction, Presence, Surface, Tab } from '../client/types.ts'
-import { bar, dots, fit, safe, span } from '../client/text.ts'
+import { newerMod } from '../client/game.ts'
+import { CLIENT_VERSION, UPDATE_COMMAND } from '../client/remote.ts'
+import { bar, cells, dots, fit, safe, span } from '../client/text.ts'
 import { HOLD_VERB, holdText } from '../client/viewmodels.ts'
 import { CARD_WIDTH, card, formArt } from './card.tsx'
 import type { CardFace, CardOptions } from './card.tsx'
@@ -26,6 +30,8 @@ export type Ctx = {
   root: boolean
   offline: boolean
   motion: boolean
+  /** the footer's version chip takes `u`: everywhere but inside /spin demo, whose own Previous is on u */
+  versionKey: boolean
 }
 
 /** What a screen hands the frame. `bare`: the screen says how the link stands itself, so the frame's note stays out. */
@@ -195,29 +201,127 @@ export function holdLine(c: Ctx, action: HoldAction, target: string, hotkey: str
   )
 }
 
-/** The pane's own feedback: a request under way (dim) and the last plain-words message. */
+/** The pane's own feedback: a request under way (dim) and the last plain-words message, a success in the good ink. */
 export function feedback(c: Ctx): RenderElement | null {
   const p = c.state.pane
   const items: RenderElement[] = []
   if (p.busy) items.push(line(c, `${safe(p.busy, 60)}…`, { dim: true }))
-  if (p.message) items.push(para(c, safe(p.message, 160), { color: INK.warn }))
+  if (p.message) items.push(para(c, safe(p.message, 160), { color: p.tone === 'good' ? INK.good : INK.warn }))
   return items.length > 0 ? column(c, items, SPACE.none) : null
 }
 
-/** The link's own line when it is not ready, and the read-only notice (SPEC 32). */
+/** The update command's row is open: the version chip offered a newer mod and was pressed. */
+const updateOpen = (c: Ctx) => c.state.pane.showUpdate && !!newerMod(c.state.account)
+
+/**
+ * The link's own line when it is not ready, and the read-only notice (SPEC 32), which gives the update command
+ * unless the update row right below already shows it.
+ */
 export function linkNote(c: Ctx): RenderElement | null {
   const a = c.state.account
-  if (a.world === 'online' && a.readOnly) return para(c, `This version is read-only on ${a.host} · claude plugin update spinlings@spinlings`, { color: INK.warn })
+  if (a.world === 'online' && a.readOnly) {
+    return para(c, updateOpen(c) ? `This version is read-only on ${a.host}.` : `This version is read-only on ${a.host} · ${UPDATE_COMMAND}`, { color: INK.warn })
+  }
   if (a.link !== 'ready' && a.note) return para(c, safe(a.note, 160), { dim: true })
   return null
 }
 
-/** The bottom row that answers "what can I do now?" (SPEC 21.2). */
-export function hintRow(c: Ctx, hints: readonly string[]): RenderElement {
-  return <c.el.Text dimColor wrap="truncate-end">{fit(hints.filter(Boolean).join(' · '), c.columns)}</c.el.Text>
+/** From this many columns the version chip reads `Update to 0.2.0`; narrower, `Update 0.2.0`. */
+export const CHIP_WIDE = 60
+/** The chip's label while the update row is open: pressing it again closes the row, as esc does. */
+export const CHIP_HIDE = 'Hide update'
+
+/**
+ * The hint row's right end (SPEC 32): this mod's version, dim, never asking for anything, shown where the hints leave
+ * room for it. When the server names a newer mod it becomes a chip that always shows, a verb with its version
+ * (`u: Update to 0.2.0`), that opens the update command; while that is open it reads `Hide update` and u copies the
+ * command, so the chip itself carries no key.
+ */
+export function versionChip(c: Ctx): { node: RenderElement; width: number; chip: boolean } {
+  const latest = newerMod(c.state.account)
+  if (!latest) {
+    const label = `v${CLIENT_VERSION}`
+    return { node: <c.el.Text dimColor wrap="truncate-end">{label}</c.el.Text>, width: cells(label), chip: false }
+  }
+  const open = c.state.pane.showUpdate
+  const label = open ? CHIP_HIDE : fit(c.columns >= CHIP_WIDE ? `Update to ${latest}` : `Update ${latest}`, Math.max(8, Math.floor(c.columns / 2)))
+  const hotkey = c.versionKey && !open ? 'u' : undefined
+  const node = btn(c, { key: 'version', label, hotkey, dim: open, on: () => c.actions.pane(p => ({ ...p, showUpdate: !p.showUpdate, message: '' })) })
+  return { node, width: cells(label) + (hotkey ? 3 : 0), chip: true }
 }
 
-/** Header, notes, banner, body, feedback, hint row: the same frame on every screen. */
+/** The update command the chip opened, right above it: what it is for, the command, and Copy on u (SPEC 32). */
+export function updateRow(c: Ctx): RenderElement | null {
+  if (!updateOpen(c)) return null
+  const { Box, Text } = c.el
+  return (
+    <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
+      <Text wrap="wrap"><Text dimColor>In a terminal: </Text><Text>{UPDATE_COMMAND}</Text></Text>
+      {btn(c, { key: 'copy-update', label: 'Copy', hotkey: c.versionKey ? 'u' : undefined, on: () => c.actions.copyUpdate() })}
+    </Box>
+  )
+}
+
+const HINT_SEP = ` ${MARK.bullet} `
+
+/** The index of the last hint that passes `test`, or -1. */
+function lastIndex(items: readonly string[], test: (hint: string) => boolean): number {
+  for (let i = items.length - 1; i >= 0; i--) if (test(items[i]!)) return i
+  return -1
+}
+
+const isEsc = (hint: string) => hint.startsWith('esc ')
+/** The way out of a screen: `esc Close`, `esc Back`, `esc Done`, or a ceremony's `d Done` where it has no esc. */
+const leaves = (hint: string) => isEsc(hint) || hint === 'd Done'
+
+/**
+ * A screen's hints with the update row open: esc closes the row first (SPEC 32), so the way out says so.
+ */
+export function hintsOf(c: Ctx, hints: readonly string[]): string[] {
+  const items = hints.filter(Boolean)
+  if (!updateOpen(c)) return items
+  const esc = lastIndex(items, isEsc)
+  const hide = `esc ${CHIP_HIDE}`
+  return esc < 0 ? [...items, hide] : items.map((h, i) => (i === esc ? hide : h))
+}
+
+/**
+ * The hints that fit `room` cells, whole items only (SPEC 21.2): the way out always stays, the others give way from
+ * the end (`Tab Pick a card`, `n Next page`), the leading one last. Only a way out longer than the room is cut.
+ */
+export function fitHints(hints: readonly string[], room: number): string {
+  const items = hints.filter(Boolean)
+  const leave = lastIndex(items, leaves)
+  const order = [...items.keys()].filter(i => i !== leave && i !== 0).reverse()
+  if (leave !== 0 && items.length > 0) order.push(0)
+  const kept = new Set(items.keys())
+  const text = () => items.filter((_, i) => kept.has(i)).join(HINT_SEP)
+  for (const i of order) {
+    if (cells(text()) <= room) break
+    kept.delete(i)
+  }
+  return fit(text(), room)
+}
+
+/**
+ * The bottom row that answers "what can I do now?" (SPEC 21.2), with the version at its right end: the update chip
+ * always, the plain version only where the hints leave room for it.
+ */
+export function hintRow(c: Ctx, hints: readonly string[]): RenderElement {
+  const { Box, Text } = c.el
+  const items = hintsOf(c, hints)
+  const version = versionChip(c)
+  const shown = version.chip || cells(items.join(HINT_SEP)) + SPACE.loose + version.width <= c.columns
+  const room = shown ? Math.max(1, c.columns - version.width - SPACE.loose) : c.columns
+  return (
+    <Box flexDirection="row" justifyContent="space-between" columnGap={SPACE.loose} width={c.columns}>
+      <Text dimColor wrap="truncate-end">{fitHints(items, room)}</Text>
+      {shown ? <Box flexShrink={0}>{version.node}</Box> : null}
+    </Box>
+  )
+}
+
+/** Header, notes, banner, body, feedback, the update command once opened, hint row: the same frame on every screen. */
 export function frame(c: Ctx, shown: Shown): RenderElement {
   return (
     <c.el.Box flexDirection="column" width={c.columns} rowGap={SPACE.tight}>
@@ -226,6 +330,7 @@ export function frame(c: Ctx, shown: Shown): RenderElement {
       {shown.banner ?? null}
       {shown.body}
       {feedback(c)}
+      {updateRow(c)}
       {hintRow(c, shown.hints)}
     </c.el.Box>
   )

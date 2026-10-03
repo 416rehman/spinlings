@@ -38,7 +38,7 @@ function fakeActions(p: Probe, redraw: () => void): Actions {
     openPack: rec('openPack'),
     flip: rec('flip', () => { const r = p.state.reveal; if (r) setPane(x => ({ ...x, flipped: Math.min(r.cards.length, x.flipped + 1) })) }),
     doneReveal: rec('doneReveal', () => { p.state = { ...p.state, reveal: null }; setPane(x => ({ ...x, flipped: 0, stack: x.stack.filter(v => v.kind !== 'reveal') })) }),
-    setTeam: rec('setTeam'), setForTrade: rec('setForTrade'), craft: rec('craft'), buyPack: rec('buyPack'), share: rec('share'),
+    setTeam: rec('setTeam'), setForTrade: rec('setForTrade'), craft: rec('craft'), buyPack: rec('buyPack'), share: rec('share'), copyUpdate: rec('copyUpdate'),
     duel: rec('duel'), profile: rec('profile'), load: rec('load'), offer: rec('offer'), respond: rec('respond'), counter: rec('counter'),
     claim: rec('claim'), redeem: rec('redeem'), wishlist: rec('wishlist'), trade: rec('trade'), world: rec('world'), connect: rec('connect'),
     passkey: rec('passkey'), rerollHandle: rec('rerollHandle'), leaderboard: rec('leaderboard'), prefs: rec('prefs'),

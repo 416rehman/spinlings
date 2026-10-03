@@ -162,6 +162,7 @@ There is one command, `/spin`. On its own it opens the pane, with four tabs (Tea
 | `/spin motion on\|off` | Make every animation instant, or bring them back |
 | `/spin privacy` | See exactly what the mod has sent, and delete your account |
 | `/spin server [url\|default]` | Show or change the server |
+| `/spin version` | This mod's version, and whether an update is out |
 | `/spin demo` | Step through every screen of the game |
 
 There is no `/spin wild`. Wild creatures only ever find you.

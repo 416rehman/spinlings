@@ -175,6 +175,8 @@ export type Actions = {
   craft(speciesId: string, rarity: SpinRarity): Promise<void>
   buyPack(family?: Family): Promise<void>
   share(cardId?: string): Promise<void>
+  /** puts the update command on the clipboard (the footer's version chip); the pane says whether it took */
+  copyUpdate(): Promise<void>
 
   // battles
   /** a duel now (`/spin battle`), or a revenge on a handle from a defense notice */

@@ -1,6 +1,7 @@
 // The game over effects held in memory, for what only a reload or a lost answer shows: a catch picked just before the
 // module reloaded asks again and lands on how it went (SPEC 13.4: the server already decided), and a catch whose
 // answer never comes lets the band go instead of holding every waiting battle back.
+// Also the pane's esc order: the update row first, then the view on top, then the pane (SPEC 32).
 import { expect, test } from 'claude-code/testing'
 import type { ApiOp } from '../hooks/core/api.ts'
 import type { Card } from '../hooks/core/types.ts'
@@ -143,4 +144,33 @@ test('a collection bigger than one answer arrives whole, a page at a time, read 
   await w.advance(5000)
   expect(w.state.cards.map(c => c.id)).toEqual(server.cards.map(c => c.id))
   expect(asked).toEqual([{}, { after: 'p2' }, {}, { after: 'p2' }, { after: 'p4' }])
+})
+
+test('esc closes the update row first, then the view on top, then the pane; a new tab or view closes the row too', async () => {
+  const w = world({ pane: { ...INITIAL.pane, showUpdate: true, stack: [{ kind: 'privacy' }] }, account: { ...INITIAL.account, latest: '0.2.0' } })
+  const game = createGame({ serverUrl: ORIGIN, world: 'online', slots, remote: () => backend({}) })
+  // the person's esc: the row alone, and the pane stays open
+  expect(await game.paneClosing(w.fx, true)).toBe(true)
+  expect(w.state.pane).toMatchObject({ showUpdate: false, stack: [{ kind: 'privacy' }] })
+  expect(await game.paneClosing(w.fx, true)).toBe(true)
+  expect(w.state.pane.stack).toEqual([])
+  expect(await game.paneClosing(w.fx, true)).toBe(false)
+  // a row that no longer shows (nothing newer in this world) never swallows an esc
+  w.state.pane = { ...w.state.pane, showUpdate: true, stack: [{ kind: 'privacy' }] }
+  w.state.account = { ...w.state.account, world: 'offline' }
+  expect(await game.paneClosing(w.fx, true)).toBe(true)
+  expect(w.state.pane.stack).toEqual([])
+  w.state.account = { ...w.state.account, world: 'online' }
+  // a plugin closing the pane closes it whole
+  w.state.pane = { ...w.state.pane, showUpdate: true }
+  expect(await game.paneClosing(w.fx, false)).toBe(false)
+  expect(w.state.pane.showUpdate).toBe(false)
+  // switching tabs or opening a view leaves the row behind
+  const act = game.actions(w.fx)
+  w.state.pane = { ...w.state.pane, showUpdate: true }
+  await act.tab('cards')
+  expect(w.state.pane).toMatchObject({ tab: 'cards', showUpdate: false })
+  w.state.pane = { ...w.state.pane, showUpdate: true }
+  await act.push({ kind: 'privacy' })
+  expect(w.state.pane).toMatchObject({ stack: [{ kind: 'privacy' }], showUpdate: false })
 })

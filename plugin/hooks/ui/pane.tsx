@@ -30,12 +30,12 @@ function startsHere(s: GameState): boolean {
   return !playable(s) && top !== 'privacy' && top !== 'devices'
 }
 
-function ctxOf(env: Env): Ctx {
+function ctxOf(env: Env, inDemo = false): Ctx {
   const s = env.state
   return {
     el: env.el, surface: env.surface, columns: Math.max(40, Math.floor(env.columns)), rows: env.rows, now: env.now || s.clock,
     actions: env.actions, state: s, root: screenOf(s.pane).kind === 'tab' && !startsHere(s), offline: s.account.world === 'offline',
-    motion: s.prefs.motion,
+    motion: s.prefs.motion, versionKey: !inDemo,
   }
 }
 
@@ -125,9 +125,9 @@ function route(c: Ctx): Shown {
   }
 }
 
-/** One screen of the pane, framed: what the demo draws for each of its states too. */
-export function draw(env: Env): RenderElement {
-  const c = ctxOf(env)
+/** One screen of the pane, framed: what the demo draws for each of its states too (`inDemo`: u is the demo's own). */
+export function draw(env: Env, inDemo = false): RenderElement {
+  const c = ctxOf(env, inDemo)
   return frame(c, route(c))
 }
 
@@ -164,7 +164,7 @@ function demo(env: Env, step: number): RenderElement {
         {btn(c, { key: 'demo-next', label: 'Next', hotkey: 'v', on: () => go(1) })}
         {btn(c, { key: 'demo-prev', label: 'Previous', hotkey: 'u', on: () => go(-1) })}
       </Box>
-      {d.band ? bandDemo(c, env, d.state) : draw({ ...env, state: d.state, actions: INERT })}
+      {d.band ? bandDemo(c, env, d.state) : draw({ ...env, state: d.state, actions: INERT }, true)}
     </Box>
   )
 }

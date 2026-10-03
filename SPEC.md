@@ -357,6 +357,7 @@ New players start with 100 sparks.
 - Empty by default.
 - `spinlings · 2 packs` when packs are waiting.
 - `spinlings · vs soft-otter-42` during a duel, and `spinlings · wild Fogmaw` during a wild encounter.
+- Appends ` · update 0.2.0` when the server names a newer release (SPEC 32).
 - Never shows a sparks count.
 
 ### Band (above the prompt; hidden by default)
@@ -397,6 +398,7 @@ Four tabs, hotkeys 1–4. A header shows the daily rule and `[p] Open pack (n)`.
   - `quiet [on|off]`, `motion on|off`, `sound on|off`
   - `privacy`
   - `server [url|default]`
+  - `version`
   - `demo`
 - Every command answers `{}`. Output that is text goes to `$.ui.log`, so the model never reads it.
 
@@ -1311,6 +1313,7 @@ Passkeys are bound to `rp.id` forever. The production domain must be final befor
   - shows `Spinlings {latest} is out · claude plugin update spinlings@spinlings` once per new version in the band (dismissible, never repeated);
   - below `minClient`: online actions are read-only with a clear one-line message; the offline world keeps working.
   - Features missing from `features` are hidden, not broken (for self-hosted servers lagging behind).
+  - **Version indicator (never nags):** the pane's hint row ends in a dim `v0.1.0` where the hints leave room; hints never give way to it, and when they run long they drop whole from the middle, the `esc` item always kept. When the server names a newer release (`latestClient`, or `minClient` when only that is newer; never a pre-release) a chip `Update to 0.2.0` (`Update 0.2.0` under 60 columns) always shows; `u` opens `In a terminal: claude plugin update spinlings@spinlings` and `u` again copies it; while that is open the chip reads `Hide update`, and esc closes the row before the pane. The status line appends ` · update 0.2.0`. `/spin version` logs the mod's version, the world, and the server's host with its server, rules and generator versions, then "Up to date." or the update line. It logs `Asking {host}…` before any request, and when the server is out of reach it reports the last answer at once with its day. Offline it names no server and sends nothing.
 
 ### Numbers come from the server
 - **`Card.stats`** (server-computed `Stats`) is sent on every card. `BattleCard.stats` is part of every battle setup. The client displays these and passes them to the simulator, and never recomputes stats for online cards.
