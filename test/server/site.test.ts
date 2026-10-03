@@ -409,6 +409,8 @@ describe('profile pages', () => {
       // a bound card is never on offer, whatever its flag says
       stmt('UPDATE cards SET for_trade = 1 WHERE id = ?', a.me.player.team[0]!),
     ])
+    // a profile shows the numbers of the last UTC midnight, so the new rating's league shows from the next one
+    s.set((Math.floor(s.now() / DAY) + 1) * DAY)
     const p = await get(s, `/u/${a.me.player.handle}`)
     assert.equal(p.status, 200)
     assertHeaders(p, SITE_CSP)

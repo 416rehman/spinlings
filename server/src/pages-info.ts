@@ -198,6 +198,7 @@ export function privacyBody(): Raw {
 <tbody>
 <tr><td>A player id, your handle, and SHA-256 hashes of your session tokens (never a token)</td><td>Until you delete your account</td></tr>
 <tr><td>Your game: cards, team, packs, sparks, rating, league, streak, wishlist and album</td><td>Until you delete your account</td></tr>
+<tr><td>Your stats: counts of duel wins and losses, players beaten, wild wins, catches, species, first finds, Mythics found and market sales, all time and this season</td><td>Until you delete your account, as counts with no dates or times</td></tr>
 <tr><td>The day you joined and the day you were last seen, never a time</td><td>Until you delete your account</td></tr>
 <tr><td>A saved passkey's public key, if you save one</td><td>Until you delete your account</td></tr>
 <tr><td>The model family of a pack charge or a battle</td><td>Only as long as that pack or battle</td></tr>
@@ -209,18 +210,18 @@ export function privacyBody(): Raw {
 
 <h2>${heading('What other players can see')}</h2>
 <ul>
-<li><strong>Your profile:</strong> your handle, team, cards marked for trade, album count and league. Nothing else.</li>
-<li><strong>The leaderboard:</strong> only if you opt in, your handle, league and rating.</li>
+<li><strong>Your profile:</strong> your handle, team, cards marked for trade, album count and league, your market listings, and your stats unless you hide from the leaderboards. Nothing else.</li>
+<li><strong>The leaderboards:</strong> every player is on them unless they hide with <code>/spin leaderboard off</code>: your handle, league, rank and the board's number. Numbers show as they stood at the last midnight, so nobody can watch them move while you play.</li>
 <li><strong>Duels:</strong> the other player gets a notice with your handle and the result, dated "today" or "yesterday".</li>
 <li><strong>Mythics:</strong> if you catch one, its card and the public list show your handle and its name. Change your handle or delete your account and they say it was found by a trainer, so your old handle never shows beside a new one.</li>
 <li><strong>First discoveries:</strong> a card that was the first of its species in the world says so, and that it was first found by a trainer. It never says which one.</li>
 </ul>
-<p>Never visible to anyone else: your wins, losses or battle counts, when you joined or were last seen, your activity, the arena or model you used, and any timestamps.</p>
+<p>Never visible to anyone else: your battle count, when you joined or were last seen, your activity, the arena or model you used, and any timestamps. Duel wins and losses show only as counts in your stats, and you can hide those.</p>
 <p>The pages of this site set no cookies and load nothing from other sites. Their scripts come from this site alone, draw the creatures in your browser and send nothing anywhere; /odds and this page run none at all. The two passkey pages run one small script of their own, to talk to your passkey.</p>
 <p>The website remembers the creature you met in your browser's own storage so it can greet you next time. It never leaves your browser.</p>
 
 <h2>${heading('Deleting your account')}</h2>
-<p><code>/spin privacy</code> has a delete button behind a 2-second hold. It removes your player record and all of your cards, packs, battles, offers, gifts, notices, wishlist and first-discovery credit. Cards you already traded or gave away stay with their new owners. Your handle stays reserved for 30 days, then anyone can get it.</p>
+<p><code>/spin privacy</code> has a delete button behind a 2-second hold. It removes your player record and all of your cards, packs, battles, offers, gifts, market listings, notices, wishlist, stats, board places and first-discovery credit. Cards you already traded, sold or gave away stay with their new owners. Your handle stays reserved for 30 days, then anyone can get it.</p>
 <p>The full policy, including what someone could still guess and how this is checked, is in <a href="${REPO}/blob/main/PRIVACY.md">PRIVACY.md</a>.</p>
 </article>`
 }

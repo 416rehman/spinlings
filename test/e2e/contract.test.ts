@@ -240,8 +240,10 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     assert.equal((await a.call('cancelListing', { listingId: back.id })).listing.state, 'cancelled')
     await refused(a, 'market', { sort: 'priciest', after: 'not-a-cursor' }, 'bad_request', 400)
 
+    // boards show the numbers of the last UTC midnight, and a sale counts once per buyer: two sales to b are one
+    boot.clock.until((Math.floor(boot.clock.now() / DAY) + 1) * DAY)
     const sales = await a.call('rankings', { board: 'sales', period: 'season' })
-    assert.deepEqual([sales.board, sales.period, sales.me?.value], ['sales', 'season', 2])
+    assert.deepEqual([sales.board, sales.period, sales.me?.value], ['sales', 'season', 1])
     boot.clock.until((await b.me()).player.nextDuelAt)
     const duel = await battle(boot, b, 'duel', { handle: handleOf(a) })
     assert.ok(duel.start.opponent.kind === 'player' && duel.start.opponent.handle === handleOf(a))
