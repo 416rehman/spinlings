@@ -6,7 +6,8 @@ import { FAMILY_INFO } from '../../../plugin/hooks/core/families.ts'
 import { TRAITS } from '../../../plugin/hooks/core/traits.ts'
 import { FAMILY_COLOR, FAMILY_MARK, RARITY_COLOR } from '../../../plugin/hooks/ui/tokens.ts'
 import type { SiteCard } from '../../src/pages-meet.ts'
-import { cap, D, el, flash, H, pline, RM, settle, sleep, sprite, steps, wait, wobble } from './util.ts'
+import { cap, clockOf, D, el, flash, H, pline, RM, setClock, settle, sleep, sprite, steps, wait, wobble } from './util.ts'
+import type { MotionClock } from './clock.ts'
 
 const PSKY: Record<string, string> = { haiku: '#dcefe2', sonnet: '#dbe6fa', opus: '#f8e0d3', fable: '#e7defa' }
 const GENE_TIP = 'How good its four genes are. Each gene lifts or lowers one stat by up to 12%.'
@@ -80,17 +81,18 @@ export function hideLayers(card: HTMLElement, hide = true): (HTMLElement | null)
  * score counting up from 0, the traits with a small stamp; a shiny sparkles at two corners.
  */
 export async function layered(card: HTMLElement, parts: (HTMLElement | null)[], c: SiteCard) {
+  const clock = clockOf(card)
   const [name, rar, kind, genes, traits] = parts
-  if (c.foil || c.shiny) { card.classList.add('sweep'); await sleep(450); card.classList.remove('sweep') }
+  if (c.foil || c.shiny) { card.classList.add('sweep'); await sleep(450, clock); card.classList.remove('sweep') }
   if (name) name.style.visibility = ''
-  await sleep(150)
+  await sleep(150, clock)
   for (const p of [rar, kind]) if (p) p.style.visibility = ''
   if (genes) {
     genes.style.visibility = ''
     const b = genes.querySelector('b')!, target = geneScore(c.genes)
-    for (let k = 0; k <= 6; k++) { b.textContent = `Gene quality ${Math.round((target * k) / 6)}%`; await sleep(80) }
+    for (let k = 0; k <= 6; k++) { b.textContent = `Gene quality ${Math.round((target * k) / 6)}%`; await sleep(80, clock) }
   }
-  await sleep(50)
+  await sleep(50, clock)
   if (traits) { traits.style.visibility = ''; void steps(traits, ['scale(1.3)', 'scale(1)'], 80) }
   if (c.shiny) for (const corner of ['4px auto auto 4px', '4px 4px auto auto']) {
     const sp = el('i', 'burst')
@@ -109,6 +111,7 @@ export function tilt(node: HTMLElement, target: HTMLElement = node, any = false)
   if (RM()) return
   if (!any && !target.classList.contains('foil') && !target.classList.contains('shiny')) return
   node.addEventListener('pointermove', e => {
+    if (clockOf(node)?.paused) return
     const r = node.getBoundingClientRect()
     const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5
     target.style.transition = 'none'
@@ -117,6 +120,7 @@ export function tilt(node: HTMLElement, target: HTMLElement = node, any = false)
     target.classList.add('tilting')
   })
   node.addEventListener('pointerleave', () => {
+    if (clockOf(node)?.paused) return
     target.style.transition = 'transform .4s cubic-bezier(.34,1.56,.64,1)'
     target.style.transform = ''
     target.classList.remove('tilting')
@@ -145,7 +149,7 @@ export function burst(host: HTMLElement, at = '40%') {
  * foil and shiny get their sheen, and it tilts under the pointer), rests a moment (a click sends it on),
  * then flies into `to`. Resolves false if `alive` turns false on the way.
  */
-export async function catchCard(c: SiteCard, from: Element, o: { to?: () => Element | null; alive?: () => boolean; gotcha?: string } = {}): Promise<boolean> {
+export async function catchCard(c: SiteCard, from: Element, o: { to?: () => Element | null; alive?: () => boolean; gotcha?: string; clock?: MotionClock } = {}): Promise<boolean> {
   const alive = o.alive ?? (() => true)
   const rv = el('div', 'rv')
   rv.style.setProperty('--glow', RARITY_COLOR[c.rarity])
@@ -154,6 +158,7 @@ export async function catchCard(c: SiteCard, from: Element, o: { to?: () => Elem
   inner.append(el('div', 'rv-back'))
   rv.append(el('div', 'rv-rays'), inner)
   const veil = el('div', 'veil')
+  if (o.clock) { setClock(rv, o.clock); setClock(veil, o.clock) }
   D.body.append(veil, rv)
   H.classList.add('revealing')
   const done = () => { rv.remove(); H.classList.remove('revealing'); veil.classList.remove('on'); setTimeout(() => veil.remove(), 260) }
@@ -165,14 +170,15 @@ export async function catchCard(c: SiteCard, from: Element, o: { to?: () => Elem
   const y = Math.round(Math.max(top0, Math.min(innerHeight - Hh - 48, fr.top - Hh * 0.6)))
   rv.style.left = `${x}px`
   rv.style.top = `${y}px`
-  requestAnimationFrame(() => veil.classList.add('on'))
+  if (o.clock) o.clock.after(() => veil.classList.add('on'), 0)
+  else requestAnimationFrame(() => veil.classList.add('on'))
   const motion = !RM()
   if (motion) {
     const k = fr.width / W
     const dx = fr.left + fr.width / 2 - (x + W / 2), dy = fr.top + fr.height / 2 - (y + Hh / 2)
     await settle(rv.animate([{ transform: `translate(${dx}px,${dy}px) scale(${(k * 0.62).toFixed(3)})` }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1.15)' }), 420)
     await wobble(inner, c.rarity === 'common' ? 1 : c.rarity === 'rare' ? 2 : 3)
-    await wait(300)
+    await wait(300, o.clock)
   }
   if (!alive()) { done(); return false }
   const card = face(c, { level: true, big: true })
@@ -187,16 +193,16 @@ export async function catchCard(c: SiteCard, from: Element, o: { to?: () => Elem
   rv.append(gotcha)
   if (motion) {
     if (c.rarity !== 'common') await flash(card.querySelector('svg.spr'))
-    void inner.animate([{ transform: 'rotateY(-90deg)' }, { transform: 'rotateY(0)' }], { duration: half, easing: 'cubic-bezier(.2,.8,.2,1.3)' })
+    void settle(inner.animate([{ transform: 'rotateY(-90deg)' }, { transform: 'rotateY(0)' }], { duration: half, easing: 'cubic-bezier(.2,.8,.2,1.3)' }), half)
     void steps(gotcha, ['translate(-50%,8px)', 'translate(-50%,-4px)', 'translate(-50%,0)'], 80)
     burst(rv, '50%')
   }
   tilt(rv, card, true)
   let sent = false
-  rv.addEventListener('click', () => { sent = true }, { once: true })
+  rv.addEventListener('click', () => { if (!o.clock?.paused) sent = true })
   if (motion) await layered(card, parts, c)
   // a moment to look at it (or a click to send it on)
-  for (let t = 0; t < (c.rarity === 'common' ? 1300 : 1900) && !sent; t += 100) await wait(100)
+  for (let t = 0; t < (c.rarity === 'common' ? 1300 : 1900) && !sent; t += 100) await wait(100, o.clock)
   veil.classList.remove('on')
   const to = o.to?.()
   if (motion && to && (to as HTMLElement).offsetParent !== null) {

@@ -15,6 +15,7 @@ import { GENERATOR_VERSION, installSeason } from '../core/species.ts'
 import { emojiMosaic, miniSprite, spriteFor } from '../core/sprite.ts'
 import { DAY_MS, seasonOf, utcDay } from '../core/world.ts'
 import { findCard, parseCommand } from './commands.ts'
+import { effortOf } from './effort.ts'
 import { hostOf, pageUrl, parseSent, pushSent, serverOrigin } from './net.ts'
 import {
   CLIENT_VERSION, UPDATE_COMMAND, createRemoteBackend, forgetToken, joinServer, loadToken, saveToken, versionDue, versionStatus,
@@ -393,7 +394,7 @@ export type Game = {
   /** session.end: hand the presence lamp back (the whole chain has 1.5 s) */
   end(fx: Fx): Promise<void>
   turnStarted(fx: Fx): Promise<void>
-  turnStep(fx: Fx, model: string): Promise<void>
+  turnStep(fx: Fx, model: string, effort?: unknown): Promise<void>
   turnCompleted(fx: Fx, reason: string): Promise<void>
   agentStarted(fx: Fx, agentId: string): Promise<void>
   agentFinished(fx: Fx, agentId: string): Promise<void>
@@ -1025,10 +1026,10 @@ export function createGame(o: GameOptions): Game {
     const today = utcDay(now)
     const meta = await metaOf(fx, origin)
     let version = meta.version
-    if (!version || versionDue(meta.versionDay, today)) {
+    if (!version || versionDue(meta.versionDay, today) || meta.versionClient !== CLIENT_VERSION) {
       try {
         version = await remote(origin).version({})
-        await saveMeta(fx, origin, { version, versionDay: today })
+        await saveMeta(fx, origin, { version, versionDay: today, versionClient: CLIENT_VERSION })
       } catch {
         // an older server without /v1/version, or a blip: keep the last answer
         rt.versionFailedAt = now
@@ -1116,11 +1117,12 @@ export function createGame(o: GameOptions): Game {
     })
   }
 
-  async function turnStep(fx: Fx, model: string): Promise<void> {
+  async function turnStep(fx: Fx, model: string, value?: unknown): Promise<void> {
     const family = familyOfModel(model)
+    const effort = effortOf(value)
     rt.family = family
     const s = await get(fx, 'signals')
-    if (s.family !== family) await upd(fx, 'signals', x => ({ ...x, family }))
+    if (s.family !== family || s.effort !== effort) await upd(fx, 'signals', x => ({ ...x, family, effort }))
   }
 
   async function turnCompleted(fx: Fx, reason: string): Promise<void> {
@@ -1790,7 +1792,7 @@ export function createGame(o: GameOptions): Game {
     const today = utcDay(now)
     const host = safe(account.host, 80)
     let meta = await metaOf(fx, account.server)
-    const fresh = !!meta.version && !versionDue(meta.versionDay, today)
+    const fresh = !!meta.version && !versionDue(meta.versionDay, today) && meta.versionClient === CLIENT_VERSION
     const reachable = account.link !== 'unreachable' && now - rt.versionFailedAt >= VERSION_RETRY_MS
     if (!fresh && reachable) {
       fx.ui.log(`Asking ${host}…`)

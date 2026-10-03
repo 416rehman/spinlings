@@ -4,6 +4,7 @@ import { spriteFor } from '../../../plugin/hooks/core/sprite.ts'
 import type { SpriteSource } from '../../../plugin/hooks/core/sprite.ts'
 import { boldWordSvg, wordSvg } from '../../src/pages-font.ts'
 import { spriteSvg } from '../../src/pages-sprite.ts'
+import type { MotionClock } from './clock.ts'
 
 export const D = document
 export const H = D.documentElement
@@ -19,10 +20,16 @@ export const touch = () => matchMedia('(hover: none), (pointer: coarse)').matche
 /** One art pixel in CSS px (4 at 1024 and wider, 3 below). */
 export const ap = () => parseFloat(getComputedStyle(H).getPropertyValue('--ap')) || 3
 
-export const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
+const clocks = new WeakMap<Element, MotionClock>()
+export const setClock = (node: Element, clock: MotionClock) => clocks.set(node, clock)
+export function clockOf(node: Element | null | undefined): MotionClock | undefined {
+  for (let n = node; n; n = n.parentElement) { const c = clocks.get(n); if (c) return c }
+}
+
+export const sleep = (ms: number, clock?: MotionClock) => clock ? clock.wait(ms) : new Promise<void>(r => setTimeout(r, ms))
 /** Waits, then waits again while the tab is hidden (ceremonies and battles pause with the tab). */
-export async function wait(ms: number) {
-  await sleep(ms)
+export async function wait(ms: number, clock?: MotionClock) {
+  await sleep(ms, clock)
   while (D.hidden) await new Promise(r => D.addEventListener('visibilitychange', r, { once: true }))
 }
 
@@ -66,9 +73,12 @@ export function steps(node: Element | null | undefined, frames: string[], ms: nu
 
 /** An animation's end, or its planned end by the clock (whichever comes first), finished either way. */
 export function settle(a: Animation, ms: number): Promise<void> {
+  const clock = clockOf((a.effect as KeyframeEffect | null)?.target)
+  clock?.track(a)
   return new Promise(res => {
-    const t = setTimeout(() => { try { a.finish() } catch { a.cancel() } res() }, ms + 40)
-    a.finished.then(() => { clearTimeout(t); res() }, () => { clearTimeout(t); res() })
+    const finish = () => { try { a.finish() } catch { a.cancel() } res() }
+    const cancel = clock ? clock.after(finish, ms + 40) : (() => { const t = setTimeout(finish, ms + 40); return () => clearTimeout(t) })()
+    a.finished.then(() => { cancel(); res() }, () => { cancel(); res() })
   })
 }
 
@@ -88,9 +98,10 @@ export const shake = (n: Element | null | undefined) => { const a = ap(); return
 /** The one-frame flash: the white silhouette swapped in for 80 ms (an outline stands in under reduced motion). */
 export async function flash(svg: Element | null | undefined) {
   if (!svg) return
-  if (RM()) { (svg as HTMLElement).style.outline = '2px solid #fffdf5'; await sleep(80); (svg as HTMLElement).style.outline = ''; return }
+  const clock = clockOf(svg)
+  if (RM()) { (svg as HTMLElement).style.outline = '2px solid #fffdf5'; await sleep(80, clock); (svg as HTMLElement).style.outline = ''; return }
   svg.classList.add('flash')
-  await sleep(80)
+  await sleep(80, clock)
   svg.classList.remove('flash')
 }
 
@@ -101,7 +112,7 @@ export async function pip(host: Element | null | undefined, ch: '!' | '?' | 'z',
   p.setAttribute('aria-hidden', 'true')
   p.append(pword(ch))
   host.append(p)
-  await sleep(ms)
+  await sleep(ms, clockOf(host))
   p.remove()
 }
 

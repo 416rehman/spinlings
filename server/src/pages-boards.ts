@@ -133,7 +133,7 @@ ${top.length
 <p class="fine">Numbers move once a day, at midnight UTC.</p>`
     : html`<div class="nobody">${raw(spriteSvg(spriteFor({ form: regulars()[4]!, stage: 1 }), { cls: 'shut' }))}<div><p class="big">Nobody on this board yet.</p><p>The first name here could be yours.</p></div></div>`}
 <div class="join">
-<div><h2>${heading('Your place')}</h2><p>Type this inside Claude Code to see where you stand.</p>${promptLine(BOARD_COMMAND, 'The leaderboard command')}</div>
+<div><h2>${heading('Your place')}</h2><p><a href="/account">Sign in with your passkey</a> to see your rankings and collection, or open the boards in Claude Code.</p>${promptLine(BOARD_COMMAND, 'The leaderboard command')}</div>
 <div><h2>${heading('Not playing yet?')}</h2>${installBlock('install', 'Install Spinlings. Your starter team hatches right away.')}</div>
 </div>
 </section>`

@@ -18,6 +18,7 @@ import type { Ctx, Shown } from './pane-kit.tsx'
 import { actions, btn, column, formMini, frame, line, marketOpen, para, playable } from './pane-kit.tsx'
 import { listingScreen, marketScreen, sellScreen } from './pane-market.tsx'
 import { teamScreen } from './pane-team.tsx'
+import { communityScreen, helpScreen, mineScreen, todayScreen } from './pane-community.tsx'
 import { giftScreen, profileScreen, tradeScreen } from './pane-trade.tsx'
 import { INK, SPACE } from './tokens.ts'
 
@@ -35,7 +36,7 @@ function startsHere(s: GameState): boolean {
 function ctxOf(env: Env, inDemo = false): Ctx {
   const s = env.state
   return {
-    el: env.el, surface: env.surface, columns: Math.max(40, Math.floor(env.columns)), rows: env.rows, now: env.now || s.clock,
+    el: env.el, surface: env.surface, columns: Math.max(20, Math.floor(env.columns)), rows: env.rows, now: env.now || s.clock,
     actions: env.actions, state: s, root: screenOf(s.pane).kind === 'tab' && !startsHere(s), offline: s.account.world === 'offline',
     motion: s.prefs.motion, versionKey: !inDemo,
   }
@@ -73,7 +74,7 @@ function starting(c: Ctx): Shown {
       para(c, guide, { dim: true }),
       busy ? null : actions(c, [
         out ? btn(c, { key: 'start-fresh', label: 'Start fresh online', hotkey: '1', primary: true, on: () => c.actions.world('online') }) : null,
-        signIn ? btn(c, { key: 'passkey-signin', label: 'Sign in with a passkey', hotkey: 'k', on: () => c.actions.push({ kind: 'devices' }) }) : null,
+        signIn ? btn(c, { key: 'passkey-signin', label: c.columns < 26 ? 'Use a passkey' : 'Sign in with a passkey', hotkey: 'k', on: () => c.actions.push({ kind: 'devices' }) }) : null,
         online
           ? btn(c, { key: 'play-offline', label: 'Play offline', hotkey: 'w', on: () => c.actions.world('offline') })
           : btn(c, { key: 'join-online', label: 'Join online', hotkey: 'w', on: () => c.actions.world('online') }),
@@ -90,9 +91,10 @@ function helloBanner(c: Ctx): RenderElement | null {
   const day = hello(c.now)
   const { Box } = c.el
   const name = day.featured ? safe(day.featured.names[day.featured.legendary ? 2 : 0], 24) : ''
-  const inner: Ctx = { ...c, columns: Math.max(20, c.columns - 8 - SPACE.loose) }
+  const beside = c.columns >= 30
+  const inner: Ctx = { ...c, columns: beside ? c.columns - 8 - SPACE.loose : c.columns }
   return (
-    <Box flexDirection="row" columnGap={SPACE.loose} width={c.columns}>
+    <Box flexDirection={beside ? 'row' : 'column'} columnGap={SPACE.loose} rowGap={SPACE.tight} width={c.columns}>
       {day.featured ? <Box flexShrink={0}>{formMini(c, 'hello-featured', day.featured, true)}</Box> : null}
       {column(inner, [
         line(inner, `Today: ${day.rule}`, { color: INK.accent }),
@@ -106,7 +108,7 @@ function helloBanner(c: Ctx): RenderElement | null {
 function tabScreen(c: Ctx): Shown {
   const tab = c.state.pane.tab
   // the Market tab is only there online on a server with a market; a world switched to without one shows the Team
-  const shown = tab === 'cards' ? cardsScreen(c) : tab === 'album' ? albumScreen(c) : tab === 'trade' ? tradeScreen(c)
+  const shown = tab === 'cards' ? cardsScreen(c) : tab === 'album' ? albumScreen(c) : tab === 'trade' ? communityScreen(c)
     : tab === 'market' && marketOpen(c.state) ? marketScreen(c) : teamScreen(c)
   return { ...shown, banner: helloBanner(c) }
 }
@@ -136,6 +138,10 @@ function route(c: Ctx): Shown {
     case 'gift': return giftScreen(c, top.code)
     case 'privacy': return privacyScreen(c)
     case 'devices': return devicesScreen(c)
+    case 'trades': return tradeScreen(c)
+    case 'mine': return mineScreen(c)
+    case 'help': return helpScreen(c)
+    case 'today': return todayScreen(c)
     case 'demo': return tabScreen({ ...c, root: true })
     case 'boards': return c.offline ? onlineOnly(c) : boardsScreen(c, top)
     case 'listing': return c.offline ? onlineOnly(c) : listingScreen(c, top)

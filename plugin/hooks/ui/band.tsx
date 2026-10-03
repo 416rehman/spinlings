@@ -17,6 +17,7 @@ import {
   rustleFrame, SHADOW, spriteOf,
 } from '../client/battleview.ts'
 import { ROUND_MS, catchOrder, headMoment, nameOf } from '../client/game.ts'
+import { effortLook } from '../client/effort.ts'
 import { hostOf } from '../client/net.ts'
 import { UPDATE_COMMAND } from '../client/remote.ts'
 import { fit, plural, safe } from '../client/text.ts'
@@ -136,13 +137,19 @@ export const band: BandView = env => {
 
 // ---------- battles ----------
 
+/** More effort brightens the local band; no added rows, animation beats or game signals. */
+function battleHeader(c: Ctx, env: Env, text: string): RenderElement {
+  const look = effortLook(env.state.signals.effort)
+  return <c.el.Text color={look.vivid ? FAMILY_COLOR[env.state.signals.family] : undefined} dimColor={!look.vivid} bold={look.bold} wrap="truncate-end">{text}</c.el.Text>
+}
+
 function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
   const { el } = c
   const { Box, Text, Button } = el
   const words = battleWords(b, env.state)
   const lead = b.setup.defender[0] ?? null
   const cheering = env.state.signals.cheering
-  if (c.rows < 4) return compactBattle(c, words)
+  if (c.rows < 4) return compactBattle(c, env, words)
   if (b.phase === 'rustle' || b.phase === 'reveal') {
     const fore = foreshadowOf(lead)
     // the roamer turns the band's border gold: rails on the terminal, the plate's own border on the desktop
@@ -157,7 +164,7 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
       }
     }
     return beside(c, art, [
-      <Text dimColor wrap="truncate-end">{fit(words.header, textWidth(c, true))}</Text>,
+      battleHeader(c, env, fit(words.header, textWidth(c, true))),
       line(el, words.banner),
       line(el, words.extra),
       cheering > 0 ? <Text color={INK.accent}>{`+${cheering} cheering`}</Text> : blankRow(el),
@@ -181,13 +188,13 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
     const plan = log && r <= log.rounds.length && b.phase === 'fight' ? roundPlan(b, log, r, ROUND_MS) : null
     const special = plan?.hits.find(h => h.actor === 'a' && h.action.move === 'special')
     const start = plan && b.inputs.includes(r) && special ? Math.max(0, special.at - 2 * TIMING.windup) : 0
-    const hud = (side: Side) => svg(el, hudSvg(f[side], plan, side, size, { start, motion: c.motion }), f[side] ? `${f[side]!.name}, ${Math.ceil(f[side]!.hp)} of ${f[side]!.maxHp} HP` : 'empty', hudSize(size), c.motion)
+    const hud = (side: Side) => svg(el, hudSvg(f[side], plan, side, size, { start, motion: c.motion, effort: env.state.signals.effort }), f[side] ? `${f[side]!.name}, ${Math.ceil(f[side]!.hp)} of ${f[side]!.maxHp} HP` : 'empty', hudSize(size), c.motion)
     if (kind === 'wide') {
       return (
         <Box flexDirection="row" columnGap={SPACE.tight} width={c.columns}>
           <Box flexShrink={0}>{hud('a')}</Box>
           <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-            <Text dimColor wrap="truncate-end">{words.header}</Text>
+            {battleHeader(c, env, words.header)}
             {line(el, words.banner)}
             {line(el, words.extra)}
             {controls}
@@ -198,7 +205,7 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
     }
     return (
       <Box flexDirection="column" width={c.columns}>
-        <Text dimColor wrap="truncate-end">{words.header}</Text>
+        {battleHeader(c, env, words.header)}
         <Box flexDirection="row" columnGap={SPACE.tight}>{hud('a')}{hud('d')}</Box>
         {narrowStory(c, words)}
       </Box>
@@ -211,7 +218,7 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
       <Box flexDirection="row" columnGap={SPACE.tight} width={c.columns}>
         <Box flexShrink={0}><el.Raster key={KEYS.a} columns={a.columns} rows={a.rows} cells={a.cells} /></Box>
         <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-          <Text dimColor wrap="truncate-end">{words.header}</Text>
+          {battleHeader(c, env, words.header)}
           {line(el, words.banner)}
           {line(el, words.extra)}
           {controls}
@@ -228,7 +235,7 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
     <Box flexDirection="row" columnGap={SPACE.tight} width={c.columns}>
       <Box flexShrink={0}><el.Raster key={KEYS.dArt} columns={art.columns} rows={art.rows} cells={art.cells} /></Box>
       <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-        <Text dimColor wrap="truncate-end">{words.header}</Text>
+        {battleHeader(c, env, words.header)}
         <el.Raster key={KEYS.aLine} columns={aLine.columns} rows={1} cells={aLine.cells} />
         <el.Raster key={KEYS.dLine} columns={dLine.columns} rows={1} cells={dLine.cells} />
         {narrowStory(c, words)}
@@ -258,8 +265,8 @@ function narrowStory(c: Ctx, words: ReturnType<typeof battleWords>): RenderEleme
 }
 
 /** A battle in a window under four rows: the words alone, `1: Now!` on the first row so its digit always reaches it. */
-function compactBattle(c: Ctx, words: ReturnType<typeof battleWords>): RenderElement {
-  const header = <c.el.Text dimColor wrap="truncate-end">{words.header}</c.el.Text>
+function compactBattle(c: Ctx, env: Env, words: ReturnType<typeof battleWords>): RenderElement {
+  const header = battleHeader(c, env, words.header)
   return compact(c, [words.now ? nowRow(c, header) : header, line(c.el, storyOf(words))])
 }
 

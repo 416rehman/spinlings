@@ -11,7 +11,7 @@ import {
 } from '../hooks/client/viewmodels.ts'
 import { traderDeals } from '../hooks/core/trader.ts'
 import { pane } from '../hooks/ui/pane.tsx'
-import { cardArt } from './engine.ts'
+import { cardArt, measure } from './engine.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12, 0, 0)
 const WIDTHS = [50, 80, 120] as const
@@ -155,6 +155,23 @@ test('every screen of /spin demo draws at 50, 80 and 120 columns on the terminal
   }
 })
 
+test('every pane demo screen fits 24 columns, including its wrapped text and fixed controls', { timeoutMs: 120_000 }, async ($, on) => {
+  draws(on, p)
+  for (const step of demoSteps(NOW).filter(s => !s.band)) {
+    for (const surface of SURFACES) {
+      p.state = step.state
+      const where = `${step.title} @24 ${surface}`
+      const ui = await $.ui.mount(MOUNT(24, surface))
+      const tree = await ui.drawn()
+      gate(tree, 24, where)
+      const problems: string[] = []
+      const size = measure(tree, 24, problems)
+      expect({ where, problems, fits: size.w <= 24 }).toEqual({ where, problems: [], fits: true })
+      await ui.unmount()
+    }
+  }
+})
+
 /** Every creature name a state can show: your cards, listings, offers, a profile's cards. */
 function namesIn(s: GameState): string[] {
   const faces = [
@@ -289,7 +306,7 @@ test('tabs switch with 1-4 on a tab, and a pushed view keeps the digits for its 
   expect(p.state.pane.stack.at(-1)?.kind).toBe('card')
   expect((await ui.find({ key: 'tab-cards' }))?.props.hotkey).toBeUndefined()
   expect((await ui.find({ key: 'share' }))?.props.hotkey).toBe('s')
-  expect(await ui.find({ text: /esc Back/ })).toBeDefined()
+  expect((await ui.find({ key: 'pane-back' }))?.props.label).toBe('Back')
   await ui.unmount()
 })
 
@@ -355,7 +372,7 @@ test('the album: families, silhouettes, a species page that crafts and wishes', 
   p.state = s
   p.calls = []
   const ui = await $.ui.mount(MOUNT(80, 'terminal'))
-  expect(await ui.find({ text: /Album · \d+\/36/ })).toBeDefined()
+  expect(await ui.find({ text: /Discoveries · \d+\/36/ })).toBeDefined()
   await press(ui, 'album-next')
   expect(p.state.pane.album).toBe('fable')
   await press(ui, 'album-log')
@@ -399,7 +416,7 @@ test('trading: sections load on demand, offers accept, decline and counter, and 
   await press(ui, 'send-offer')
   expect(p.calls.at(-1)?.[0]).toBe('counter')
   await press(ui, 'tab-trade')
-  await press(ui, 'section-board')
+  await press(ui, 'community-trade-board')
   expect(p.state.pane.page).toBe(1)
   expect(p.calls.at(-1)).toEqual(['load', ['board']])
   expect(await ui.find({ key: 'match-0-offer' })).toBeDefined()
@@ -412,6 +429,75 @@ test('trading: sections load on demand, offers accept, decline and counter, and 
   expect(p.calls.at(-1)).toEqual(['claim', ['quiet-otter-lamp-4821']])
   await type(ui, 'redeem-code', 'FOUNDERS')
   expect(p.calls.at(-1)).toEqual(['redeem', ['FOUNDERS']])
+  await ui.unmount()
+})
+
+test('Community opens your live profile, all six boards and trades with clear controls in tiny panes', { timeoutMs: 90_000 }, async ($, on) => {
+  draws(on, p)
+  const base = demoSteps(NOW).find(x => x.title === 'Community · the hub')!.state
+  for (const surface of SURFACES) {
+    for (const columns of [24, 32, 50]) {
+      p.state = base
+      p.calls = []
+      const ui = await $.ui.mount(MOUNT(columns, surface))
+      gate(await ui.drawn(), columns, `Community @${columns} ${surface}`)
+      expect((await ui.find({ key: 'tab-cards' }))?.props.label).toBe('Collection')
+      expect((await ui.find({ key: 'tab-album' }))?.props.label).toBe('Discoveries')
+      expect((await ui.find({ key: 'tab-trade' }))?.props.label).toBe('Community')
+      const boardButtons = (await ui.findAll({ type: 'Button' })).filter(b => String(b.key).startsWith('community-board-'))
+      expect(boardButtons.length).toBe(6)
+      await press(ui, 'my-profile')
+      expect(p.state.pane.stack.at(-1)?.kind).toBe('mine')
+      expect(await ui.find({ text: /rating/ })).toBeDefined()
+      expect(await ui.find({ text: /sparks/ })).toBeDefined()
+      expect(await ui.find({ text: /first finds/ })).toBeDefined()
+      expect(await ui.find({ text: /market sales/ })).toBeDefined()
+      expect(p.calls.some(([name]) => name === 'profile')).toBe(false)
+      gate(await ui.drawn(), columns, `Your profile @${columns} ${surface}`)
+      const links = await ui.findAll({ type: 'Link' })
+      expect(links.some(l => l.props.href === `${base.account.server}/account`)).toBe(true)
+      await press(ui, 'pane-back')
+      expect(p.state.pane.stack.length).toBe(0)
+      await press(ui, 'community-board-species')
+      expect(p.state.pane.stack.at(-1)).toMatchObject({ kind: 'boards', board: 'species', period: 'all' })
+      expect(p.calls.at(-1)).toEqual(['rankings', ['species', 'all']])
+      await press(ui, 'pane-back')
+      await press(ui, 'community-trade-board')
+      expect(p.state.pane.stack.at(-1)?.kind).toBe('trades')
+      expect(p.calls.at(-1)).toEqual(['load', ['board']])
+      await ui.unmount()
+    }
+  }
+})
+
+test('tiny Team, Collection, Discoveries, Today and Help panes explain their icons without duplicate footer shortcuts', { timeoutMs: 90_000 }, async ($, on) => {
+  draws(on, p)
+  const steps = demoSteps(NOW)
+  for (const title of ['Team · the daily hello', 'Team · a brand-new player', 'Team · slots, resting, notices with Revenge', 'Cards · the collection', 'Album · Opus', 'Today · the meadow rule', 'Help · the field guide']) {
+    for (const surface of SURFACES) {
+      for (const columns of [24, 32]) {
+        p.state = steps.find(s => s.title === title)!.state
+        const ui = await $.ui.mount(MOUNT(columns, surface))
+        const tree = await ui.drawn()
+        gate(tree, columns, `${title} @${columns} ${surface}`)
+        const footer = textOf((tree as Node).children!.at(-1))
+        expect(/Tabs|Pick a card|Next page|Open pack/.test(footer)).toBe(false)
+        expect(await ui.find({ key: 'pane-back' })).toBeDefined()
+        await ui.unmount()
+      }
+    }
+  }
+  p.state = steps.find(s => s.title === 'Team · slots, resting, notices with Revenge')!.state
+  const ui = await $.ui.mount(MOUNT(32, 'terminal'))
+  await press(ui, 'today')
+  expect(p.state.pane.stack.at(-1)?.kind).toBe('today')
+  expect(await ui.find({ text: /midnight UTC/ })).toBeDefined()
+  expect((await ui.find({ key: 'pane-help' }))?.props).toMatchObject({ label: '? Help' })
+  expect((await ui.find({ key: 'pane-help' }))?.props.hotkey).toBeUndefined()
+  await press(ui, 'pane-help')
+  expect(p.state.pane.stack.at(-1)?.kind).toBe('help')
+  expect(await ui.find({ text: /Families are creature types/ })).toBeDefined()
+  expect(await ui.find({ text: /First Discovered means the first trainer globally/ })).toBeDefined()
   await ui.unmount()
 })
 

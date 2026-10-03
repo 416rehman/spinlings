@@ -176,7 +176,7 @@ Fuse any two of your cards (not bound, not in escrow) into one brand-new hybrid 
 - **Manual battle:** `/spin battle` or a revenge, any time; the server spaces duel starts at least 2 minutes apart.
 - **Server pacing** (section 24): a wild start at least 8 minutes after the previous wild start, a duel start at least 2 minutes after the previous duel start, one open battle at a time, and a minimum duration of 1.5 s per round.
 - **Never coupled to Claude.** Battles never wait for Claude, and Claude never waits for a battle. If Claude finishes first, the battle keeps playing in the band until it ends.
-- **One pace:** every round plays at 2.2 s. The pace never follows the effort setting: the finish request leaves once the rounds have played, so its timing would tell the server that setting (section 20.2).
+- **One pace:** every round plays at 2.2 s. Claude's effort changes only the local band's ink and the player's creature-frame glow. It never changes battle rules, animation beats, input windows or request timing: the finish request leaves once the fixed rounds have played (section 20.2).
 
 ### Format
 - Teams have 3 slots. Slot order is play order, and the active creature is the first one not fainted.
@@ -287,14 +287,13 @@ The arena is the family of the attacker's current model at battle start. It is s
 | Craft a current-season species (fresh DNA) | common 50, rare 200, epic 800, legendary 3200 |
 | Extra pack | 150 |
 | Fusion | 40 (20 on Fusion Fair) |
-| Trade fee | 10 per card you receive (burned) |
 
 New players start with 100 sparks.
 
 ### First run
 1. **Join.** The client joins silently: `GET /v1/challenge`, a proof of work, then `POST /v1/join` with the current family (sections 30 and 34).
 2. **Starter team.** The player gets 3 bound common cards at level 3, 20 xp short of level 4 so one won battle evolves them, saved as the team: one from a family the server picks at random, one from the family it beats, and one from the family that beats it, in a shuffled order. The team is public, so it never follows the joining family (section 20.3). They have DNA like any other card.
-3. **Welcome gifts.** 2 welcome packs (the current family and one random other family), trade-locked until midnight UTC 7 days after the join day, and 100 sparks.
+3. **Welcome gifts.** 2 welcome packs (the current family and one random other family) and 100 sparks. Cards from welcome packs are free to trade immediately (section 8).
 4. **Band.** See section 34.
 
 ## 7. The living world (all driven by the date, no server work)
@@ -318,7 +317,7 @@ New players start with 100 sparks.
 
 ## 8. Players together: trading, the market, gifts, challenges and leaderboards (async)
 
-Everything here works while the other player is away. **No account limits:** any online account trades, lists, buys, sends gifts and challenges from its first day. There is no trust gate, no fee and no trade lock. What stays is a property of the card, not the account: **bound** cards (starters and cards from bound drops) never trade. Storage sizes keep tables small; they are not quotas. This section overrides every other mention of a trade lock, the welcome lock, a trade fee, the trust gate or an opt-in leaderboard (sections 6, 12, 19 and 26), and any rule that lets a player pick an opponent only through revenge.
+Everything here works while the other player is away. **No account limits:** any online account trades, lists, buys, sends gifts and challenges from its first day. There is no trust gate, no fee and no trade lock. What stays is a property of the card, not the account: **bound** cards (starters and cards from bound drops) never trade. Storage sizes keep tables small; they are not quotas.
 
 ### Offers
 - **Starting a trade.** Open a player's profile in the pane: from the opponent you just battled, from the trade board, or with `/spin trade <handle>`. You see their cards marked **for trade**.
@@ -392,17 +391,17 @@ Everything here works while the other player is away. **No account limits:** any
 | Welcome | 2 rows, once ever | See "First run" in section 6 |
 
 ### Pane (`/spin`)
-Five tabs, hotkeys 1–5; offline there is no Market tab, so the four left take 1–4. A header shows the tabs, then `[o] Open pack (n)`, the pack meter as a small pack filling in the family's colour with the time left (`18m`), the daily rule, the world as a dot and the host, and, until a passkey is saved, a `Not backed up` marker that opens the passkey steps. Every piece shows whole; the header wraps rather than cut one.
+Five tabs, hotkeys 1–5; offline there is no Market tab, so the four left take 1–4. The displayed labels are Team, Collection, Discoveries, Market and Community; their saved ids remain `team`, `cards`, `album`, `market` and `trade`. A header shows the tabs, then `[o] Open pack (n)`, the pack meter as a small pack filling in the family's colour with a labelled countdown (`Next pack 18m`), the daily rule as a button that opens its effect, the world as a dot and the host, and, until a passkey is saved, a `Not backed up` marker that opens the passkey steps. Every piece shows whole; the header wraps rather than cut one.
 
 | Tab | Shows |
 |---|---|
-| Team | 3 slots with tired timers (an empty slot is a button to pick one), league badge, rating and streak, `Leaderboards`, your stats as tiles (a glyph and a number each), the packs waiting as art to open, defense notices |
-| Cards | Collection grid with family and rarity filters; card detail (stats, genes, traits, origin) with set in team, for trade, fuse, sell, recycle and gift |
-| Album | The season's 4 families × 9 species with silhouettes for unseen ones, plus craft; also the Fusion Log |
+| Team | 3 slots with resting timers (an empty slot is a button to pick one), labelled league, rating, sparks and win streak, Duel, Your profile and Leaderboards, packs waiting as art to open, defense notices. Slots stack as card rows when three tiles do not fit |
+| Collection | Your cards as a grid with family and rarity filters; card detail (stats, genes, traits, origin) with set in team, for trade, fuse, sell, recycle and gift |
+| Discoveries | The season's 4 families × 9 species with silhouettes for unseen ones, plus craft; also the Fusion Log. Counts describe species discovered, separate from cards owned |
 | Market | Everyone's listings as a grid of card tiles (art, rarity gem, family mark, finish, a price chip in sparks and the creature it wants in return), filter chips (family, rarity, kind, sort, shiny, foil), pages; your own listings with `l`. A listing's page is the confirm: the card in full, the seller with Challenge, recent prices, what you give and what you get, then `1` Buy. Selling starts from a card's page (`l`): a price stepper that starts from recent sales (or what crafting one costs), up to three suggested prices, and an optional card asked in return (a wishlist species, or the card's family at its rarity or better) |
-| Trade | Inbox (incoming and outgoing offers), the trade board, the Wandering Trader, gifts and claim |
+| Community | Your profile, six labelled leaderboards, then Trading: Offers, Find a trade, Wandering Trader and Gifts. Each trading action opens the relevant pushed Trading screen; offline, the Trader and your local profile remain available |
 
-Pushed over the tabs: the leaderboards (a switcher of six boards with `n`/`p`, all time or this season with `a`, the top rows with a league badge and the value, your own rank pinned, and from each row the player's profile or Challenge), and a player's profile (league, album count, stats as tiles, Challenge, their team and the offer builder).
+Pushed over the tabs: the leaderboards (six labelled board choices plus `n`/`p`, all time or this season with `a`, the top rows with a league badge and the value, your own rank pinned, and from each row the player's profile or Challenge); your profile (handle, league, rating, sparks, win streak, live own stats, cards owned and species discovered, settings and devices, and links to the active server's `/account` and public profile); another player's profile (league, album count, stats as tiles, Challenge, their team and the offer builder); Trading; Help; and Today, explaining the daily rule.
 
 **Visuals are the controls.** Every card tile, team slot, pack, listing and board row is pressable: its button sits under its art, lights up while the pointer is anywhere over the tile, takes Tab focus and, where it matters, a hotkey. A name is never cut: what does not fit a tile's column goes on a line below, and the card's page shows everything whole. On the desktop the art carries the full name as its tooltip.
 
@@ -441,6 +440,7 @@ Pushed over the tabs: the leaderboards (a switcher of six boards with `n`/`p`, a
 | Signal | Hook | Used for |
 |---|---|---|
 | Model id | `$.session.model()`, `turn.step` `e.model` | Pack family, arena |
+| Effort | `turn.step` `e.effort` (main thread only) | Local battle-band ink and frame glow only; never persisted or sent |
 | Claude working | `turn.start` and `turn.complete` (main thread, where `agentId` is undefined) | Waiting battles |
 | Turn ending | `turn.complete` `reason` | A one-line reaction only (e.g. the creature flinches on Esc) |
 | Spinner phase | `ui.render` Spinner `e.props.mode` | Spinner suffix during a battle |
@@ -528,15 +528,15 @@ spinlings/
   - Bodies over 16 KB are rejected before parsing. JSON parse errors return 400.
 - **SQL** uses bound parameters only, never string concatenation.
 - **Auth.** Session tokens are 32 random bytes from `crypto.getRandomValues`, stored as SHA-256 hashes and looked up by hash. Missing or bad auth returns 401 with no detail.
-- **Authorization.** Every action checks ownership with guards inside the same atomic D1 batch that changes state (escrow, trade locks, bound cards). Section 16 describes the guard pattern.
+- **Authorization.** Every action checks ownership with guards inside the same atomic D1 batch that changes state (escrow and bound cards). Trading has no account gate, locks or fees (section 8). Section 16 describes the guard pattern.
 - **Rate limits and abuse.**
-  - Per-token and per-IP-hash limits, plus the daily game caps.
+  - Per-token and per-IP-hash limits, plus server pacing, storage sizes and duel pair limits (sections 8 and 24).
   - Proof of work on join.
   - Claim attempts are capped.
   - Gift codes carry about 44 bits of entropy and are single-use.
 - **Pages.**
   - Every dynamic value is HTML-escaped.
-  - Strict headers: `Content-Security-Policy: default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'`, no scripts (except the two passkey pages, section 30), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `X-Frame-Options: DENY`.
+  - Strict headers: `Content-Security-Policy: default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'`, first-party scripts only where documented (sections 30 and 36), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `X-Frame-Options: DENY`. Public site scripts have `connect-src 'none'`; passkey and private browser-collection scripts have `connect-src 'self'`.
   - API responses use `application/json` and send no CORS headers.
 - **Errors** are logged without tokens, IPs or bodies.
 
@@ -546,7 +546,7 @@ Section 20 is the full privacy rule set and overrides this summary.
 - **What it never stores:** IP addresses (only a daily-salted HMAC, for rate limits), user agents, timezones, emails or anything about the user's work.
 - **No analytics, no telemetry and no third-party requests,** on the client or the server.
 - **Deletion.** `DELETE /v1/me` deletes the account, its sessions, passkeys and cards (traded-away cards stay with their new owners). `/spin privacy` offers it, behind a 2-second hold.
-- **What other people see:** a public profile shows the handle, the team, for-trade cards, album count and league, and nothing else.
+- **What other people see:** a public profile shows the handle, the team, for-trade cards, album count, league and game stats; the stats are hidden if the player opts out of the global leaderboards. Public stats, album count and league are snapshots from the last UTC midnight (section 8).
 
 ## 13. Discovery and excitement (every new card is a moment)
 
@@ -811,7 +811,7 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 - **Rate limits:**
   - Joins are counted in a D1 table keyed by a daily-salted IP hash and the hour.
   - The per-token burst limit is a best-effort in-memory bucket per Worker isolate.
-  - The daily game caps are exact, because they live in player rows and are enforced through guards.
+  - Battle and pack pacing, storage sizes and duel pair limits are enforced through guards (sections 8 and 24).
 - **Challenges** are D1 rows that are consumed with a guarded delete.
 - **Indexes:** matchmaking, the trade board and lookups by code or handle all have indexes.
 - **Never** run a query without bound parameters, and never let a handler run more than ~20 queries.
@@ -866,11 +866,11 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 | Social feature | Solo fallback (used whenever no real player fits) |
 |---|---|
 | Duels | **Rival trainers**: generated opponents, always labelled `Rival` with a generated name (e.g. `Rival Thistlewick`). Their team matches the player's own team power, scaled 1.0x at rating 1000 and 8% tougher per 400 rating (clamped to 0.85x–1.25x), and their rating sits within 50 of the player's. Matchmaking prefers real players in the rating window; Rivals fill in otherwise. Duels against Rivals move the player's rating normally. |
-| Trading | **The Wandering Trader**, a non-player trader with 3 deals a day, picked by date hash from a pool, e.g. 2 cards of one family give 1 rare of another; 1 epic gives 2 rares of the deal's family; 5 any cards give 1 pack. Each deal can be used once per day per player: it is the Trader's daily stock, a rotating shop rather than a cap on play (section 24). Deals are server-validated, take only free cards (not bound, held or trade-locked) and consume them. Offline, the Trader works the same way. |
+| Trading | **The Wandering Trader**, a non-player trader with 3 deals a day, picked by date hash from a pool, e.g. 2 cards of one family give 1 rare of another; 1 epic gives 2 rares of the deal's family; 5 any cards give 1 pack. Each deal can be used once per day per player: it is the Trader's daily stock, a rotating shop rather than a cap on play (section 24). Deals are server-validated, take only free cards (not bound or held) and consume them. Offline, the Trader works the same way. |
 | Trade board | Shows the Trader's deals plus real listings |
 | First discoveries | Common at launch, which makes early players' First Discovered stamps permanent bragging rights |
 | Gifts | The invite loop: a gift link brings a friend in |
-| Leaderboard | Real players only, opt-in |
+| Leaderboards | Every online player unless they opt out; Rivals never appear (section 8) |
 
 ## 20. Privacy hardening (highest priority; overrides anything above that conflicts)
 
@@ -878,7 +878,7 @@ Every row a player can change has a `version` column. One-shot actions (open a p
    - Each player is a random token and a random generated handle (`adjective-noun-NN`, server-chosen) that bears no relation to their Claude account, email, organization, machine, OS user, session id, model or anything else.
    - The client never sends any of those. It never calls `$.session.authorize`, `$.session.id` or `$.session.repo` for the server.
    - A handle can be rerolled once a week.
-2. **No work and no usage data** leaves the machine, except the `family` of a pack charge or battle. That is needed for the game, but it is never shown to anyone else, never stored longer than its pack or battle row, and battle rows are deleted 7 days after settling, leaving only aggregate counters.
+2. **No work and no usage data** leaves the machine, except the `family` of a pack charge or battle. That is needed for the game, but it is never shown to anyone else, never stored longer than its pack or battle row, and battle rows are deleted 7 days after settling, leaving only aggregate counters. Claude's effort setting stays in local view state and changes only the band's ink and the player's creature-frame glow. Low and max effort produce byte-identical requests at identical timestamps; `test/client/effort.test.ts` checks manual and waiting battles with motion on and off. All battle rounds stay at `ECONOMY.battle.roundMs`.
 3. **What other players see:**
 
    | Surface | Visible |
@@ -912,9 +912,9 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 
 ### Principles
 1. **One primary action per surface.** It is a `variant="primary"` Button and always hotkey `1` (or `o` in ceremonies). At most 2 secondary actions; everything else lives in the card detail.
-2. **The screen answers "what can I do now?"** Every tab has a one-line hint row at the bottom, e.g. `1 Open pack · 2 Team · esc Close`. Every empty state says what will fill it ("Creatures show up while Claude works. Your first one is on its way.").
+2. **The screen answers "what can I do now?"** Actions carry their own hotkeys. The footer has an actual Back or Close button, optional `?` Help and the version or update control; it does not repeat an inventory of the screen's shortcuts. Help explains families, rating, leagues, sparks, streaks and the difference between cards owned and species discovered. Every empty state says what will fill it ("Creatures show up while Claude works. Your first one is on its way.").
 3. **Teach by doing, never by tutorial.** The first session is the onboarding: welcome pack → first encounter → first catch. A hint appears once, at the moment it matters, and never again.
-4. **Chunking.** At most 4 items per group, 5 tabs, 3 choices in any picker.
+4. **Chunking.** Navigation, leaderboards and trading have their own groups. At most 5 tabs and 3 choices in a picker; the six named leaderboard categories stay together so players can see what each measures.
 5. **Plain words.** Buttons are verbs: "Open pack", "Set team", "Send offer", "Claim". No jargon in the UI: "held for this trade", not "escrow"; "resting", not "tired_until".
 6. **Instant feedback.** Every press changes something visible within 100 ms (optimistic state, then reconcile with the server). Every wait over 300 ms shows a dim placeholder, never a frozen screen.
 7. **Smart defaults.** The handle is pre-filled, the best pick is pre-selected in pickers, and the album opens at the count you already have, never at 0.
@@ -925,7 +925,7 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 | Size | Used in | Contents |
 |---|---|---|
 | Full | Card detail, reveals | 16×16 sprite, name, rarity word and color, family mark, level and XP bar, gene score bar, traits (name and one-line effect), stamps (foil, shiny, first, mythic, raised under), origin |
-| Tile | Collection grid, offers, the market | Sprite, name (never cut: words that do not fit go on a line below), rarity initial in its color, level; a listing adds its price chip and the card it wants |
+| Tile | Collection grid, offers, the market | Sprite, name (never cut: words that do not fit go on a line below), full family and rarity names in their colors, level and finishes; a listing adds its price chip and the card it wants |
 | Mini | Band, battle | 8×8 sprite, name, HP bar |
 
 The same card always looks the same everywhere: same colors, same marks, same order.
@@ -958,11 +958,11 @@ The same card always looks the same everywhere: same colors, same marks, same or
 
 ### Layout and sizing
 - **The band** fits in 40 columns at minimum, and adapts at 40, 80 and 120+ columns. It never wraps a word mid-line; long names truncate with an ellipsis.
-- **The pane** works from 50 columns. Its grid tile count adapts to `bodyColumns`.
+- **The pane** adapts to `bodyColumns`. Grids reduce their tile count, headers and action groups wrap, and team slots become stacked rows in narrow panes. Home, Community and your profile also have tiny-pane checks at 24 and 32 columns.
 - **Pane structure:**
   - header row: the tab bar on the left, then the daily rule and pack meter on the right;
   - body;
-  - hint row at the bottom.
+  - Back or Close, Help and version/update controls at the bottom.
 
   This is the same on every tab.
 - **Parity:** the terminal and desktop show the same information in the same order. The desktop uses `Svg` art and the 4/8/16/32 spacing scale.
@@ -1173,9 +1173,9 @@ The seam's blocklist (`isBlocked`) has the last word: a blocked species or fusio
    | Offers: viewing | only `from_id` or `to_id` |
    | `gifts/:code/cancel` | `giver_id = caller` |
    | `claim`, `redeem` | the caller is the recipient, never another player |
-| `trader/:dealId` | every given card: `owner_id = caller AND state = 'owned'`, not bound, not trade-locked |
+   | `trader/:dealId` | every given card: `owner_id = caller AND state = 'owned'`, not bound |
 3. **Foreign objects return 404 `not_found`,** indistinguishable from objects that do not exist. Ids are random 128-bit (from `crypto.getRandomValues`, base32 or hex), but checks never rely on that.
-4. **No private data about other players** is in any response. Other players appear only as a public profile or as a leaderboard row (opt-in), with the fields allowed by section 20, or as a handle inside your own offers, gifts and notices. There is no endpoint that lists players. Profiles are fetched by exact handle and rate-limited.
+4. **No private data about other players** is in any response. Other players appear only as a public profile, a global leaderboard row unless they opt out, or an open market listing, with the fields allowed by section 20, or as a handle inside your own offers, gifts and notices. There is no endpoint that lists players outside these public game surfaces. Profiles are fetched by exact handle and rate-limited.
 5. **No ambient authority:**
    - Auth is the `Authorization: Bearer` header only, with no cookies, so CSRF is not applicable.
    - The API sends no CORS headers.
@@ -1293,12 +1293,19 @@ GitHub sign-in was withdrawn (section 30): the game never asks who you are, and 
   3. The server verifies the assertion signature with WebCrypto (`crypto.subtle.verify`, ECDSA P-256 or RSASSA-PKCS1-v1_5), checks `signCount` monotonicity when it is non-zero, then issues a new session to the poll.
   4. The mod polls `GET /v1/auth/poll/{pollId}` (section 29) and switches to that account, with everything that is the account's: cards, open offers and market listings, stats and leaderboard places. The machine's previous anonymous account, if it had one and it has no passkey, stays on the server as is and can be deleted from `/spin privacy`.
 - **Pages:**
-  - Only the two passkey pages carry one small first-party script (`/static/passkey.js`), under CSP `script-src 'self'`. Every other page stays script-free.
+  - The two passkey pages use `/static/passkey.js` under CSP `script-src 'self'`; the public site uses only the first-party scripts described in section 36.
   - Both pages carry the phishing warning from section 29.
   - The domain is shown plainly.
 - **Devices:** `/spin devices` shows `Signed in on 2 devices · passkey saved ✓ · Reset access`. Reset access removes every way into the account at once: every session, every saved passkey and every passkey flow still open (whoever held a leaked token could have saved a passkey of their own). The device that resets keeps one new session, and the player saves a passkey again afterwards.
 - **Warnings:** each saved passkey and each passkey sign-in leaves the account a notice (`new-device`) that says to reset access if it was not them. `/v1/me` always lists the latest 10 of these first, ahead of the other notices, so no stream of other notices can push them out of sight.
 - **Losing every device without a passkey loses the online account.** The UI states this honestly next to the passkey offer.
+
+### Browser collection
+- `/account` is a read-only view of the same online account: team, cards and their stats, unopened-pack and listing counts, current personal stats and all six leaderboard places, all time or this season. Board places still use the midnight snapshot; private stats are current.
+- A press starts `POST /account/signin/start` with an empty body. It creates the normal short-lived sign-in poll and returns its ticket, poll id and WebAuthn options directly to this browser. The ticket and poll id never enter a URL. The existing assertion verifier and one-use `/v1/auth/poll/{pollId}` issue an ordinary session after verification.
+- `/static/account.js` keeps that session only in tab-scoped `sessionStorage` and uses bearer headers on same-origin reads. The public HTML shell carries no token or account data. No cookies, third-party calls or new stored game fields.
+- `DELETE /account/signout` removes only the authenticated caller's current session. Reset access and account deletion also remove browser sessions. Closing the tab clears its local token; server retention stays the same.
+- The existing public card representation also serves its 16×16 creature art at `/c/{id}/art.svg`, with no extra player fields.
 
 ### Stored
 - **Players:** a session hash per device, and passkey credential ids with their public keys.
@@ -1342,11 +1349,11 @@ Passkeys are bound to `rp.id` forever. The production domain must be final befor
   `{ api: 1, server: semver, rules: int, generator: int, minClient: semver, latestClient: semver, sunset?: { api, date }, features: string[] }`
 - **Every request** carries `X-Spinlings-Client: <semver>`. It is identical for everyone on that version and is not logged (section 20). The server uses it only to choose compatible behaviour, and returns `426 upgrade_required` only below `minClient`.
 - **Mod behaviour:**
-  - checks the version once per day while online;
+  - checks the version once per day while online, and once after a mod update so cached capabilities cannot hide newly available screens;
   - shows `Spinlings {latest} is out · claude plugin update spinlings@spinlings` once per new version in the band (dismissible, never repeated);
   - below `minClient`: online actions are read-only with a clear one-line message; the offline world keeps working.
   - Features missing from `features` are hidden, not broken (for self-hosted servers lagging behind).
-  - **Version indicator (never nags):** the pane's hint row ends in a dim `v0.1.0` where the hints leave room; hints never give way to it, and when they run long they drop whole from the middle, the `esc` item always kept. When the server names a newer release (`latestClient`, or `minClient` when only that is newer; never a pre-release) a chip `Update to 0.2.0` (`Update 0.2.0` under 60 columns) always shows; `u` opens `In a terminal: claude plugin update spinlings@spinlings` and `u` again copies it; while that is open the chip reads `Hide update`, and esc closes the row before the pane. The status line appends ` · update 0.2.0`. `/spin version` logs the mod's version, the world, and the server's host with its server, rules and generator versions, then "Up to date." or the update line. It logs `Asking {host}…` before any request, and when the server is out of reach it reports the last answer at once with its day. Offline it names no server and sends nothing.
+  - **Version indicator (never nags):** the pane's footer shows the installed version beside Back or Close and optional Help, wrapping in narrow panes. When the server names a newer release (`latestClient`, or `minClient` when only that is newer; never a pre-release) a chip `Update to 0.2.0` (`Update 0.2.0` under 60 columns) always shows; `u` opens `In a terminal: claude plugin update spinlings@spinlings` and `u` again copies it; while that is open the chip reads `Hide update`, and esc closes the row before the pane. The status line appends ` · update 0.2.0`. `/spin version` logs the mod's version, the world, and the server's host with its server, rules and generator versions, then "Up to date." or the update line. It logs `Asking {host}…` before any request, and when the server is out of reach it reports the last answer at once with its day. Offline it names no server and sends nothing.
 
 ### Numbers come from the server
 - **`Card.stats`** (server-computed `Stats`) is sent on every card. `BattleCard.stats` is part of every battle setup. The client displays these and passes them to the simulator, and never recomputes stats for online cards.

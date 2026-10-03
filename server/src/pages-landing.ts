@@ -204,6 +204,7 @@ ${raw(spriteSvg(spriteFor({ form: featured, stage: 1 })))}
 <span class="key1" data-toy="Press 1 for a Perfect hit" data-keys="1" data-key1 role="img" aria-label="The 1 key">${raw(KEY_RING)}<span class="cap1">${raw(wordSvg('1'))}</span></span>
 </div>
 <div class="outrow js-only">
+<button class="tbtn pauseb" type="button" data-pause aria-label="Pause demo battle" aria-pressed="false" hidden>Ⅱ Pause</button>
 <button class="pbtn startb" type="button" data-start hidden><span class="face">Start battle <span class="kc1">1</span></span></button>
 <div class="result" data-result hidden></div>
 <p class="waitline">Win, and you might catch one. You never lose a card.</p>
@@ -936,7 +937,8 @@ html.js .screen.open .band{clip-path:inset(0 0 0 0)}
 .waitline{color:#b7c0d8}
 .result:not([hidden])~.waitline{display:none}
 html.js .foot1{display:none}
-.outrow .startb[hidden],.outrow .result[hidden]{display:none}
+.outrow .startb[hidden],.outrow .result[hidden],.pauseb[hidden]{display:none}
+.pauseb{position:relative;z-index:59;min-height:44px}
 .result .kc1,.startb .kc1{color:#1d1726}
 .result{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2) var(--s3)}
 .result .lines{display:grid;gap:2px;min-width:0}

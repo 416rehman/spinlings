@@ -280,7 +280,7 @@ function artElement(el: El, surface: Surface, key: string, cacheKey: string, px:
 export function art(el: El, surface: Surface, c: CardFace, size: CardSize, o: Pick<CardOptions, 'key' | 'ghost' | 'motion'>): RenderElement {
   const mini = size === 'mini' || size === 'row'
   const ghost = !!o.ghost
-  const alt = ghost ? 'an unseen creature' : `${displayName(c)}, ${rarityLabel(c)}`
+  const alt = ghost ? 'an unseen creature' : `${displayName(c)}, ${FAMILY_INFO[c.family].name}, ${rarityLabel(c)}, level ${c.level}`
   return artElement(el, surface, o.key, artKey(c, mini, ghost), artPixels(c, mini, ghost), mini ? null : frameOf(c, ghost),
     SVG_SCALE[mini ? 'mini' : size === 'tile' ? 'tile' : 'full'], !!o.motion, alt)
 }
@@ -322,7 +322,7 @@ export function card(el: El, surface: Surface, c: CardFace, size: CardSize, o: C
   const width = size === 'tile' ? CARD_WIDTH.tile : size === 'mini' ? CARD_WIDTH.mini : Math.max(10, (o.width ?? 40) - SPRITE.mini.columns - SPACE.loose)
   const words = [
     ...name(el, c, width, o),
-    meta(el, c, width, size === 'mini'),
+    meta(el, c, width),
     o.extra ?? null,
     // a note (a slot, a handle) wraps rather than cut: it may be the only place a seller's handle shows
     (size === 'tile' ? o.note !== undefined : !!o.note) ? <Text dimColor wrap="wrap">{o.note || ' '}</Text> : null,
@@ -361,22 +361,15 @@ function name(el: El, c: CardFace, width: number, o: CardOptions): RenderElement
 }
 
 /**
- * The marks under a name, in their fixed order: family, rarity initial, level, then the finish, which is never a
- * colour or a glyph alone (SPEC 21.9): `Shiny` and `Foil` where the column has room, else `S` and `F`.
+ * The family and level, then the full rarity and finish words: readable without knowing a colour or a glyph.
  */
-function meta(el: El, c: CardFace, width: number, short: boolean): RenderElement {
-  const { Text } = el
-  const level = short ? ` ${c.level}` : ` Lv ${c.level}`
-  const fits = 3 + level.length + (c.shiny ? 6 : 0) + (c.foil ? 5 : 0) <= width
+function meta(el: El, c: CardFace, width: number): RenderElement {
+  const { Box, Text } = el
   return (
-    <Text wrap="truncate-end">
-      {familyMark(el, c.family)}
-      {' '}
-      <Text color={rarityColor(c)}>{rarityInitial(c)}</Text>
-      <Text dimColor>{level}</Text>
-      {c.shiny ? <Text color={INK.accent}>{fits ? ' Shiny' : ' S'}</Text> : ''}
-      {c.foil ? <Text color={MYTHIC_COLOR}>{fits ? ' Foil' : ' F'}</Text> : ''}
-    </Text>
+    <Box flexDirection="column" width={width}>
+      <Text wrap="wrap">{familyMark(el, c.family)}<Text>{` ${FAMILY_INFO[c.family].name}`}</Text><Text dimColor>{` · Lv ${c.level}`}</Text></Text>
+      <Text wrap="wrap" color={rarityColor(c)}>{rarityLabel(c)}</Text>
+    </Box>
   )
 }
 

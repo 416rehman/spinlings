@@ -2,7 +2,7 @@
 // visible creatures shift their eye layer one sprite pixel toward the pointer, only by the offsets
 // their sprite allows (data-eo), in one rAF that runs only when the pointer moves. Blinks swap the
 // eye layer for lids at a random 3 to 7 s; after 6 s of stillness a wave of blinks runs down the line.
-import { $$, D, RM, sleep } from './util.ts'
+import { $$, clockOf, D, RM, sleep } from './util.ts'
 
 type Eyes = { svg: SVGSVGElement; g: SVGGElement | null; eo: string; target?: { x: number; y: number } | Element; next: number }
 
@@ -46,7 +46,7 @@ function update() {
   const list = [...visible].slice(0, 12)
   for (const svg of list) {
     const e = all.get(svg)
-    if (!e?.g) continue
+    if (!e?.g || clockOf(svg)?.paused) continue
     let tx = px, tyy = py
     if (e.target) {
       if (e.target instanceof Element) { const r = e.target.getBoundingClientRect(); tx = r.left + r.width / 2; tyy = r.top + r.height / 2 } else { tx = e.target.x; tyy = e.target.y }
@@ -67,9 +67,9 @@ function update() {
 
 /** A blink: lids for 120 ms. */
 export async function blink(svg: SVGSVGElement) {
-  if (RM() || svg.classList.contains('shut')) return
+  if (RM() || svg.classList.contains('shut') || clockOf(svg)?.paused) return
   svg.classList.add('blink')
-  await sleep(120)
+  await sleep(120, clockOf(svg))
   svg.classList.remove('blink')
 }
 

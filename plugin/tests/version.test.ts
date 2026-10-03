@@ -28,7 +28,7 @@ const NEWER = NEXT
 const CHIP_FULL = `Update to ${NEWER}`
 const CHIP_NARROW = `Update ${NEWER}`
 const chipLabel = (columns: number) => (columns >= 60 ? CHIP_FULL : CHIP_NARROW)
-const ESC_HIDE = `esc ${CHIP_HIDE}`
+const ESC_HIDE = CHIP_HIDE
 
 const VERSION: VersionResponse = {
   api: 1, server: '1.4.2', rules: RULES_VERSION, generator: GENERATOR_VERSION, minClient: '0.0.1', latestClient: CLIENT_VERSION, features: [],
@@ -43,7 +43,7 @@ function hintRow(tree: unknown): Node {
 
 /** The hint row's hints alone, without the version or the chip. */
 function hintsOf(tree: unknown): string {
-  return textOf(hintRow(tree).children![0])
+  return String(walk(hintRow(tree).children![0]).find(n => n.type === 'Button')?.props?.label ?? '')
 }
 
 /** The hint row's right end: the dim version or the chip, or undefined where the hints took its room. */
@@ -87,6 +87,25 @@ async function started($: { session: { start(e: never): Promise<unknown> } }, on
 }
 
 const versionChecks = (w: Engine) => w.requests.filter(r => new URL(r.url).pathname === '/v1/version').length
+
+test('an updated mod refreshes same-day cached capabilities once, so Market and the six boards are discoverable', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on, fakeServer())
+  w.store.set(KEYS.session(ORIGIN), TOKEN)
+  w.store.set(KEYS.meta(ORIGIN), { versionDay: utcDay(NOW), versionClient: '0.1.0', version: { ...VERSION, features: ['leaderboard', 'rivals'] } })
+  await $.session.start(SESSION as never)
+  await settle(clock)
+  expect(versionChecks(w)).toBe(1)
+  expect((w.store.get(KEYS.meta(ORIGIN)) as { versionClient: string }).versionClient).toBe(CLIENT_VERSION)
+  const ui = await $.ui.mount(PANE(40))
+  expect(await ui.find({ key: 'tab-market' })).toBeDefined()
+  await press(ui, 'tab-trade', clock)
+  expect(await ui.find({ key: 'community-board-species' })).toBeDefined()
+  await $.command.run(RUN('version'))
+  await settle(clock)
+  expect(versionChecks(w)).toBe(1)
+  await ui.unmount()
+})
 
 // ---------- pure: what each part says ----------
 
@@ -171,7 +190,7 @@ test('current: a dim version at the hint row\'s right end where the hints leave 
       const tree = await ui.drawn()
       fits(tree, columns, where)
       // the screen's own hints lead the row and keep their way out
-      expect({ where, esc: hintsOf(tree).endsWith('esc Close') }).toEqual({ where, esc: true })
+      expect({ where, esc: hintsOf(tree).endsWith('Close') }).toEqual({ where, esc: true })
       const version = versionOf(tree)
       if (columns >= 120) expect({ where, shown: !!version }).toEqual({ where, shown: true })
       if (version) expect({ where, text: textOf(version), dim: version.props?.dimColor }).toEqual({ where, text: `v${CLIENT_VERSION}`, dim: true })
@@ -200,7 +219,7 @@ test('update available: the chip is a verb with the version, u shows the command
       const label = chipLabel(columns)
       const chip = await ui.find({ key: 'version' })
       expect({ where, label: chip?.props.label, hotkey: chip?.props.hotkey }).toEqual({ where, label, hotkey: 'u' })
-      expect({ where, end: textOf(hintRow(tree)).endsWith(label), esc: hintsOf(tree).endsWith('esc Close') }).toEqual({ where, end: true, esc: true })
+      expect({ where, end: textOf(hintRow(tree)).endsWith(label), esc: hintsOf(tree).endsWith('Close') }).toEqual({ where, end: true, esc: true })
       expect({ where, command: await ui.find({ text: UPDATE_COMMAND }) }).toEqual({ where, command: undefined })
 
       // open: the command with what it is for, Copy on u, the chip says it hides the row, esc says so too
@@ -233,7 +252,7 @@ test('update available: the chip is a verb with the version, u shows the command
       await press(ui, 'version', clock)
       tree = await ui.drawn()
       const closed = await ui.find({ key: 'version' })
-      expect({ where, command: commandLines(tree), label: closed?.props.label, hotkey: closed?.props.hotkey, esc: hintsOf(tree).endsWith('esc Close') })
+      expect({ where, command: commandLines(tree), label: closed?.props.label, hotkey: closed?.props.hotkey, esc: hintsOf(tree).endsWith('Close') })
         .toEqual({ where, command: 0, label, hotkey: 'u', esc: true })
       await ui.unmount()
     }
@@ -257,7 +276,7 @@ test('the update row closes when the tab changes or a view opens over it', LONG,
   expect(card).toBeDefined()
   await press(ui, String(card!.key ?? card!.props?.key), clock)
   const tree = await ui.drawn()
-  expect({ command: commandLines(tree), esc: hintsOf(tree).endsWith('esc Back') }).toEqual({ command: 0, esc: true })
+  expect({ command: commandLines(tree), esc: hintsOf(tree).endsWith('Back') }).toEqual({ command: 0, esc: true })
   await ui.unmount()
 })
 
@@ -304,7 +323,7 @@ test('offline: the plain version where there is room, no update, and /spin versi
       fits(tree, columns, where)
       const version = versionOf(tree)
       if (columns >= 120) expect({ where, shown: !!version }).toEqual({ where, shown: true })
-      expect({ where, version: version ? textOf(version) : `v${CLIENT_VERSION}`, chip: await ui.find({ key: 'version' }), esc: hintsOf(tree).endsWith('esc Close') })
+      expect({ where, version: version ? textOf(version) : `v${CLIENT_VERSION}`, chip: await ui.find({ key: 'version' }), esc: hintsOf(tree).endsWith('Close') })
         .toEqual({ where, version: `v${CLIENT_VERSION}`, chip: undefined, esc: true })
       await ui.unmount()
     }
@@ -386,7 +405,7 @@ test('on every pane screen at 40, 80 and 120, current, with an update and with i
     }
     // the screen's way out, from its hints drawn with room to spare
     const wide = hintsOf(await draw(variants.current, 400, 'terminal')).split(' · ')
-    const leave = [...wide].reverse().find(h => h.startsWith('esc ') || h === 'd Done') ?? null
+    const leave = [...wide].reverse().find(h => h === 'Close' || h === 'Back' || h === 'Done') ?? null
     const online = step.state.account.world === 'online'
     for (const [name, s] of Object.entries(variants)) {
       const want = name === 'open' && online ? ESC_HIDE : leave
@@ -396,7 +415,6 @@ test('on every pane screen at 40, 80 and 120, current, with an update and with i
           const tree = await draw(s, columns, surface)
           const hints = hintsOf(tree)
           if (want && !hints.split(' · ').includes(want)) failures.push(`${where}: lost "${want}" from "${hints}"`)
-          if (want?.startsWith('esc ') && !hints.endsWith(want)) failures.push(`${where}: "${hints}" does not end with "${want}"`)
           const keys = buttons(tree).map(b => b.props?.hotkey).filter((k): k is string => typeof k === 'string')
           const dupes = keys.filter((k, i) => keys.indexOf(k) !== i)
           if (dupes.length > 0) failures.push(`${where}: keys twice: ${dupes.join(' ')}`)

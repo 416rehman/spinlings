@@ -355,7 +355,7 @@ export const PLACE_CSS = `
 
 // ---- the page ----------------------------------------------------------------------------------
 
-export type PageKind = 'home' | 'site' | 'plain' | 'passkey'
+export type PageKind = 'home' | 'site' | 'plain' | 'passkey' | 'account'
 
 export type PageOptions = {
   title: string
@@ -437,6 +437,7 @@ ${og.image ? html`<meta property="og:image" content="${og.image}">
 ${scripted ? html`<script src="/static/${SITE_ASSETS.sky}"></script>` : ''}
 <style>${raw(CSS + bareOnce(o.css ?? ''))}</style>
 ${kind === 'passkey' ? html`<script src="/static/passkey.js" defer></script>` : ''}
+${kind === 'account' ? html`<script src="/static/account.js" defer></script>` : ''}
 ${scripted ? html`<script type="module" src="/static/${SITE_ASSETS.site}"></script>` : ''}
 </head>
 <body class="${kind === 'home' ? 'home' : kind}">
@@ -453,9 +454,9 @@ ${footer(o.now ?? Date.now(), scripted)}
   const headers: Record<string, string> = {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': o.cache ?? 'no-store',
-    'Content-Security-Policy': kind === 'passkey' ? SCRIPT_CSP : scripted ? SITE_CSP : PAGE_CSP,
+    'Content-Security-Policy': kind === 'passkey' || kind === 'account' ? SCRIPT_CSP : scripted ? SITE_CSP : PAGE_CSP,
   }
-  if (kind === 'passkey') headers['Cross-Origin-Opener-Policy'] = 'same-origin'
+  if (kind === 'passkey' || kind === 'account') headers['Cross-Origin-Opener-Policy'] = 'same-origin'
   return new Response(doc.__html, { status: o.status ?? 200, headers })
 }
 

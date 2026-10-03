@@ -217,7 +217,8 @@ export function privacyBody(): Raw {
 <li><strong>First discoveries:</strong> a card that was the first of its species in the world says so, and that it was first found by a trainer. It never says which one.</li>
 </ul>
 <p>Never visible to anyone else: your battle count, when you joined or were last seen, your activity, the arena or model you used, and any timestamps. Duel wins and losses show only as counts in your stats, and you can hide those.</p>
-<p>The pages of this site set no cookies and load nothing from other sites. Their scripts come from this site alone, draw the creatures in your browser and send nothing anywhere; /odds and this page run none at all. The two passkey pages run one small script of their own, to talk to your passkey.</p>
+<p>The pages of this site set no cookies and load nothing from other sites. Public-page scripts draw creatures locally and make no API calls; /odds and this page run none at all. Passkey pages and <a href="/account">Your collection</a> talk only to this server.</p>
+<p>Your collection signs in with a saved passkey and shows your own cards, stats and board places. Its session stays in this tab's session storage, never in a URL, cookie or public page. Sign out revokes only that browser session. Closing the tab clears its local token. No new game fields or public player information are stored.</p>
 <p>The website remembers the creature you met in your browser's own storage so it can greet you next time. It never leaves your browser.</p>
 
 <h2>${heading('Deleting your account')}</h2>

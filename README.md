@@ -9,17 +9,14 @@ Spinlings is a creature card game that lives inside Claude Code. While Claude wo
 The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your machine if you play offline.
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/media/encounter-dark.svg">
-    <img src="docs/media/encounter-light.svg" width="864" alt="The Code tab of the Claude desktop app while Claude works: something rustles in the band above the prompt, a wild Snowelkie appears, Sootwolf lands a Perfect Crescendo when 1 is pressed, and the catch wobbles three times before Gotcha!">
-  </picture>
+  <img src="docs/media/desktop-duel.gif" width="864" alt="A Spinlings duel above the prompt in Claude Desktop.">
 </p>
 
-- **No sign-up.** You get a random handle like `soft-otter-42` and start playing. A passkey brings your collection to another computer.
-- **Stays out of Claude's way.** It makes no model calls, adds nothing to Claude's context, and never blocks or slows Claude.
+- **Your team is ready.** Start with three creatures and a random handle like `soft-otter-42`. A passkey brings your collection to another computer.
+- **Battles play themselves.** Your creatures fight while Claude works. Press 1 when a special fires for a Perfect hit.
 - **Playable alone.** Generated Rivals and a Wandering Trader fill in whenever no other player is around, so the game works on day one.
 - **Free.** Nothing to buy, and cards have no cash value.
-- **Open source** (MIT), mod and server, with zero npm runtime dependencies.
+- **Open source** (MIT), mod and server.
 
 ## Install
 
@@ -42,13 +39,15 @@ Spinlings is a Claude Code mod, so it needs Claude Code 2.1.287 or later (`claud
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
 
 ```sh
-git clone --branch v0.1.0 https://github.com/416rehman/spinlings
+git clone --branch v0.2.0 https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 
-**First run.** There is nothing to type. Instead of a sign-up, the mod solves a quick anti-spam puzzle and joins [spinlings.dev](https://spinlings.dev) on its own. You get a starter team of three, two welcome packs and 100 sparks. The band says it once: `✦ A Spinling hatched!`, with `[1] Open your welcome pack`. Then creatures find you while Claude works, and `/spin` opens your collection whenever you like.
+**First run.** The mod joins [spinlings.dev](https://spinlings.dev) on its own. You get a starter team of three, two welcome packs and 100 sparks. The band says it once: `✦ A Spinling hatched!`, with `[1] Open your welcome pack`. Then creatures find you while Claude works, and `/spin` opens your collection whenever you like.
 
 **Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. To play entirely offline, where nothing leaves your machine, run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
+
+**Your collection in a browser.** Save a passkey from Community → Your profile → Passkey & devices, then sign in at [Your collection](https://spinlings.dev/account) to see your cards, current stats and rankings. Browser access is read-only; opening packs, choosing a team and trading happen in Claude Code.
 
 `/spin quiet` silences everything. To leave for good, delete your account from `/spin privacy`, then run `claude plugin uninstall spinlings@spinlings`.
 
@@ -59,7 +58,7 @@ claude plugin validate spinlings/plugin
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/pack-dark.svg">
-    <img src="docs/media/pack-light.svg" width="864" alt="The Spinlings pane in the desktop app: an Opus pack tears open, five cards flip one by one, the fourth glows gold and turns out legendary with a rainbow foil border, then the summary and the legendary's card with its foil sheen.">
+    <img src="docs/media/pack-light.svg" width="864" alt="Five cards emerge from an Opus pack, including a legendary foil.">
   </picture>
 </p>
 
@@ -68,7 +67,7 @@ claude plugin validate spinlings/plugin
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/evolve-dark.svg">
-    <img src="docs/media/evolve-light.svg" width="864" alt="In the band, Sootwolf flickers with a white silhouette of its next stage and becomes Sootaptor, then Sootinotaur, then the album page shows all three side by side.">
+    <img src="docs/media/evolve-light.svg" width="864" alt="Sootwolf evolves into Sootaptor, then Sootinotaur.">
   </picture>
 </p>
 
@@ -77,11 +76,9 @@ claude plugin validate spinlings/plugin
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/gallery-dark.svg">
-    <img src="docs/media/gallery-light.svg" width="848" alt="Under the line '36 new species hide in every season.', the 36 species of season 1 as shadows in four rows by family, Haiku, Sonnet, Opus and Fable, each row ending in a gold-rimmed legendary, with ??? where the names would be. Now and then one shadow wobbles, opens its eyes, glances aside and blinks.">
+    <img src="docs/media/gallery-light.svg" width="848" alt="36 hidden species in four families, with a legendary in each.">
   </picture>
 </p>
-
-These are rendered by the mod's own view code from real game states (`node scripts/media/build.ts`), not screen recordings; only the app window around them is drawn.
 
 ## How it plays
 
@@ -137,7 +134,7 @@ Hitting a rate limit is neither rewarded nor punished: packs keep charging as us
 
 ### Commands
 
-There is one command, `/spin`. On its own it opens the pane, with five tabs (Team, Cards, Album, Market, Trade) on hotkeys 1 to 5; offline there is no Market, so Trade is 4. Every card, pack and board row in it is a button: press it (or Tab to it) to open it.
+There is one command, `/spin`. On its own it opens the pane, with five tabs (Team, Collection, Discoveries, Market, Community) on hotkeys 1 to 5; offline there is no Market, so Community is 4. Collection holds your cards; Discoveries tracks species you have found. Community brings together your profile, stats, leaderboards, offers and gifts. Every card, pack and board row is a button: press it (or Tab to it) to open it. Press the daily rule to see its effect, or Help for a short field guide.
 
 | Command | What it does |
 |---|---|
@@ -176,7 +173,7 @@ The game runs on the rhythm of your session, never its content. This is everythi
 | `session.start`, `session.end`, and a once-a-minute clock tick | that a session is open | Presence minutes for packs |
 | `classic.SessionStart` (only `clear`, `resume` and `fork`) | that the session started over | Picking the game back up |
 | `turn.start`, `turn.complete` (main thread only) | that Claude started or stopped, and how the turn ended (`reason`) | Encounters; a one-line reaction when you press Esc |
-| `turn.step` | `model` | The arena and pack family |
+| `turn.step` | `model`, `effort` (main thread only) | The arena and pack family; effort changes only the local band's ink and creature-frame glow |
 | `agent.spawn` | that a subagent started (a count) | A `+2 cheering` line in the band |
 | `session.measure` | rate-limit percentages only | One status note when you hit a limit |
 | `session.compact` | `trigger` | A one-line reaction |
@@ -199,6 +196,8 @@ Some of those events carry content the mod does not need. It never reads these f
 | `session.compact` | `messages`, `instructions` |
 
 **What it calls.** Only the `ui`, `state`, `store`, `clock`, `command`, `http` and `session` parts of the mod API, plus `audio` if you turn sound on. From `session` it calls only `model`, and only the model's family ever reaches the server. It never uses `$.fs`, `$.process`, `$.model`, `$.prompt`, `$.tool`, `$.agent`, `$.mcp` or `$.env`. CI fails if any of those, or any hook outside this table, shows up in the source or in `claude plugin validate --json`.
+
+Claude's effort setting brightens the local band and your creature frame. It is never saved or sent, and every battle keeps the same rules, round pace and request timing.
 
 **It uses none of Claude's tokens.** No model calls, nothing added to Claude's context, and no tools Claude can call. Every `/spin` command returns an empty result, and anything it prints goes to a dim log line the model never reads.
 
@@ -333,7 +332,7 @@ More in [SPEC.md](SPEC.md), sections 11, 12, 15, 16 and 20.
 
 **Why is there a server at all?** So that duels, trades and gifts work between people, and so that nobody can mint cards on their own machine. The server rolls every card.
 
-**Can I play on another computer?** Yes, with a passkey: `/spin devices` saves one (no email, no password), and the other computer signs in with it. Without a passkey, losing every device loses the online account, so save one if your collection matters to you.
+**Can I play on another computer?** Yes, with a passkey: `/spin devices` saves one, and the other computer signs in with it. Without a passkey, losing every device loses the online account, so save one if your collection matters to you.
 
 **What happens if the server is down?** Claude Code works as usual. The pane keeps showing your collection as it last saw it and says it can't reach the server, and online play picks up again when it is back. The offline world never needs a server at all.
 

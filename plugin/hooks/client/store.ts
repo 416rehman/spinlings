@@ -111,6 +111,8 @@ export function cacheRecord(me: MeResponse, cards: CardsResponse | null): Cache 
 export type ServerMeta = {
   /** the UTC day of the last version check (once a day, SPEC 32) */
   versionDay: string
+  /** the mod version that read the capabilities; an update refreshes them even on the same day */
+  versionClient: string
   version: VersionResponse | null
   /** the welcome moment has been acted on in this world */
   welcomed: boolean
@@ -131,7 +133,7 @@ export function readMeta(v: unknown): ServerMeta {
     version = null
   }
   return {
-    versionDay: str(r.versionDay, 10), version, welcomed: bool(r.welcomed, false), passkeyDay: str(r.passkeyDay, 10),
+    versionDay: str(r.versionDay, 10), versionClient: str(r.versionClient, 32), version, welcomed: bool(r.welcomed, false), passkeyDay: str(r.passkeyDay, 10),
     lastDuelAt: num(r.lastDuelAt), deleted: bool(r.deleted, false),
   }
 }

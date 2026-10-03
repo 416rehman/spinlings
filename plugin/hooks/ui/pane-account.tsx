@@ -34,10 +34,11 @@ function passkeyOffer(c: Ctx, hotkey: string): RenderElement | null {
   if (!signedIn(c) || !hasFeature(a, 'passkey') || (a.devices?.passkeys ?? 0) > 0 || a.backedUp === true || a.signIn?.kind === 'add') return null
   const best = [...c.state.cards].sort((x, y) => rarityRank(y.rarity) - rarityRank(x.rarity) || Number(!!y.foil) - Number(!!x.foil) || Number(y.shiny) - Number(x.shiny))[0]
   const { Box } = c.el
-  // the words beside the card take what the card leaves
-  const ic: Ctx = { ...c, columns: Math.max(20, c.columns - (best ? CHIP + SPACE.loose : 0)) }
+  // Leave room for the passkey action; stack the card when its words would be cramped.
+  const beside = !best || c.columns >= CHIP + SPACE.loose + 22
+  const ic: Ctx = { ...c, columns: beside ? c.columns - (best ? CHIP + SPACE.loose : 0) : c.columns }
   return (
-    <Box flexDirection="row" columnGap={SPACE.loose} width={c.columns}>
+    <Box flexDirection={beside ? 'row' : 'column'} columnGap={SPACE.loose} rowGap={SPACE.tight} width={c.columns}>
       {best ? <Box flexShrink={0}>{chip(c, best, { key: 'passkey-best' })}</Box> : null}
       {column(ic, [
         line(ic, `${c.state.cards.length} cards live only on this computer`, { color: INK.warn }),
@@ -116,7 +117,7 @@ export function privacyScreen(c: Ctx): Shown {
       offer,
       actions(c, [
         reroll === '' ? btn(c, { key: 'reroll', label: 'Draw a new handle', hotkey: '2', on: () => c.actions.rerollHandle() }) : null,
-        board ? btn(c, { key: 'leaderboard', label: p!.leaderboard ? 'Hide me from the boards' : 'Show me on the boards', hotkey: '3', on: () => c.actions.leaderboard(!p!.leaderboard) }) : null,
+        board ? btn(c, { key: 'leaderboard', label: c.columns < 26 ? (p!.leaderboard ? 'Hide my stats' : 'Show my stats') : (p!.leaderboard ? 'Hide me from the boards' : 'Show me on the boards'), hotkey: '3', on: () => c.actions.leaderboard(!p!.leaderboard) }) : null,
         board ? btn(c, { key: 'leaderboard-show', label: 'See the boards', hotkey: '4', dim: true, on: async () => {
           await c.actions.push({ kind: 'boards', board: 'rating', period: 'all' })
           await c.actions.rankings('rating', 'all')
@@ -148,7 +149,7 @@ export function devicesScreen(c: Ctx): Shown {
       body: column(c, [
         line(c, 'Devices', { dim: true }),
         para(c, 'Devices and passkeys belong to the online world. Offline, your collection lives on this machine only.', { dim: true }),
-        actions(c, [btn(c, { key: 'join-online', label: 'Join online (fresh collection)', hotkey: '1', primary: true, on: () => c.actions.world('online') })]),
+        actions(c, [btn(c, { key: 'join-online', label: c.columns < 33 ? 'Join online' : 'Join online (fresh collection)', hotkey: '1', primary: true, on: () => c.actions.world('online') })]),
       ]),
       hints: ['1 Join online', 'esc Stay offline'],
     }
@@ -163,7 +164,7 @@ export function devicesScreen(c: Ctx): Shown {
       body: column(c, [
         line(c, 'Devices', { dim: true }),
         para(c, passkeys ? 'This computer is not signed in.' : `${a.host} has no passkeys, so this computer cannot sign in to another account.`),
-        passkeys ? actions(c, [btn(c, { key: 'passkey-signin', label: 'Sign in with a saved passkey', hotkey: '1', primary: true, on: () => c.actions.passkey('signin') })]) : null,
+        passkeys ? actions(c, [btn(c, { key: 'passkey-signin', label: c.columns < 31 ? 'Use a saved passkey' : 'Sign in with a saved passkey', hotkey: '1', primary: true, on: () => c.actions.passkey('signin') })]) : null,
         passkeys ? para(c, 'Use a passkey you saved on another computer.', { dim: true }) : null,
         signIn(c),
       ]),
@@ -179,7 +180,7 @@ export function devicesScreen(c: Ctx): Shown {
       line(c, 'Devices', { dim: true }),
       line(c, count),
       offer,
-      hasFeature(a, 'passkey') ? actions(c, [btn(c, { key: 'passkey-signin', label: 'Sign in with a saved passkey', hotkey: '2', on: () => c.actions.passkey('signin') })]) : null,
+      hasFeature(a, 'passkey') ? actions(c, [btn(c, { key: 'passkey-signin', label: c.columns < 31 ? 'Use a saved passkey' : 'Sign in with a saved passkey', hotkey: '2', on: () => c.actions.passkey('signin') })]) : null,
       hasFeature(a, 'passkey') ? line(c, 'This computer then plays as that account. Its current account stays on the server.', { dim: true }) : null,
       signIn(c),
       signedIn(c) ? actions(c, [btn(c, { key: 'reset-access', label: 'Reset access', hotkey: 'k', on: () => c.actions.hold('reset-access', 'me') })]) : null,

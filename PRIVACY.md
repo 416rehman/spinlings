@@ -27,6 +27,7 @@ The mod reads only the shape of your Claude Code session:
 | Signal | Where it comes from | Used for |
 |---|---|---|
 | Which model | `$.session.model()`, `turn.step` `model` | The family of your packs and the battle arena |
+| Effort setting | `turn.step` `effort`, on the main thread only | Local battle-band ink and your creature-frame glow; never saved or sent |
 | Whether Claude is working | `turn.start`, `turn.complete` on the main thread | Wild encounters while Claude works |
 | How a turn ended | `turn.complete` `reason` | A one-line reaction |
 | Spinner phase | the spinner's `mode` in `ui.render` | A spinner suffix during a battle |
@@ -50,6 +51,8 @@ Some of the events above carry content the mod does not need, and it never reads
 - the `messages` and `instructions` on `session.compact`.
 
 From `$.session` the mod calls only `model()`. It never uses `$.fs`, `$.process`, `$.model`, `$.prompt`, `$.tool`, `$.agent`, `$.mcp` or `$.env`. So it cannot read files, run programs, call a model, submit prompts, call tools, start agents, reach MCP servers or read environment variables. Run `claude plugin validate plugin` on a checkout to see every hook and every call it makes.
+
+Effort is held only in local view state. It changes the band's ink and your creature-frame glow, and nothing in a battle's rules or timing. Every round keeps the same pace, so low and max effort send the same request bytes at the same moments.
 
 ## What the mod keeps on your machine
 
@@ -76,6 +79,8 @@ These are all the kinds of request body the mod can send:
 A model family is one of `haiku`, `sonnet`, `opus` or `fable`, never a model id. Every request also carries the mod's version in an `X-Spinlings-Client` header, which is the same for everyone on that version and is never stored. Claude Code's own HTTP layer may add standard headers such as a user agent; the server never stores them.
 
 **Passkeys.** Saving or using a passkey happens on a page of the server that you open in your browser. That page sends the server what the browser's passkey prompt returns: a new public key when you save one, or a signature when you sign in. Nothing else about you or your device is sent.
+
+**Your browser collection.** `/account` signs in with a saved passkey and reads your own online cards, team, packs, listings and current stats, plus your leaderboard places. Its first-party script talks only to the same server. The session token stays in this tab's `sessionStorage`, never in a URL, page HTML, cookie or persistent browser storage. Sign out revokes only that browser session; your mod stays signed in. Closing the tab clears the local token. Browser access creates an ordinary session with the same 180-day expiry and new-device notice as a mod sign-in. It adds no new stored game fields or public player information.
 
 The timing of requests says a little on its own. A pack charge means Claude Code was open on your machine, and a wild encounter means Claude was busy at that moment. It never says on what. Other players never see this timing (see below).
 
@@ -139,7 +144,7 @@ Cards other players see show the creature, its level, stats and traits, and noth
 - **First discoveries:** the first card of a species anyone in the world obtains in a season carries a `First Discovered` stamp wherever that card is shown. The game never says who found it.
 - **Mythics:** if you catch a Mythic, its card says "Discovered by" your handle, and the public "Mythics found" list shows your handle and the Mythic's name, nothing else. If you reroll your handle or delete your account, your handle comes off the card and the list.
 
-**Public pages** (profiles, card pages at `{server}/c/{id}` and gift pages) show only what a profile shows, plus Mythic discoveries as handle and name. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. The passkey pages run one script that talks only to the same server.
+**Public pages** (profiles, card pages at `{server}/c/{id}` and gift pages) show only what a profile shows, plus Mythic discoveries as handle and name. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. Passkey pages and the browser collection use `connect-src 'self'` to talk only to the same server; the collection shell contains no player data until you sign in.
 
 `/spin share` only copies text to your clipboard. Nothing is posted anywhere unless you paste it yourself.
 

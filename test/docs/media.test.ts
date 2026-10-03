@@ -17,9 +17,11 @@ const hex = (c: number) => '#' + c.toString(16).padStart(6, '0')
 const colours = new Set(species.flatMap(s => ([1, 2, 3] as const).flatMap(stage => spriteFor({ form: s, stage }).flat()))
   .filter(c => c >= 0 && c !== EYE && c !== SHINE).map(hex))
 
-it('the README embeds docs/media relatively, in both themes, with alt text', () => {
+it('the README embeds the Desktop capture and themed docs/media relatively, with alt text', () => {
+  const hero = /<img src="docs\/media\/desktop-duel\.gif"[^>]*>/.exec(readme)?.[0]
+  assert.ok(hero, 'the hero is the Claude Desktop duel capture')
   const pictures = [...readme.matchAll(/<picture>([\s\S]*?)<\/picture>/g)].map(m => m[1]!)
-  assert.ok(pictures.length >= 4, 'the hero and the "See it" recordings')
+  assert.ok(pictures.length >= 3, 'the "See it" recordings have both themes')
   for (const p of pictures) {
     const dark = /<source media="\(prefers-color-scheme: dark\)" srcset="([^"]+)">/.exec(p)?.[1]
     const light = /<img src="([^"]+)"/.exec(p)?.[1]

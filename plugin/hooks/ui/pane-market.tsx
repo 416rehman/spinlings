@@ -118,7 +118,7 @@ export function marketScreen(c: Ctx): Shown {
       body: column(c, [
         <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>{toggle}{sparks}</Box>,
         mine.length === 0
-          ? para(c, 'Nothing of yours on the market. Open a card in Cards and press l to sell it.', { dim: true })
+          ? para(c, 'Nothing of yours on the market. Open a card in Collection and press l to sell it.', { dim: true })
           : grid(c, pg.items.map(l => tileOf(l, `listed ${dayLabel(l.day, today(c.now))}`)), per),
         pages ? pager(c, pg.page, pg.pages, false) : null,
       ]),
@@ -138,7 +138,7 @@ export function marketScreen(c: Ctx): Shown {
       !m && loading ? line(c, 'Reading the market…', { dim: true })
         : !m ? para(c, 'The market did not load. Press a chip to look again.', { dim: true })
         : listings.length === 0
-          ? para(c, 'Nothing listed like that right now. Change the chips, or sell one of yours from its card page (l in Cards).', { dim: true })
+          ? para(c, 'Nothing listed like that right now. Change the chips, or sell one of yours from its card page (l in Collection).', { dim: true })
           : grid(c, pg.items.map(l => tileOf(l, safe(l.seller, 40))), per),
       pages && listings.length > 0 ? pager(c, pg.page, pg.pages, more) : null,
     ]),
@@ -249,7 +249,7 @@ export function listingScreen(c: Ctx, v: { listingId: string; cardId: string | n
       picker,
       ownIt ? null : afford ? null : para(c, `You have ${MARK.spark} ${grouped(sparks)}: ${grouped(l.price - sparks)} more to go. Battles and recycling earn sparks.`, { color: INK.warn }),
       ownIt
-        ? actions(c, [btn(c, { key: 'cancel-listing', label: 'Take it off the market', hotkey: 'x', on: () => c.actions.hold('cancel-listing', l.id) })])
+        ? actions(c, [btn(c, { key: 'cancel-listing', label: c.columns < 26 ? 'Remove listing' : 'Take it off the market', hotkey: 'x', on: () => c.actions.hold('cancel-listing', l.id) })])
         : actions(c, [ready ? btn(c, { key: 'buy', label: buyLabel, hotkey: '1', primary: true, on: () => c.actions.buy(l.id, picked?.id ?? null) }) : null]),
       ownIt ? holdLine(c, 'cancel-listing', l.id, 'x') : null,
       ready ? line(c, `After: ${MARK.spark} ${grouped(sparks - l.price)}`, { dim: true }) : null,
@@ -275,7 +275,8 @@ export function sellScreen(c: Ctx, v: { cardId: string; price: number; want: Mar
   const { Box, Text } = c.el
   // the card beside the price: a tile where there is room, else its mini
   const big = c.columns >= TILE + 30
-  const ic: Ctx = { ...c, columns: Math.max(20, c.columns - (big ? TILE : CHIP) - SPACE.loose) }
+  const beside = c.columns >= CHIP + SPACE.loose + 20
+  const ic: Ctx = { ...c, columns: beside ? c.columns - (big ? TILE : CHIP) - SPACE.loose : c.columns }
   const stepper = (
     <Box flexDirection="row" columnGap={SPACE.loose} width={ic.columns} flexWrap="wrap">
       {btn(c, { key: 'price-down', label: 'Lower', hotkey: 'j', on: () => set({ price: v.want ? stepPrice(price, -1) : Math.max(1, stepPrice(price, -1)) }) })}
@@ -300,7 +301,7 @@ export function sellScreen(c: Ctx, v: { cardId: string; price: number; want: Mar
       {...wants.map((w, i) => {
         const s = wantSpecies(w)
         return (
-          <Box key={`want-${i}`} flexDirection="row" columnGap={SPACE.tight} flexShrink={0}>
+          <Box key={`want-${i}`} flexDirection="row" flexWrap="wrap" columnGap={SPACE.tight} rowGap={SPACE.tight} width={Math.min(c.columns, CHIP + 24)} flexShrink={0}>
             {s ? formMini(c, `want-${i}-art`, s, true) : <Text color={FAMILY_COLOR[x.family]}>{FAMILY_MARK[x.family]}</Text>}
             {btn(c, { key: `want-${i}`, label: `${MARK.swap} ${wantWords(w)}`, dim: !sameWant(v.want, w), lit: true, on: () => set({ want: sameWant(v.want, w) ? null : w, price }) })}
           </Box>
@@ -312,21 +313,22 @@ export function sellScreen(c: Ctx, v: { cardId: string; price: number; want: Mar
   const name = nameOf(x)
   const label = price > 0 && v.want ? `List for ${MARK.spark} ${grouped(price)} + ${wantWords(v.want)}`
     : price > 0 ? `List for ${MARK.spark} ${grouped(price)}` : v.want ? `List for ${wantWords(v.want)}` : 'List'
+  const shortLabel = label.length + 3 > c.columns
   const ready = !problem && (price > 0 || !!v.want) && !c.state.account.readOnly
   return {
     body: column(c, [
       crumb(name),
-      <Box flexDirection="row" columnGap={SPACE.loose} width={c.columns}>
+      <Box flexDirection={beside ? 'row' : 'column'} columnGap={SPACE.loose} rowGap={SPACE.tight} width={c.columns}>
         <Box flexShrink={0}>{(big ? tile : chip)(c, x, { key: 'sell-card' })}</Box>
         {column(ic, [line(ic, 'Price', { dim: true }), stepper, hintChips], SPACE.tight)}
       </Box>,
       line(c, 'Ask for a card too', { dim: true }),
       wantRow,
       problem ? para(c, problem, { color: INK.warn }) : null,
-      actions(c, [ready ? btn(c, { key: 'list', label, hotkey: '1', primary: true, on: () => c.actions.list(x.id, price, v.want) }) : null]),
+      shortLabel ? line(c, label, { dim: true }) : null,
+      actions(c, [ready ? btn(c, { key: 'list', label: shortLabel ? 'List on market' : label, hotkey: '1', primary: true, on: () => c.actions.list(x.id, price, v.want) }) : null]),
       para(c, 'It waits on the market for up to 14 days, held off your team. Take it off any time.', { dim: true }),
     ]),
     hints: [ready ? '1 List' : '', 'j k Price', hints.length === 1 ? '2 Suggested' : hints.length > 1 ? `2-${hints.length + 1} Suggested` : '', 'esc Back'],
   }
 }
-

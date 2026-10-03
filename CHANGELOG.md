@@ -2,6 +2,16 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## Unreleased
+
+- **A clearer pane.** Collection holds your cards, Discoveries tracks species, and Community brings together your profile, leaderboards, offers and gifts. Sparks, rating, league, streak, families and rarities have clear labels, today's rule opens its effect, and a small field guide explains the symbols. Layout adapts to narrow and short panes; shortcuts stay beside their buttons.
+- **Your place.** All six leaderboard categories and both periods are directly accessible, with your own rank shown first. A mod update refreshes cached server capabilities once, so new screens do not stay hidden until the next day.
+- **Browser access.** A saved passkey opens the same online collection, stats and rankings in a read-only browser view. The session stays in the tab; signing out revokes only that session. Existing public website styling is preserved.
+- **Effort is cosmetic.** Claude's effort setting changes local battle-band ink and frame glow only. Requests, send times, battle pace and saved values are identical for low and max effort. No effort value leaves the machine.
+- **Pause the demo.** The landing-page battle can be paused and resumed through the catch and evolution, with motion and timers held in place.
+- **Docs.** The README hero uses the real Desktop duel capture; the spec matches current trading and leaderboard rules.
+- **Compatibility and privacy.** API `/v1`, rules, generator, minimum client and stored game fields are unchanged. Browser sign-in uses the existing passkey verifier and ordinary sessions. Other players see no new information.
+
 ## 0.2.0 (2026-10-03)
 
 - **The market.** Sell a card for sparks, for a card you want, or both, from its card page; buy from the new Market tab. A listing waits up to 14 days. A sale or a listing that comes home shows the creature in the band. The site has a read-only market at `/market`.

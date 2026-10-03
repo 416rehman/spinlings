@@ -18,8 +18,8 @@ import {
 } from './pane-kit.tsx'
 import { MARK, SPACE } from './tokens.ts'
 
-const TILE_ROWS = 12
-const CHIP_ROWS = 6
+const TILE_ROWS = { terminal: 14, desktop: 8 }
+const CHIP_ROWS = { terminal: 8, desktop: 6 }
 
 /** How many grid rows fit the pane's body: at least one, at most three. */
 function rowsFor(c: Ctx, each: number): number {
@@ -32,7 +32,8 @@ export function cardsScreen(c: Ctx): Shown {
   const list = collection(all, p.family, p.rarity)
   const small = c.columns < 2 * TILE + 2 * SPACE.tight + TILE
   const per = small ? perRow(c.columns, CHIP) : perRow(c.columns, TILE)
-  const pg = paged(list, p.page, per * rowsFor(c, small ? CHIP_ROWS : TILE_ROWS))
+  const heights = small ? CHIP_ROWS : TILE_ROWS
+  const pg = paged(list, p.page, per * rowsFor(c, c.surface === 'terminal' ? heights.terminal : heights.desktop))
   const open = (id: string) => c.actions.push({ kind: 'card', cardId: id })
   const items = pg.items.map(x => (small ? chip : tile)(c, x, { key: `card-${x.id}`, on: () => open(x.id) }))
   const filters = actions(c, [
@@ -41,7 +42,8 @@ export function cardsScreen(c: Ctx): Shown {
   ])
   const pages = pg.pages > 1
   const body = column(c, [
-    heading(c, `Cards · ${all.length}`, list.length === all.length ? '' : `${list.length} shown · ${filterLabel(p.family, p.rarity)}`),
+    heading(c, `Collection · ${all.length}`, list.length === all.length ? '' : `${list.length} shown · ${filterLabel(p.family, p.rarity)}`),
+    para(c, 'The cards you own. Pick one to inspect or set in your team.', { dim: true }),
     all.length > 0 ? filters : null,
     all.length === 0
       ? para(c, 'Creatures show up while Claude works. Your first one is on its way.', { dim: true })
@@ -66,16 +68,18 @@ function missing(c: Ctx, where: string): Shown {
 
 export function cardScreen(c: Ctx, cardId: string): Shown {
   const x = c.state.cards.find(k => k.id === cardId)
-  if (!x) return missing(c, 'Cards')
+  if (!x) return missing(c, 'Collection')
   const me = c.state.me
   const can = cardCan(x, { offline: c.offline, now: c.now, market: marketOpen(c.state) })
   const listing = me?.listings?.find(l => l.card.id === x.id) ?? null
   const place = me && x.state === 'owned' ? teamPlace(me.player.team, x, c.state.cards) : null
   const name = nameOf(x)
+  const replaceLabel = place?.kind === 'replace' ? `Set in team, for ${nameOf(place.replaced)}` : ''
+  const shortReplace = replaceLabel.length + 3 > c.columns
   const team = place === null || place.kind === 'leads' ? null
     : btn(c, {
       key: 'set-team', hotkey: '1', primary: true, on: () => c.actions.setTeam(place.ids),
-      label: place.kind === 'lead' ? 'Lead the team' : place.kind === 'replace' ? `Set in team, for ${nameOf(place.replaced)}` : 'Set in team',
+      label: place.kind === 'lead' ? 'Lead the team' : place.kind === 'replace' && !shortReplace ? replaceLabel : 'Set in team',
     })
   const value = recycleValue(x)
   const sellNote = can.sell && me ? sellProblem(x, me.player.team, c.state.cards) : ''
@@ -83,6 +87,7 @@ export function cardScreen(c: Ctx, cardId: string): Shown {
     para(c, `Cards › ${name}`, { dim: true }),
     card(c.el, c.surface, x, 'full', { key: 'detail', width: c.columns, motion: c.motion, offline: c.offline, now: c.now }),
     place?.kind === 'leads' ? line(c, 'Leads your team', { dim: true }) : null,
+    place?.kind === 'replace' && shortReplace ? line(c, `Setting this card in your team replaces ${nameOf(place.replaced)}.`, { dim: true }) : null,
     actions(c, [
       team,
       can.trade ? btn(c, { key: 'for-trade', label: x.forTrade ? 'Keep (not for trade)' : 'Mark for trade', hotkey: '2', on: () => c.actions.setForTrade(x.id, !x.forTrade) }) : null,
@@ -115,7 +120,7 @@ export function cardScreen(c: Ctx, cardId: string): Shown {
 
 export function fuseScreen(c: Ctx, cardId: string, otherId: string | null): Shown {
   const x = c.state.cards.find(k => k.id === cardId)
-  if (!x) return missing(c, 'Cards › Fuse')
+  if (!x) return missing(c, 'Collection › Fuse')
   const other = otherId ? c.state.cards.find(k => k.id === otherId) ?? null : null
   const cost = fusionCost(dailyRule(c.now))
   const sparks = c.state.me?.player.sparks ?? 0
@@ -125,7 +130,7 @@ export function fuseScreen(c: Ctx, cardId: string, otherId: string | null): Show
   if (!other) {
     const partners = fusePartners(x, c.state.cards)
     const per = perRow(c.columns, CHIP)
-    const shown = partners.slice(0, per * rowsFor(c, CHIP_ROWS))
+    const shown = partners.slice(0, per * rowsFor(c, c.surface === 'terminal' ? CHIP_ROWS.terminal : CHIP_ROWS.desktop))
     return {
       body: column(c, [
         crumb,
@@ -142,7 +147,7 @@ export function fuseScreen(c: Ctx, cardId: string, otherId: string | null): Show
   const target = `${x.id}|${other.id}`
   const afford = sparks >= cost
   const pair: RenderElement = (
-    <c.el.Box flexDirection="row" columnGap={SPACE.loose} alignItems="center">
+    <c.el.Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} rowGap={SPACE.tight} alignItems="center" width={c.columns}>
       {chip(c, x, { key: 'fuse-a' })}
       <c.el.Text>+</c.el.Text>
       {chip(c, other, { key: 'fuse-b' })}
@@ -164,4 +169,3 @@ export function fuseScreen(c: Ctx, cardId: string, otherId: string | null): Show
     hints: [afford ? '1 Fuse (press, wait, press)' : '', '2 Pick another', 'esc Back'],
   }
 }
-

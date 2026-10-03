@@ -8,10 +8,10 @@ import { dayLabel, dots, safe, span } from '../client/text.ts'
 import { teamSlots, today } from '../client/viewmodels.ts'
 import type { Slot } from '../client/viewmodels.ts'
 import type { Ctx, Shown } from './pane-kit.tsx'
-import { TILE, actions, btn, cardRow, column, heading, leagueBadge, line, packArt, para, statRow, tabsHint, tile } from './pane-kit.tsx'
+import { TILE, actions, btn, cardRow, column, heading, line, packArt, para, tabsHint, tile } from './pane-kit.tsx'
 import { ART, INK, MARK, SPACE } from './tokens.ts'
 
-const NOTICES = 4
+const NOTICES = 2
 /** Packs drawn as art on the Team tab; more show as a count. */
 const PACKS_SHOWN = 3
 
@@ -27,7 +27,7 @@ function emptySlot(c: Ctx, s: Slot, wide: boolean): RenderElement {
   const pick = () => c.actions.tab('cards')
   if (!wide) {
     return (
-      <Box key={`team-${s.slot}`} flexDirection="row" columnGap={SPACE.loose} width={c.columns}>
+      <Box key={`team-${s.slot}`} flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
         <Text dimColor>{`Slot ${s.slot + 1} · empty`}</Text>
         {btn(c, { key: `team-${s.slot}-pick`, label: 'Pick a card', on: pick })}
       </Box>
@@ -90,35 +90,36 @@ export function teamScreen(c: Ctx): Shown {
     return (
       <c.el.Box flexDirection="column" width={c.columns}>
         {text}
-        {btn(c, { key: `revenge-${n.id}`, label: `Revenge on ${safe(n.handle, 40)}`, hotkey, on: () => c.actions.duel(n.handle!) })}
+        {btn(c, { key: `revenge-${n.id}`, label: c.columns < 40 ? 'Revenge' : `Revenge on ${safe(n.handle, 40)}`, hotkey, on: () => c.actions.duel(n.handle!) })}
       </c.el.Box>
     )
   })
-  const streak = p.streak > 0 ? `streak ${p.streak}` : ''
+  const streak = p.streak > 0 ? `${p.streak} win streak` : ''
   const duel = !c.state.account.readOnly && filled.length > 0
   const boards = online && (hasFeature(c.state.account, 'stats') || hasFeature(c.state.account, 'leaderboard'))
   const { Box, Text } = c.el
   const standing = (
     <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
       <Text>Your team</Text>
-      {leagueBadge(c, p.league)}
-      <Text><Text color={INK.accent}>{MARK.rank}</Text><Text bold>{` ${p.rating}`}</Text></Text>
+      <Text color={INK.muted}>{`${p.league} league`}</Text>
+      <Text><Text color={INK.accent}>{MARK.rank}</Text><Text bold>{` ${p.rating} rating`}</Text></Text>
+      <Text><Text color={INK.accent}>{MARK.spark}</Text><Text>{` ${p.sparks} sparks`}</Text></Text>
       {streak ? <Text color={INK.good}>{streak}</Text> : null}
     </Box>
   )
   const body = column(c, [
     standing,
     filled.length === 0
-      ? para(c, 'Your team forms as your first cards arrive. Open a pack with o, then set your favourites from Cards.', { dim: true })
+      ? para(c, 'Your team forms as your first cards arrive. Open a pack, then set your favourites from Collection.', { dim: true })
       : wide ? <Box flexDirection="row" columnGap={SPACE.tight}>{...shown}</Box> : column(c, shown, SPACE.none),
     actions(c, [
       duel ? btn(c, { key: 'duel', label: 'Duel', hotkey: 'b', on: () => c.actions.duel() }) : null,
+      btn(c, { key: 'team-profile', label: 'Your profile', hotkey: 'p', on: () => c.actions.push({ kind: 'mine' }) }),
       boards ? btn(c, { key: 'boards', label: `${MARK.rank} Leaderboards`, hotkey: 'l', on: async () => {
         await c.actions.push({ kind: 'boards', board: 'rating', period: 'all' })
         await c.actions.rankings('rating', 'all')
       } }) : null,
     ]),
-    online && hasFeature(c.state.account, 'stats') ? statRow(c, p.stats, 'my-stats') : null,
     packStrip(c),
     heading(c, 'Notices'),
     rows.length > 0 ? column(c, rows, SPACE.none) : line(c, 'Nothing yet. When someone duels your team, you will see it here.', { dim: true }),

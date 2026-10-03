@@ -23,7 +23,7 @@ import { MARK, SPACE, STAT } from './tokens.ts'
 const SHOWN = 4
 
 const LABEL: Record<TradeSection, { label: string; hotkey: string }> = {
-  inbox: { label: 'Inbox', hotkey: 'i' }, board: { label: 'Board', hotkey: 'b' }, trader: { label: 'Trader', hotkey: 'w' }, gifts: { label: 'Gifts', hotkey: 'g' },
+  inbox: { label: 'Offers', hotkey: 'i' }, board: { label: 'Trade board', hotkey: 'b' }, trader: { label: 'Wandering Trader', hotkey: 'w' }, gifts: { label: 'Gifts', hotkey: 'g' },
 }
 
 function sections(c: Ctx, current: TradeSection): RenderElement | null {
@@ -31,7 +31,7 @@ function sections(c: Ctx, current: TradeSection): RenderElement | null {
   const open = me?.offers.incoming.filter(o => o.state === 'open').length ?? 0
   const list = TRADE_SECTIONS.filter(s => s !== 'trader' || hasFeature(c.state.account, 'trader'))
   return actions(c, list.map(s => btn(c, {
-    key: `section-${s}`, label: s === 'inbox' && open > 0 ? `Inbox (${open})` : LABEL[s].label, hotkey: LABEL[s].hotkey, dim: s !== current,
+    key: `section-${s}`, label: s === 'inbox' && open > 0 ? `Offers (${open})` : LABEL[s].label, hotkey: LABEL[s].hotkey, dim: s !== current,
     on: async () => {
       await c.actions.pane(p => ({ ...p, page: TRADE_SECTIONS.indexOf(s), message: '' }))
       if (s === 'board') await c.actions.load('board')
@@ -44,7 +44,7 @@ function sections(c: Ctx, current: TradeSection): RenderElement | null {
 function side(c: Ctx, label: string, cards: readonly BattleCard[], key: string): RenderElement {
   const { Box, Text } = c.el
   return (
-    <Box flexDirection="row" columnGap={SPACE.tight}>
+    <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.tight} rowGap={SPACE.tight} width={Math.min(c.columns, 9 + Math.max(1, cards.length) * (CHIP + SPACE.tight))}>
       <Box width={9} flexShrink={0}><Text dimColor>{label}</Text></Box>
       {cards.length === 0 ? <Text dimColor>nothing</Text> : null}
       {...cards.slice(0, 3).map((x, k) => chip(c, x, { key: `${key}-${k}` }))}
@@ -79,7 +79,7 @@ function inbox(c: Ctx): { body: RenderElement; hints: string[] } {
   const outgoing = me.offers.outgoing.filter(o => o.state === 'open')
   if (incoming.length + outgoing.length === 0) {
     const trader = hasFeature(c.state.account, 'trader')
-    const text = `No offers yet. Mark cards for trade in Cards so others find them, or make an offer from the Board.${trader ? ' The Wandering Trader deals with you today: w.' : ''}`
+    const text = `No offers yet. Mark cards for trade in Collection so others find them, or make an offer from the Board.${trader ? ' The Wandering Trader deals with you today: w.' : ''}`
     return { body: para(c, text, { dim: true }), hints: ['b Board', trader ? 'w Trader' : '', 'g Gifts'] }
   }
   return {
@@ -113,7 +113,7 @@ function board(c: Ctx): { body: RenderElement; hints: string[] } {
     body: column(c, [
       heading(c, `Matches (${b.matches.length})`, 'they have what you wish for, and want what you trade'),
       matches.length === 0
-        ? line(c, wish === 0 ? 'Add species to your wishlist from the Album to find matches.' : 'No matches today.', { dim: true })
+        ? line(c, wish === 0 ? 'Add species to your wishlist from Discoveries to find matches.' : 'No matches today.', { dim: true })
         : column(c, matches.map((m, i) => (
           <c.el.Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
             {chip(c, m.theirs, { key: `match-${i}-t` })}
@@ -193,10 +193,10 @@ function gifts(c: Ctx): { body: RenderElement; hints: string[] } {
       }} /> : null,
       heading(c, `Your gifts (${me.gifts.length})`, `up to ${ECONOMY.gift.open} at once`),
       open.length === 0
-        ? para(c, 'Wrap a card from its page in Cards (g). The link brings a friend in, and the card waits for them.', { dim: true })
+        ? para(c, 'Wrap a card from its page in Collection (g). The link brings a friend in, and the card waits for them.', { dim: true })
         : column(c, open.map((g, i) => (
           <c.el.Box flexDirection="column" width={c.columns}>
-            <c.el.Box flexDirection="row" columnGap={SPACE.loose}>
+            <c.el.Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} rowGap={SPACE.tight} width={c.columns}>
               {chip(c, g.card, { key: `gift-${g.code}` })}
               <c.el.Box flexDirection="column" flexShrink={1}>
                 <c.el.Text wrap="wrap">{safe(g.code, 48)}</c.el.Text>
@@ -227,8 +227,8 @@ export function tradeScreen(c: Ctx): Shown {
   }
   const shown = section === 'inbox' ? inbox(c) : section === 'board' ? board(c) : section === 'trader' ? trader(c) : gifts(c)
   return {
-    body: column(c, [sections(c, section), shown.body]),
-    hints: [tabsHint(c.state), 'i b w g Sections', ...shown.hints, 'esc Close'],
+    body: column(c, [heading(c, 'Trading'), sections(c, section), shown.body]),
+    hints: [...shown.hints, 'esc Back'],
   }
 }
 
@@ -239,7 +239,7 @@ const toggle = (list: readonly string[], id: string, max: number) => list.includ
 export function profileScreen(c: Ctx, v: { handle: string; give: string[]; get: string[]; counterOf: string | null }): Shown {
   const s = c.state.social
   const prof = s.profile && s.profile.handle.toLowerCase() === v.handle.toLowerCase() ? s.profile : null
-  const crumb = line(c, `Trade › ${safe(v.handle, 40)}`, { dim: true })
+  const crumb = line(c, `Community › ${safe(v.handle, 40)}`, { dim: true })
   if (!prof) {
     const loading = s.loading.includes('profile')
     return { body: column(c, [crumb, para(c, loading ? 'Looking them up…' : `Can't find ${safe(v.handle, 40)} right now.`, { dim: true })]), hints: ['esc Back'] }
@@ -323,4 +323,3 @@ export function giftScreen(c: Ctx, code: string): Shown {
     hints: ['esc Back'],
   }
 }
-

@@ -18,13 +18,17 @@ import type { SiteCard } from '../../src/pages-meet.ts'
 import { catchCard } from './card.ts'
 import { lookAt, scan } from './eyes.ts'
 import * as keys from './keys.ts'
-import { $, $$, ap, D, el, flash, hop, pip, pline, pword, RM, say, shake, sprite, steps, wait, wobble } from './util.ts'
+import { MotionClock } from './clock.ts'
+import { $, $$, ap, clockOf, D, el, flash, hop, pip, pline, pword, RM, say, setClock, shake, sprite, steps, wait as delay, wobble } from './util.ts'
 import { commit, growth, hooks, hourFamily, onTeam, T, team, W } from './world.ts'
 
 const VERBS = ['Rustling', 'Foraging', 'Puddle-hopping', 'Nesting', 'Dawdling', 'Meandering', 'Burrowing', 'Pottering']
 
 const demo = $('[data-demo]')
 const screen = $('[data-screen]')
+const clock = new MotionClock()
+const wait = (ms: number) => delay(ms, clock)
+if (demo) setClock(demo, clock)
 let arena: Family = 'fable', next: Family | null = null
 let running = false, started = false
 let windowOpen: (() => void) | null = null
@@ -40,7 +44,7 @@ function paintArena(f: Family, animate: boolean) {
   const to = ARENA[f]
   const vars = ['--psky', '--pground', '--pshade']
   if (!animate || RM() || !from[0]) vars.forEach((v, i) => demo.style.setProperty(v, to[i]!))
-  else [1, 2, 3, 4].forEach(k => setTimeout(() => vars.forEach((v, i) => demo.style.setProperty(v, k === 4 ? to[i]! : `color-mix(in srgb,${to[i]} ${k * 25}%,${from[i]})`)), (k - 1) * 100))
+  else [1, 2, 3, 4].forEach(k => clock.after(() => vars.forEach((v, i) => demo.style.setProperty(v, k === 4 ? to[i]! : `color-mix(in srgb,${to[i]} ${k * 25}%,${from[i]})`)), (k - 1) * 100))
   const chip = $('[data-model]')
   if (chip) {
     chip.style.setProperty('--fam', FAMILY_COLOR[f])
@@ -60,6 +64,7 @@ function caption() {
 function controls() {
   const model = $('[data-model]'), spin = $('.spinner:not(.still)')
   model?.addEventListener('click', () => {
+    if (clock.paused) return
     const f = FAMILIES[(FAMILIES.indexOf(next ?? arena) + 1) % 4]!
     if (running) {
       next = f
@@ -69,22 +74,36 @@ function controls() {
   })
   let verb = 0
   spin?.addEventListener('click', () => {
+    if (clock.paused) return
     verb = (verb + 1) % VERBS.length
     spin.querySelector('.verb')!.textContent = `${VERBS[verb]}…`
     if (RM()) return
     spin.classList.add('go', 'fast')
-    setTimeout(() => { spin.classList.remove('fast'); if (!running) spin.classList.remove('go') }, 1000)
+    clock.after(() => { spin.classList.remove('fast'); if (!running) spin.classList.remove('go') }, 1000)
   })
   $('[data-key1]')?.addEventListener('click', press)
   $('[data-band]')?.addEventListener('click', press)
   $('[data-start]')?.addEventListener('click', () => void run())
+  $('[data-pause]')?.addEventListener('click', () => {
+    if (!running) return
+    if (clock.paused) clock.resume()
+    else {
+      for (const a of D.getAnimations()) if (clockOf((a.effect as KeyframeEffect | null)?.target) === clock) clock.track(a)
+      clock.pause()
+    }
+    const pause = $('[data-pause]')!
+    pause.textContent = clock.paused ? '▶ Resume' : 'Ⅱ Pause'
+    pause.setAttribute('aria-label', clock.paused ? 'Resume demo battle' : 'Pause demo battle')
+    pause.setAttribute('aria-pressed', String(clock.paused))
+  })
 }
 
 /** A press: Perfect in a wind-up, a ? pip otherwise, or Battle again after the result. */
 function press() {
+  if (clock.paused) return
   const key = $('[data-key1]')
   key?.classList.add('pressed')
-  setTimeout(() => key?.classList.remove('pressed'), 120)
+  clock.after(() => key?.classList.remove('pressed'), 120)
   if (windowOpen) { windowOpen(); return }
   if (!running) { void run(); return }
   const act = $('.side.sa .fighter.act')
@@ -160,6 +179,7 @@ async function callout(host: HTMLElement, text: string) {
 async function run() {
   if (!demo || !screen || !W || running) return
   running = true
+  $('[data-pause]')!.hidden = false
   started = true
   perfects = 0
   if (next) { arena = next; next = null; paintArena(arena, true) }
@@ -226,16 +246,16 @@ async function run() {
   Dd[0]!.node.classList.add('act')
   void banner(`A wild ${cardName(wild)} appeared!`, 0, false, `${cardName(wild)} appeared!`)
   say(`A wild ${cardName(wild)} appeared!`)
-  A.forEach((f, i) => setTimeout(() => void hop(f.svg), i * 100))
+  A.forEach((f, i) => clock.after(() => void hop(f.svg), i * 100))
   await wait(700)
 
   let activeA = 0
   for (let r = 1; r <= log.rounds.length; r++) {
     const P = pace()
     let round = log.rounds[r - 1]!
-    const t0 = performance.now()
+    const t0 = clock.now()
     for (let i = 0; i < round.actions.length; i++) {
-      const left = t0 + (i * P) / 2 - performance.now()
+      const left = t0 + (i * P) / 2 - clock.now()
       if (left > 0) await wait(left)
       let action = round.actions[i]!
       let perfect = false
@@ -252,7 +272,7 @@ async function run() {
       }
       await play(action, action.side === 'a' ? A : Dd, action.side === 'a' ? Dd : A, perfect)
     }
-    const rest = t0 + P - performance.now()
+    const rest = t0 + P - clock.now()
     if (rest > 0) await wait(rest)
     // end of round: regrowth and the like, then whoever is up next
     round.hp.a.forEach((hp, i) => setHp(A[i]!, hp))
@@ -276,9 +296,9 @@ async function windup(P: number): Promise<boolean> {
   void banner('[1] Now!', 0, true)
   let pressed = false
   await new Promise<void>(res => {
-    windowOpen = () => { pressed = true; res() }
-    segs.forEach((s, i) => setTimeout(() => s.classList.add('lit'), (i * ms) / segs.length))
-    setTimeout(res, ms)
+    const cancel = segs.map((s, i) => clock.after(() => s.classList.add('lit'), (i * ms) / segs.length))
+    cancel.push(clock.after(res, ms))
+    windowOpen = () => { pressed = true; cancel.forEach(f => f()); res() }
   })
   windowOpen = null
   key.classList.remove('now')
@@ -336,7 +356,7 @@ async function catchBeat(f: Fighter): Promise<boolean> {
   await wait(300)
   if (caught) {
     clearBanner()
-    await catchCard(c, back, { to: () => $('.outrow') })
+    await catchCard(c, back, { to: () => $('.outrow'), clock })
     // it went into the card: its place in the band stays empty
     back.remove()
     f.node.querySelector('.hp')!.setAttribute('style', 'visibility:hidden')
@@ -417,6 +437,7 @@ async function finish(log: BattleLog, A: Fighter[], wild: Fighter) {
     }
   }
   running = false
+  $('[data-pause]')!.hidden = true
   $('.spinner:not(.still)')?.classList.remove('go')
   if (next) caption()
 }

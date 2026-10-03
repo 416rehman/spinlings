@@ -1,5 +1,5 @@
 // Spinlings: every hook and every $ call of the mod lives in this file (SPEC 11). The hooks read only the shape of the
-// session (SPEC 10): the model's family, whether Claude's main turn runs, subagent counts, rate-limit fullness and
+// session (SPEC 10): the model's family, local effort glow, whether Claude's main turn runs, subagent counts, rate-limit fullness and
 // compaction. Never tool.call, prompt.submit or a permission request; never prompts, answers, files or
 // cost. Every hook passes the event on with next(e) and never waits on the network: the join and every request run
 // on clock callbacks, outside any hook. client/game.ts holds the game; this file only lends it $ through Fx.
@@ -236,7 +236,7 @@ export const register: Register = on => {
   })
 
   on('turn.step', async function* ($, e, next) {
-    if (e.agentId === undefined) await quietly($, 'step', () => game.turnStep(fxOf($), e.model))
+    if (e.agentId === undefined) await quietly($, 'step', () => game.turnStep(fxOf($), e.model, e.effort))
     return yield* next(e)
   })
 

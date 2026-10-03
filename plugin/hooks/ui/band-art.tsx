@@ -9,6 +9,7 @@ import { T, TIMING, cardBack, dissolve, flash, glowOutline, place, silhouette, s
 import type { Fighter, Foreshadow, RoundPlan, Side } from '../client/battleview.ts'
 import { SHADOW, catchBeats, catchPreMs, evolveSwitches, lookAt, spriteOf } from '../client/battleview.ts'
 import { fit } from '../client/text.ts'
+import { effortLook } from '../client/effort.ts'
 import { eggPixels, eggSpeck, packagePixels, presentPixels } from './ceremony-art.tsx'
 
 const s3 =(ms: number) => `${(ms / 1000).toFixed(3)}s`
@@ -41,9 +42,9 @@ const hidden = (inner: string, anim: string) => `<g visibility="hidden">${anim}$
 const shift = (values: string, begin: number, dur: number, o: { repeat?: boolean; freeze?: boolean } = {}) =>
   `<animateTransform attributeName="transform" type="translate" values="${values}" begin="${s3(begin)}" dur="${s3(dur)}" additive="sum"${o.repeat ? ' repeatCount="indefinite"' : ''}${o.freeze ? ' fill="freeze"' : ''}/>`
 
-function plate(w: number, h: number, stroke: string, o: { gold?: boolean } = {}): string {
+function plate(w: number, h: number, stroke: string, o: { gold?: boolean; opacity?: number; width?: number } = {}): string {
   const pulse = o.gold ? `<animate attributeName="stroke-opacity" values="0.4;1;0.4" dur="1.2s" repeatCount="indefinite"/>` : ''
-  return `<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="8" fill="${PLATE}" fill-opacity="0.94" stroke="${stroke}" stroke-opacity="${o.gold ? 1 : 0.55}" stroke-width="${o.gold ? 2 : 1}">${pulse}</rect>`
+  return `<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="8" fill="${PLATE}" fill-opacity="0.94" stroke="${stroke}" stroke-opacity="${o.gold ? 1 : o.opacity ?? 0.55}" stroke-width="${o.gold ? 2 : o.width ?? 1}">${pulse}</rect>`
 }
 
 /** A sprite placed at (x, y) px at `k` px a pixel, crisp. */
@@ -67,7 +68,7 @@ const barWidth = (s: HudSize) => Math.round(s.info * 0.62)
  * A creature's plate for the round being animated: the sprite, name and family mark, HP bar and numbers, callouts
  * and the special's charge, with the round's beats played by SMIL. `start` resumes the round that far in.
  */
-export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s: HudSize, o: { start?: number; motion: boolean }): string {
+export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s: HudSize, o: { start?: number; motion: boolean; effort?: unknown }): string {
   const { w, h } = hudSize(s)
   if (!f) return doc(w, h, plate(w, h, '#3a3646'))
   const start = o.start ?? 0
@@ -184,7 +185,7 @@ export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s:
   }
   const ready = f.charge >= f.need
   const charge = `<text x="${tx}" y="${h - s.pad}" text-anchor="${anchor}" font-size="${s.font - 2}" fill="${ready ? INKS.gold : INKS.dim}" ${FONT}>${esc(f.special)} ${'●'.repeat(Math.min(f.need, f.charge))}${'○'.repeat(Math.max(0, f.need - f.charge))}</text>`
-  return doc(w, h, plate(w, h, rarity) + creature + popups + nameText + bar + digits + callouts + charge)
+  return doc(w, h, plate(w, h, rarity, side === 'a' ? effortLook(o.effort) : {}) + creature + popups + nameText + bar + digits + callouts + charge)
 }
 
 /** The callouts one side shows through a round, in order (as lookAt picks them on the terminal). */

@@ -42,7 +42,7 @@ export function albumScreen(c: Ctx): Shown {
     btn(c, { key: 'album-prev', label: 'Previous', hotkey: 'p', on: () => go(-1) }),
     page === 'fusion' ? null : btn(c, { key: 'album-log', label: 'Fusion Log', hotkey: 'l', on: () => c.actions.pane(p => ({ ...p, album: 'fusion' })) }),
   ])
-  const head = heading(c, `Album · ${count.seen}/${count.total}`, `season ${season}`)
+  const head = heading(c, `Discoveries · ${count.seen}/${count.total}`, `season ${season}`)
   if (page === 'fusion') {
     const log = fusionLog(c.state.cards)
     const shown = log.slice(0, 6)
@@ -52,9 +52,9 @@ export function albumScreen(c: Ctx): Shown {
         nav,
         line(c, `Fusion Log · ${plural(log.length, 'hybrid')}`),
         log.length === 0
-          ? para(c, 'No hybrids yet. Open a card in Cards and choose Fuse to make one nobody has ever seen.', { dim: true })
+          ? para(c, 'No hybrids yet. Open a card in Collection and choose Fuse to make one nobody has ever seen.', { dim: true })
           : column(c, shown.map(x => cardRow(c, x, { key: `log-${x.id}`, note: parentsLine(x), on: () => c.actions.push({ kind: 'card', cardId: x.id }) })), SPACE.none),
-        log.length > shown.length ? line(c, `and ${log.length - shown.length} more in Cards`, { dim: true }) : null,
+        log.length > shown.length ? line(c, `and ${log.length - shown.length} more in Collection`, { dim: true }) : null,
       ]),
       hints: [tabsHint(c.state), 'n Next family', 'p Previous', log.length > 0 ? 'Tab Pick a hybrid' : '', 'esc Close'],
     }
@@ -64,6 +64,7 @@ export function albumScreen(c: Ctx): Shown {
   return {
     body: column(c, [
       head,
+      para(c, 'Species you have collected this season. Silhouettes are still waiting to be found.', { dim: true }),
       nav,
       <c.el.Text wrap="truncate-end">
         <c.el.Text color={FAMILY_COLOR[page]}>{FAMILY_MARK[page]}</c.el.Text>
@@ -81,7 +82,7 @@ function stages(c: Ctx, s: Species, seen: boolean): RenderElement {
   const list: (1 | 2 | 3)[] = s.legendary ? [3] : seen ? [1, 2, 3] : [1]
   const big = c.columns >= list.length * TILE + (list.length - 1) * SPACE.loose
   return (
-    <Box flexDirection="row" columnGap={SPACE.loose}>
+    <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} rowGap={SPACE.tight} width={c.columns}>
       {...list.map(st => big ? formArt(c.el, c.surface, `stage-${st}`, s, seen, st) : formMini(c, `stage-${st}`, s, seen, st))}
     </Box>
   )
@@ -89,7 +90,7 @@ function stages(c: Ctx, s: Species, seen: boolean): RenderElement {
 
 export function speciesScreen(c: Ctx, speciesId: string): Shown {
   const s = getSpecies(speciesId)
-  if (!s) return { body: column(c, [line(c, 'Album', { dim: true }), para(c, 'This creature is not in this album.', { dim: true })]), hints: ['esc Back'] }
+  if (!s) return { body: column(c, [line(c, 'Discoveries', { dim: true }), para(c, 'This creature is not in this album.', { dim: true })]), hints: ['esc Back'] }
   const me = c.state.me
   const seen = (me?.player.seen ?? []).includes(s.id) || c.state.cards.some(x => x.species === s.id)
   const owned = c.state.cards.filter(x => x.species === s.id).length
@@ -120,4 +121,3 @@ export function speciesScreen(c: Ctx, speciesId: string): Shown {
     hints: [choices.some(ch => ch.ok) ? '1-3 Craft' : '', canWish ? 'w Wishlist' : '', 'esc Back'],
   }
 }
-

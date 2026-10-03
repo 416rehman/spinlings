@@ -109,7 +109,7 @@ test('selling: Sell on a card page opens the price stepper from recent sales, Li
   const higher = String((await ui.find({ key: 'list' }))?.props.label)
   expect(Number(higher.replace(/\D/g, ''))).toBeGreaterThan(Number(start.replace(/\D/g, '')))
   // one suggested price: the hint names its one key
-  expect(textOf(await ui.drawn())).toMatch(/2 Suggested/)
+  expect((await ui.find({ key: 'price-hint-0' }))?.props.hotkey).toBe('2')
   expect(textOf(await ui.drawn())).not.toMatch(/2-2 Suggested/)
   // asking for a card too keeps the price, and letting the card go keeps it still
   await ui.press({ key: 'want-0' })
@@ -196,8 +196,8 @@ test('the boards: switch boards and periods, your rank pinned, a row opens the p
   expect(urls(w)).toContain('GET /v1/players/misty-lark-18')
   await ui.redraw()
   const text = textOf(await ui.drawn())
-  expect(text).toMatch(/30wins/)
-  expect(text).toMatch(/11beaten/)
+  expect(text).toMatch(/30duel wins/)
+  expect(text).toMatch(/11players beaten/)
   expect((await ui.find({ key: 'challenge' }))?.props.hotkey).toBe('c')
   await ui.press({ key: 'challenge' })
   await settle(clock)

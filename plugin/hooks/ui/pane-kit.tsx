@@ -48,10 +48,10 @@ export const TILE = CARD_WIDTH.tile
 
 const ALL_TABS: readonly { tab: Tab; label: string }[] = [
   { tab: 'team', label: 'Team' },
-  { tab: 'cards', label: 'Cards' },
-  { tab: 'album', label: 'Album' },
+  { tab: 'cards', label: 'Collection' },
+  { tab: 'album', label: 'Discoveries' },
   { tab: 'market', label: 'Market' },
-  { tab: 'trade', label: 'Trade' },
+  { tab: 'trade', label: 'Community' },
 ]
 
 /** The Market tab shows where it can be used: online, on a server with a market. */
@@ -208,7 +208,7 @@ export function meter(c: Ctx): RenderElement {
   return (
     <Box key="pack-meter" flexDirection="row" columnGap={SPACE.tight} flexShrink={0}>
       {art}
-      <Text {...(tone ? { color: tone } : { dimColor: true })}>{time}</Text>
+      <Text {...(tone ? { color: tone } : { dimColor: true })}>{`Next pack ${time}`}</Text>
     </Box>
   )
 }
@@ -262,7 +262,7 @@ export function header(c: Ctx): RenderElement {
       <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
         {open}
         {meter(c)}
-        <Text dimColor wrap="wrap">{rule}</Text>
+        {btn(c, { key: 'today', label: rule, dim: true, on: () => c.actions.push({ kind: 'today' }) })}
         {worldDot(c)}
         {unsavedMarker(c)}
       </Box>
@@ -285,7 +285,7 @@ export function statTile(c: Ctx, t: StatTile, key: string): RenderElement {
     <Box key={key} flexDirection="row" columnGap={SPACE.tight} flexShrink={0}>
       <Text color={look.color}>{look.mark}</Text>
       <Text bold>{grouped(t.value)}</Text>
-      <Text dimColor>{t.label}</Text>
+      <Text dimColor>{t.key === 'duelWins' ? 'duel wins' : t.key === 'beaten' ? 'players beaten' : t.key === 'firsts' ? 'first finds' : t.key === 'sales' ? 'market sales' : t.label}</Text>
     </Box>
   )
 }
@@ -444,13 +444,16 @@ export function fitHints(hints: readonly string[], room: number): string {
  */
 export function hintRow(c: Ctx, hints: readonly string[]): RenderElement {
   const { Box, Text } = c.el
-  const items = hintsOf(c, hints)
+  const items = hintsOf(c, hints).filter(leaves)
   const version = versionChip(c)
   const shown = version.chip || cells(items.join(HINT_SEP)) + SPACE.loose + version.width <= c.columns
   const room = shown ? Math.max(1, c.columns - version.width - SPACE.loose) : c.columns
   return (
     <Box flexDirection="row" justifyContent="space-between" columnGap={SPACE.loose} width={c.columns}>
-      <Text dimColor wrap="truncate-end">{fitHints(items, room)}</Text>
+      {actions({ ...c, columns: room }, [
+        btn(c, { key: 'pane-back', label: updateOpen(c) ? 'Hide update' : c.state.pane.stack.length === 0 ? 'Close' : 'Back', dim: true, on: () => c.actions.back() }),
+        !playable(c.state) || room < 13 || c.state.pane.stack.at(-1)?.kind === 'help' ? null : btn(c, { key: 'pane-help', label: '? Help', dim: true, on: () => c.actions.push({ kind: 'help' }) }),
+      ])}
       {shown ? <Box flexShrink={0}>{version.node}</Box> : null}
     </Box>
   )

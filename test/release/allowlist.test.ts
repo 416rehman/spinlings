@@ -30,7 +30,7 @@ const METHODS: Record<string, string[]> = {
 
 /** Every event field register.tsx may read (SPEC 10), as `e.<path>`. */
 const FIELDS = new Set([
-  'agentId', 'model', 'reason', 'rateLimits', 'trigger', 'args', 'origin.kind', 'surface', 'requestId',
+  'agentId', 'model', 'effort', 'reason', 'rateLimits', 'trigger', 'args', 'origin.kind', 'surface', 'requestId',
   'props.hasSurvey', 'props.bodyColumns', 'props.maxRows', 'props.isWorking', 'props.scroll.bodyRows', 'props.isFocused',
   'props.placement', 'props.suffix', 'props.mode',
 ])

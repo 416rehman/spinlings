@@ -284,6 +284,35 @@ test('the battle band: both creatures at 80 and up, the defender and two stat li
   await still.unmount()
 })
 
+test('effort changes only local ink and the player frame, with identical words, controls and animation timelines', LONG, async ($, on) => {
+  draws(on)
+  const state = at({ battle: battle({ kind: 'duel', shown: 1 }) })
+  const read = async (effort: 'low' | 'max', surface: 'terminal' | 'desktop') => {
+    current = { state: { ...state, signals: { ...state.signals, effort } }, now: NOW }
+    const ui = await $.ui.mount({ ...MOUNT, surface, props: props(80) })
+    const text = textOf(await ui.drawn())
+    const sources = (await ui.findAll({ type: 'Svg' })).map(n => String(n.props.source))
+    const controls = (await ui.findAll({ type: 'Button' })).map(n => ({ label: n.props.label, hotkey: n.props.hotkey }))
+    const header = (await ui.find({ type: 'Text', text: /vs Rival Thistlewick/ }))?.props
+    await ui.unmount()
+    return { text, sources, controls, header }
+  }
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const low = await read('low', surface), max = await read('max', surface)
+    expect(max.text).toBe(low.text)
+    expect(max.controls).toEqual(low.controls)
+    expect(low.header).toMatchObject({ dimColor: true, bold: false })
+    expect(max.header).toMatchObject({ dimColor: false, bold: true })
+    if (surface === 'desktop') {
+      expect(low.sources[0]).toMatch(/stroke-opacity="0.3" stroke-width="1"/)
+      expect(max.sources[0]).toMatch(/stroke-opacity="1" stroke-width="2"/)
+      expect(max.sources[1]).toBe(low.sources[1])
+      const timeline = (source: string) => [...source.matchAll(/<(?:animate|animateTransform|set)\b[^>]*>/g)].map(m => m[0])
+      expect(timeline(max.sources[0]!)).toEqual(timeline(low.sources[0]!))
+    }
+  }
+})
+
 test('band presses reach the game: Now!, a catch pick, the primary and the secondary', LONG, async ($, on) => {
   draws(on)
   const press = async (state: BandState, key: string, now = NOW) => {

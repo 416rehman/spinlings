@@ -276,6 +276,8 @@ export type SpinAccount = {
 export type SpinSignals = {
   /** the family of the model in use: the pack family and the arena */
   family: SpinFamily
+  /** Claude's effort: local band glow only, never stored or sent; absent reads medium */
+  effort?: 'low' | 'medium' | 'high' | 'max'
   /** Claude's main turn is running */
   working: boolean
   turnStartedAt: number | null
@@ -422,6 +424,10 @@ export type SpinView =
   | { kind: 'reveal' }
   | { kind: 'privacy' }
   | { kind: 'devices' }
+  | { kind: 'trades' }
+  | { kind: 'mine' }
+  | { kind: 'help' }
+  | { kind: 'today' }
   | { kind: 'demo'; step: number }
   /** the leaderboards: one board at a time, all time or this season */
   | { kind: 'boards'; board: SpinBoardName; period: SpinBoardPeriod }
