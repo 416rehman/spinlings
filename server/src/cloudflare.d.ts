@@ -16,6 +16,12 @@ export interface D1Database {
   batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>
 }
 
+/** The zone's cache (`caches.default`): GET requests only, keyed by URL, honouring Cache-Control. */
+export interface EdgeCache {
+  match(request: Request): Promise<Response | undefined>
+  put(request: Request, response: Response): Promise<void>
+}
+
 export interface ExecutionContext {
   waitUntil(promise: Promise<unknown>): void
   passThroughOnException(): void

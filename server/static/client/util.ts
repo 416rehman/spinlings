@@ -57,8 +57,8 @@ export function pline(text: string, cls = 'pt', bold = false): HTMLSpanElement {
  * The stepped animation every pixel-world motion uses: one transform per frame, held for `ms`.
  * Resolves when done; does nothing under reduced motion.
  */
-export function steps(node: Element | null | undefined, frames: string[], ms: number, o: { opacity?: number[]; force?: boolean } = {}): Promise<void> {
-  if (!node || (RM() && !o.force) || !frames.length) return Promise.resolve()
+export function steps(node: Element | null | undefined, frames: string[], ms: number, o: { opacity?: number[] } = {}): Promise<void> {
+  if (!node || RM() || !frames.length) return Promise.resolve()
   const kf: Keyframe[] = frames.map((t, i) => ({ transform: t, offset: i / frames.length, easing: 'steps(1, end)', ...(o.opacity ? { opacity: o.opacity[i] } : {}) }))
   kf.push({ transform: frames[frames.length - 1]!, offset: 1, ...(o.opacity ? { opacity: o.opacity[frames.length - 1] } : {}) })
   return settle(node.animate(kf, { duration: ms * frames.length }), ms * frames.length)
@@ -114,7 +114,8 @@ export function say(text: string) {
 
 // ---- local state: the visitor's creature, kept 30 days, never sent anywhere -----------------------
 
-export type Saved = { seed: string; level: number; xp: number; shortcuts?: boolean; t: number }
+/** `entry` is what the seed met (pages-meet entryKey); `t` is when this was last written. */
+export type Saved = { seed: string; entry: string; level: number; xp: number; shortcuts?: boolean; t: number }
 const KEY = 'spinlings.site.v1'
 export const store = {
   get(): Partial<Saved> | null {

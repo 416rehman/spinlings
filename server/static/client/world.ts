@@ -34,7 +34,8 @@ const listeners: Listener[] = []
 export const onTeam = (fn: Listener) => { listeners.push(fn) }
 export const changed = () => listeners.forEach(f => f())
 
-export const T: { lead: SiteCard | null; seed: string | null; met: boolean } = { lead: null, seed: null, met: false }
+/** The lead, its seed and the entry it met (kept beside the seed, so it meets the same one on a later day). */
+export const T: { lead: SiteCard | null; seed: string | null; entry: string | null; met: boolean } = { lead: null, seed: null, entry: null, met: false }
 
 /** The two regulars for the current hour, levels 4 and 5. */
 export const regulars = (): [SiteCard, SiteCard] => teamRegulars(W!, hour())
@@ -44,11 +45,15 @@ export const team = (): SiteCard[] => (T.met && T.lead ? [T.lead, ...regulars()]
 
 const THIRTY_DAYS = 30 * 86_400_000
 
-/** A saved creature less than 30 days old, still of this season, at its saved level. */
+/**
+ * A saved creature less than 30 days old, still of this season, at its saved level. The page knows
+ * no first find's day, so a seed of an earlier day meets its kept entry; a save from before entries
+ * were kept is met from today's world once and keeps what it met from then on.
+ */
 export function restore(): boolean {
   const s = store.get()
   if (!W || !s?.seed || typeof s.t !== 'number' || Date.now() - s.t > THIRTY_DAYS) return false
-  const m = meet(s.seed, W)
+  const m = meet(s.seed, W, typeof s.entry === 'string' ? s.entry : undefined)
   if (!m) return false
   const level = Math.max(3, Math.min(10, Math.floor(Number(s.level) || 3)))
   const xp = Math.max(0, Math.floor(Number(s.xp) || 0))
@@ -56,7 +61,9 @@ export function restore(): boolean {
   lead.stats = cardStats(lead)
   T.lead = lead
   T.seed = s.seed
+  T.entry = m.entry
   T.met = true
+  if (s.entry !== m.entry) store.set({ entry: m.entry })
   return true
 }
 
@@ -71,17 +78,21 @@ export function roll(): SiteCard {
   if (p?.foil === '1') card.foil = true
   T.lead = card
   T.seed = seed
+  T.entry = m.entry
   T.met = false
   return card
 }
 
 /** Keeps the met creature. */
 export function keep() {
-  if (!T.lead || !T.seed) return
+  if (!T.lead || !T.seed || !T.entry) return
   T.met = true
-  store.set({ seed: T.seed, level: T.lead.level, xp: T.lead.xp })
+  store.set({ seed: T.seed, entry: T.entry, level: T.lead.level, xp: T.lead.xp })
   changed()
 }
+
+/** The lead's postcard link. It carries the kept entry, which the server cannot work out from the seed (pages-meet meet). */
+export const postcardUrl = () => `${location.origin}/w/${T.seed}?e=${encodeURIComponent(T.entry ?? '')}`
 
 /** What xp would make of the lead, without keeping it yet (the battle shows the evolution first). */
 export const growth = (xp: number) => applyXp(T.lead!, xp)

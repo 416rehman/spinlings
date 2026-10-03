@@ -4,7 +4,9 @@
 // and ends at the campfire (#install). Each place fades into the next through a dithered ramp.
 // Everything here is server-rendered and reads without script: the featured species stands revealed
 // by the tuft, the album, the Trader's deals and the lanterns are all real. site.js
-// (server/static/client) then brings the world to life.
+// (server/static/client) then brings the world to life. Its toys (teammates, lamps, the type wheel,
+// the 1 key, the pack, the deal tags, the fire) are plain pictures and text until site.js makes each
+// [data-toy] a button, so nothing without script promises a press that cannot happen.
 import { cardName, geneScore } from '../../plugin/hooks/core/cards.ts'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { FAMILIES, FAMILY_INFO, SPECIALS, beatenBy } from '../../plugin/hooks/core/families.ts'
@@ -81,14 +83,14 @@ function hero(w: SiteFacts, regs: Record<Family, SiteCard>): Raw {
   const mates = FAMILIES.map(f => {
     const c = regs[f]
     const name = text(cardName(c), 40)
-    return html`<button class="mate" type="button" data-fam="${f}" aria-label="${name}, ${famName(f)} teammate">${raw(spriteSvg(spriteFor(c)))}<span class="tag" aria-hidden="true"></span></button>`
+    return html`<span class="mate" data-toy="" role="img" data-fam="${f}" aria-label="${name}, ${famName(f)} teammate">${raw(spriteSvg(spriteFor(c)))}<span class="tag" aria-hidden="true"></span></span>`
   })
   return html`<section class="hero" id="meet" aria-labelledby="meet-h">
 <div class="sky">
 <div class="starfield" aria-hidden="true">${raw(HERO_STARS)}</div>
 <button class="sunbtn js-only" type="button" aria-label="Change the time of day. Now: dusk." title="Fable dusk. Drag me.">${raw(sunSvg())}${raw(moonSvg())}</button>
 <span class="sunbtn still" aria-hidden="true">${raw(sunSvg())}</span>
-<div class="skyb b1"><div class="wrap"><h1 id="meet-h">${pixelHeading('Wild creatures find you while Claude works.')}</h1>
+<div class="skyb b1"><div class="wrap"><h1 id="meet-h" tabindex="-1">${pixelHeading('Wild creatures find you while Claude works.')}</h1>
 <p class="lede">Spinlings is a creature card game inside Claude Code. While Claude works, wild ones wander into a slim band above your prompt. Your team of three battles them, and every catch is a card that exists exactly once.</p>
 <p class="today-m"><b>Today: ${rule.name}.</b> <span class="ruletext">${rule.text}.</span></p>
 </div></div>
@@ -102,9 +104,9 @@ ${raw(dither('k2', 'k3'))}
 <div class="lay peaks" aria-hidden="true">${raw(peaksSvg())}</div>
 <div class="lay hill" aria-hidden="true">${raw(hillSvg())}</div>
 <div class="actors">
-<button class="lamp" type="button" tabindex="-1" style="--x:var(--lamp1)" aria-label="Turn the lamp off">${raw(lampSvg())}</button>
+<span class="lamp" data-toy="Turn the lamp off" aria-hidden="true" style="--x:var(--lamp1)">${raw(lampSvg())}</span>
 <div class="sign"><div class="board"><p><b>Today: ${rule.name}</b></p><p class="ruletext">${rule.text}.</p></div></div>
-<button class="lamp" type="button" tabindex="-1" style="--x:var(--lamp2)" aria-label="Turn the lamp off">${raw(lampSvg())}</button>
+<span class="lamp" data-toy="Turn the lamp off" aria-hidden="true" style="--x:var(--lamp2)">${raw(lampSvg())}</span>
 <div class="mates">${mates}</div>
 <div class="patch" data-patch>
 <p class="bubble" data-chip><span class="nojs-line">A wild <b style="color:${RARITY_COLOR.common}">${fname}</b> appeared!</span></p>
@@ -162,7 +164,7 @@ ${raw(ramp('g3', 'kc'))}
 <div class="wrap">
 <div class="bt-top">
 <div class="bt-copy">
-<h2 id="battle-h">${pixelHeading('Your team battles above the prompt.')}</h2>
+<h2 id="battle-h" tabindex="-1">${pixelHeading('Your team battles above the prompt.')}</h2>
 <p class="body">Once Claude has been busy for 20 seconds, something may rustle out. Your three fight on their own. When a special fires, press 1 for a Perfect hit.</p>
 <p class="need js-only" data-need hidden><button class="tbtn" type="button" data-needgo>Your third spot is empty. Meet the wild one at the top.</button></p>
 </div>
@@ -173,7 +175,7 @@ ${raw(spriteSvg(spriteFor({ form: featured, stage: 1 })))}
 <p><b>Spotted today: ${fname}</b></p><p class="soft">Out in the grass more than usual.</p>
 </div>
 <figure class="wheelbox${topsy ? ' topsy' : ''}">
-<button class="wheel" type="button" aria-label="Turn the type wheel">${raw(wheelSvg())}${FAMILIES.map((f, i) => html`<span class="runner r${i}" style="--fam:${FAMILY_COLOR[f]}">${raw(spriteSvg(spriteFor(regs[f])))}</span>`)}</button>
+<span class="wheel" data-toy="Turn the type wheel" role="img" aria-label="The type wheel">${raw(wheelSvg())}${FAMILIES.map((f, i) => html`<span class="runner r${i}" style="--fam:${FAMILY_COLOR[f]}">${raw(spriteSvg(spriteFor(regs[f])))}</span>`)}</span>
 <figcaption>${topsy ? 'Today it all runs backwards. ' : ''}Opus beats Sonnet. Sonnet beats Haiku. Haiku beats Fable. Fable beats Opus.</figcaption>
 </figure>
 </div>
@@ -199,7 +201,7 @@ ${raw(spriteSvg(spriteFor({ form: featured, stage: 1 })))}
 <button class="pchip js-only" type="button" data-model style="--fam:${FAMILY_COLOR[dusk]}"><span class="mark" aria-hidden="true">${FAMILY_MARK[dusk]}</span> <span class="v">${famName(dusk)}</span></button>
 <span class="grow"></span>
 <span class="khint">Perfect hit when a special fires</span>
-<button class="key1" type="button" data-key1 aria-keyshortcuts="1" aria-label="Press 1 for a Perfect hit">${raw(KEY_RING)}<span class="cap1">${raw(wordSvg('1'))}</span></button>
+<span class="key1" data-toy="Press 1 for a Perfect hit" data-keys="1" data-key1 role="img" aria-label="The 1 key">${raw(KEY_RING)}<span class="cap1">${raw(wordSvg('1'))}</span></span>
 </div>
 <div class="outrow js-only">
 <button class="pbtn startb" type="button" data-start hidden><span class="face">Start battle <span class="kc1">1</span></span></button>
@@ -275,12 +277,12 @@ function den(w: SiteFacts, regs: Record<Family, SiteCard>): Raw {
   return html`<section class="den dark" id="collect" aria-labelledby="collect-h">
 <div class="edgebox">${raw(denTopSvg())}</div>
 <div class="wrap">
-<h2 id="collect-h">${pixelHeading('Every card is the only one.')}</h2>
+<h2 id="collect-h" tabindex="-1">${pixelHeading('Every card is the only one.')}</h2>
 <p class="body">Every catch rolls its own colours, eyes, genes and traits. One card in 16 is foil, one in 100 is shiny, and now and then a Mythic turns up that has never existed before.</p>
 <div class="shelf" data-shelf>
 <h3>${pixelHeading('Open a pack')}</h3>
 <div class="packstage">
-<div class="packspot"><button class="pack" type="button" data-pack data-fam="${famHour}" style="--fam:${FAMILY_COLOR[famHour]}" aria-keyshortcuts="o" aria-label="${famName(famHour)} pack. Open it.">${raw(packSvg(w))}<span class="ptag packtag" aria-hidden="true">${famName(famHour)} pack</span></button><div class="stump" aria-hidden="true">${raw(STUMP)}</div></div>
+<div class="packspot"><span class="pack" data-toy="${famName(famHour)} pack. Open it." data-keys="o" data-pack data-fam="${famHour}" style="--fam:${FAMILY_COLOR[famHour]}" role="img" aria-label="A ${famName(famHour)} pack">${raw(packSvg(w))}<span class="ptag packtag" aria-hidden="true">${famName(famHour)} pack</span></span><div class="stump" aria-hidden="true">${raw(STUMP)}</div></div>
 <div class="cards5"><div class="slots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><ol class="fan" data-fan aria-label="Pack cards"></ol></div>
 </div>
 <div class="plank" aria-hidden="true"></div>
@@ -294,7 +296,7 @@ function den(w: SiteFacts, regs: Record<Family, SiteCard>): Raw {
 <div class="lower">
 <div class="hollow-room nest" data-nest>
 <h3>${pixelHeading('Fuse two into one')}</h3>
-<p class="soft">Drag a pack card onto a parent, or press Fuse.</p>
+<p class="soft">Tap a pack card or drag it onto a parent, or press Fuse.</p>
 <div class="nestrow">
 <div class="nslot" data-nslot="a">${raw(spriteSvg(spriteFor(regs[FAMILY_INFO[famHour].beats])))}<span class="nlabel">${text(cardName(regs[FAMILY_INFO[famHour].beats]), 40)}</span></div>
 <div class="eggbox" data-egg aria-hidden="true"></div>
@@ -447,7 +449,7 @@ function market(d: LandingData): Raw {
   return html`<section class="market dark" id="trade" aria-labelledby="trade-h">
 <div class="edgebox">${raw(marketTopSvg())}</div>
 <div class="wrap">
-<h2 id="trade-h">${pixelHeading('Swap, gift and trade.')}</h2>
+<h2 id="trade-h" tabindex="-1">${pixelHeading('Swap, gift and trade.')}</h2>
 <p class="body">Mark cards for trade, make offers, or wrap one up and send the link. When nobody's around, the Wandering Trader keeps a stall.</p>
 </div>
 <div class="overhead">${raw(LANTERN_SYMBOL)}
@@ -467,7 +469,7 @@ ${shown.length
 <div class="awn" aria-hidden="true"></div>
 <div class="board">
 <h3>${pixelHeading('The Wandering Trader')}</h3>
-<ul class="tags">${d.deals.map(deal => html`<li class="dtag"><button class="tagb" type="button" data-deal="${deal.name}"><b>${deal.name}</b><span>${dealWords(deal)}</span></button></li>`)}</ul>
+<ul class="tags">${d.deals.map(deal => html`<li class="dtag"><span class="tagb" data-toy="" data-deal="${deal.name}"><b>${deal.name}</b><span>${dealWords(deal)}</span></span></li>`)}</ul>
 <p class="soft">New deals tomorrow.</p>
 </div>
 <div class="axle" aria-hidden="true">${raw(WHEEL)}${raw(WHEEL)}</div>
@@ -521,6 +523,9 @@ const PRESENT_SVG = (() => {
 
 // ---- #install: the campfire ---------------------------------------------------------------------
 
+/** The campfire: a picture without scripts, which site.js turns into the button that stokes it. */
+const FIRE = html`<span class="fire" data-toy="Stoke the fire" data-fire role="img" aria-label="A campfire">${raw(fireSvg())}<span class="sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></span>`
+
 /** An empty log by the fire, kept for the visitor's own creature. */
 const LOG_SEAT = `<svg class="logart" viewBox="0 0 18 5" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="#6b4a33" d="M1 0h16v4h-16z"/><path fill="#4a3326" d="M1 4h16v1h-16zM0 1h1v3h-1zM17 1h1v3h-1z"/><path fill="#9a7048" d="M2 0h13v1h-13z"/><path fill="#3b2a22" d="M5 2h1v1h-1zM11 1h1v1h-1z"/></svg>`
 
@@ -531,14 +536,14 @@ function campfire(w: SiteFacts, regs: Record<Family, SiteCard>): Raw {
   return html`<section class="camp dark" id="install" aria-labelledby="install-h">
 ${raw(ramp('nt', 'ct'))}
 <div class="wrap">
-<h2 id="install-h">${pixelHeading('Your team is waiting by the fire.')}</h2>
+<h2 id="install-h" tabindex="-1">${pixelHeading('Your team is waiting by the fire.')}</h2>
 <p class="body">One line inside Claude Code. A starter team hatches right away, two welcome packs are waiting, and the first wild one finds you on Claude's first long turn.</p>
 </div>
 <div class="fireside">
 <div class="campsky" aria-hidden="true">${raw(starsSvg())}</div>
 <div class="rock" aria-hidden="true">${raw(rockSvg())}<div class="shadow" data-shadow>${raw(spriteSvg(spriteFor(third), { cls: 'sil' }))}</div></div>
 <div class="campers" data-campers>${[regs[beatenBy(dusk)], lead].map(c => html`<span class="camper">${raw(spriteSvg(spriteFor(c)))}</span>`)}<span class="camper seat">${raw(LOG_SEAT)}<span class="saved">Saved for you</span></span></div>
-<button class="fire" type="button" data-fire aria-label="Stoke the fire">${raw(fireSvg())}<span class="sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></button>
+${FIRE}
 <p class="oneday" data-oneday aria-hidden="true">One day: ${text(cardName(third), 40)}.</p>
 <div class="campground" aria-hidden="true">${raw(campGroundSvg())}</div>
 </div>
@@ -558,7 +563,7 @@ export function teamCamp(team: readonly BattleCard[]): Raw {
 <div class="campsky" aria-hidden="true">${raw(starsSvg())}</div>
 <div class="tent" aria-hidden="true">${raw(tentSvg())}</div>
 <ul class="campers circle">${team.map(c => html`<li class="camper"><a href="/c/${c.id}" aria-label="${text(cardName(c), 40)}, ${rarityLine(c)}">${raw(spriteSvg(spriteFor(c)))}</a></li>`)}</ul>
-<button class="fire" type="button" data-fire aria-label="Stoke the fire">${raw(fireSvg())}<span class="sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></button>
+${FIRE}
 <div class="campground" aria-hidden="true">${raw(campGroundSvg())}</div>
 </div>`
 }
@@ -994,7 +999,8 @@ html.js .nojs-note{display:none}
 .nojs-note{margin-top:var(--s2)}
 .fan{margin:0;padding:0;list-style:none}
 .fan li{position:relative;min-width:0}
-.fan li[data-open]{cursor:grab}
+.fan li[data-open]{cursor:grab;user-select:none;-webkit-user-select:none}
+@media (pointer:fine){.fan li[data-open]{touch-action:none}}
 .fan .cf{height:var(--ch);overflow:hidden;padding:6px 8px 10px}
 .fan .cf>*{flex-shrink:0}
 .fan .cf>.cf-art{flex:1 1 auto;min-height:0;overflow:hidden}

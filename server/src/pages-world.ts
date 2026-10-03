@@ -1,7 +1,8 @@
 // The world the site's pages are drawn from, read once per request: the frozen season, the species
-// somebody has found (with the day of each first find), today's rule and featured species, the 8
-// regulars named through core/naming.ts, and the JSON the landing embeds in <main data-world>. It
-// carries no handle and nothing about a Mythic (site brief 2.7); the lanterns are server-rendered.
+// somebody has found (and which of them were first found today), today's rule and featured species,
+// the 8 regulars named through core/naming.ts, and the JSON the landing embeds in <main data-world>.
+// It carries no handle, no first find's day and nothing about a Mythic (site brief 2.7, SPEC 20.3);
+// the lanterns are server-rendered.
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { FAMILIES } from '../../plugin/hooks/core/families.ts'
 import { speciesNameLine } from '../../plugin/hooks/core/naming.ts'
@@ -36,15 +37,19 @@ export function regulars(season: readonly Species[] = []): CardForm[] {
 
 export type SiteFacts = SiteWorld & { seasonDay: number; daysLeft: number }
 
-/** The world of `season` as of `now` (or the season's last moment, for a past season). */
+/**
+ * The world of `season` as of `now`, or as of its last moment for a past season. A past season has
+ * no today, so nothing in it counts as found today: its postcards draw from every find it had, and
+ * none of them can be dated by being left out.
+ */
 export async function siteWorld(db: Db, now: number, season = seasonOf(now)): Promise<SiteFacts> {
   const { species } = await ensureSeason(db, season)
   const at = Math.min(now, seasonStart(season + 1) - 1)
   const w = worldOf(at)
-  const found = await db.all<{ species: string; day: string }>('SELECT species, day FROM firsts WHERE season = ? ORDER BY day, species', season)
+  const found = await db.all<{ species: string; day: string }>('SELECT species, day FROM firsts WHERE season = ? AND day <= ? ORDER BY species', season, w.day)
   return {
     now: at, day: w.day, season, rule: w.rule, featured: w.featured,
-    found: found.map(r => [r.species, r.day] as [string, string]),
+    found: found.map(r => r.species), foundToday: at === now ? found.filter(r => r.day === w.day).map(r => r.species) : [],
     species: [...species], regulars: regulars(species),
     seasonDay: Math.floor((at - seasonStart(season)) / DAY) + 1,
     daysLeft: Math.ceil((seasonStart(season + 1) - at) / DAY),
@@ -62,7 +67,7 @@ export function worldJson(w: SiteFacts, preview: Preview | null): string {
     : null
   return JSON.stringify({
     v: 1, now: w.now, day: w.day, season: w.season, seasonDay: w.seasonDay, daysLeft: w.daysLeft, rule: w.rule, featured: w.featured,
-    found: w.found, species: w.species, regulars: w.regulars, fusionCost: fusionCost(w.rule), shinyHour,
+    found: w.found, foundToday: w.foundToday, species: w.species, regulars: w.regulars, fusionCost: fusionCost(w.rule), shinyHour,
     ...(preview ? { preview } : {}),
   })
 }

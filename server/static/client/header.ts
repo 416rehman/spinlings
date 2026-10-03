@@ -8,7 +8,7 @@ import type { SiteCard } from '../../src/pages-meet.ts'
 import { spriteSvg } from '../../src/pages-sprite.ts'
 import { openPopover } from './popover.ts'
 import { $, $$, ap, D, frag, pip, pword, RM, sleep } from './util.ts'
-import { hooks, onTeam, regulars, T } from './world.ts'
+import { hooks, onTeam, postcardUrl, regulars, T } from './world.ts'
 
 const top = $('#top')!
 const mini = (c: SiteCard, cls = '') => frag<SVGSVGElement>(spriteSvg(miniSprite(spriteFor(c)), { cls }))
@@ -109,7 +109,10 @@ function walker() {
     running = true
     t.scrollIntoView({ behavior: RM() ? 'auto' : 'smooth' })
     history.replaceState(null, '', `#${a.dataset.stop}`)
-    setTimeout(() => { running = false; t.querySelector<HTMLElement>('h2')?.focus?.() }, 900)
+    // as a plain link would: focus moves into the section (its heading, tabindex -1), so the next Tab
+    // starts there; the glide is already under way, so the focus itself must not scroll
+    t.querySelector<HTMLElement>('h2[tabindex]')?.focus({ preventScroll: true })
+    setTimeout(() => { running = false }, 900)
   })
   // the stop the page is at: the section crossing the viewport's middle
   const io = new IntersectionObserver(es => {
@@ -154,7 +157,7 @@ function strip() {
     if (i === 0) {
       if (!T.met || !T.lead) { $('#meet')?.scrollIntoView({ behavior: RM() ? 'auto' : 'smooth' }); return }
       openPopover(s, T.lead, true, {
-        postcard: () => `${location.origin}/w/${T.seed}`,
+        postcard: postcardUrl,
         meetNew: () => hooks.meetNew(),
       })
     } else openPopover(s, i === 1 ? a : b, false)

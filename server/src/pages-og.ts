@@ -17,6 +17,36 @@ import { Art, grassArt, hillArt, lampSvg, peaksArt, PATH_Y } from './pages-scene
 const W = 1200, H = 630, S = 3
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0')
 
+export type ImageCache = {
+  /** The image drawn for `key`, if it is still kept; asking makes it the most recently used. */
+  get(key: string): Promise<Uint8Array> | undefined
+  /** Keeps a drawing under `key`, dropping the least recently used beyond the limit; a failed drawing is forgotten. */
+  set(key: string, drawing: Promise<Uint8Array>): Promise<Uint8Array>
+}
+
+/**
+ * The last `max` share images, in memory. Drawing one is tens of milliseconds of synchronous work and
+ * its bytes never change, so each is drawn once while it is kept, and everyone asking meanwhile waits
+ * on that one drawing.
+ */
+export function imageCache(max: number): ImageCache {
+  const kept = new Map<string, Promise<Uint8Array>>()
+  return {
+    get(key) {
+      const v = kept.get(key)
+      if (v) { kept.delete(key); kept.set(key, v) } // re-inserted, so the Map stays in least-recently-used order
+      return v
+    },
+    set(key, drawing) {
+      kept.delete(key)
+      if (kept.size >= max) kept.delete(kept.keys().next().value!)
+      kept.set(key, drawing)
+      drawing.catch(() => { if (kept.get(key) === drawing) kept.delete(key) })
+      return drawing
+    },
+  }
+}
+
 type Pal = (typeof HOUR_PAL)['dusk']
 
 const colours = (p: Pal): Record<string, string> => ({

@@ -132,7 +132,8 @@ describe('the landing, third pass', () => {
     assert.match(p.html, /<div class="demo" data-demo style="--psky:#1a1133;--pground:#3a2262;--pshade:#5e3d9a">/, 'the fable arena at dusk, dark')
     assert.match(p.html, /<div class="screen" data-screen>\n<div class="feed">/)
     assert.equal((p.html.match(/class="kc1">1</g) ?? []).length, 1, 'the 1 key appears once (on Start battle), beside the big keycap')
-    assert.match(p.html, /<span class="khint">Perfect hit when a special fires<\/span>\n<button class="key1"/)
+    // the keycap is a picture until site.js makes it the button (a toy: see the no-script test in site-craft)
+    assert.match(p.html, /<span class="khint">Perfect hit when a special fires<\/span>\n<span class="key1" data-toy="Press 1 for a Perfect hit" data-keys="1" data-key1 role="img" aria-label="The 1 key">/)
     assert.match(p.html, /<p class="waitline">Win, and you might catch one\. You never lose a card\.<\/p>/, 'the result has its room before it arrives')
     const c = css(p.html)
     assert.match(c, /\.outrow\{[^}]*min-height:96px/)
@@ -146,7 +147,7 @@ describe('the landing, third pass', () => {
     await s.join('haiku')
     const html = (await get(s, '/')).html
     const den = html.slice(html.indexOf('id="collect"'), html.indexOf('id="trade"'))
-    assert.match(den, /<button class="pack" type="button" data-pack data-fam="fable"/)
+    assert.match(den, /<span class="pack" data-toy="Fable pack\. Open it\." data-keys="o" data-pack data-fam="fable"/)
     for (const f of ['haiku', 'sonnet', 'opus', 'fable']) assert.match(den, new RegExp(`<g class="em em-${f}"`), f)
     assert.match(den, /<g class="pk-top">/, 'the crimp that tears off')
     assert.match(den, /<svg class="stumpart"/)
@@ -161,7 +162,8 @@ describe('the landing, third pass', () => {
     const s = server()
     const html = (await get(s, '/')).html
     assert.ok(html.includes('<a class="skip js-only" href="#meet" data-meetskip>Meet the wild one</a>'))
-    assert.equal((html.match(/<button class="lamp" type="button" tabindex="-1"/g) ?? []).length, 2)
+    // pictures without script; site.js makes them buttons and keeps them out of the Tab order (hero.ts lamps)
+    assert.equal((html.match(/<span class="lamp" data-toy="Turn the lamp off" aria-hidden="true"/g) ?? []).length, 2)
     // the bubble's tail follows whoever speaks
     assert.match(css(html), /\.bubble::after\{[^}]*left:var\(--tail-x,/)
   })
@@ -193,8 +195,8 @@ describe('site creatures, third pass', () => {
   it('deals a pack from a shuffled deck: no creature twice while the deck lasts', () => {
     const species = seasonSpecies(1)
     const ww = worldOf(T0)
-    const found = species.filter(s => !s.legendary && s.family === 'fable').slice(0, 3).map(s => [s.id, '2026-10-01'] as [string, string])
-    const w: SiteWorld = { now: T0, day: ww.day, season: 1, rule: ww.rule, featured: ww.featured, found, species: [...species], regulars: regulars(species) }
+    const found = species.filter(s => !s.legendary && s.family === 'fable').slice(0, 3).map(s => s.id)
+    const w: SiteWorld = { now: T0, day: ww.day, season: 1, rule: ww.rule, featured: ww.featured, found, foundToday: [], species: [...species], regulars: regulars(species) }
     assert.ok(packDeck(w, 'fable').length >= 5)
     const rng = rngFromSeed('decks')
     for (let i = 0; i < 200; i++) {
@@ -209,7 +211,8 @@ describe('the market and the camp, third pass', () => {
     const s = server()
     await s.join('haiku')
     const html = (await get(s, '/')).html
-    const tags = [...html.matchAll(/<li class="dtag"><button class="tagb" type="button" data-deal="([^"]+)"><b>\1<\/b><span>([^<]+)<\/span><\/button><\/li>/g)]
+    // plain text without script; site.js makes each a button the Trader answers
+    const tags = [...html.matchAll(/<li class="dtag"><span class="tagb" data-toy="" data-deal="([^"]+)"><b>\1<\/b><span>([^<]+)<\/span><\/span><\/li>/g)]
     assert.equal(tags.length, 3)
     for (const t of tags) assert.match(t[2]!, /^\d+ [a-zA-Z]+ in, \d+ [a-zA-Z ]+ out$/)
     assert.doesNotMatch(html, /tabindex="0"><b>/, 'no focusable tag that does nothing')
@@ -223,7 +226,7 @@ describe('the market and the camp, third pass', () => {
     assert.equal(p.status, 200)
     assert.match(p.html, /<div class="fireside tented">/)
     assert.match(p.html, /<svg class="tentart"/)
-    assert.match(p.html, /<button class="fire" type="button" data-fire aria-label="Stoke the fire">/)
+    assert.match(p.html, /<span class="fire" data-toy="Stoke the fire" data-fire role="img" aria-label="A campfire">/)
     assert.match(p.html, /<p class="pennant">[A-Z][a-z]+ league<\/p>/, 'the league badge is real text, not hidden')
     assert.match(p.html, /<p class="empty doze"><svg class="spr shut"/, 'an empty board dozes')
   })

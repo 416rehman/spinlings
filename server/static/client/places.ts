@@ -8,8 +8,8 @@ import { rollSlot } from '../../src/pages-meet.ts'
 import { face, spoken, tilt } from './card.ts'
 import { scan } from './eyes.ts'
 import * as keys from './keys.ts'
-import { $, copyText, el, flash, hop, RM, say, sleep, sprite, steps, wait, wobble } from './util.ts'
-import { onTeam, regulars, T, W } from './world.ts'
+import { $, copyText, D, el, flash, hop, RM, say, sleep, sprite, steps, wait, wobble } from './util.ts'
+import { onTeam, postcardUrl, regulars, T, W } from './world.ts'
 
 // ---- the present -------------------------------------------------------------------------------------
 
@@ -28,10 +28,15 @@ async function unwrap(stall: HTMLElement, card: () => HTMLElement | null) {
   }
   const c = card()
   if (c) stall.querySelector('[data-giftcard], .giftcard')?.replaceChildren(c)
+  // the present is about to vanish: if it had focus, the card it held takes it (the name, or the
+  // legendary's line), and the live region says what came out
+  const had = box.contains(D.activeElement)
   stall.classList.add('open')
   ribbon.forEach(r => { r.removeAttribute('opacity'); r.removeAttribute('transform') })
   delete stall.dataset.busy
   const shown = stall.querySelector<HTMLElement>('.giftcard .cf')
+  const target = stall.querySelector<HTMLElement>('.giftcard .cf-name') ?? stall.querySelector<HTMLElement>('.giftcard > p')
+  if (had && target) { target.tabIndex = -1; target.focus({ preventScroll: true }) }
   if (shown) {
     tilt(shown, shown, true)
     if (!RM()) void steps(shown, ['translateY(24px) scale(.7)', 'translateY(-10px) scale(1.04)', 'translateY(0) scale(1)'], 90)
@@ -136,7 +141,7 @@ function camp() {
   })
   pc?.addEventListener('click', async () => {
     if (!T.seed) return
-    const url = `${location.origin}/w/${T.seed}`
+    const url = postcardUrl()
     const label = pc.querySelector('.face')!
     label.textContent = (await copyText(url)) ? 'Postcard link copied.' : url
     setTimeout(() => { if (T.lead) label.textContent = `Send ${cardName(T.lead)} to a friend` }, 2400)
@@ -163,7 +168,15 @@ function cardPage() {
 function giftPage() {
   const stall = $('main [data-giftstall]')
   if (!stall || $('#trade')) return
-  const go = () => void unwrap(stall, () => null)
+  // the card is already on the page, under the wrapping: say what it is as it comes out, the way the
+  // landing's cards are spoken (card.ts spoken)
+  const line = () => {
+    const q = (sel: string) => stall.querySelector(`.giftcard ${sel}`)?.textContent?.trim() ?? ''
+    const [rarity = '', finish = ''] = q('.cf-rar').toLowerCase().split(' · ')
+    const family = [...(stall.querySelector('.giftcard .cf-kind')?.childNodes ?? [])].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim()
+    return [q('.cf-name'), `${rarity} ${family}`.trim(), finish, q('.genes b').toLowerCase()].filter(Boolean).join(', ')
+  }
+  const go = () => void unwrap(stall, () => { say(`${line()}. It's yours once you claim it.`); return null })
   $('[data-present]')?.addEventListener('click', go)
   // a gift page has no sections: its keys belong to the page itself
   keys.on('page', { o: go, '1': go })

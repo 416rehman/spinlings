@@ -136,12 +136,18 @@ async function banner(text: string, ms = 0, gold = false, short = text) {
 }
 const clearBanner = () => { bannerToken++; $('[data-banner]')?.replaceChildren() }
 
+/** A number over a fighter: it rises and fades, or under reduced motion simply shows for as long, then goes. */
+async function float(d: HTMLElement, frames: string[], ms: number, opacity: number[]) {
+  if (RM()) await wait(frames.length * ms)
+  else await steps(d, frames, ms, { opacity })
+  d.remove()
+}
+
 async function popNumber(target: Fighter, n: number, big: boolean) {
   const d = el('span', `dmg${big ? ' big' : ''}`)
   d.append(pline(String(n)))
   target.node.append(d)
-  await steps(d, [0, -1, -2, -3, -3, -3].map(y => `translate(-50%,${y * ap()}px)`), 100, { opacity: [1, 1, 1, 0.8, 0.5, 0.2], force: true })
-  d.remove()
+  await float(d, [0, -1, -2, -3, -3, -3].map(y => `translate(-50%,${y * ap()}px)`), 100, [1, 1, 1, 0.8, 0.5, 0.2])
 }
 
 async function callout(host: HTMLElement, text: string) {
@@ -157,6 +163,9 @@ async function run() {
   started = true
   perfects = 0
   if (next) { arena = next; next = null; paintArena(arena, true) }
+  // the Start or Battle again button just pressed is about to go: the 1 key, the press that matters
+  // during a battle, takes the focus
+  if ($('.outrow')?.contains(D.activeElement)) $<HTMLElement>('[data-key1]')?.focus({ preventScroll: true })
   $('[data-start]')!.hidden = true
   const result = $('[data-result]')!
   result.hidden = true
@@ -357,7 +366,7 @@ async function finish(log: BattleLog, A: Fighter[], wild: Fighter) {
     const x = el('span', 'dmg')
     x.append(pline(`+${xp} XP`))
     f.node.append(x)
-    void steps(x, [0, -2, -4, -4, -4, -4, -4, -4].map(y => `translate(-50%,${y}px)`), 150, { opacity: [1, 1, 1, 1, 1, .8, .5, .2], force: true }).then(() => x.remove())
+    void float(x, [0, -2, -4, -4, -4, -4, -4, -4].map(y => `translate(-50%,${y}px)`), 150, [1, 1, 1, 1, 1, .8, .5, .2])
   }
   if (log.result === 'win') {
     await banner('You won!', 1200)
@@ -392,6 +401,8 @@ async function finish(log: BattleLog, A: Fighter[], wild: Fighter) {
   again.addEventListener('click', () => void run())
   result.replaceChildren(again, lines)
   result.hidden = false
+  // a keyboard player pressing 1 along with the battle: what to press next is Battle again
+  if (D.activeElement === $('[data-key1]')) again.focus({ preventScroll: true })
   if (T.met && T.lead && part.includes(0)) {
     const { card, evolved } = growth(xp)
     const lead = cardName(T.lead)
@@ -482,8 +493,9 @@ export function startBattle() {
   })
   onTeam(() => { if (need && !running) need.hidden = T.met; if (!running && !started) { arena = hourFamily(); paintArena(arena, false) } })
   keys.on('battle', { '1': press })
-  // it starts by itself once, when the frame is half in view
-  new IntersectionObserver((es, io) => {
+  // it starts by itself once, when the frame is a third in view; under reduced motion nothing runs
+  // unasked, so Start battle waits for a press
+  if (!RM()) new IntersectionObserver((es, io) => {
     if (es.some(e => e.isIntersecting) && !started) { io.disconnect(); void run() }
   }, { threshold: 0.35 }).observe(demo)
   D.addEventListener('visibilitychange', () => {

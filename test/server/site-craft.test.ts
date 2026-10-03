@@ -9,7 +9,7 @@ import { generateMythic } from '../../plugin/hooks/core/mythics.ts'
 import { mintCards } from '../../server/src/game/mint.ts'
 import { boldGlyph } from '../../server/src/pages-font.ts'
 import { PAGE_CSP, REPO } from '../../server/src/pages-html.ts'
-import { SITE_ASSETS } from '../../server/static/site.gen.ts'
+import { SITE_ASSETS, SITE_FILES } from '../../server/static/site.gen.ts'
 import { server } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
 
@@ -37,6 +37,22 @@ async function mythicFor(s: Server, p: Player, seed: string) {
 }
 
 const BROWSER = { accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' }
+
+const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr'])
+
+/** Every start tag with its attributes, and whether it or anything around it is js-only (gone without script). */
+function tags(html: string): { tag: string; attrs: string; jsOnly: boolean }[] {
+  const stack: boolean[] = []
+  const out: { tag: string; attrs: string; jsOnly: boolean }[] = []
+  for (const [, close, tag, attrs, self] of html.replace(/<style>[\s\S]*?<\/style>/g, '').replace(/<script\b[\s\S]*?<\/script>/g, '').matchAll(/<(\/?)([a-zA-Z][\w-]*)([^>]*?)(\/?)>/g)) {
+    if (close) { stack.pop(); continue }
+    const jsOnly = /\bclass="[^"]*\bjs-only\b/.test(attrs!) || stack.at(-1) === true
+    out.push({ tag: tag!, attrs: attrs!, jsOnly })
+    if (!self && !VOID.has(tag!.toLowerCase())) stack.push(jsOnly)
+  }
+  assert.equal(stack.length, 0, 'every element closes')
+  return out
+}
 
 describe('site craft', () => {
   it('answers an unknown address with the tuft page for a browser, and JSON for everything else', async () => {
@@ -171,6 +187,48 @@ describe('site craft', () => {
     assert.ok(swatches.length >= 2 && swatches.length <= 5, `${swatches.length} colours`)
     assert.match(big, /<p class="cf-dna" role="img" aria-label="Its colours">/)
     assert.match(big, /<button class="poke js-only" type="button" aria-label="[^"]+\. Poke it\.">/)
+  })
+
+  it("moves focus into a section from the header's links, as a plain link would, onto a heading made to hold it", async () => {
+    const { s } = await world()
+    const html = (await get(s, '/')).html
+    for (const id of ['battle', 'collect', 'trade', 'install']) {
+      assert.match(html, new RegExp(`<a href="#${id}" data-stop="${id}">`), id)
+      assert.match(html, new RegExp(`<section class="[^"]+" id="${id}" aria-labelledby="${id}-h">[\\s\\S]*?<h2 id="${id}-h" tabindex="-1">`), id)
+    }
+    assert.match(html, /<h1 id="meet-h" tabindex="-1">/, 'the headline holds focus while no creature stands in the meadow')
+    assert.equal((html.match(/<h[1-6][^>]*tabindex="0"/g) ?? []).length, 0, 'no heading is a Tab stop')
+  })
+
+  it('without script, offers no button it cannot honour: toys are pictures or text until site.js makes them buttons', async () => {
+    const { s, a } = await world()
+    const m = await mythicFor(s, a, 'ns01')
+    for (const path of ['/', `/u/${a.me.player.handle}`, `/c/${m.id}`]) {
+      const all = tags((await get(s, path)).html)
+      // the album's nooks are the one exception: focus shows each one's tip, script or not
+      const dead = all.filter(t => t.tag === 'button' && !t.jsOnly && !/\bclass="nook"/.test(t.attrs))
+      assert.deepEqual(dead.map(t => t.attrs), [], `${path}: every other button is js-only`)
+      for (const t of all.filter(t => /\bdata-toy=/.test(t.attrs))) {
+        assert.equal(t.tag, 'span', `${path}: ${t.attrs}`)
+        assert.doesNotMatch(t.attrs, /\btabindex=|\baria-keyshortcuts=|\btype=/, `${path}: a toy promises nothing until it wakes`)
+        assert.match(t.attrs, /\brole="img" [^>]*aria-label="[^"]+"|aria-hidden="true"|data-toy="" data-deal=/, `${path}: a picture with words, a hidden lamp or a deal's own text`)
+      }
+    }
+    const home = tags((await get(s, '/')).html).filter(t => /\bdata-toy=/.test(t.attrs)).map(t => /class="([^"]+)"/.exec(t.attrs)![1])
+    assert.deepEqual([...new Set(home)].sort(), ['fire', 'key1', 'lamp', 'mate', 'pack', 'tagb', 'wheel'])
+    // and nothing that is still a picture looks or acts pressable
+    assert.ok(css((await get(s, '/')).html).includes('[data-toy]{pointer-events:none}'))
+  })
+
+  it('lets a mouse or pen drag a revealed pack card while a finger scrolls past it, and never forces motion on a visitor who asked for less', async () => {
+    const { s } = await world()
+    const c = css((await get(s, '/')).html)
+    assert.ok(c.includes('@media (pointer:fine){.fan li[data-open]{touch-action:none}}'), 'a fine pointer takes the gesture instead of the page scrolling')
+    assert.doesNotMatch(c.replace(/@media \(pointer:fine\)\{[^}]*\}\}/g, ''), /\.fan li\[data-open\]\{[^}]*touch-action/, 'a finger on a card still scrolls the page')
+    assert.match(c, /@media \(prefers-reduced-motion:reduce\)\{\*,\*::before,\*::after\{animation:none!important;transition:none!important\}\}/)
+    // scripted motion goes through steps(), which has no way left to override reduced motion
+    const js = Object.values(SITE_FILES).join('\n')
+    assert.doesNotMatch(js, /force:!0/)
   })
 
   it('labels the shortcut switch once, and names where security reports go', async () => {

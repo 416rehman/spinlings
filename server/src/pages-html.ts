@@ -127,6 +127,7 @@ html{overflow-x:clip}
 .mark{font-variant-emoji:text}
 .soft{color:var(--soft)}
 html:not(.js) .js-only{display:none!important}
+[data-toy]{pointer-events:none}
 .defs{position:absolute;width:0;height:0;overflow:hidden}
 
 /* pixel type: one svg per word, sized by --gp (one glyph pixel); headings use the bold cut (.bd) */
@@ -604,7 +605,7 @@ export function cardFace(c: BattleCard, o: FaceOptions = {}): Raw {
   const marks = o.stamps ? stamps(c) : []
   return html`<div class="${cls}" style="${familyStyle(c)};--rar:${rarityColor(c)};--psky:${PLACE[c.family][0]}">
 <div class="cf-art">${art}</div>
-<p class="cf-name">${o.big && pixelable(name) ? raw(boldWords(name)) : name}</p>
+<p class="cf-name">${o.big && pixelable(name) ? html`${raw(boldWords(name))}<span class="sr">${name}</span>` : name}</p>
 <p class="cf-rar">${rarityLine(c)}</p>
 <p class="cf-kind"><span class="mark" aria-hidden="true">${FAMILY_MARK[c.family]}</span> ${FAMILY_INFO[c.family].name}${o.level ? html`<span class="lv">Level ${c.level}</span>` : ''}</p>
 ${o.dna ? html`<p class="cf-dna" role="img" aria-label="Its colours">${dnaSwatches(c).map(col => html`<i style="--c:${col}"></i>`)}</p>` : ''}

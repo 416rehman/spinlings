@@ -78,21 +78,26 @@ export function favicon(c: SiteCard | null, bang: boolean) {
 
 // ---- the creature's places ------------------------------------------------------------------------
 
+/**
+ * The creature's button, showing `c`. A meet keeps the very button the visitor pressed (only its
+ * sprite and label change), so keyboard focus stays on the creature they just met.
+ */
 function makeYou(c: SiteCard): HTMLButtonElement {
-  you?.remove()
-  const b = el('button', 'you')
-  b.type = 'button'
-  b.setAttribute('aria-label', `Meet ${cardName(c)}`)
-  b.setAttribute('aria-keyshortcuts', '1')
-  b.append(sprite(c))
-  b.addEventListener('click', () => { if (phase === 'waiting') void meetNow(); else poke() })
-  b.addEventListener('pointerenter', () => { if (phase === 'met' || phase === 'waiting') void hop(youSvg()) })
-  b.addEventListener('focus', () => { if (phase === 'met') void hop(youSvg()) })
-  // first among the actors, so it is the meadow's first Tab stop
-  actors.prepend(b)
-  you = b
-  scan(b)
-  return b
+  if (!you) {
+    const b = el('button', 'you')
+    b.type = 'button'
+    b.addEventListener('click', () => { if (phase === 'waiting') void meetNow(); else poke() })
+    b.addEventListener('pointerenter', () => { if (phase === 'met' || phase === 'waiting') void hop(youSvg()) })
+    b.addEventListener('focus', () => { if (phase === 'met') void hop(youSvg()) })
+    // first among the actors, so it is the meadow's first Tab stop
+    actors.prepend(b)
+    you = b
+  }
+  you.setAttribute('aria-label', `Meet ${cardName(c)}`)
+  you.setAttribute('aria-keyshortcuts', '1')
+  you.replaceChildren(sprite(c))
+  scan(you)
+  return you
 }
 
 /** Puts the met creature at the front of the team. */
@@ -101,9 +106,24 @@ function placeMet() {
   drawnStage = c.stage
   makeYou(c)
   you!.setAttribute('aria-label', `${cardName(c)}, ${FAMILY_INFO[c.family].name} teammate`)
+  you!.removeAttribute('aria-keyshortcuts')
   hide.replaceChildren()
   phase = 'met'
   favicon(c, false)
+}
+
+/**
+ * While no creature stands in the meadow (one walked off, the next still rustling), keyboard focus
+ * that was on it, or on the bubble's button, waits on the headline instead of dropping to the page;
+ * the next creature takes it back once it is out (wake).
+ */
+const headline = () => $('#meet-h')
+function holdFocus(from: Element | null) {
+  const a = D.activeElement
+  if (a && from?.contains(a)) headline()?.focus({ preventScroll: true })
+}
+function wake() {
+  if (you && D.activeElement === headline()) you.focus({ preventScroll: true })
 }
 
 // ---- the rustle, the reveal and the hint -----------------------------------------------------------
@@ -163,7 +183,9 @@ function revealNow(c: SiteCard) {
   hide.replaceChildren()
   makeYou(c)
   phase = 'waiting'
+  say(`A wild ${cardName(c)} appeared!`)
   hint(c)
+  wake()
 }
 
 async function reveal(c: SiteCard, g: number) {
@@ -178,10 +200,11 @@ async function reveal(c: SiteCard, g: number) {
   setChip('A wild ', nameNode(c), ' appeared!')
   say(`A wild ${cardName(c)} appeared!`)
   phase = 'waiting'
+  wake()
   matesShown().forEach((m, i) => setTimeout(() => { void pip(m, '!'); void hop(m.querySelector('svg.spr')) }, i * 100))
   await wait(900)
   if (g !== gen) return
-  if (c.foil) void steps(svg, ['translateX(0)'], 400, { force: false })
+  if (c.foil) void steps(svg, ['translateX(0)'], 400)
   if (c.foil) { b.classList.add('sheen'); setTimeout(() => b.classList.remove('sheen'), 400) }
   if (c.shiny) chipLine().append(' Shiny! Only one wild creature in 100 looks like this.')
   await wait(c.shiny ? 1400 : 400)
@@ -243,6 +266,7 @@ function finishMeet(c: SiteCard) {
 /** "Meet a new one": the creature hops, walks off to the right, and a new rustle plays. */
 export async function meetNew() {
   const svg = youSvg()
+  holdFocus(you)
   phase = 'rustle'
   if (svg && !RM()) {
     await hop(svg)
@@ -347,6 +371,8 @@ function grass() {
 /** Lamps: off and on; the moths scatter and the nearest creature dozes, then wakes with a hop. */
 function lamps() {
   for (const l of $$<HTMLButtonElement>('.lamp')) {
+    // a toy for the pointer, out of the Tab order: the meadow's keyboard path is the creatures
+    l.tabIndex = -1
     l.addEventListener('click', () => {
       const off = l.classList.toggle('off')
       l.setAttribute('aria-label', off ? 'Turn the lamp on' : 'Turn the lamp off')
@@ -404,7 +430,7 @@ function sun() {
       const r = btn.getBoundingClientRect()
       btn.style.cssText = ''
       const home = btn.getBoundingClientRect()
-      await steps(btn, [3, 2, 1, 0].map(k => `translate(${((r.left - home.left) * k) / 4}px,${((r.top - home.top) * k) / 4}px)`), 100, { force: true })
+      await steps(btn, [3, 2, 1, 0].map(k => `translate(${((r.left - home.left) * k) / 4}px,${((r.top - home.top) * k) / 4}px)`), 100)
     }
     btn.style.cssText = ''
     set(now())
@@ -593,7 +619,7 @@ export function startHero() {
     const c = T.lead!
     const nn = el('button', '', 'Meet a new one')
     nn.type = 'button'
-    nn.addEventListener('click', () => void meetNew())
+    nn.addEventListener('click', () => { holdFocus(chip); void meetNew() })
     setChip(cardName(c), ' kept your spot. ', nn)
     changed()
   } else void rustle()

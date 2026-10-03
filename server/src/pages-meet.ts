@@ -32,6 +32,8 @@ export const hourAt = (h: number): Hour => (h >= 5 && h < 11 ? 'morning' : h >= 
 
 /** `{yyyymmdd}-{hour}-{8 chars of a-z2-7}` */
 export const SEED_RE = /^(\d{4})(\d{2})(\d{2})-(morning|afternoon|dusk|night)-([a-z2-7]{8})$/
+/** The shape of an entryKey (a species id, or a regular's `family/index`), as a postcard link carries it in `?e=`. */
+export const ENTRY_RE = /^[a-z0-9/-]{1,24}$/
 
 /** What the page knows about today, embedded in data-world (site brief 2.7). */
 export type SiteWorld = {
@@ -41,8 +43,13 @@ export type SiteWorld = {
   season: number
   rule: DailyRule
   featured: string
-  /** this season's species somebody has found, each with the UTC day of its first find */
-  found: [string, string][]
+  /**
+   * This season's species somebody has found. No first find carries its day: a find's day is its
+   * card's mint day, which nobody else may learn (SPEC 20.3).
+   */
+  found: string[]
+  /** those first found on `day` itself, which a meeting on `day` does not draw from yet */
+  foundToday: string[]
   /** the season's 36 species as the server froze them */
   species: Species[]
   /** the 8 regulars: haiku 0, haiku 1, sonnet 0, ... */
@@ -67,19 +74,39 @@ const noonOf = (day: string) => Date.parse(day + 'T12:00:00Z')
 export const featuredOn = (w: SiteWorld, day: string) => (day === w.day ? w.featured : featuredSpecies(noonOf(day)))
 
 /**
- * A family's revealed regular species: found ones (found before `before`, when given) and the
- * featured one, topped up with the family's regulars while there are fewer than 2.
+ * A family's revealed regular species: found ones and the featured one, topped up with the family's
+ * regulars while there are fewer than 2. With `day`, the pool a meeting on that day draws from: what
+ * was found before the world's own day (it leaves out foundToday). An earlier day draws from that same
+ * pool, never from what was found before it, which would date every first find (SPEC 20.3); what
+ * it met then is kept by a pinned entry (meet).
  */
-export function pool(w: SiteWorld, family: Family, before?: string): Entry[] {
-  const found = new Set(w.found.filter(([, d]) => before === undefined || d < before).map(([id]) => id))
-  const featured = featuredOn(w, before ?? w.day)
+export function pool(w: SiteWorld, family: Family, day?: string): Entry[] {
+  const found = new Set(w.found)
+  if (day !== undefined) for (const id of w.foundToday) found.delete(id)
+  const featured = featuredOn(w, day ?? w.day)
   const out: Entry[] = w.species.filter(s => s.family === family && !s.legendary && (found.has(s.id) || s.id === featured)).map(s => ({ species: s }))
   if (out.length < 2) for (const i of [0, 1]) out.push({ form: regularOf(w, family, i) })
   return out
 }
 
 /** Whether anyone has found this species this season. */
-export const isFound = (w: SiteWorld, id: string) => w.found.some(([s]) => s === id)
+export const isFound = (w: SiteWorld, id: string) => w.found.includes(id)
+
+/** A pool entry as a short key the visitor's browser keeps beside its seed: a species id, or a regular's family and index. */
+export const entryKey = (w: Pick<SiteWorld, 'regulars'>, e: Entry): string =>
+  'species' in e ? e.species.id : `${e.form.family}/${w.regulars.indexOf(e.form) % 2}`
+
+/**
+ * The entry a kept key names, if a meeting on `day` could have drawn it: a regular, that day's
+ * featured species, or a regular species somebody has found. Anything else (an edited key) is null,
+ * so a kept key never shows the colours of a species nobody has found.
+ */
+export function entryOf(w: SiteWorld, key: string, day: string): Entry | null {
+  const r = /^(haiku|sonnet|opus|fable)\/([01])$/.exec(key)
+  if (r) return { form: regularOf(w, r[1] as Family, Number(r[2])) }
+  const s = w.species.find(x => x.id === key && !x.legendary)
+  return s && (w.found.includes(s.id) || s.id === featuredOn(w, day)) ? { species: s } : null
+}
 
 export type SiteCard = BattleCard & { xp: number }
 
@@ -100,15 +127,18 @@ export function siteCard(w: Pick<SiteWorld, 'season' | 'now'>, e: Entry, o: Card
   return out
 }
 
-export type Met = { seed: string; day: string; hour: Hour; card: SiteCard }
+/** `entry` is entryKey of the creature met: what a browser keeps beside the seed to meet it again later. */
+export type Met = { seed: string; day: string; hour: Hour; card: SiteCard; entry: string }
 
 /**
- * The creature a seed meets, from the world of its own day: the hour's family 50%, the featured
- * species 15%, any family 35%; common 78, rare 18, epic 4; shiny 1 in 100, foil 1 in 16; level 3
- * with 100 of 120 xp, so one win evolves it. Null for a malformed seed, a future day or a day of
- * another season than the world's.
+ * The creature a seed meets: the hour's family 50%, the seed day's featured species 15%, any family
+ * 35%; common 78, rare 18, epic 4; shiny 1 in 100, foil 1 in 16; level 3 with 100 of 120 xp, so one
+ * win evolves it. Null for a malformed seed, a future day or a day of another season than the
+ * world's. Which creature comes out depends on what has been found (pool), which grows, so a seed of
+ * an earlier day is met again with `pin`, the entry it met then; everything else comes from the seed
+ * alone and draws the same either way.
  */
-export function meet(seed: string, w: SiteWorld): Met | null {
+export function meet(seed: string, w: SiteWorld, pin?: string): Met | null {
   const m = SEED_RE.exec(seed)
   if (!m) return null
   const day = `${m[1]}-${m[2]}-${m[3]}`
@@ -118,14 +148,15 @@ export function meet(seed: string, w: SiteWorld): Met | null {
   const rng = rngFromSeed('spinlings/site/meet/' + seed)
   const r = rng()
   const featured = w.species.find(s => s.id === featuredOn(w, day))
-  const e: Entry = r >= 0.5 && r < 0.65 && featured
+  const drawn: Entry = r >= 0.5 && r < 0.65 && featured
     ? { species: featured }
     : pick(rng, pool(w, r < 0.5 ? HOUR_FAMILY[hour] : pick(rng, FAMILIES), day))
+  const e = (pin === undefined ? null : entryOf(w, pin, day)) ?? drawn
   const rarity = weighted(rng, ECONOMY.wild.rarity)
   const shiny = rng() < ECONOMY.shiny.chance
   const foil = rng() < ECONOMY.foil.chance
   const card = siteCard(w, e, { rarity, shiny, foil, dna: uint32(rng), level: ECONOMY.starter.level, xp: ECONOMY.starter.xp, id: 'you' })
-  return { seed, day, hour, card }
+  return { seed, day, hour, card, entry: entryKey(w, e) }
 }
 
 /** A new seed for today at this hour; `random` gives 8 random bytes (crypto.getRandomValues). */

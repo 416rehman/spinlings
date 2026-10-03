@@ -51,6 +51,8 @@ async function openPack() {
   const fan = $<HTMLOListElement>('[data-fan]')!
   $('[data-summary]')!.hidden = true
   shelf.classList.remove('gold')
+  // a revealed card that had focus ("o" pressed on it) hands it to the pack, as on the first opening
+  if (fan.contains(D.activeElement)) pack.focus({ preventScroll: true })
   fan.replaceChildren()
   pack.classList.remove('torn')
   const rng = rngFromSeed('site-pack/' + Array.from(crypto.getRandomValues(new Uint8Array(8))).join('.'))
@@ -82,8 +84,11 @@ async function openPack() {
     }))
   }
   if (RM()) { for (let i = 0; i < slots.length; i++) await flipAt(i, true); return }
+  // the backs turn over by themselves until a keyboard visitor's focus is among them: from then on
+  // they turn when Enter or f says so, never out from under the focus
+  const typing = () => fan.contains(D.activeElement) && D.activeElement!.matches(':focus-visible')
   const auto = async () => {
-    if (n !== packN || flipped >= slots.length) return
+    if (n !== packN || flipped >= slots.length || typing()) return
     await flipAt(flipped)
     timer = window.setTimeout(auto, 1200)
   }
@@ -101,19 +106,24 @@ async function flipAt(i: number, instant = false) {
   const half = rare ? 400 : 175
   const back = li.firstElementChild as HTMLElement
   if (!instant) await settle(back.animate([{ transform: 'rotateY(0)' }, { transform: 'rotateY(90deg)' }], { duration: half, easing: 'ease-in', fill: 'forwards' }), half)
-  const card = 'card' in s ? face(s.card) : goldSilhouette(s.unfound)
+  // the back had the focus: the card that turns up in its place takes it
+  const focused = li.contains(D.activeElement)
+  const card = 'card' in s ? fusable(face(s.card), s.card) : goldSilhouette(s.unfound)
   if ('card' in s) {
     // the layered reveal: name, then rarity, the gene score counting up, the traits
     const parts = hideLayers(card, !instant)
     li.replaceChildren(card)
+    if (focused) card.focus({ preventScroll: true })
     if (rare && !instant) await flash(card.querySelector('svg.spr'))
     if (!instant) void card.animate([{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0)' }], { duration: half, easing: 'ease-out' })
-    say(spoken(s.card))
+    // a focused card speaks for itself (its label is the same line)
+    if (!focused) say(spoken(s.card))
     if (!instant && !RM()) void layered(card, parts, s.card)
     if (s.card.rarity === 'legendary') legendary()
   } else {
     li.replaceChildren(card)
-    say('A legendary nobody has found yet.')
+    if (focused) card.focus({ preventScroll: true })
+    else say('A legendary nobody has found yet.')
     legendary()
   }
   li.addEventListener('pointerdown', e => dragStart(e, li, s))
@@ -121,8 +131,34 @@ async function flipAt(i: number, instant = false) {
   if ($$('[data-fan] li[data-open]').length === slots.length) done()
 }
 
+/**
+ * A revealed pack card is also a button: a tap, Enter or Space puts it in the nest and fuses it, the
+ * same as dragging it there (for touch, keyboards and anyone who would rather not drag).
+ */
+function fusable(card: HTMLElement, c: SiteCard): HTMLElement {
+  card.setAttribute('role', 'button')
+  card.tabIndex = 0
+  card.setAttribute('aria-label', `${spoken(c)}. Put it in the nest to fuse it.`)
+  card.querySelector('.cf-name')?.removeAttribute('tabindex')
+  const go = () => {
+    if (fusing) return
+    nest.b = c
+    paintSlot('b')
+    say(`${cardName(c)} went into the nest.`)
+    void fuseNow()
+  }
+  card.addEventListener('click', () => { if (!dragged) go() })
+  card.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    e.preventDefault()
+    go()
+  })
+  return card
+}
+
 function goldSilhouette(sp: Species): HTMLElement {
   const box = el('div', 'goldsil')
+  box.tabIndex = -1
   box.append(frag(shadowSvg(spriteFor({ form: sp, stage: 3 }), 'shd')))
   box.append(el('p', '', 'A legendary nobody has found yet.'))
   return box
@@ -147,7 +183,7 @@ function done() {
   const summary = $('[data-summary]')!
   summary.replaceChildren(
     el('p', 'big', `${parts.length ? `5 cards: ${parts.join(', ')}.` : '5 cards, all common.'} ${kinds} different creatures.`),
-    el('p', 'soft', 'Drag one onto the nest below to fuse it. In the game, a pack charges for every 50 minutes Claude Code is open.'),
+    el('p', 'soft', 'Tap one, or drag it onto the nest below, to fuse it. In the game, a pack charges for every 50 minutes Claude Code is open.'),
   )
   summary.hidden = false
   // the same button, the same key: it opens another
@@ -196,14 +232,27 @@ function nestDefaults() {
   paintSlot('b')
 }
 
-/** Drag a revealed pack card onto a nest slot. */
+/** Set by a drag that just ended, so the click that follows it is not also a tap. */
+let dragged = false
+/** Ends the drag in progress, if any, dropping nothing. */
+let endDrag: (() => boolean) | null = null
+
+/**
+ * Drag a revealed pack card onto a nest slot with a mouse or pen, which take the card's gestures
+ * (touch-action: none for fine pointers in the page's CSS). A finger scrolls the page instead and
+ * taps a card to fuse it. A cancelled gesture or a new drag ends this one, so no sprite is ever left
+ * following the pointer.
+ */
 function dragStart(e: PointerEvent, li: HTMLElement, s: PackSlot) {
-  if (!('card' in s) || e.button !== 0) return
-  const x0 = e.clientX, y0 = e.clientY
+  if (!('card' in s) || e.button !== 0 || !e.isPrimary || e.pointerType === 'touch') return
+  endDrag?.()
+  dragged = false
+  const x0 = e.clientX, y0 = e.clientY, id = e.pointerId
   let ghost: HTMLElement | null = null
   const slotsEls = $$('[data-nslot]')
   const over = (x: number, y: number) => slotsEls.find(n => { const r = n.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom })
   const move = (ev: PointerEvent) => {
+    if (ev.pointerId !== id) return
     if (!ghost && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return
     if (!ghost) {
       ghost = sprite(s.card) as unknown as HTMLElement
@@ -216,12 +265,24 @@ function dragStart(e: PointerEvent, li: HTMLElement, s: PackSlot) {
     ghost.style.top = `${ev.clientY - 32}px`
     for (const n of slotsEls) n.classList.toggle('drop', n === over(ev.clientX, ev.clientY))
   }
-  const up = (ev: PointerEvent) => {
+  /** Stops listening and takes the sprite away; true when a sprite was out (a real drag). */
+  const end = (): boolean => {
     D.removeEventListener('pointermove', move)
     D.removeEventListener('pointerup', up)
+    D.removeEventListener('pointercancel', cancel)
     for (const n of slotsEls) n.classList.remove('drop')
-    if (!ghost) return
-    ghost.remove()
+    if (endDrag === end) endDrag = null
+    const was = ghost !== null
+    ghost?.remove()
+    ghost = null
+    return was
+  }
+  const cancel = (ev: PointerEvent) => { if (ev.pointerId === id) end() }
+  const up = (ev: PointerEvent) => {
+    if (ev.pointerId !== id || !end()) return
+    // the click that follows a drag is not a tap
+    dragged = true
+    setTimeout(() => { dragged = false })
     const t = over(ev.clientX, ev.clientY)
     if (t) {
       const which = t.dataset.nslot as 'a' | 'b'
@@ -230,8 +291,10 @@ function dragStart(e: PointerEvent, li: HTMLElement, s: PackSlot) {
       void fuseNow()
     }
   }
+  endDrag = end
   D.addEventListener('pointermove', move)
   D.addEventListener('pointerup', up)
+  D.addEventListener('pointercancel', cancel)
 }
 
 let names: Promise<boolean> | null = null

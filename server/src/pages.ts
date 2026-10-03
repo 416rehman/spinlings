@@ -25,8 +25,9 @@ import {
 import type { Raw } from './pages-html.ts'
 import { oddsBody, privacyBody, PROSE_CSS } from './pages-info.ts'
 import { CAMP_CSS, LANDING_CSS, landingBody, teamCamp } from './pages-landing.ts'
-import { meet, SEED_RE } from './pages-meet.ts'
-import { meadowPng, postcardPng } from './pages-og.ts'
+import { ENTRY_RE, meet, SEED_RE } from './pages-meet.ts'
+import { imageCache, meadowPng, postcardPng } from './pages-og.ts'
+import type { ImageCache } from './pages-og.ts'
 import { fireSvg, grassSvg, hillSvg, peaksSvg, placeStripSvg } from './pages-scene.ts'
 import { shadowSvg, spriteSvg } from './pages-sprite.ts'
 import { dayKey, regulars, siteWorld, worldJson } from './pages-world.ts'
@@ -71,7 +72,7 @@ export function pages(api: Api): void {
     const w = await siteWorld(ctx.db, ctx.now)
     const shown = await mythicsShown(ctx.db)
     if (preview?.rule && (DAILY_RULES as readonly string[]).includes(preview.rule)) w.rule = preview.rule as DailyRule
-    if (preview?.found === 'all') w.found = w.species.map(s => [s.id, w.day] as [string, string])
+    if (preview?.found === 'all') w.found = w.foundToday = w.species.map(s => s.id)
     if (preview?.mythics) {
       const n = Math.min(12, Number(preview.mythics) || 0)
       shown.mythics = Array.from({ length: n }, (_, i) => ({ name: `Preview Lantern ${i + 1}`, handle: null }))
@@ -91,19 +92,36 @@ export function pages(api: Api): void {
     })
   })
 
-  // first-party scripts, content-hashed and immutable (SPEC 36)
+  // first-party scripts, content-hashed and immutable (SPEC 36); only the table's own names, never
+  // one it inherits (constructor, __proto__, toString)
   page('/static/:file', ctx => {
-    const body = SITE_FILES[ctx.params.file!]
-    if (body === undefined) return missing(ctx, 'No such file', 'Scripts here change their names with every release.')
-    return new Response(body, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': IMMUTABLE } })
+    const file = ctx.params.file!
+    if (!Object.hasOwn(SITE_FILES, file)) return missing(ctx, 'No such file', 'Scripts here change their names with every release.')
+    return new Response(SITE_FILES[file], { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': IMMUTABLE } })
   })
+
+  // Share images: the meadow is drawn once a day, and a postcard once while it is among the last 64
+  // asked for. Only a fresh drawing spends from the address's 'share' bucket, so a stream of new seeds
+  // cannot keep the server drawing. The Worker also keeps them in its edge cache (worker.ts).
+  const meadows = imageCache(1), postcards = imageCache(64)
+  const shareImage = async (ctx: Ctx, kept: ImageCache, key: string, draw: () => Promise<Uint8Array>) => {
+    let bytes = kept.get(key)
+    if (!bytes) {
+      ctx.limit('share')
+      bytes = kept.set(key, draw())
+    }
+    return png(await bytes, DAY_CACHE)
+  }
 
   page('/og/:file', async ctx => {
     const m = /^meadow-(\d{8})\.png$/.exec(ctx.params.file!)
     const today = dayKey(ctx.now), yesterday = dayKey(ctx.now - 86_400_000)
     if (!m || (m[1] !== today && m[1] !== yesterday)) return missing(ctx, 'No such picture', 'Meadow pictures last a day.')
-    const w = await siteWorld(ctx.db, ctx.now)
-    return png(await meadowPng(w, w.species.find(s => s.id === w.featured)!), DAY_CACHE)
+    // yesterday's link still unfurls, with today's meadow
+    return shareImage(ctx, meadows, today, async () => {
+      const w = await siteWorld(ctx.db, ctx.now)
+      return meadowPng(w, w.species.find(s => s.id === w.featured)!)
+    })
   })
 
   page('/w/:seed', async ctx => {
@@ -116,10 +134,16 @@ export function pages(api: Api): void {
     const day = `${m[1]}-${m[2]}-${m[3]}`
     const t = Date.parse(day + 'T12:00:00Z')
     if (!Number.isFinite(t) || utcDay(t) !== day || t < EPOCH_MS || day > utcDay(ctx.now)) return gone()
-    const w = await siteWorld(ctx.db, ctx.now, seasonOf(t))
-    const met = meet(seed, w)
+    const e = ctx.url.searchParams.get('e') ?? '', pin = ENTRY_RE.test(e) ? e : undefined
+    const host = new URL(ctx.origin).host, key = `${host}/${seed}${pin ? `?e=${pin}` : ''}`
+    const kept = isPng ? postcards.get(key) : undefined
+    if (kept) return png(await kept, DAY_CACHE)
+    // Today's world, never the world as of the seed's day: that one would draw only from what was
+    // found before it, so postcards of made-up seeds would date every first find (SPEC 20.3). The
+    // link's pin (the sender's kept entry) keeps the creature the sender met.
+    const met = meet(seed, await siteWorld(ctx.db, ctx.now, seasonOf(t)), pin)
     if (!met) return gone()
-    if (isPng) return png(await postcardPng(met, new URL(ctx.origin).host), DAY_CACHE)
+    if (isPng) return shareImage(ctx, postcards, key, () => postcardPng(met, host))
     return postcardPage(ctx, met, dailyRule(t))
   })
 
@@ -281,12 +305,13 @@ function postcardPage(ctx: Ctx, m: NonNullable<ReturnType<typeof meet>>, rule: D
   const name = text(cardName(m.card), 40)
   const fam = FAMILY_INFO[m.card.family].name
   const rarity = m.card.rarity
+  const e = `?e=${encodeURIComponent(m.entry)}`
   return layout({
     kind: 'site', title: `${name} came out of the grass: Spinlings`, description: `A ${rarity} ${fam} creature from Spinlings, the creature card game inside Claude Code.`,
-    path: `/w/${m.seed}`, origin: ctx.origin, noindex: true, cache: DAY_CACHE, hour: m.hour, now: ctx.now, css: SITE_CSS + POSTCARD_CSS,
+    path: `/w/${m.seed}${e}`, origin: ctx.origin, noindex: true, cache: DAY_CACHE, hour: m.hour, now: ctx.now, css: SITE_CSS + POSTCARD_CSS,
     og: {
       title: `${name} met me at ${m.hour}`, description: `A ${rarity} ${fam} creature from Spinlings, the creature card game inside Claude Code.`,
-      image: `${ctx.origin}/w/${m.seed}.png`, imageAlt: `${name}, a pixel creature standing in the grass`,
+      image: `${ctx.origin}/w/${m.seed}.png${e}`, imageAlt: `${name}, a pixel creature standing in the grass`,
     },
     body: html`<section class="postcard" aria-labelledby="pc-h">
 <div class="pcsky"><div class="wrap">

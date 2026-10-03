@@ -46,6 +46,23 @@ function napper() {
   })
 }
 
+/**
+ * Toys (pages-landing.ts): without scripts each is a picture or text, since a button there would
+ * promise a press that does nothing. Here each [data-toy] becomes the button it is, keeping its class,
+ * data and children, and taking its label (data-toy, when given) and shortcut (data-keys).
+ */
+function toys() {
+  for (const n of $$('[data-toy]')) {
+    const b = el('button')
+    b.type = 'button'
+    for (const a of n.getAttributeNames()) if (!['data-toy', 'data-keys', 'role', 'aria-hidden'].includes(a)) b.setAttribute(a, n.getAttribute(a)!)
+    if (n.dataset.toy) b.setAttribute('aria-label', n.dataset.toy)
+    if (n.dataset.keys) b.setAttribute('aria-keyshortcuts', n.dataset.keys)
+    b.append(...n.childNodes)
+    n.replaceWith(b)
+  }
+}
+
 /** Dev preview only: LCP and CLS in a corner. */
 function perf() {
   if (W?.preview?.perf !== '1') return
@@ -73,6 +90,7 @@ function soon(sel: string, load: () => Promise<unknown>) {
 }
 
 function boot() {
+  toys()
   D.addEventListener('visibilitychange', () => D.documentElement.toggleAttribute('data-hidden', D.hidden))
   keys.start()
   keys.onEscape(() => { if (!isOpen()) return false; closePopover(); return true })
