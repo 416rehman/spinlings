@@ -1367,7 +1367,7 @@ A `Dockerfile` is provided, built from a `node:22-alpine` image pinned by digest
 
 ## 34. Zero-friction start (overrides the first-run choice in section 28)
 
-1. **Install is one line inside Claude Code:** `/plugin install spinlings --marketplace 416rehman/spinlings`. The README also offers "just ask Claude: *install the Spinlings mod from 416rehman/spinlings*".
+1. **Install is two commands inside Claude Code:** `/plugin marketplace add 416rehman/spinlings`, then `/plugin install spinlings@spinlings`. The README also offers "just ask Claude: *install the Spinlings mod from 416rehman/spinlings*".
 2. **No question at first run.**
    - The default world is **online**: anonymous, with no sign-up and nothing personal (section 30).
    - A player who wants offline from the start sets the `world` userConfig option to `offline` before first run, or switches any time with `/spin world offline`. The README states the default and the offline switch plainly.

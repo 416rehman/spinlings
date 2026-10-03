@@ -6,7 +6,7 @@ One entry per release (SPEC 32), newest first. Each says what changed in plain w
 
 The first release: Spinlings season 1, the mod and the server, live at [spinlings.dev](https://spinlings.dev).
 
-- **Install:** one line inside Claude Code, `/plugin install spinlings --marketplace 416rehman/spinlings`, or ask Claude to install it. The game starts on its own at the next session, with no sign-up, no setting and no command to run.
+- **Install:** two commands inside Claude Code, `/plugin marketplace add 416rehman/spinlings` then `/plugin install spinlings@spinlings`, or ask Claude to install it. The game starts on its own at the next session, with no sign-up, no setting and no command to run.
 - **The game:** wild encounters while Claude works, duels with other players' teams and Rivals, packs charged by presence, three evolution stages and raised forms, foil, Mythics, fusion, crafting, recycling, the Wandering Trader, trading, gifts, drops, streaks, leagues, seasons and the daily rules.
 - **No daily quotas:** every finished battle pays. The server paces battle starts and pack charges and caps the bank of unopened packs, and repeat duels between the same two players stop moving rating after the first few.
 - **Two worlds:** online by default (an anonymous handle and session: no email, no password, no GitHub) and an offline world that sends nothing at all. An optional passkey brings an online account to another computer.

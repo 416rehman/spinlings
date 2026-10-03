@@ -50,7 +50,9 @@ export const pixelHeading = (words: string): Raw => html`${raw(boldWords(words))
 
 export const REPO = 'https://github.com/416rehman/spinlings'
 /** SPEC 34: the one line, typed inside Claude Code. */
-export const INSTALL = '/plugin install spinlings --marketplace 416rehman/spinlings'
+/** Installing is two commands, typed one at a time: add the marketplace, then install from it. */
+export const INSTALL_STEPS = ['/plugin marketplace add 416rehman/spinlings', '/plugin install spinlings@spinlings'] as const
+export const INSTALL = INSTALL_STEPS.join(' then ')
 export const ASK = 'install the Spinlings mod from 416rehman/spinlings'
 
 /** /odds, /privacy and the "not here" page: no script at all. */
@@ -180,6 +182,7 @@ clip-path:polygon(0 var(--ap),var(--ap) var(--ap),var(--ap) 0,calc(100% - var(--
 .prompt .caret{display:inline-block;width:.6em;height:1.15em;margin-left:2px;vertical-align:-.2em;background:#fffdf5;animation:caret 1.1s steps(1) infinite}
 @keyframes caret{50%{opacity:0}}
 .prompt .copy{flex:none}
+.prompt+.prompt{margin-top:8px}
 @media (max-width:599px){.prompt{flex-wrap:wrap;padding:16px}.prompt .copy{width:100%}.prompt .copy .face{min-height:48px}}
 
 /* header */
@@ -481,17 +484,17 @@ ${scripted ? html`<button class="tbtn keys js-only" type="button" aria-pressed="
 
 /**
  * A command to type, as one selectable line: one click selects it all, and it wraps only between
- * words, so `--marketplace` never splits. The copied text is exactly the command.
+ * words, so `416rehman/spinlings` never splits. The copied text is exactly the command.
  */
 export const command = (line: string): Raw => html`<code>${line.split(' ').map((w, i) => html`${i ? ' ' : ''}<span class="w">${w}</span>`)}</code>`
 
-/** The install sign: the prompt box with the one line and a Copy button (SPEC 34). */
-export function installBlock(id = 'install', label = 'Type this inside Claude Code'): Raw {
+/** The install sign: two prompt boxes, one per command, each with its own Copy button (SPEC 34). */
+export function installBlock(id = 'install', label = 'Type these inside Claude Code, one at a time'): Raw {
   return html`<div class="install" data-install>
 <p class="label" id="${id}-label">${label}</p>
-<div class="prompt"><pre id="${id}-cmd" aria-labelledby="${id}-label" tabindex="-1">${GT}${command(INSTALL)}<span class="caret" aria-hidden="true"></span></pre>
-${COPY}</div>
-<p class="ask">Or just ask Claude: <q>${ASK}</q></p>
+${INSTALL_STEPS.map((step, i) => html`<div class="prompt"><pre id="${id}-cmd${i ? i + 1 : ''}" aria-labelledby="${id}-label" tabindex="-1">${GT}${command(step)}${i === INSTALL_STEPS.length - 1 ? raw('<span class="caret" aria-hidden="true"></span>') : ''}</pre>
+${COPY}</div>`)}
+<p class="ask">Then start a new session. Or just ask Claude: <q>${ASK}</q></p>
 </div>`
 }
 

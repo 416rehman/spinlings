@@ -249,7 +249,7 @@ function x(W: number, H: number): Canvas {
     text(c, xx + centre(20 * s, name, 3), 330 + 20 * s + 18, name, TEXT, 3)
     if (i < 2) text(c, xx + 20 * s + 20, 330 + 10 * s - 12, '>', SOFT, 4)
   })
-  text(c, 76, H - 76, '/plugin install spinlings --marketplace 416rehman/spinlings', GOLD, 2)
+  text(c, 76, H - 76, '/plugin marketplace add 416rehman/spinlings', GOLD, 2)
   return c
 }
 

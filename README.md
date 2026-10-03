@@ -26,10 +26,11 @@ The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your m
 
 ## Install
 
-One line inside Claude Code:
+Two commands inside Claude Code, one at a time:
 
 ```
-/plugin install spinlings --marketplace 416rehman/spinlings
+/plugin marketplace add 416rehman/spinlings
+/plugin install spinlings@spinlings
 ```
 
 Or just ask Claude: *install the Spinlings mod from 416rehman/spinlings*. From a shell, the same is:

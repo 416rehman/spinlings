@@ -13,7 +13,7 @@ import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 import { RULE_INFO, utcDay, worldOf } from '../../plugin/hooks/core/world.ts'
 import { stmt } from '../../server/src/db.ts'
 import { mintCards } from '../../server/src/game/mint.ts'
-import { INSTALL, PAGE_CSP, REPO, SCRIPT_CSP, SITE_CSP } from '../../server/src/pages-html.ts'
+import { INSTALL_STEPS, PAGE_CSP, REPO, SCRIPT_CSP, SITE_CSP } from '../../server/src/pages-html.ts'
 import { SITE_ASSETS } from '../../server/static/site.gen.ts'
 import { counts, DAY, MINUTE, server } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
@@ -162,8 +162,8 @@ describe('site pages', () => {
     const { s, a } = await world()
     const p = await get(s, '/')
     const text = textOf(p.html)
-    assert.ok(text.includes(INSTALL), 'the SPEC 34 install line')
-    assert.match(p.html, /class="w">--marketplace<\/span>/, 'the command never breaks inside a word')
+    for (const step of INSTALL_STEPS) assert.ok(text.includes(step), `the SPEC 34 install step: ${step}`)
+    assert.match(p.html, /class="w">416rehman\/spinlings<\/span>/, 'the command never breaks inside a word')
     assert.ok(p.html.includes(`href="${REPO}"`))
     assert.equal(p.headers.get('cache-control'), 'public, max-age=60')
     assert.match(p.html, /@media \(prefers-color-scheme:dark\)/)
@@ -479,7 +479,7 @@ describe('gift pages', () => {
     assert.match(p.html, /<meta name="robots" content="noindex">/)
     const text = textOf(p.html)
     assert.ok(text.includes(`/spin claim ${code}`))
-    assert.ok(text.includes(INSTALL))
+    for (const step of INSTALL_STEPS) assert.ok(text.includes(step))
     assert.ok(!text.includes(a.me.player.handle), 'never the giver')
     assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b/, 'no dates')
     assert.ok(p.html.includes(`<meta property="og:image" content="${ORIGIN}/c/${card.id}.png">`))
