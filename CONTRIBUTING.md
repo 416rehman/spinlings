@@ -43,7 +43,7 @@ The mod reloads when you save. In that session, `/spin server http://localhost:8
 ## Checks
 
 ```sh
-node --test "test/**/*.test.ts"   # every core, server, docs and release test (npm test runs the same)
+node --test "test/**/*.test.ts"   # every core, server, compat, docs and release test (npm test runs the same)
 npm run test:plugin                # claude plugin test plugin
 npm run validate                   # claude plugin validate --strict on the marketplace and the mod
 npm run e2e                        # two players through every flow over real HTTP; add -- --d1 for local D1
@@ -54,6 +54,8 @@ Pass the test path as a quoted glob: `node --test test/` does not work. Test fil
 CI runs the tests, `validate`, `test:plugin` and a `wrangler deploy --dry-run` on every pull request, with one pinned, hash-checked Claude Code build, and fails if any test is skipped. Two kinds of test skip on a machine that lacks their tools: the real-D1 suites need wrangler's local workerd, and the validator check in `test/e2e/manifest.test.ts` needs a Claude Code with `plugin validate --json` (point `SPINLINGS_CLAUDE` at one if the `claude` on your PATH is older).
 
 The docs are tested too: `test/docs/` fails on per-day quota wording, on a `/spin` command or hook the README leaves out, on a number the README, PRIVACY.md, SECURITY.md or `docs/how-to-play.md` quotes that no longer matches `ECONOMY` (`plugin/hooks/core/economy.ts`) or the server's limits, on a README image that is missing or has no alt text, and if the balance figures in SPEC.md section 5 drift. When you change a number, change the docs that quote it in the same pull request.
+
+`test/compat/` replays what each supported release of the mod sent, recorded at release time by `node scripts/compat-record.ts`, against the current server. When it fails, the change would break players who have not updated yet (SPEC 32): keep what that release relies on, or put the breaking change in `/v2`. Never edit the fixtures by hand.
 
 ## Code rules
 

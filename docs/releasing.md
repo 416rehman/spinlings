@@ -53,7 +53,7 @@ Done once by hand, never from CI:
    - set `version` in `plugin/.claude-plugin/plugin.json` to `X.Y.Z`, and the same in `CLIENT_VERSION` (`plugin/hooks/client/remote.ts`) and `SERVER_VERSION` and `LATEST_CLIENT` (`server/src/routes/account.ts`); tests fail until all four agree. Claude Code caches installs by version, so every release needs a new one;
    - raise `MIN_CLIENT` (`server/src/app.ts`) only if older mods truly cannot work any more;
    - add the release to `CHANGELOG.md`, including any compatibility impact and any change to what the mod sends, what the server stores or what other players can see (PRIVACY.md must already say so);
-   - record the new mod's requests and responses under `test/compat/fixtures/X.Y.Z/`, so later servers prove they still serve it (SPEC 32). That replay suite does not exist yet: it must, before v0.1.0 ships.
+   - record the new mod's requests and responses with `node scripts/compat-record.ts`. It plays the mod against a server in the same process (no network) and writes `test/compat/fixtures/X.Y.Z/`: one file per flow, and a frozen copy of the mod's response reader. `test/compat/replay.test.ts` replays every version's fixtures against the current server, so later servers prove they still serve it (SPEC 32), and it fails until the new version has its own. A released version's fixtures never change: `--force` records again only before the tag. Delete a version's folder only when `MIN_CLIENT` rises above it.
 
    Merge it once CI passes.
 
