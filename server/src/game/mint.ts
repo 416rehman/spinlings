@@ -15,6 +15,7 @@ import type { Db, SqlParam, Stmt } from '../db.ts'
 import type { CardRow, GiftRow, OfferRow, PackRow } from '../schema.ts'
 import { dayStart, ensureSeasons, newId, notFound, readJson } from './ctx.ts'
 import type { Env } from './ctx.ts'
+import { albumAdd, count } from './stats.ts'
 
 export type ArenaCounts = Record<Family, number>
 
@@ -226,8 +227,9 @@ export type MintOptions = {
  * card of a species anyone obtained gets firstFind and a `firsts` row (a lost race on it is a
  * Conflict, so the handler re-runs and the card is no longer first), season species go into the
  * album, the player's own fusions into the Fusion Log, caught Mythics onto the public list with
- * `owner` as their finder (a `discoveredBy` the card claims is ignored and never stored). Commit
- * `stmts` in the handler's batch; return `cards` to the client.
+ * `owner` as their finder (a `discoveredBy` the card claims is ignored and never stored), and the owner's
+ * stats count each new album species, First Discovered stamp and Mythic found (stats.ts). Commit `stmts` in the
+ * handler's batch, after the owner's row exists; return `cards` to the client.
  */
 export async function mintCards(env: Env, owner: string, fresh: readonly NewCard[], o: MintOptions = {}): Promise<{ cards: Card[]; stmts: Stmt[] }> {
   await ensureSeasons(env.db, fresh.map(c => c.season))
@@ -272,10 +274,9 @@ export async function mintCards(env: Env, owner: string, fresh: readonly NewCard
     ))
     if (first) {
       stmts.push(stmt('INSERT INTO firsts (species, season, player_id, card_id, day) VALUES (?, ?, ?, ?, ?)', card.species, card.season, owner, id, day))
+      stmts.push(...count(owner, env.now, { firstFinds: 1 }))
     }
-    if (isSeasonSpecies(card.species)) {
-      stmts.push(stmt('INSERT INTO album (player_id, species) VALUES (?, ?) ON CONFLICT DO NOTHING', owner, card.species))
-    }
+    stmts.push(...albumAdd(owner, card.species, env.now))
     if (card.species === 'fusion' && card.origin === 'fusion') {
       stmts.push(stmt('INSERT INTO fusions (player_id, form, day) VALUES (?, ?, ?)', owner, JSON.stringify(card.form), day))
     }
@@ -285,6 +286,7 @@ export async function mintCards(env: Env, owner: string, fresh: readonly NewCard
         'INSERT INTO mythics (card_id, name, finder_id, handle, day) VALUES (?, ?, ?, ?, ?)',
         id, card.form!.names[2], owner, finder ?? null, day,
       ))
+      stmts.push(...count(owner, env.now, { mythicsFound: 1 }))
     }
     cards.push(caught(card) && finder ? { ...card, form: { ...card.form!, discoveredBy: finder } } : card)
   }

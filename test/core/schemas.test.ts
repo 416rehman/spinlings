@@ -4,7 +4,7 @@ import type { BattleCard, Card } from '../../plugin/hooks/core/types.ts'
 import type { ApiOp, GiftView, MeResponse, OfferView, PlayerView } from '../../plugin/hooks/core/api.ts'
 import { API_ROUTES, routeOf } from '../../plugin/hooks/core/api.ts'
 import * as V from '../../plugin/hooks/core/schemas.ts'
-import { PATH_PARAMS, REQUEST_SCHEMAS, RESPONSE_SCHEMAS, SchemaError, cleanText, parse, parsePathParam, parseRequest } from '../../plugin/hooks/core/schemas.ts'
+import { PATH_PARAMS, REQUEST_SCHEMAS, RESPONSE_SCHEMAS, SchemaError, cleanText, parse, parsePathParam, parseQuery, parseRequest } from '../../plugin/hooks/core/schemas.ts'
 import type { Schema } from '../../plugin/hooks/core/schemas.ts'
 import { RULES_VERSION, simulateBattle } from '../../plugin/hooks/core/battle.ts'
 import { fuse, toBattleCard } from '../../plugin/hooks/core/cards.ts'
@@ -46,6 +46,10 @@ const setup = { seed: 'b-1', kind: 'wild', arena: 'haiku', rule: 'calm', rules: 
 const log = simulateBattle(setup as never, [3])
 const deals = traderDeals(NOW).map((d, i) => ({ ...d, used: i === 0 }))
 const token = 'tok_0123456789abcdefghijKLMN'
+const stats = { duelWins: 4, duelLosses: 2, playersBeaten: 3, wildWins: 20, catches: 9, speciesCollected: 14, firstFinds: 1, mythicsFound: 0, marketSales: 2 }
+const listing = { id: 'l1', seller: 'soft-otter-42', card: toBattleCard(c2), price: 120, want: { family: 'opus', rarity: 'rare', shiny: true }, day: '2026-10-04', state: 'open' }
+const sale = { day: '2026-10-03', price: 90, rarity: 'epic', shiny: false, foil: true }
+const rank = { rank: 1, handle: 'brave-wren-7', league: 'Peak', value: 31 }
 
 type Kind = 'request' | 'response' | 'domain'
 const samples: [string, Schema<unknown>, unknown, Kind][] = [
@@ -124,6 +128,20 @@ const samples: [string, Schema<unknown>, unknown, Kind][] = [
   ['TraderResponse', V.traderResponseSchema, { day: '2026-10-04', deals }, 'response'],
   ['TraderDealRequest', V.traderDealRequestSchema, { cardIds: ['card_1', 'card_2'] }, 'request'],
   ['TraderDealResponse', V.traderDealResponseSchema, { cards: [c2], packs: [], consumed: ['card_1', 'card_9'] }, 'response'],
+  ['PlayerView (stats)', V.playerViewSchema, { ...player, stats }, 'response'],
+  ['ProfileResponse (stats)', V.profileResponseSchema, { handle: 'brave-wren-7', league: 'Star', team: [bc], forTrade: [], seenCount: 12, stats }, 'response'],
+  ['MeResponse (listings)', V.meResponseSchema, { ...me, listings: [listing] }, 'response'],
+  ['Notice (market)', V.noticeSchema, { id: 'n3', day: '2026-10-04', kind: 'market-sold', text: 'Your card sold for 120 sparks', handle: 'brave-wren-7' }, 'response'],
+  ['StartBattleRequest (challenge)', V.startBattleRequestSchema, { kind: 'duel', family: 'opus', handle: 'brave-wren-7' }, 'request'],
+  ['ListCardRequest', V.listCardRequestSchema, { cardId: 'card_1', price: 120, want: { family: 'opus', rarity: 'rare', shiny: true } }, 'request'],
+  ['ListCardRequest (sparks)', V.listCardRequestSchema, { cardId: 'card_1', price: 5 }, 'request'],
+  ['ListCardRequest (species)', V.listCardRequestSchema, { cardId: 'card_1', want: { species: 's1-opus-3', rarity: 'epic', foil: true } }, 'request'],
+  ['BuyRequest', V.buyRequestSchema, { cardId: 'card_2' }, 'request'],
+  ['ListingResponse', V.listingResponseSchema, { listing }, 'response'],
+  ['ListingResponse (sparks only)', V.listingResponseSchema, { listing: { ...listing, want: undefined, state: 'sold' } }, 'response'],
+  ['BuyResponse', V.buyResponseSchema, { listing: { ...listing, state: 'sold' }, card: c2, sparks: 40 }, 'response'],
+  ['MarketResponse', V.marketResponseSchema, { listings: [listing], next: '2026-10-04.abcdefghijklmnopqrstuvwxyz', prices: [{ species: 's1-opus-2', sales: [sale] }] }, 'response'],
+  ['RankingsResponse', V.rankingsResponseSchema, { board: 'beaten', period: 'season', season: 1, top: [rank], me: { ...rank, rank: 7, value: 2 } }, 'response'],
 ]
 
 function throwsAt(fn: () => unknown, path: string | RegExp) {
@@ -165,7 +183,42 @@ test('requests reject unknown keys, naming them; responses strip them', () => {
   assert.equal(({} as Record<string, unknown>).admin, undefined)
 })
 
+test('market, challenge and leaderboard requests are strict about their own rules', () => {
+  throwsAt(() => parse(V.listCardRequestSchema, { cardId: 'c1' }), '$')
+  throwsAt(() => parse(V.listCardRequestSchema, { cardId: 'c1', price: 0 }), '$.price')
+  throwsAt(() => parse(V.listCardRequestSchema, { cardId: 'c1', price: 1_000_001 }), '$.price')
+  throwsAt(() => parse(V.listCardRequestSchema, { cardId: 'c1', price: 1.5 }), '$.price')
+  throwsAt(() => parse(V.listCardRequestSchema, { cardId: 'c1', want: {} }), '$.want')
+  throwsAt(() => parse(V.listCardRequestSchema, { cardId: 'c1', want: { species: 's1-opus-3', family: 'opus' } }), '$.want')
+  throwsAt(() => parse(V.listCardRequestSchema, { cardId: 'c1', want: { species: 'mythic' } }), '$.want.species')
+  throwsAt(() => parse(V.listCardRequestSchema, { cardId: 'c1', want: { shiny: false } }), '$.want.shiny')
+  throwsAt(() => parse(V.listCardRequestSchema, { cardId: 'c1', want: { rarity: 'cosmic' } }), '$.want.rarity')
+  assert.deepEqual(parse(V.listCardRequestSchema, { cardId: 'c1', want: { shiny: true } }), { cardId: 'c1', want: { shiny: true } })
+  throwsAt(() => parse(V.startBattleRequestSchema, { kind: 'wild', family: 'opus', handle: 'brave-wren-7' }), '$')
+  throwsAt(() => parse(V.startBattleRequestSchema, { kind: 'duel', family: 'opus', handle: 'brave-wren-7', revenge: 'brave-wren-7' }), '$')
+  throwsAt(() => parse(V.startBattleRequestSchema, { kind: 'duel', family: 'opus', handle: 'not a handle' }), '$.handle')
+  throwsAt(() => parse(V.buyRequestSchema, { cardId: 'c1', price: 5 }), '$.price')
+  // query fields, typed as the request object has them
+  const market = API_ROUTES.market.query!
+  assert.deepEqual(parseQuery(market, new URLSearchParams('family=opus&shiny=true&foil=false&minPrice=0&maxPrice=250&sort=cheapest&kind=both')),
+    { family: 'opus', shiny: true, foil: false, minPrice: 0, maxPrice: 250, sort: 'cheapest', kind: 'both' })
+  assert.deepEqual(parseQuery(market, new URLSearchParams('species=mythic&rarity=epic&after=12.abc')), { species: 'mythic', rarity: 'epic', after: '12.abc' })
+  throwsAt(() => parseQuery(market, new URLSearchParams('owner=me')), '$.owner')
+  throwsAt(() => parseQuery(market, new URLSearchParams('sort=newest&sort=cheapest')), '$.sort')
+  throwsAt(() => parseQuery(market, new URLSearchParams('shiny=1')), '$.shiny')
+  throwsAt(() => parseQuery(market, new URLSearchParams('minPrice=-1')), '$.minPrice')
+  throwsAt(() => parseQuery(market, new URLSearchParams('maxPrice=01')), '$.maxPrice')
+  throwsAt(() => parseQuery(API_ROUTES.rankings.query!, new URLSearchParams('board=richest')), '$.board')
+  assert.deepEqual(routeOf('market', { family: 'fable', shiny: true, maxPrice: 300, after: '9.x' }),
+    { method: 'GET', path: '/v1/market?family=fable&shiny=true&maxPrice=300&after=9.x', body: null })
+  assert.deepEqual(routeOf('rankings', { board: 'duelWins', period: 'season' }), { method: 'GET', path: '/v1/leaderboards?board=duelWins&period=season', body: null })
+  assert.deepEqual(routeOf('buyListing', { listingId: 'l1', cardId: 'c2' }), { method: 'POST', path: '/v1/market/l1/buy', body: { cardId: 'c2' } })
+})
+
 test('tolerant reader: an unknown enum value maps to its safe fallback', () => {
+  assert.equal(parse(V.listingViewSchema, { ...listing, state: 'frozen' }).state, 'expired')
+  assert.equal(parse(V.rankingsResponseSchema, { board: 'richest', period: 'week', season: 1, top: [] }).board, 'rating')
+  assert.equal(parse(V.listingViewSchema, { ...listing, want: { rarity: 'cosmic', glow: true } }).want!.rarity, 'common')
   assert.equal(parse(V.noticeSchema, { ...me.notices[0], kind: 'meteor-shower' }).kind, 'notice')
   assert.equal(parse(V.cardSchema, { ...json(c1), origin: 'meteor' }).origin, 'unknown')
   assert.equal(parse(V.cardSchema, { ...json(c1), traits: ['stargazer'] }).traits[0], 'stargazer', 'an unknown trait is kept by id')
@@ -316,7 +369,7 @@ test('no request schema accepts card data: cards, stats, genes, DNA or traits (S
 
 test('the route table, request and response schemas and path parameters cover every operation', () => {
   const ops = Object.keys(API_ROUTES) as ApiOp[]
-  assert.equal(ops.length, 41)
+  assert.equal(ops.length, 46)
   for (const op of ops) {
     const route = API_ROUTES[op]
     assert.ok(Object.hasOwn(REQUEST_SCHEMAS, op) && Object.hasOwn(RESPONSE_SCHEMAS, op), op)

@@ -1,13 +1,13 @@
-// Server pacing and trust (SPEC 15, 24): no daily quotas anywhere, only spacing between starts, the
-// pack bank, the pair limit, the minimum battle duration and the one-time trust gate. Everything is
-// computed from the player row the handler already read, so the version guard keeps it exact.
-import { ECONOMY, canTrade, chargeSpacingMs, finishAfter, isRested, pairCounts } from '../../../plugin/hooks/core/economy.ts'
+// Server pacing (SPEC 15, 24): no daily quotas anywhere, only spacing between starts, the pack bank,
+// the pair limit and the minimum battle duration. Everything is computed from the player row the
+// handler already read, so the version guard keeps it exact.
+import { ECONOMY, chargeSpacingMs, finishAfter, isRested, pairCounts } from '../../../plugin/hooks/core/economy.ts'
 import { utcDay } from '../../../plugin/hooks/core/world.ts'
 import { stmt } from '../db.ts'
 import type { Db, Stmt } from '../db.ts'
 import { HttpError } from '../http.ts'
 import type { PlayerRow } from '../schema.ts'
-import { addDays, DAY, dayStart, readJson, setPlayer } from './ctx.ts'
+import { addDays, DAY, readJson, setPlayer } from './ctx.ts'
 
 export { finishAfter, pairCounts }
 
@@ -43,7 +43,7 @@ export const markWildStart = (p: Pick<PlayerRow, 'id'>, now: number): Stmt => se
 export const markDuelStart = (p: Pick<PlayerRow, 'id'>, now: number): Stmt => setPlayer(p.id, { last_duel_at: now })
 
 /**
- * A finished battle (any kind): the count the trust gate and the gift bonus read, and the distinct
+ * A finished battle (any kind): the count the gift bonus and the rating board read, and the distinct
  * days with a finished battle. Relative, so it composes with other writes to the row.
  */
 export const battleFinished = (playerId: string, now: number): Stmt => {
@@ -89,13 +89,7 @@ export function checkCharge(p: PlayerRow, now: number, unopened: number): void {
 export const markCharge = (p: PlayerRow, now: number): Stmt =>
   setPlayer(p.id, { last_charge_at: now, charges: JSON.stringify([...recentCharges(p, now), now]) })
 
-// ---- trust and handles -------------------------------------------------------------------------
-
-/**
- * The trust gate for trading and sending gifts (SPEC 30): 3 calendar days since the join day and 10
- * finished battles. Claiming a gift needs nothing.
- */
-export const trusted = (p: Pick<PlayerRow, 'joined' | 'battles'>, now: number): boolean => canTrade(dayStart(p.joined), p.battles, now)
+// ---- handles -------------------------------------------------------------------------------------
 
 /** The UTC day from which the handle may be rerolled again: a week after the last reroll. */
 export const handleRerollFrom = (p: Pick<PlayerRow, 'handle_day'>, now: number): string =>

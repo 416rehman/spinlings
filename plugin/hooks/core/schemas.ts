@@ -6,20 +6,22 @@
 //   older mod.
 // Every parse returns a fresh object.
 import type {
-  ApiError, ApiOp, AuthPollResponse, AuthStartResponse, BoardResponse, BuyPackRequest, CardResponse, CardsResponse,
-  CatchRequest, ChallengeResponse, ChargeRequest, ClaimRequest, CounterRequest, CraftRequest, DeleteResponse,
-  DevicesResponse, EmptyRequest, FinishBattleRequest, FinishBattleResponse, ForTradeRequest, FuseRequest, FuseResponse,
-  GiftRequest, GiftResponse, GiftView, HandleResponse, JoinRequest, JoinResponse, LeaderboardOptRequest,
-  LeaderboardOptResponse, LeaderboardResponse, MeResponse, Notice, OfferRequest, OfferResponse, OfferView,
-  OpenPackRequest, OpenPackResponse, PacksResponse, PackView, PlayerView, ProfileResponse, RecycleResponse,
-  RedeemRequest, RedeemResponse, SeasonResponse, StartBattleRequest, StartBattleResponse, TeamRequest, TeamResponse,
-  TokenResponse, TraderDealRequest, TraderDealResponse, TraderDealView, TraderResponse, VersionResponse,
-  WishlistRequest, WishlistResponse, WorldResponse,
+  ApiError, ApiOp, AuthPollResponse, AuthStartResponse, BoardResponse, BuyPackRequest, BuyRequest, BuyResponse,
+  CardResponse, CardsResponse, CatchRequest, ChallengeResponse, ChargeRequest, ClaimRequest, CounterRequest,
+  CraftRequest, DeleteResponse, DevicesResponse, EmptyRequest, FinishBattleRequest, FinishBattleResponse,
+  ForTradeRequest, FuseRequest, FuseResponse, GiftRequest, GiftResponse, GiftView, HandleResponse, JoinRequest,
+  JoinResponse, LeaderboardOptRequest, LeaderboardOptResponse, LeaderboardResponse, ListCardRequest, ListingResponse,
+  ListingView, MarketResponse, MarketWant, MeResponse, Notice, OfferRequest, OfferResponse, OfferView, OpenPackRequest,
+  OpenPackResponse, PacksResponse, PackView, PlayerStats, PlayerView, ProfileResponse, RankingsResponse, RankRow,
+  RecycleResponse, RedeemRequest, RedeemResponse, SaleView, SeasonResponse, StartBattleRequest, StartBattleResponse,
+  TeamRequest, TeamResponse, TokenResponse, TraderDealRequest, TraderDealResponse, TraderDealView, TraderResponse,
+  VersionResponse, WishlistRequest, WishlistResponse, WorldResponse,
 } from './api.ts'
 import type {
   BattleAction, BattleCard, BattleLog, BattleRound, BattleSetup, Card, CardForm, CardOrigin, DropReward, DropRewardItem, Form, Genes,
   PromoEgg, Species, Stats, TraderDeal,
 } from './types.ts'
+import { wantProblem } from './market.ts'
 import { isBlocked } from './naming.ts'
 import { SPECIES_ID } from './species.ts'
 
@@ -172,9 +174,9 @@ export const SEMVER_RE = /^\d{1,4}\.\d{1,4}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,32})?$/
 /** what a player types for a drop; normalizeDropCode makes it comparable */
 export const DROP_CODE_RE = /^[A-Za-z0-9]+(?:[- ][A-Za-z0-9]+)*$/
 export const TRADER_DEAL_RE = /^\d{4}-\d{2}-\d{2}-\d$/
-/** a page cursor (CardsResponse.next): opaque to the mod, which only sends it back as `?after=` */
+/** a page cursor (CardsResponse.next, MarketResponse.next): opaque to the mod, which only sends it back as `?after=` */
 export const CURSOR_RE = /^[A-Za-z0-9._~-]{1,64}$/
-const CARD_SPECIES_RE = /^(?:s[1-9]\d{0,3}-(?:haiku|sonnet|opus|fable)-[0-8]|fusion|mythic|promo)$/
+export const CARD_SPECIES_RE = /^(?:s[1-9]\d{0,3}-(?:haiku|sonnet|opus|fable)-[0-8]|fusion|mythic|promo)$/
 const PLAIN_TEXT_RE = /^[^\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]*$/
 const TOKEN_RE = /^[A-Za-z0-9_-]+$/
 const URL_RE = /^https?:\/\/[^\s"'<>\\]+$/
@@ -211,6 +213,8 @@ const leagueView = oneOf(LEAGUE_VALUES, 'Pebble')
 const traitView = str({ max: 24, re: /^[A-Za-z]+$/ }) as Schema<(typeof TRAIT_VALUES)[number]>
 const gene = int(0, 15)
 const rating = int(0, 100_000)
+/** whole sparks a market listing asks (ECONOMY.market.maxPrice) */
+const price = int(1, 1_000_000)
 
 // ---------- domain (read tolerantly) ----------
 
@@ -351,6 +355,18 @@ export const apiErrorSchema = view<ApiError>({
   }),
 })
 
+export const playerStatsSchema = view<PlayerStats>({
+  duelWins: count,
+  duelLosses: count,
+  playersBeaten: count,
+  wildWins: count,
+  catches: count,
+  speciesCollected: count,
+  firstFinds: count,
+  mythicsFound: count,
+  marketSales: count,
+})
+
 export const playerViewSchema = view<PlayerView>({
   handle,
   handleRerollFrom: day,
@@ -370,6 +386,7 @@ export const playerViewSchema = view<PlayerView>({
   nextWildAt: time,
   nextDuelAt: time,
   nextChargeAt: time,
+  stats: optional(playerStatsSchema),
 })
 
 export const packViewSchema = view<PackView>({
@@ -384,7 +401,8 @@ export const noticeSchema = view<Notice>({
   day,
   kind: oneOf([
     'defense-win', 'defense-loss', 'evolved', 'gift-claimed', 'gift-returned', 'offer-received', 'offer-accepted',
-    'offer-declined', 'offer-expired', 'bonus-pack', 'daily-pack', 'streak-pack', 'season-end', 'new-device', 'notice',
+    'offer-declined', 'offer-expired', 'bonus-pack', 'daily-pack', 'streak-pack', 'season-end', 'new-device',
+    'market-sold', 'market-expired', 'notice',
   ] as const, 'notice'),
   text: text(200),
   handle: optional(handle),
@@ -403,12 +421,33 @@ export const offerViewSchema = view<OfferView>({
 
 export const giftViewSchema = view<GiftView>({ code: giftCode, card: cardSchema, createdAt: time, expiresAt: time, claimedBy: optional(handle) })
 
+const wantShape: Record<string, Field> = {
+  species: optional(speciesId),
+  family: optional(family),
+  rarity: optional(rarity),
+  shiny: optional(oneOf([true] as const)),
+  foil: optional(oneOf([true] as const)),
+}
+/** read tolerantly: a want with a field this mod does not know still shows what it does know */
+export const marketWantSchema = view<MarketWant>({ ...wantShape, rarity: optional(rarityView) })
+export const listingViewSchema = view<ListingView>({
+  id,
+  seller: handle,
+  card: battleCardSchema,
+  price: int(0, 1_000_000),
+  want: optional(marketWantSchema),
+  day,
+  state: oneOf(['open', 'sold', 'cancelled', 'expired'] as const, 'expired'),
+})
+export const saleViewSchema = view<SaleView>({ day, price, rarity: rarityView, shiny: bool, foil: bool })
+
 export const meResponseSchema = view<MeResponse>({
   player: playerViewSchema,
   packs: arr(packViewSchema, { max: 50 }),
   notices: arr(noticeSchema, { max: 100 }),
   offers: view({ incoming: arr(offerViewSchema, { max: 50 }), outgoing: arr(offerViewSchema, { max: 50 }) }),
   gifts: arr(giftViewSchema, { max: 20 }),
+  listings: optional(arr(listingViewSchema, { max: 100 })),
   now: time,
 })
 
@@ -479,6 +518,7 @@ export const profileResponseSchema = view<ProfileResponse>({
   team: arr(battleCardSchema, { max: 3 }),
   forTrade: arr(battleCardSchema, { max: 200 }),
   seenCount: count,
+  stats: optional(playerStatsSchema),
 })
 export const boardResponseSchema = view<BoardResponse>({
   matches: arr(view({ handle, theirs: battleCardSchema, mine: battleCardSchema }), { max: 20 }),
@@ -488,6 +528,21 @@ export const boardResponseSchema = view<BoardResponse>({
 export const offerResponseSchema = view<OfferResponse>({ offer: offerViewSchema })
 export const giftResponseSchema = view<GiftResponse>({ gift: giftViewSchema })
 export const leaderboardResponseSchema = view<LeaderboardResponse>({ top: arr(view({ handle, league: leagueView, rating }), { max: 100 }) })
+const rankRowSchema = view<RankRow>({ rank: int(1, 1e9), handle, league: leagueView, value: count })
+export const rankingsResponseSchema = view<RankingsResponse>({
+  board: oneOf(['rating', 'beaten', 'duelWins', 'species', 'mythics', 'sales'] as const, 'rating'),
+  period: oneOf(['all', 'season'] as const, 'all'),
+  season: int(1, 9999),
+  top: arr(rankRowSchema, { max: 100 }),
+  me: optional(rankRowSchema),
+})
+export const marketResponseSchema = view<MarketResponse>({
+  listings: arr(listingViewSchema, { max: 100 }),
+  next: optional(str({ max: 64, re: CURSOR_RE })),
+  prices: arr(view({ species: speciesId, sales: arr(saleViewSchema, { max: 20 }) }), { max: 100 }),
+})
+export const listingResponseSchema = view<ListingResponse>({ listing: listingViewSchema })
+export const buyResponseSchema = view<BuyResponse>({ listing: listingViewSchema, card: cardSchema, sparks: count })
 export const redeemResponseSchema = view<RedeemResponse>({ cards: arr(cardSchema, { max: 20 }), packs: arr(packViewSchema, { max: 20 }) })
 export const traderResponseSchema = view<TraderResponse>({ day, deals: arr(traderDealViewSchema, { max: 10 }) })
 export const traderDealResponseSchema = view<TraderDealResponse>({ cards: arr(cardSchema, { max: 5 }), packs: arr(packViewSchema, { max: 5 }), consumed: arr(id, { max: 10 }) })
@@ -507,7 +562,10 @@ export const chargeRequestSchema = obj<ChargeRequest>({ family })
 export const buyPackRequestSchema = obj<BuyPackRequest>({ family })
 export const openPackRequestSchema = obj<OpenPackRequest>({ packId: id })
 export const teamRequestSchema = obj<TeamRequest>({ cardIds: ids(0, 3) })
-export const startBattleRequestSchema = obj<StartBattleRequest>({ kind: oneOf(['wild', 'duel'] as const), family, revenge: optional(handle) })
+export const startBattleRequestSchema = obj<StartBattleRequest>(
+  { kind: oneOf(['wild', 'duel'] as const), family, revenge: optional(handle), handle: optional(handle) },
+  v => v.handle !== undefined && (v.kind !== 'duel' || v.revenge !== undefined) ? 'a challenge is a duel, and never a revenge too' : null,
+)
 export const finishBattleRequestSchema = obj<FinishBattleRequest>({ inputs: arr(int(1, 30), { max: 30 }) }, v =>
   v.inputs.every((r, i) => i === 0 || r > v.inputs[i - 1]!) ? null : 'inputs must be strictly increasing')
 export const catchRequestSchema = obj<CatchRequest>({ index: int(0, 2) })
@@ -521,13 +579,47 @@ export const giftRequestSchema = obj<GiftRequest>({ cardId: id })
 export const claimRequestSchema = obj<ClaimRequest>({ code: giftCode })
 export const redeemRequestSchema = obj<RedeemRequest>({ code: str({ min: 3, max: 40, re: DROP_CODE_RE }) })
 export const traderDealRequestSchema = obj<TraderDealRequest>({ cardIds: ids(1, 10) })
+export const marketWantRequestSchema = obj<MarketWant>(wantShape, wantProblem)
+export const listCardRequestSchema = obj<ListCardRequest>({ cardId: id, price: optional(price), want: optional(marketWantRequestSchema) }, v =>
+  v.price === undefined && v.want === undefined ? 'a listing asks for sparks, a card or both' : null)
+export const buyRequestSchema = obj<BuyRequest>({ cardId: optional(id) })
 
 /** Path parameters, by name, as API_ROUTES spells them. */
 export const PATH_PARAMS: Readonly<Record<string, RegExp>> = {
   season: /^[1-9]\d{0,3}$/, pollId: ID_RE, battleId: ID_RE, cardId: ID_RE, offerId: ID_RE, dealId: TRADER_DEAL_RE,
-  handle: HANDLE_RE, code: GIFT_CODE_RE,
+  handle: HANDLE_RE, code: GIFT_CODE_RE, listingId: ID_RE,
   // query parameters (ApiRoute.query) are checked the same way
   after: CURSOR_RE,
+  board: /^(?:rating|beaten|duelWins|species|mythics|sales)$/,
+  period: /^(?:all|season)$/,
+  family: /^(?:haiku|sonnet|opus|fable)$/,
+  rarity: /^(?:common|rare|epic|legendary)$/,
+  species: CARD_SPECIES_RE,
+  shiny: /^(?:true|false)$/,
+  foil: /^(?:true|false)$/,
+  kind: /^(?:sparks|swap|both)$/,
+  minPrice: /^(?:0|[1-9]\d{0,6})$/,
+  maxPrice: /^(?:0|[1-9]\d{0,6})$/,
+  sort: /^(?:newest|cheapest|priciest)$/,
+}
+
+/** Query fields that are numbers or booleans on the request object (strings otherwise). */
+const QUERY_NUMBERS = new Set(['minPrice', 'maxPrice'])
+const QUERY_BOOLEANS = new Set(['shiny', 'foil'])
+
+/**
+ * An operation's query fields from a URL's search parameters, checked like path parameters and typed as the request
+ * object has them. Strict: a field the route does not take, or one given twice, throws.
+ */
+export function parseQuery(names: readonly string[], params: URLSearchParams): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {}
+  for (const [name, value] of params) {
+    if (!names.includes(name)) fail(`$.${name}`, 'unknown query field')
+    if (Object.hasOwn(out, name)) fail(`$.${name}`, 'given twice')
+    const v = parsePathParam(name, value)
+    out[name] = QUERY_NUMBERS.has(name) ? Number(v) : QUERY_BOOLEANS.has(name) ? v === 'true' : v
+  }
+  return out
 }
 
 /** The JSON body schema of every operation; null where the operation sends no body (GET and DELETE). */
@@ -541,6 +633,7 @@ export const REQUEST_SCHEMAS: Readonly<Record<ApiOp, Schema<unknown> | null>> = 
   leaderboard: null, board: null, offer: offerRequestSchema, acceptOffer: emptyRequestSchema, declineOffer: emptyRequestSchema,
   cancelOffer: emptyRequestSchema, counterOffer: counterRequestSchema, gift: giftRequestSchema, cancelGift: emptyRequestSchema,
   claim: claimRequestSchema, redeem: redeemRequestSchema, trader: null, traderDeal: traderDealRequestSchema,
+  rankings: null, market: null, listCard: listCardRequestSchema, buyListing: buyRequestSchema, cancelListing: emptyRequestSchema,
 }
 
 /** The response schema of every operation. */
@@ -556,7 +649,8 @@ export const RESPONSE_SCHEMAS: Readonly<Record<ApiOp, Schema<unknown>>> = {
   leaderboard: leaderboardResponseSchema, board: boardResponseSchema, offer: offerResponseSchema, acceptOffer: offerResponseSchema,
   declineOffer: offerResponseSchema, cancelOffer: offerResponseSchema, counterOffer: offerResponseSchema, gift: giftResponseSchema,
   cancelGift: giftResponseSchema, claim: cardResponseSchema, redeem: redeemResponseSchema, trader: traderResponseSchema,
-  traderDeal: traderDealResponseSchema,
+  traderDeal: traderDealResponseSchema, rankings: rankingsResponseSchema, market: marketResponseSchema,
+  listCard: listingResponseSchema, buyListing: buyResponseSchema, cancelListing: listingResponseSchema,
 }
 
 // ---------- admin data (strict) ----------

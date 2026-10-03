@@ -1,8 +1,10 @@
-// Battles on the server (SPEC 5, 13-19, 22, 24, 32). Starting one picks the team (tired and missing
-// slots auto-filled), the opponent (a wild team, a matched player's snapshot, a revenge target or a
-// Rival) and the seed. Settling re-simulates with the battle's own rules version and pays everything
-// in one guarded batch: sparks, XP and evolution with arena counts, rating under the pair limit,
-// defense, streaks, the daily first win, the catch roll and the bounty. No daily caps (SPEC 24).
+// Battles on the server (SPEC 5, 8, 13-19, 22, 24, 32). Starting one picks the team (tired and missing
+// slots auto-filled), the opponent (a wild team, a matched player's snapshot, a revenge target, a
+// player challenged by handle or a Rival) and the seed. Settling re-simulates with the battle's own
+// rules version and pays everything in one guarded batch: sparks, XP and evolution with arena counts,
+// rating under the pair limit, defense, streaks, the daily first win, the catch roll, the bounty and
+// both players' stats. A challenge is friendly: it moves no rating or stat and pays like a loss.
+// No daily caps (SPEC 24).
 import type { FinishBattleResponse, NoticeKind, Opponent, StartBattleRequest, StartBattleResponse } from '../../../plugin/hooks/core/api.ts'
 import { participants, RULES_VERSION, simulateBattle } from '../../../plugin/hooks/core/battle.ts'
 import { cardFromBattleCard, cardPower, toBattleCard } from '../../../plugin/hooks/core/cards.ts'
@@ -24,6 +26,7 @@ import { bumpCards, cardGuard, cardsByIds, grantPack, mintCards, publicCard, que
 import type { StoredCard } from './mint.ts'
 import { notice } from './notices.ts'
 import { battleFinished, firstWinDue, markDuelStart, markFirstWin, markWildStart, pairCounts, pairDuels, restedNow, waitUntil } from './pacing.ts'
+import { beat, count, publicRow, publish } from './stats.ts'
 
 const B = ECONOMY.battle
 
@@ -47,8 +50,11 @@ export const abandoned = (b: Pick<BattleRow, 'started_at'>, now: number): boolea
 /** A Rival's place in players.recent_opponents (never a player id: those are 26 characters). */
 export const RIVAL = 'rival'
 
-/** What the row keeps about the opponent beyond the wire view: the rating Elo settles against. */
-type StoredOpponent = { kind: 'wild' } | { kind: 'player'; rating: number } | { kind: 'rival'; name: string; rating: number }
+/**
+ * What the row keeps about the opponent beyond the wire view: the rating Elo settles against, and whether the attacker
+ * picked this player by handle (a challenge, which moves no rating). Rows from before challenges have no flag.
+ */
+type StoredOpponent = { kind: 'wild' } | { kind: 'player'; rating: number; challenge?: true } | { kind: 'rival'; name: string; rating: number }
 
 export { BATTLE_TEXT }
 export type { SettleMode }
@@ -56,7 +62,7 @@ export type { SettleMode }
 const battleGuard = (b: Pick<BattleRow, 'id' | 'version'>): Stmt =>
   guard(`SELECT 1 FROM battles WHERE id = ? AND state = 'open' AND version = ?`, b.id, b.version)
 
-/** Rating is written relatively and floored, so it composes with the other side's writes. */
+/** Rating is written relatively and floored, so it composes with the other side's writes. Put publish() before it. */
 const addRating = (id: string, delta: number): Stmt =>
   stmt('UPDATE players SET rating = MAX(?, rating + ?) WHERE id = ?', ECONOMY.rating.floor, delta, id)
 
@@ -148,10 +154,11 @@ export async function findOpponent(env: Env, p: PlayerRow): Promise<PlayerRow | 
 
 type Foe = { defender: BattleCard[]; opponent: Opponent; stored: StoredOpponent; kind: 'wild' | 'duel' | 'rival'; defenderId: string | null; stmts: Stmt[] }
 
-const playerFoe = (d: PlayerRow, defender: BattleCard[], stmts: Stmt[] = []): Foe => ({
+/** A player to duel; the league shown is the one the boards show today (SPEC 20.3), the rating Elo uses is live. */
+const playerFoe = (env: Env, d: PlayerRow, defender: BattleCard[], stmts: Stmt[] = [], challenge = false): Foe => ({
   defender, defenderId: d.id, kind: 'duel', stmts,
-  opponent: { kind: 'player', handle: d.handle, league: leagueOf(d.rating).name },
-  stored: { kind: 'player', rating: d.rating },
+  opponent: { kind: 'player', handle: d.handle, league: leagueOf(publicRow(d, env.now).rating).name },
+  stored: challenge ? { kind: 'player', rating: d.rating, challenge: true } : { kind: 'player', rating: d.rating },
 })
 
 /**
@@ -168,16 +175,31 @@ async function revengeFoe(env: Env, p: PlayerRow, handle: string): Promise<Foe> 
   if (!target || !open) return fail('not_found', 'No revenge is open against that player')
   const defender = await defenseTeam(env.db, target)
   if (!defender.length) fail('not_allowed', 'They have no team out right now')
-  return playerFoe(target, defender, [
+  return playerFoe(env, target, defender, [
     guard('SELECT 1 FROM notices WHERE id = ? AND revenge_until = ?', open.id, open.revenge_until),
     stmt('UPDATE notices SET revenge_until = NULL WHERE id = ?', open.id),
   ])
 }
 
+/**
+ * A challenge (SPEC 8): one player's saved team, picked by exact handle, with the usual duel spacing. Never the
+ * caller, never a player with no team out; an unknown handle answers 404. Picking the opponent makes it friendly:
+ * it never moves rating, defense sparks or stats and pays like a loss (settleBattle), so farming one weak team
+ * pays nothing extra and pads no board. It counts toward the pair limit, which also bounds the defense notices.
+ */
+async function challengeFoe(env: Env, p: PlayerRow, handle: string): Promise<Foe> {
+  const target = await env.db.get<PlayerRow>('SELECT * FROM players WHERE handle = ?', handle)
+  if (!target) return notFound('player')
+  if (target.id === p.id) fail('not_allowed', 'That is your own team: challenge someone else')
+  const defender = await defenseTeam(env.db, target)
+  if (!defender.length) fail('not_allowed', 'They have no team out right now')
+  return playerFoe(env, target, defender, [guard('SELECT 1 FROM players WHERE id = ?', target.id)], true)
+}
+
 async function duelFoe(env: Env, p: PlayerRow, team: readonly StoredCard[]): Promise<Foe> {
   const d = await findOpponent(env, p)
   const defender = d ? await defenseTeam(env.db, d) : []
-  if (d && defender.length) return playerFoe(d, defender)
+  if (d && defender.length) return playerFoe(env, d, defender)
   const rival = rollRival({ rng: rngOf(env), now: env.now, rating: p.rating, power: team.reduce((n, c) => n + cardPower(c.card), 0), size: team.length })
   return {
     defender: rival.team, defenderId: null, kind: 'rival', stmts: [],
@@ -219,7 +241,8 @@ export async function prepareStart(env: Env, p: PlayerRow, req: StartBattleReque
   const { cards, subs } = await battleTeam(env.db, p, env.now)
   const foe = req.kind === 'wild' ? wildFoe(env, p, req, cards)
     : req.revenge !== undefined ? await revengeFoe(env, p, req.revenge)
-      : await duelFoe(env, p, cards)
+      : req.handle !== undefined ? await challengeFoe(env, p, req.handle)
+        : await duelFoe(env, p, cards)
   const setup: BattleSetup = {
     seed: newSeed(env), kind: req.kind, arena: req.family, rule: worldOf(env.now).rule, rules: RULES_VERSION,
     attacker: cards.map(c => toBattleCard(c.card)), defender: foe.defender,
@@ -289,26 +312,34 @@ export async function settleBattle(
   const found = await cardsByIds(env.db, participants(log, 'a').map(i => setup.attacker[i]!.id))
   const held = new Map([...found].filter(([, c]) => c.owner === p.id))
 
-  // duels: the pair limit, the defending player, and the bounty's species (the opponent's lead)
+  // duels: the pair limit, the defending player, and the bounty's species (the opponent's lead). Inside the pair
+  // limit the defender hears of it; a duel that also is no challenge moves rating, defense sparks and stats and
+  // pays in full (`counts`). A challenge, or a duel past the pair limit, pays like a loss (settlePlan).
   const duel = b.kind !== 'wild'
   const d = duel && b.defender_id ? await env.db.get<PlayerRow>('SELECT * FROM players WHERE id = ?', b.defender_id) : undefined
-  let counts = duel
+  const challenge = stored.kind === 'player' && stored.challenge === true
+  let pairOk = true
   if (d) {
     const earlier = await pairDuels(env.db, p.id, d.id, now)
-    counts = pairCounts(earlier)
+    pairOk = pairCounts(earlier)
     guards.push(pairGuard(p.id, d.id, now, earlier))
   }
+  const counts = duel && pairOk && !challenge
   const lead = setup.defender[0]!
   if (duel) await ensureSeasons(env.db, [lead.season, ...(lead.form?.parents ?? []).flatMap(seasonsIn)])
   const theirs = d?.rating ?? ('rating' in stored ? stored.rating : ECONOMY.rating.start)
   const plan = settlePlan({
     setup, log, mode, now, finishAfter: b.finish_after, rng, held, streak: p.streak, rating: p.rating,
     opponentRating: counts ? theirs : null, wildWon: p.wild_won !== 0, firstWinDue: firstWinDue(p, now), revenge: b.revenge === 1,
+    counts: !duel || counts,
   })
   const { answer } = plan
   const told = (kind: NoticeKind) => {
     for (const n of plan.notices) if (n.kind === kind) writes.push(notice(env, p.id, kind, n.text))
   }
+
+  // public numbers keep their midnight values for today before anything moves them (SPEC 20.3)
+  writes.push(publish(p.id, now), ...(d ? [publish(d.id, now)] : []))
 
   // XP, evolution and arena counts
   for (const c of plan.cards) {
@@ -324,10 +355,17 @@ export async function settleBattle(
     const defense = result === 'loss' && counts ? B.defenseSparks : 0
     if (plan.defenderDelta) writes.push(addRating(d.id, plan.defenderDelta))
     if (defense) writes.push(addSparks(d.id, defense))
-    if (result === 'loss') writes.push(notice(env, d.id, 'defense-win', BATTLE_TEXT.defenseWin(defense), { other: p.id }))
-    if (result === 'win') writes.push(notice(env, d.id, 'defense-loss', BATTLE_TEXT.defenseLoss(), { other: p.id, revengeUntil: now + DAY }))
+    // only inside the pair limit, so nobody can fill another player's notices by challenging them over and over
+    if (pairOk && result === 'loss') writes.push(notice(env, d.id, 'defense-win', BATTLE_TEXT.defenseWin(defense), { other: p.id }))
+    if (pairOk && result === 'win') writes.push(notice(env, d.id, 'defense-loss', BATTLE_TEXT.defenseLoss(), { other: p.id, revengeUntil: now + DAY }))
+    // duel stats move only with rating: never for a challenge or past the pair limit, so no padding the boards
+    if (counts && result !== 'draw') {
+      const [won, lost] = result === 'win' ? [p.id, d.id] : [d.id, p.id]
+      writes.push(...count(won, now, { duelWins: 1 }), ...count(lost, now, { duelLosses: 1 }), ...beat(won, lost, now))
+    }
     writes.push(bumpPlayer(d.id))
   }
+  if (b.kind === 'wild' && result === 'win') writes.push(...count(p.id, now, { wildWins: 1 }))
 
   // sparks, the streak and its pack, the daily first win, the trust gate's count
   writes.push(addSparks(p.id, answer.sparks), battleFinished(p.id, now))
@@ -412,6 +450,7 @@ export async function prepareCatch(env: Env, p: PlayerRow, b: BattleRow, index: 
       guard('SELECT 1 FROM battles WHERE id = ? AND version = ? AND catch_options IS NOT NULL', b.id, b.version),
       stmt('UPDATE battles SET catch_options = NULL, catch_until = 0, version = version + 1 WHERE id = ?', b.id),
       ...minted.stmts,
+      ...count(p.id, env.now, { catches: 1 }),
     ],
   }
 }

@@ -48,6 +48,12 @@ export type SettleInput<H extends HeldCard> = {
   /** no win yet this UTC day */
   firstWinDue: boolean
   revenge: boolean
+  /**
+   * false for a duel against a player that moves no rating (a challenge, or past the pair limit): it pays XP and at
+   * most the sparks of a loss, rolls no bounty, pays no streak or daily pack, and leaves the streak as it was, so
+   * fighting one weak team over and over pays no more than losing to it. Omitted: true.
+   */
+  counts?: boolean
 }
 
 export type SettlePlan<H extends HeldCard> = {
@@ -70,7 +76,9 @@ export function settlePlan<H extends HeldCard>(o: SettleInput<H>): SettlePlan<H>
   const win = result === 'win'
   const wild = setup.kind === 'wild'
   const firstWildWin = wild && win && o.mode === 'finish' && !o.wildWon
-  const rewards = battleRewards(setup.kind, result, setup.rule, { revenge: o.revenge, firstWildWin })
+  const counts = o.counts ?? true
+  const full = battleRewards(setup.kind, result, setup.rule, { revenge: o.revenge, firstWildWin })
+  const rewards = counts ? full : { ...full, sparks: Math.min(full.sparks, ECONOMY.battle.sparks.loss), bountyChance: 0 }
   const notices: SettlePlan<H>['notices'] = []
   const tell = (kind: NoticeKind, text: string) => { if (o.mode === 'auto') notices.push({ kind, text }) }
 
@@ -100,9 +108,9 @@ export function settlePlan<H extends HeldCard>(o: SettleInput<H>): SettlePlan<H>
   const ratingDelta = elo ? applyRating(o.rating, elo.attacker) - o.rating : 0
 
   // the streak and its pack, the daily first win
-  const streak = win ? o.streak + 1 : 0
-  const streakPack = win && streakPackDue(streak)
-  const dailyWinPack = win && o.firstWinDue
+  const streak = !counts ? o.streak : win ? o.streak + 1 : 0
+  const streakPack = counts && win && streakPackDue(streak)
+  const dailyWinPack = counts && win && o.firstWinDue
   if (streakPack) tell('streak-pack', BATTLE_TEXT.streakPack(streak))
   if (dailyWinPack) tell('daily-pack', BATTLE_TEXT.dailyPack())
 

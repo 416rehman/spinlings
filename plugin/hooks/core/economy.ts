@@ -1,5 +1,6 @@
-// Every tunable number from SPEC.md in one place, plus the small pacing and trust rules built on them.
-// There are no per-day quotas anywhere (SPEC section 24): abuse is bounded by pace, pair limits, trust gates and sinks.
+// Every tunable number from SPEC.md in one place, plus the small pacing rules built on them.
+// There are no per-day quotas anywhere (SPEC section 24), and no account limits on trading: abuse is bounded by pace,
+// pair limits, escrow and sinks, and storage sizes keep tables small.
 import type { LeagueName, Rarity } from './types.ts'
 
 const MIN = 60_000
@@ -135,11 +136,29 @@ export const ECONOMY = {
   fusion: { cost: 40, fairCost: 20, tierUp: 0.15, geneNoise: 2 },
   /** starters sit 20 xp short of level 4: one good battle from their first evolution */
   starter: { level: 3, xp: 100 },
+  /** offline only: the offline world's welcome cards stay put this long (online cards are never locked, SPEC 8) */
   welcomeLockMs: 7 * DAY,
 
+  /**
+   * Offers. `openOutgoing` is a storage size, not a quota. The online server charges no fee, has no trust gate and
+   * locks no card (SPEC 8): `fee`, `minAgeMs`, `minBattles` and `lockMs` are the 0.1.0 rules, kept only while the
+   * 0.1.0 mod's own screens still quote them; nothing on the server reads them.
+   */
   trade: {
-    fee: 10, minAgeMs: 3 * DAY, minBattles: 10, openOutgoing: 20, maxGive: 3, maxGet: 3, expiryMs: 72 * HOUR, lockMs: 24 * HOUR,
+    openOutgoing: 50, maxGive: 3, maxGet: 3, expiryMs: 72 * HOUR,
+    /** @deprecated 0.1.0 only */ fee: 10,
+    /** @deprecated 0.1.0 only */ minAgeMs: 3 * DAY,
+    /** @deprecated 0.1.0 only */ minBattles: 10,
+    /** @deprecated 0.1.0 only */ lockMs: 24 * HOUR,
   },
+  /**
+   * The market (SPEC 8): a listing waits `ttlMs` (to the first UTC midnight after), `open` listings per player at once
+   * (storage), prices in whole sparks up to `maxPrice`, `page` listings a page and the last `recentSales` sale prices
+   * per species. No fee.
+   */
+  market: { ttlMs: 14 * DAY, open: 100, maxPrice: 1_000_000, page: 50, recentSales: 5 },
+  /** Leaderboards (SPEC 8): the top `size` of each board, plus the caller's own rank. */
+  boards: { size: 50 },
   /** the giver's bonus pack pays once the claimant has finished `bonusBattles` battles on `bonusDays` different days */
   gift: { ttlMs: 14 * DAY, open: 10, claimsPerHour: 5, bonusBattles: 5, bonusDays: 2 },
   wishlistMax: 5,
@@ -201,7 +220,10 @@ export function pairCounts(earlierPairDuels: number): boolean {
   return earlierPairDuels < ECONOMY.battle.pairLimit
 }
 
-/** The trust gate for trading and sending gifts (SPEC section 30). Claiming a gift needs nothing. */
+/**
+ * @deprecated The 0.1.0 trust gate. The online server no longer has one (SPEC 8, 30): every online account may trade,
+ * list and send gifts. Kept for the 0.1.0 mod's screens only.
+ */
 export function canTrade(joinedAt: number, battles: number, now: number): boolean {
   return now - joinedAt >= ECONOMY.trade.minAgeMs && battles >= ECONOMY.trade.minBattles
 }

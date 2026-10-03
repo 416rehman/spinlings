@@ -145,8 +145,8 @@ async function openAll(m: Mod): Promise<void> {
 }
 
 /** One battle as the mod plays it: start, simulate with the server's setup, press on Perfect rounds, wait, finish. */
-async function battle(r: Recording, m: Mod, kind: 'wild' | 'duel', o: { early?: boolean } = {}) {
-  const start = await m.call('startBattle', { kind, family: m.family })
+async function battle(r: Recording, m: Mod, kind: 'wild' | 'duel', o: { early?: boolean; handle?: string } = {}) {
+  const start = await m.call('startBattle', { kind, family: m.family, ...(o.handle ? { handle: o.handle } : {}) })
   const inputs = perfectInputs(start.setup)
   if (o.early) await m.fails('finishBattle', { battleId: start.id, inputs }, 'conflict')
   r.w.until(Math.max(start.finishAfter, finishAfter(start.startedAt, simulateBattle(start.setup, inputs).rounds.length)))
@@ -312,6 +312,41 @@ const FLOWS: FlowSpec[] = [
     },
   },
   {
+    flow: 'market',
+    about: 'the market (listed, browsed, bought for sparks and for a card, refused, cancelled), a challenge by handle and the leaderboards',
+    async play(r) {
+      const a = r.mod('a', 'opus'), b = r.mod('b', 'haiku')
+      const ha = (await a.join()).player.handle
+      await b.join()
+      await r.setup({ setup: 'trust', player: 'a' })
+      await r.setup({ setup: 'trust', player: 'b' })
+      for (let i = 0; i < 2; i++) await a.call('buyPack', { family: 'sonnet' })
+      await b.call('buyPack', { family: 'fable' })
+      await openAll(a)
+      await openAll(b)
+      const [x, y, z] = await freeCards(r, a)
+      const fit = (await freeCards(r, b))[0]!
+      const sold = (await a.call('listCard', { cardId: x!.id, price: 25 })).listing
+      await a.fails('listCard', { cardId: x!.id, price: 25 }, 'not_allowed')
+      const swap = (await a.call('listCard', { cardId: y!.id, want: { family: fit.family } })).listing
+      await a.call('me', {})
+      await b.call('market', { sort: 'cheapest' })
+      await a.fails('buyListing', { listingId: sold.id }, 'not_allowed')
+      await b.call('buyListing', { listingId: sold.id })
+      await b.fails('buyListing', { listingId: sold.id }, 'conflict')
+      await b.fails('buyListing', { listingId: swap.id }, 'bad_request')
+      await b.call('buyListing', { listingId: swap.id, cardId: fit.id })
+      const back = (await a.call('listCard', { cardId: z!.id, price: 3 })).listing
+      await b.fails('cancelListing', { listingId: back.id }, 'not_found')
+      await a.call('cancelListing', { listingId: back.id })
+      await a.call('rankings', { board: 'sales', period: 'season' })
+      r.w.until((await b.call('me', {})).player.nextDuelAt)
+      await battle(r, b, 'duel', { handle: ha })
+      await b.call('profile', { handle: ha })
+      await b.call('leaderboard', {})
+    },
+  },
+  {
     flow: 'devices',
     about: 'a passkey saved and used to sign in on another machine, reset access, and deleting the account',
     async play(r) {
@@ -342,7 +377,7 @@ const FLOWS: FlowSpec[] = [
 
 // ---------- placeholders, trimming and the file format ----------
 
-const HANDLE_KEYS = new Set(['handle', 'from', 'to', 'claimedBy', 'discoveredBy'])
+const HANDLE_KEYS = new Set(['handle', 'from', 'to', 'claimedBy', 'discoveredBy', 'seller'])
 const ID = /^[a-z2-7]{26}$/
 const EXACT = /^<[a-z]+:\d+>$/
 
@@ -359,6 +394,7 @@ function kindOf(op: string, key: string, path: string, v: string): string | null
   if (/\.packs\[\d+\]\.id$/.test(path)) return 'pack'
   if (/\.notices\[\d+\]\.id$/.test(path)) return 'notice'
   if (/(\.offer|\.incoming\[\d+\]|\.outgoing\[\d+\])\.id$/.test(path)) return 'offer'
+  if (/(\.listing|\.listings\[\d+\])\.id$/.test(path)) return 'listing'
   if (op === 'startBattle' && path === '$.id') return 'battle'
   return 'card'
 }

@@ -1,5 +1,5 @@
-// Gifts and claims (SPEC 8, 15, 24, 26): escrow under a code, claiming with no trust gate, the
-// exact claim cap, cancelling, lapsing, the giver's bonus pack, races and storage limits.
+// Gifts and claims (SPEC 8, 15, 24, 26): escrow under a code, no account limits and no trade
+// lock, the exact claim cap, cancelling, lapsing, the giver's bonus pack, races and storage limits.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { GIFT_CODE_RE } from '../../plugin/hooks/core/schemas.ts'
@@ -36,16 +36,14 @@ describe('making a gift', () => {
     assert.deepEqual([me.player.team, me.gifts.map(g => g.code)], [[], [gift.code]])
   })
 
-  it('waits for the trust gate and takes only free cards; at most 10 open gifts', async () => {
+  it('works from the first day and takes only free cards; at most 10 open gifts', async () => {
     const s = server()
     const a = await s.join()
-    const cards = await fresh(s, a, 11)
-    assert.equal((await a.fails('gift', { cardId: cards[0]!.id })).code, 'not_allowed', 'not yet trusted')
-    await trust(s, a)
+    const cards = await fresh(s, a, 10)
     const starter = (await a.call('cards')).cards.find(c => c.bound)!
     const [welcome] = (await a.call('openPack', { packId: a.me.packs[0]!.id })).cards
-    assert.equal((await a.fails('gift', { cardId: starter.id })).code, 'not_allowed')
-    assert.equal((await a.fails('gift', { cardId: welcome!.id })).code, 'not_allowed')
+    assert.equal((await a.fails('gift', { cardId: starter.id })).code, 'not_allowed', 'a bound starter stays')
+    cards.push(welcome!)
     for (const c of cards.slice(0, 10)) await a.call('gift', { cardId: c.id })
     assert.equal((await a.fails('gift', { cardId: cards[0]!.id })).code, 'not_allowed', 'already held')
     const full = await a.fails('gift', { cardId: cards[10]!.id })
@@ -54,15 +52,14 @@ describe('making a gift', () => {
 })
 
 describe('claiming', () => {
-  it('moves the card to anyone but the giver, trust gate or not, trade-locked 24 hours, with word to the giver', async () => {
+  it('moves the card to anyone but the giver, free to trade on at once, with word to the giver', async () => {
     const { s, a, x } = await giver()
     await s.db.batch([stmt('UPDATE cards SET arena_sonnet = 4 WHERE id = ?', x.id)])
     const { gift } = await a.call('gift', { cardId: x.id })
     assert.equal((await a.fails('claim', { code: gift.code })).code, 'not_allowed', 'not your own')
     const c = await s.join()
     const { card } = await c.call('claim', { code: gift.code })
-    assert.deepEqual([card.id, card.state, card.forTrade, card.lockedUntil, card.bound], [x.id, 'owned', false, Date.UTC(2026, 9, 4), false])
-    assert.ok(midnight(card.lockedUntil) && card.lockedUntil - T0 >= DAY, 'until the first midnight at least 24 hours on')
+    assert.deepEqual([card.id, card.state, card.forTrade, card.lockedUntil, card.bound], [x.id, 'owned', false, 0, false])
     // it arrives as a gift today: nothing says when or how the giver got it
     assert.deepEqual([card.origin, card.mintedAt, card.raisedIn], ['gift', Date.UTC(2026, 9, 2), undefined])
     assert.deepEqual(await cardIn(c, x.id), card)

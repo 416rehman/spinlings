@@ -172,6 +172,22 @@ function pageData(html: string): { ticket: string; options: never } {
   return { ticket: attr('data-ticket'), options: JSON.parse(attr('data-options')) as never }
 }
 
+// ---------- outcomes loosened on purpose ----------
+
+/**
+ * A recorded exchange whose outcome this server changes on purpose, in the mod's favour: a refusal that now goes
+ * through because a rule was dropped (SPEC 8: no trust gate, no trade lock, no fee). The replay accepts exactly
+ * this step answering `now` instead of `was`, still checks the mod can read the new answer, and carries on. Every
+ * entry names its reason; an entry no replay used fails replay.test.ts, so the list never outlives its fixtures.
+ */
+export type Loosened = { client: string; flow: string; step: number; op: string; was: number; now: number; reason: string }
+
+/**
+ * Empty so far: the recorded 0.1.0 flows set players past the old trust gate in the database first (`setup: trust`),
+ * and record no exchange that a lock or a fee refused, so every one of their outcomes still holds exactly.
+ */
+export const LOOSENED: readonly Loosened[] = []
+
 // ---------- the replay ----------
 
 const PLACEHOLDER = /<([a-z]+):(\d+)>/g
@@ -240,22 +256,56 @@ function merge(a: Shape, b: Shape): Shape {
   return a
 }
 
-/** Every field the recorded answer had, still there with the same JSON type (null either side is the schema's call). */
-function lost(shape: Shape, v: unknown, path: string, out: Set<string>): void {
+/**
+ * Every field the recorded answer had, still there with the same JSON type (null either side is the schema's call).
+ * `optional` names list-item fields the mod was seen without (optionalItemKeys), which a new item may lack too.
+ */
+function lost(shape: Shape, v: unknown, path: string, out: Set<string>, optional: (path: string) => boolean): void {
   if (shape.t === 'null' || shape.t === 'any' || v === null) return
   if (typeOf(v) !== shape.t) {
     out.add(`${path} was ${shape.t}, is ${typeOf(v)}`)
     return
   }
   if (shape.t === 'array') {
-    if (shape.item) for (const x of v as unknown[]) lost(shape.item, x, `${path}[]`, out)
+    if (shape.item) for (const x of v as unknown[]) lost(shape.item, x, `${path}[]`, out, optional)
   } else if (shape.t === 'object') {
     const o = v as Record<string, unknown>
     for (const [k, s] of shape.keys) {
-      if (Object.hasOwn(o, k)) lost(s, o[k], `${path}.${k}`, out)
-      else if (shape.required.has(k)) out.add(`${path}.${k} is missing`)
+      if (Object.hasOwn(o, k)) lost(s, o[k], `${path}.${k}`, out, optional)
+      else if (shape.required.has(k) && !optional(`${path}.${k}`)) out.add(`${path}.${k} is missing`)
     }
   }
+}
+
+/**
+ * The list-item fields a mod version demonstrably reads as optional: across every answer recorded for it, by
+ * operation and path (`me $.notices[].handle`), the keys some item had and another item lacked. One answer's list may
+ * hold only items that carry such a key (every notice in it named a player), and a newer kind of item without it
+ * is then no break for that mod.
+ */
+export function optionalItemKeys(flows: readonly Flow[]): Set<string> {
+  const seen = new Map<string, { any: Set<string>; every: Set<string> | null }>()
+  const walk = (op: string, v: unknown, path: string): void => {
+    if (Array.isArray(v)) {
+      const at = `${op} ${path}[]`
+      for (const x of v) {
+        if (x && typeof x === 'object' && !Array.isArray(x)) {
+          const keys = new Set(Object.keys(x))
+          const s = seen.get(at) ?? { any: new Set<string>(), every: null }
+          for (const k of keys) s.any.add(k)
+          s.every = s.every ? new Set([...s.every].filter(k => keys.has(k))) : keys
+          seen.set(at, s)
+        }
+        walk(op, x, `${path}[]`)
+      }
+    } else if (v && typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) walk(op, x, `${path}.${k}`)
+    }
+  }
+  for (const f of flows) for (const s of f.steps) if ('op' in s && s.response.status < 300) walk(s.op, s.response.body, '$')
+  const out = new Set<string>()
+  for (const [at, s] of seen) for (const k of s.any) if (!s.every!.has(k)) out.add(`${at}.${k}`)
+  return out
 }
 
 const bytes = (text: string) => new TextEncoder().encode(text).length
@@ -266,7 +316,9 @@ const bytes = (text: string) => new TextEncoder().encode(text).length
  * it did, reads cleanly with that version's own reader, and keeps every field it had with the same type. A different
  * status, or a placeholder the server never answered, ends the flow there: the steps after it depend on it.
  */
-export async function replay(flow: Flow, reader: Reader): Promise<string[]> {
+export async function replay(
+  flow: Flow, reader: Reader, used: Set<Loosened> = new Set(), loosened: readonly Loosened[] = LOOSENED, optional: ReadonlySet<string> = new Set(),
+): Promise<string[]> {
   const w = world(flow.flow)
   const bound = new Map<string, string>()
   const bits = new Map<string, number>()
@@ -290,8 +342,21 @@ export async function replay(flow: Flow, reader: Reader): Promise<string[]> {
         const res = await w.send(step.player, req.method, req.path, req.headers, body === undefined ? undefined : JSON.stringify(body))
         const was = step.response
         if (res.status !== was.status) {
-          problems.push(`${where}: answered ${res.status}, was ${was.status}: ${res.text.slice(0, 200)}`)
-          break
+          const loose = loosened.find(l =>
+            l.client === flow.client && l.flow === flow.flow && l.step === i && l.op === step.op && l.was === was.status && l.now === res.status)
+          if (!loose) {
+            problems.push(`${where}: answered ${res.status}, was ${was.status}: ${res.text.slice(0, 200)}`)
+            break
+          }
+          used.add(loose)
+          try {
+            const json = JSON.parse(res.text) as unknown
+            if (res.status >= 200 && res.status < 300) reader.parseResponse(step.op, json)
+            else reader.parseApiError(json)
+          } catch (err) {
+            problems.push(`${where}: the ${flow.client} mod cannot read its loosened answer: ${err instanceof Error ? err.message : String(err)}`)
+          }
+          continue
         }
         if (!reader.JSON_CONTENT_TYPE.test((res.headers['content-type'] ?? '').trim())) problems.push(`${where}: content-type ${res.headers['content-type']} is not JSON`)
         if (bytes(res.text) > reader.RESPONSE_MAX_BYTES) problems.push(`${where}: ${bytes(res.text)} bytes, over the mod's ${reader.RESPONSE_MAX_BYTES}`)
@@ -308,7 +373,7 @@ export async function replay(flow: Flow, reader: Reader): Promise<string[]> {
           problems.push(`${where}: the ${flow.client} mod cannot read it: ${err instanceof Error ? err.message : String(err)}`)
         }
         const gone = new Set<string>()
-        lost(shapeOf(was.body), json, '$', gone)
+        lost(shapeOf(was.body), json, '$', gone, path => optional.has(`${step.op} ${path}`))
         for (const g of gone) problems.push(`${where}: ${g}`)
         bind(was.body, json, bound)
         if (step.op === 'challenge' && res.status === 200) {

@@ -35,7 +35,9 @@ import type { App } from '../server/src/app.ts'
 import type { D1Database } from '../server/src/cloudflare.d.ts'
 import { d1Db } from '../server/src/db.ts'
 import type { Db, SqlValue, Stmt } from '../server/src/db.ts'
+import { NOTICE_TEXT } from '../server/src/game/notices.ts'
 import { loadMigrations, openDatabase, serve } from '../server/src/node.ts'
+import { softAuthenticator } from '../test/server/passkeys-helpers.ts'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const MINUTE = 60_000
@@ -240,8 +242,10 @@ export type Played = { start: StartBattleResponse; fin: FinishBattleResponse; in
  * Perfect round, wait out the minimum duration, finish, and check the server's replay is the
  * client's to the last hit.
  */
-export async function battle(boot: Boot, c: Client, kind: 'wild' | 'duel', o: { revenge?: string; press?: boolean; early?: boolean } = {}): Promise<Played> {
-  const req = { kind, family: c.family, ...(o.revenge ? { revenge: o.revenge } : {}) }
+export async function battle(
+  boot: Boot, c: Client, kind: 'wild' | 'duel', o: { revenge?: string; handle?: string; press?: boolean; early?: boolean } = {},
+): Promise<Played> {
+  const req = { kind, family: c.family, ...(o.revenge ? { revenge: o.revenge } : {}), ...(o.handle ? { handle: o.handle } : {}) }
   let start: StartBattleResponse | null = null
   for (let tries = 0; !start; tries++) {
     try {
@@ -272,9 +276,6 @@ export async function battle(boot: Boot, c: Client, kind: 'wild' | 'duel', o: { 
   }
   return { start, fin, inputs }
 }
-
-/** The first UTC midnight at or after `t`: trade locks end on one, so they never tell the hour of a trade (SPEC 20.3). */
-const firstMidnight = (t: number): number => Math.ceil(t / DAY) * DAY
 
 /** Waits (on the server's clock) until the next battle of this kind is allowed, as the mod reads it from /v1/me. */
 export async function whenAllowed(boot: Boot, c: Client, kind: 'wild' | 'duel'): Promise<void> {
@@ -412,7 +413,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       await p1.fails('openPack', { packId: me1.packs[0]!.id }, 'not_found')
       for (const c of opened) {
         assert.equal(c.origin, 'pack')
-        assert.equal(c.lockedUntil, Date.parse(`${utcDay(T0)}T00:00:00Z`) + ECONOMY.welcomeLockMs, 'welcome-pack cards are trade-locked 7 days from the join day')
+        assert.equal(c.lockedUntil, 0, 'welcome-pack cards trade at once (SPEC 8)')
         assert.equal(c.firstFind === true, !before.has(c.species), `${c.species}: firstFind exactly on the first of its species`)
         before.add(c.species)
         if (c.rarity === 'legendary') assert.equal(c.foil, true, 'every legendary is foil')
@@ -537,23 +538,17 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       return revenged
     })
 
-    // ---- days pass: the trust gate (3 days, 10 battles), presence packs ----
+    // ---- days pass: presence packs and plenty of battles ----
 
-    await step('play to the trust gate, charging packs on the way', async () => {
+    await step('days of play, charging packs on the way', async () => {
       let charged = 0
-      const cleared = async (c: Client) => {
-        const p = (await c.me()).player
-        return p.battles >= ECONOMY.trade.minBattles
-      }
-      for (const [c, other] of [[p1, p2], [p2, p1]] as const) {
-        assert.equal((await c.me()).player.canTrade, false)
-        const card = (await cardsOf(c)).find(x => !x.bound)!
-        await c.fails('offer', { to: (await other.me()).player.handle, give: [card.id], get: [] }, 'not_allowed')
-      }
+      const PLAYED = 10
+      const cleared = async (c: Client) => (await c.me()).player.battles >= PLAYED
+      for (const c of [p1, p2]) assert.equal((await c.me()).player.canTrade, true, 'no account limits on trading (SPEC 8)')
       for (let i = 0; i < 40 && !((await cleared(p1)) && (await cleared(p2))); i++) {
         for (const c of [p1, p2]) {
           const p = (await c.me()).player
-          if (p.battles >= ECONOMY.trade.minBattles) continue
+          if (p.battles >= PLAYED) continue
           if (clock.now() >= p.nextChargeAt) {
             await c.call('chargePack', { family: c.family })
             charged++
@@ -572,11 +567,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       }
       // three calendar days on from the join day
       clock.until(Date.UTC(2026, 9, 5, 9))
-      for (const c of [p1, p2]) {
-        const me = await c.me()
-        assert.equal(me.player.canTrade, true, `${c.name} passed the trust gate`)
-        for (const pack of me.packs) await c.call('openPack', { packId: pack.id })
-      }
+      for (const c of [p1, p2]) for (const pack of (await c.me()).packs) await c.call('openPack', { packId: pack.id })
       const [b1, b2] = [(await p1.me()).player.battles, (await p2.me()).player.battles]
       return `${b1} and ${b2} battles, ${charged} packs charged, now ${utcDay(clock.now())}`
     })
@@ -679,7 +670,8 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       assert.equal(match.mine.id, mine.id)
       assert.equal(board.trader.length, ECONOMY.trader.deals)
       const profile = await p1.call('profile', { handle: p2Handle })
-      assert.deepEqual(Object.keys(profile).sort(), ['forTrade', 'handle', 'league', 'seenCount', 'team'])
+      assert.deepEqual(Object.keys(profile).sort(), ['forTrade', 'handle', 'league', 'seenCount', 'stats', 'team'])
+      assert.equal(profile.stats!.speciesCollected, profile.seenCount, 'stats are public game numbers')
       assert.ok(profile.forTrade.some(c => c.id === theirs.id))
       for (const c of [...profile.forTrade, ...profile.team]) {
         for (const k of ['mintedAt', 'lockedUntil', 'tiredUntil', 'origin', 'state', 'bound', 'forTrade']) assert.ok(!(k in c), `a public card carries no ${k}`)
@@ -687,7 +679,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       return `${board.matches.length} match, profile shows ${profile.forTrade.length} for trade`
     })
 
-    await step('an offer, accepted, with the fee', async () => {
+    await step('an offer, accepted, with no fee', async () => {
       const [s1, s2] = [await sparksOf(p1), await sparksOf(p2)]
       const p2Handle = (await p2.me()).player.handle
       const { offer } = await p1.call('offer', { to: p2Handle, give: [mine.id], get: [theirs.id] })
@@ -701,18 +693,15 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       const accepted = (await p2.call('acceptOffer', { offerId: offer.id })).offer
       assert.equal(accepted.state, 'accepted')
       await p2.fails('acceptOffer', { offerId: offer.id }, 'conflict')
-      const fee = ECONOMY.trade.fee
-      assert.equal(await sparksOf(p1), s1 - fee, 'player 1 pays 10 sparks for the card received')
-      assert.equal(await sparksOf(p2), s2 - fee, 'player 2 pays 10 sparks for the card received')
+      assert.deepEqual([await sparksOf(p1), await sparksOf(p2)], [s1, s2], 'no fee on either side')
       const got1 = (await cardsOf(p1)).find(c => c.id === theirs.id)!
       const got2 = (await cardsOf(p2)).find(c => c.id === mine.id)!
       assert.ok(got1 && got2, 'the cards swapped owners')
       for (const c of [got1, got2]) {
-        assert.equal(c.lockedUntil, firstMidnight(clock.now() + ECONOMY.trade.lockMs), 'received cards are trade-locked for 24 hours, to a midnight')
-        assert.deepEqual([c.forTrade, c.state], [false, 'owned'])
+        assert.deepEqual([c.lockedUntil, c.forTrade, c.state], [0, false, 'owned'], 'free to trade on at once')
       }
       assert.ok((await p1.me()).notices.some(n => n.kind === 'offer-accepted'))
-      return `swapped ${mine.species} for ${theirs.species}, ${fee} sparks each`
+      return `swapped ${mine.species} for ${theirs.species}, no sparks`
     })
 
     let giftCard!: Card
@@ -728,7 +717,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       await p3.fails('claim', { code: 'quiet-otter-lamp-0000' }, 'not_found')
       const { card } = await p3.call('claim', { code: gift.code })
       assert.equal(card.id, giftCard.id)
-      assert.equal(card.lockedUntil, firstMidnight(clock.now() + ECONOMY.trade.lockMs))
+      assert.equal(card.lockedUntil, 0)
       await p1.fails('claim', { code: gift.code }, 'not_found')
       assert.ok((await p1.me()).notices.some(n => n.kind === 'gift-claimed'))
       // the claimant really plays: 5 battles on 2 different days
@@ -766,15 +755,132 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       return `${egg.form!.names[0]}, ${egg.rarity} foil, plus ${got.packs.length} pack`
     })
 
-    await step('leaderboard opt-in', async () => {
+    await step('the market: sold for sparks while away, a swap, a race, a cancel and recent prices', async () => {
       const h1 = (await p1.me()).player.handle
-      assert.ok(!(await p2.call('leaderboard', {})).top.some(r => r.handle === h1), 'off by default')
-      assert.deepEqual(await p1.call('setLeaderboard', { optIn: true }), { leaderboard: true })
+      const pool1 = async () => {
+        const team = (await p1.me()).player.team
+        return (await cardsOf(p1)).filter(c => free(c, clock.now(), team) && c.species.startsWith('s'))
+      }
+      const [forSparks, forSwap, forRace, kept] = await pool1()
+      assert.ok(forSparks && forSwap && forRace && kept, 'four season cards to sell')
+      const sold = (await p1.call('listCard', { cardId: forSparks.id, price: 30 })).listing
+      assert.deepEqual([sold.seller, sold.price, sold.state, sold.day, sold.want], [h1, 30, 'open', utcDay(clock.now()), undefined])
+      assert.equal((await cardsOf(p1)).find(c => c.id === forSparks.id)!.state, 'escrow', 'a listed card waits in escrow')
+      await p1.fails('recycle', { cardId: forSparks.id }, 'not_allowed')
+      await p1.fails('listCard', { cardId: forSparks.id, price: 40 }, 'not_allowed')
+      assert.deepEqual((await p1.me()).listings!.map(l => l.id), [sold.id], 'my open listings')
+      // the seller is away: a day passes, and the buyer finds it on the market
+      clock.tick(DAY)
+      const page = await p2.call('market', { sort: 'cheapest', maxPrice: 30 })
+      assert.ok(page.listings.some(l => l.id === sold.id))
+      for (const k of ['mintedAt', 'lockedUntil', 'origin', 'state', 'bound']) assert.ok(!(k in page.listings[0]!.card), `a listed card shows no ${k}`)
+      await p1.fails('buyListing', { listingId: sold.id }, 'not_allowed')
+      const [s1, s2] = [await sparksOf(p1), await sparksOf(p2)]
+      const bought = await p2.call('buyListing', { listingId: sold.id })
+      assert.deepEqual([bought.card.id, bought.card.state, bought.listing.state, bought.sparks], [forSparks.id, 'owned', 'sold', s2 - 30])
+      assert.deepEqual([await sparksOf(p1), await sparksOf(p2)], [s1 + 30, s2 - 30], 'every spark to the seller: no fee')
+      await p2.fails('buyListing', { listingId: sold.id }, 'conflict')
+      const news = (await p1.me()).notices.find(n => n.kind === 'market-sold')!
+      assert.deepEqual([news.day, news.handle], [utcDay(clock.now()), (await p2.me()).player.handle])
+      // a swap: p2's card that fits what p1 wants
+      const t2 = (await p2.me()).player.team
+      const offerCard = (await cardsOf(p2)).find(c => free(c, clock.now(), t2) && c.id !== forSparks.id)!
+      const swap = (await p1.call('listCard', { cardId: forSwap.id, want: { family: offerCard.family, rarity: offerCard.rarity } })).listing
+      await p2.fails('buyListing', { listingId: swap.id }, 'bad_request')
+      const done = await p2.call('buyListing', { listingId: swap.id, cardId: offerCard.id })
+      assert.equal(done.card.id, forSwap.id)
+      assert.ok((await cardsOf(p1)).some(c => c.id === offerCard.id), 'the wanted card went to the seller')
+      // two buyers at once: exactly one wins, the other hears it is already sold
+      const race = (await p1.call('listCard', { cardId: forRace.id, price: 5 })).listing
+      const out = await Promise.allSettled([p2.call('buyListing', { listingId: race.id }), p3.call('buyListing', { listingId: race.id })])
+      const lost = out.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason as BackendError)
+      assert.deepEqual(lost.map(e => [e.code, e.message]), [['conflict', 'Already sold']])
+      // a sale counts, and keeps its price, once per buyer: p2 bought twice already
+      const newBuyer = out[1]!.status === 'fulfilled'
+      // the seller takes one back, and the prices of what sold show next to the next listing of that species
+      const back = (await p1.call('listCard', { cardId: kept.id, price: 9 })).listing
+      await p3.fails('cancelListing', { listingId: back.id }, 'not_found')
+      assert.equal((await p1.call('cancelListing', { listingId: back.id })).listing.state, 'cancelled')
+      assert.equal((await cardsOf(p1)).find(c => c.id === kept.id)!.state, 'owned')
+      const resold = (await p2.call('listCard', { cardId: forSparks.id, price: 35 })).listing
+      const prices = (await p3.call('market', { species: forSparks.species })).prices.find(p => p.species === forSparks.species)!
+      assert.deepEqual(prices.sales.map(s => s.price), forRace.species === forSparks.species && newBuyer ? [5, 30] : [30],
+        'the sales for sparks, newest first, with no names')
+      assert.equal((await p2.call('cancelListing', { listingId: resold.id })).listing.state, 'cancelled')
+      assert.equal((await p1.me()).player.stats!.marketSales, newBuyer ? 2 : 1, 'sales to different buyers')
+      return `sold for 30 sparks to ${news.handle}, swapped for a ${offerCard.rarity} ${offerCard.family} card, one of two racing buyers won`
+    })
+
+    await step('a challenge by handle, with the defense notice', async () => {
+      const h1 = (await p1.me()).player.handle
+      boot.clock.tick(ECONOMY.battle.tiredMs)
+      await whenAllowed(boot, p2, 'duel')
+      await p2.fails('startBattle', { kind: 'duel', family: p2.family, handle: (await p2.me()).player.handle }, 'not_allowed')
+      await whenAllowed(boot, p2, 'duel')
+      const { start, fin } = await battle(boot, p2, 'duel', { handle: h1 })
+      assert.ok(start.opponent.kind === 'player' && start.opponent.handle === h1, 'the challenged player, not a random one')
+      const kind = fin.result === 'win' ? 'defense-loss' : fin.result === 'loss' ? 'defense-win' : null
+      const h2 = (await p2.me()).player.handle
+      if (kind) assert.ok((await p1.me()).notices.some(n => n.kind === kind && n.handle === h2), `${h1} got a ${kind} notice naming ${h2}`)
+      await p2.fails('startBattle', { kind: 'duel', family: p2.family, handle: h1 }, 'rate_limited')
+      return `${p2.name} challenged ${h1}: ${fin.result}`
+    })
+
+    await step('leaderboards and stats', async () => {
+      // others see the numbers as they stood at the last midnight: the next one, and they are today's
+      clock.tick(DAY - (clock.now() % DAY))
+      const h1 = (await p1.me()).player.handle
       const me = await p1.me()
-      assert.equal(me.player.leaderboard, true)
-      const top = (await p2.call('leaderboard', {})).top
-      assert.deepEqual(top, [{ handle: h1, league: me.player.league, rating: me.player.rating }], 'only players who opted in')
-      return `${h1} listed at ${me.player.rating}`
+      assert.equal(me.player.leaderboard, true, 'on the boards by default')
+      assert.ok((await p2.call('leaderboard', {})).top.some(r => r.handle === h1 && r.rating === me.player.rating))
+      const rating = await p2.call('rankings', {})
+      assert.deepEqual([rating.board, rating.period], ['rating', 'all'])
+      assert.ok(rating.top.some(r => r.handle === h1))
+      const sales = await p1.call('rankings', { board: 'sales', period: 'season' })
+      assert.deepEqual([sales.top[0]!.handle, sales.top[0]!.value, sales.me!.rank], [h1, me.player.stats!.marketSales, 1])
+      const species = await p3.call('rankings', { board: 'species' })
+      assert.ok(species.me && species.me.value === (await p3.me()).player.seen.length)
+      assert.deepEqual(await p1.call('setLeaderboard', { optIn: false }), { leaderboard: false })
+      assert.ok(!(await p2.call('rankings', { board: 'sales' })).top.some(r => r.handle === h1), 'hidden from every board')
+      assert.equal((await p1.call('rankings', { board: 'sales' })).me, undefined)
+      assert.equal((await p2.call('profile', { handle: h1 })).stats, undefined, 'and no stats on the profile')
+      await p1.call('setLeaderboard', { optIn: true })
+      const s = me.player.stats!
+      return `${h1}: ${s.duelWins} duel wins, ${s.playersBeaten} beaten, ${s.wildWins} wild wins, ${s.catches} catches, ${s.speciesCollected} species, ${s.marketSales} sales`
+    })
+
+    await step('a passkey saved, then the same collection, listings and stats on another machine', async () => {
+      const auth = await softAuthenticator()
+      const add = await p2.call('passkeyStart', {})
+      const pageOf = async (url: string) => {
+        const html = await (await fetch(url)).text()
+        const attr = (name: string) => new RegExp(`${name}="([^"]*)"`).exec(html)![1]!
+          .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+        return { ticket: attr('data-ticket'), options: JSON.parse(attr('data-options')) as never }
+      }
+      const post = (path: string, body: unknown) => fetch(`${boot.origin}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      const a = await pageOf(add.url)
+      assert.equal((await post('/passkey/add/finish', { ticket: a.ticket, ...(await auth.create(a.options, boot.origin)) })).status, 200)
+      assert.deepEqual(await p2.call('authPoll', { pollId: add.pollId }), { status: 'added' })
+      const t2 = (await p2.me()).player.team
+      const listedCard = (await cardsOf(p2)).find(c => free(c, clock.now(), t2) && c.species.startsWith('s'))!
+      const listing = (await p2.call('listCard', { cardId: listedCard.id, price: 12 })).listing
+      const warned = async () => (await p2.me()).notices.filter(n => n.kind === 'new-device' && n.text === NOTICE_TEXT.newDevice()).length
+      const warnedBefore = await warned()
+      const laptop = connect(boot, 'p2-laptop', 'haiku')
+      const start = await laptop.call('authStart', {})
+      const s = await pageOf(start.url)
+      assert.equal((await post('/passkey/signin/finish', { ticket: s.ticket, ...(await auth.get(s.options, boot.origin)) })).status, 200)
+      const done = await laptop.call('authPoll', { pollId: start.pollId })
+      assert.ok(done.status === 'done')
+      laptop.token = done.token
+      const there = await laptop.me()
+      const here = await p2.me()
+      assert.deepEqual([there.player.handle, there.player.stats, there.listings!.map(l => l.id)], [here.player.handle, here.player.stats, [listing.id]])
+      assert.equal((await laptop.call('cancelListing', { listingId: listing.id })).listing.state, 'cancelled', 'the other machine acts as the same player')
+      assert.equal(await warned(), warnedBefore + 1, 'the account is told a new device signed in')
+      assert.deepEqual(await laptop.call('devices', {}), { sessions: 2, passkeys: 1 })
+      return `${there.player.handle} on a second machine, ${there.player.stats!.marketSales} sales and its listing there too`
     })
 
     let handles: string[] = []

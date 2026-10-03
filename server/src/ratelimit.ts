@@ -25,6 +25,7 @@ export const RATES: Readonly<Record<string, Rate>> = {
   redeem: { capacity: 10, windowMs: HOUR }, // drop code attempts, per token (exact per address: JOIN_LIMITS.redeem)
   profile: { capacity: 60, windowMs: 60_000 }, // profile lookups by handle, per token (SPEC 26.4)
   board: { capacity: 20, windowMs: 60_000 }, // trade board reads, per token
+  browse: { capacity: 30, windowMs: 60_000 }, // market pages and leaderboards, per token
   share: { capacity: 20, windowMs: 60_000 }, // share images drawn afresh (og and postcard PNGs), per address key
 }
 

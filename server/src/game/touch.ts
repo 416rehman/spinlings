@@ -17,6 +17,7 @@ import { addSparks, commit, ensureSeason, loadPlayer, rngOf, setPlayer } from '.
 import { grantPack, mintCards } from './mint.ts'
 import { NOTICE_TEXT, notice } from './notices.ts'
 import { socialTouch } from './social-touch.ts'
+import { publish } from './stats.ts'
 
 /** One touch step: the writes to commit for this player now, or [] (the usual case). */
 export type TouchStep = (ctx: PlayerCtx) => Promise<Stmt[]>
@@ -42,7 +43,8 @@ export const seasonTurn: TouchStep = async ctx => {
   for (let i = 0; i < end.packs; i++) stmts.push(grantPack(ctx, p.id, pick(rng, FAMILIES), 'season').stmt)
   if (end.legendary) stmts.push(...(await mintCards(ctx, p.id, [mintFor(pick(rng, FAMILIES), 'legendary', rng, ctx.now, 'season')])).stmts)
   stmts.push(notice(ctx, p.id, 'season-end', NOTICE_TEXT.seasonEnd(p.season, end.league, end.packs, end.legendary)))
-  stmts.push(setPlayer(p.id, { season, rating: end.rating }))
+  // the reset moves the rating and season others see, so their midnight values are saved first
+  stmts.push(publish(p.id, ctx.now), setPlayer(p.id, { season, rating: end.rating }))
   return stmts
 }
 

@@ -41,7 +41,8 @@ if ('skip' in local) {
       s.set(open.finishAfter)
       assert.equal((await a.call('finishBattle', { battleId: open.id, inputs: [] })).result, 'win')
       const told = await b.call('me')
-      assert.deepEqual(told.notices.map(n => [n.kind, n.handle]), [['defense-loss', a.me.player.handle]])
+      // (besides the join notice that the boards are open)
+      assert.deepEqual(told.notices.filter(n => n.kind !== 'notice').map(n => [n.kind, n.handle]), [['defense-loss', a.me.player.handle]])
 
       await strong(s, b)
       await s.db.batch([stmt('UPDATE cards SET stats = ? WHERE owner_id = ?', JSON.stringify({ hp: 1, atk: 1, def: 1, spd: 1 }), a.id)])

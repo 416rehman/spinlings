@@ -11,7 +11,9 @@ import type { PlayerRow } from '../schema.ts'
 import { deletionStmts } from './auth.ts'
 import { DAY, ensureSeasons, HOUR, playerGuard } from './ctx.ts'
 
-export const KEEP_DAYS = { notices: 30, resolvedOffers: 30, resolvedGifts: 30, settledBattles: 7, openBattles: 7 } as const
+export const KEEP_DAYS = {
+  notices: 30, resolvedOffers: 30, resolvedGifts: 30, resolvedListings: 30, marketSales: 90, settledBattles: 7, openBattles: 7,
+} as const
 const SWEEP_BATCH = 500
 /** Accounts deleted per run once nobody can reach them. */
 const UNREACHABLE_BATCH = 50
@@ -62,6 +64,8 @@ export async function sweepGame(db: Db, now: number): Promise<void> {
     stmt(capped('notices', 'id', 'day < ?'), daysAgo(KEEP_DAYS.notices)),
     stmt(capped('offers', 'id', `state != 'open' AND resolved < ?`), daysAgo(KEEP_DAYS.resolvedOffers)),
     stmt(capped('gifts', 'code', `state != 'open' AND resolved < ?`), daysAgo(KEEP_DAYS.resolvedGifts)),
+    stmt(capped('listings', 'id', `state != 'open' AND resolved < ?`), daysAgo(KEEP_DAYS.resolvedListings)),
+    stmt(capped('market_sales', 'id', 'day < ?'), daysAgo(KEEP_DAYS.marketSales)),
     // the arena family lives no longer than its battle row (SPEC 20.2), settled or never finished
     stmt(capped('battles', 'id', `state = 'settled' AND settled < ?`), daysAgo(KEEP_DAYS.settledBattles)),
     stmt(capped('battles', 'id', `state = 'open' AND started_at < ?`), now - KEEP_DAYS.openBattles * DAY),

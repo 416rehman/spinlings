@@ -97,7 +97,20 @@ ${(['morning', 'afternoon'] as const).map(h => `html[data-hour=${h}][data-scheme
 
 // ---- the stylesheet ----------------------------------------------------------------------------
 
-export const CSS = `${HOUR_CSS}
+/** A stylesheet's notes are for whoever reads the source: pages ship without them (and lighter for it). */
+const bare = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
+/** Page stylesheets are fixed strings, so each is stripped once and then reused on every render. */
+const BARE = new Map<string, string>()
+const bareOnce = (css: string) => {
+  let out = BARE.get(css)
+  if (out === undefined) {
+    if (BARE.size >= 64) BARE.clear()
+    BARE.set(css, out = bare(css))
+  }
+  return out
+}
+
+export const CSS = bare(`${HOUR_CSS}
 :root{color-scheme:light dark;${fam};${rar};--mythic:${MYTHIC_COLOR};--gold:${RARITY_COLOR.legendary};
 --far:color-mix(in srgb,var(--peaks) 55%,var(--sky4));--pedge:color-mix(in srgb,var(--path) 60%,var(--hill));
 --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -108,7 +121,7 @@ export const CSS = `${HOUR_CSS}
 @media (min-width:1024px){:root{--ap:4px}}
 @media (prefers-color-scheme:dark){:root{--paper:#231915;--pink:#f4e9dc;--psoft:#cdb9a6;--pline:#3e2d25}}
 *,*::before,*::after{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;text-size-adjust:100%;background:var(--night);--hdr:64px;scroll-padding-top:calc(var(--hdr) + 16px)}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;background:var(--night);--hdr:64px;scroll-padding-top:calc(var(--hdr) + 16px);overflow-x:clip}
 @media (max-width:767px){html{--hdr:88px}}
 body{margin:0;background:var(--paper);color:var(--pink);font:400 1.0625rem/1.6 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:clip}
 svg{display:block}
@@ -123,7 +136,6 @@ code,pre{font-family:var(--mono);font-size:.9375rem}
 button{font:inherit;color:inherit}
 .wrap{width:100%;max-width:1184px;margin-left:auto;margin-right:auto;padding-left:16px;padding-right:16px}
 @media (min-width:768px){.wrap{padding-left:32px;padding-right:32px}}
-html{overflow-x:clip}
 [hidden]{display:none!important}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .mark{font-variant-emoji:text}
@@ -136,7 +148,7 @@ html:not(.js) .js-only{display:none!important}
 .pt{display:block;font-size:0;line-height:0}
 .pt .pw{display:inline-block;vertical-align:top;width:calc(var(--w) * var(--gp));height:calc(9 * var(--gp));margin:0 calc(3 * var(--gp)) calc(2 * var(--gp)) 0}
 .pt .pw.bd{width:calc(var(--w) * var(--gp) / 2);height:calc(10 * var(--gp));margin:0 calc(3 * var(--gp)) calc(3 * var(--gp)) 0}
-.pt .pw:last-child,.pt .pw.bd:last-child{margin-right:0}
+.pt .pw:last-child{margin-right:0}
 .pw g{transform-box:fill-box}
 .pw.bd .sh{fill:var(--hsh,currentColor);fill-opacity:var(--sho,.34)}
 h1 .pt{--gp:3px}
@@ -212,6 +224,22 @@ html.js .home .walker.on{opacity:1}
 .slot.empty .in2 .pw{width:15px;height:27px}
 .slot:not(.empty):hover .in2{border-color:#8f88ad}
 .slot.flash .in2{background:#fffdf5}
+/* the way to the source: a notched pixel frame (its ledge drawn inside, so the focus ring sits evenly round it) */
+.end{display:flex;align-items:center;gap:var(--s3)}
+.gh{--fy:6px;position:relative;display:flex;align-items:center;gap:var(--s2);height:44px;padding:0 12px 2px;color:inherit;font-size:.9375rem;font-weight:700;line-height:1;text-decoration:none;white-space:nowrap}
+.gh::before{content:"";position:absolute;inset:var(--fy) 2px;box-shadow:0 -2px,0 2px,-2px 0,2px 0,inset 0 -2px;opacity:.78}
+.gh svg{width:20px;height:20px}
+.gh::after{content:"";position:absolute;right:-1px;top:calc(var(--fy) - 3px);width:3px;height:3px;background:#fff6c9;box-shadow:-3px 0 #f2b33d,3px 0 #f2b33d,0 -3px #f2b33d,0 3px #f2b33d;opacity:0}
+.gh:focus-visible::before{opacity:1;background:color-mix(in srgb,currentColor 14%,#0000)}
+.gh:focus-visible{outline:0}.gh:focus-visible::before{outline:3px solid;outline-offset:5px}
+.gh:focus-visible::after{opacity:1;animation:twk 1.8s steps(1) infinite;right:-6px;top:calc(var(--fy) - 8px)}
+.gh:focus-visible svg{animation:ghop .3s steps(1)}
+/* a tap is not a hover: only a real pointer lights it up, so nothing stays lit after a touch (or a trip back) */
+@media (hover:hover){.gh:hover::before{opacity:1;background:color-mix(in srgb,currentColor 14%,#0000)}.gh:hover::after{opacity:1;animation:twk 1.8s steps(1) infinite}.gh:hover svg{animation:ghop .3s steps(1)}}
+@keyframes ghop{0%,66%{transform:translateY(-2px)}33%{transform:translateY(-4px)}}
+.gh:active{padding:2px 12px 0}.gh:active::before{inset:calc(var(--fy) + 2px) 2px var(--fy);box-shadow:0 -2px,0 2px,-2px 0,2px 0}.gh:active::after{translate:0 2px}
+.ghl{display:none}
+@media (min-width:1024px){.ghl{display:inline}}
 .home .top{background:var(--sky1);color:var(--ink)}
 .home .top.solid{background:#14121c;color:#f4f2fb}
 .top .hdz{position:absolute;left:0;right:0;top:100%;overflow:hidden;height:calc(2 * var(--ap));opacity:0;pointer-events:none}
@@ -224,6 +252,7 @@ html.js .home .walker.on{opacity:1}
 .trail a{min-height:32px;padding:0 4px;font-size:.875rem}
 .trail .dots{max-width:none}
 .slot{width:36px;height:44px}.slot .in2{width:32px;height:32px}.slot svg.spr{width:24px;height:24px}
+.end{gap:var(--s2)}.gh{--fy:8px}
 }
 
 /* footer */
@@ -290,7 +319,7 @@ background:linear-gradient(115deg,transparent calc(var(--hx,50%) - 15%),#ff7ac6 
 html[data-motion=reduce] *,html[data-motion=reduce] *::before,html[data-motion=reduce] *::after{animation:none!important;transition:none!important}
 html[data-hidden] *{animation-play-state:paused!important}
 
-`
+`)
 
 /** Quiet pages (the almanac, privacy, "not here"): prose and tables on paper. */
 export const PAPER_CSS = `
@@ -401,7 +430,7 @@ ${og.image ? html`<meta property="og:image" content="${og.image}">
 <meta property="og:image:alt" content="${og.imageAlt ?? og.title}">
 <meta name="twitter:card" content="summary_large_image">` : html`<meta name="twitter:card" content="summary">`}` : ''}
 ${scripted ? html`<script src="/static/${SITE_ASSETS.sky}"></script>` : ''}
-<style>${raw(CSS + (o.css ?? ''))}</style>
+<style>${raw(CSS + bareOnce(o.css ?? ''))}</style>
 ${kind === 'passkey' ? html`<script src="/static/passkey.js" defer></script>` : ''}
 ${scripted ? html`<script type="module" src="/static/${SITE_ASSETS.site}"></script>` : ''}
 </head>
@@ -441,24 +470,30 @@ function wordmark(): string {
 
 const STOPS = [['battle', 'Battle'], ['collect', 'Collect'], ['trade', 'Trade'], ['install', 'Install']] as const
 
+/** The header's way to the source: its accessible name at every width (the words show from 1024 px). */
+export const SOURCE_NAME = 'Open source on GitHub'
+/** The GitHub mark, Octicons' mark-github (MIT), drawn inline so the page still asks nobody for anything. */
+const GITHUB_MARK = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>'
+
 function header(kind: PageKind, team: boolean): Raw {
   const home = kind === 'home'
   return html`<header class="top" id="top">
 <div class="in wrap">
 <a class="brand" href="/" aria-label="Spinlings, home">${raw(wordmark())}</a>
 <nav class="trail" aria-label="Sections">${STOPS.map(([id, label], i) => html`${i ? html`<span class="dots" aria-hidden="true"></span>` : ''}<a href="${home ? '' : '/'}#${id}" data-stop="${id}">${label}</a>`)}<span class="walker" aria-hidden="true"></span></nav>
-${team ? html`<div class="team js-only" role="group" aria-label="Your team">
+<div class="end">${team ? html`<div class="team js-only" role="group" aria-label="Your team">
 <button class="slot empty" type="button" data-slot="0" title="Meet the wild one to fill this spot." aria-label="Empty spot. Meet the wild one to fill this spot."><span class="in2">${raw(wordSvg('?', 'pw q'))}</span></button>
 <button class="slot" type="button" data-slot="1"><span class="in2"></span></button>
 <button class="slot" type="button" data-slot="2"><span class="in2"></span></button>
 </div>` : ''}
+<a class="gh" href="${REPO}" aria-label="${SOURCE_NAME}">${raw(GITHUB_MARK)}<span class="ghl">Open source</span></a></div>
 </div>
 <div class="hdz" aria-hidden="true">${raw(HEADER_DITHER)}</div>
 </header>`
 }
 
-/** The header's ragged bottom edge once it turns solid: every other art pixel. */
-const HEADER_DITHER = `<svg class="dz" viewBox="0 0 1000 2" style="--aw:1000;--ah:2" shape-rendering="crispEdges" focusable="false"><path d="${Array.from({ length: 500 }, (_, i) => `M${i * 2} 0h1v1h-1z`).join('')}"/></svg>`
+/** The header's ragged bottom edge once it turns solid: every other art pixel, each a step on from the last. */
+const HEADER_DITHER = `<svg class="dz" viewBox="0 0 1000 2" style="--aw:1000;--ah:2" shape-rendering="crispEdges" focusable="false"><path d="M0 0h1v1h-1z${'m2 0h1v1h-1z'.repeat(499)}"/></svg>`
 
 let NAPPER = ''
 function napper(): string {

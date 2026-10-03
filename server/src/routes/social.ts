@@ -1,25 +1,26 @@
-// Social (SPEC 8, 19, 20, 24, 26, 30): profiles, the opt-in leaderboard, the trade board, offers,
-// gifts and claims. Reads skip touch; every change is one guarded batch (game/social.ts) that a
-// Conflict re-runs from its reads. Lapsed offers and gifts settle on their owner's touch and, for
-// players who never come back, on the hourly sweep (game/social-touch.ts). Handle rerolls and the
-// leaderboard opt-in live in routes/account.ts; drop codes in routes/collection.ts.
+// Social (SPEC 8, 19, 20, 24, 26): profiles, the rating board as 0.1.0 reads it, the trade board,
+// offers, gifts and claims. Reads skip touch; every change is one guarded batch (game/social.ts) that
+// a Conflict re-runs from its reads. Lapsed offers, gifts and listings settle on their owner's touch
+// and, for players who never come back, on the hourly sweep (game/social-touch.ts). Handle rerolls
+// and hiding from the leaderboards live in routes/account.ts; the market and every other board in
+// routes/market.ts; drop codes in routes/collection.ts.
 import type { Api } from '../app.ts'
 import { apiRoute, commit, notFound } from '../game/ctx.ts'
 import {
-  acceptOffer, cancelGift, cancelOffer, checkOffer, claimGift, counterOffer, declineOffer, liveOffer, makeGift, mustTrade,
-  playerByHandle, sendOffer, SOCIAL_TEXT,
+  acceptOffer, cancelGift, cancelOffer, checkOffer, claimGift, counterOffer, declineOffer, liveOffer, makeGift, playerByHandle,
+  sendOffer, SOCIAL_TEXT,
 } from '../game/social.ts'
-import { boardFor, leaderboardTop, profileOf } from '../game/social-board.ts'
+import { boardFor, profileOf } from '../game/social-board.ts'
 import { sweepSocial } from '../game/social-touch.ts'
+import { ratingTop } from '../game/stats.ts'
 
 export function social(api: Api): void {
   // Handles are looked up only by exact match, and every lookup spends from the profile bucket (SPEC 26.4).
   apiRoute(api, 'profile', async (ctx, req) => (await profileOf(ctx.db, req.handle, ctx.now)) ?? notFound('player'), { touch: false, limit: 'profile' })
-  apiRoute(api, 'leaderboard', async ctx => leaderboardTop(ctx.db), { touch: false })
+  apiRoute(api, 'leaderboard', async ctx => ratingTop(ctx.db, ctx.now), { touch: false })
   apiRoute(api, 'board', async ctx => boardFor(ctx), { touch: false, limit: 'board' })
 
   apiRoute(api, 'offer', async (ctx, req) => {
-    mustTrade(ctx.player, ctx.now)
     const to = (await playerByHandle(ctx.db, req.to)) ?? notFound('player')
     const sent = sendOffer(ctx, await checkOffer(ctx, to, req.give, req.get), SOCIAL_TEXT.offerReceived)
     await commit(ctx, sent.stmts)

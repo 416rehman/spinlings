@@ -4,7 +4,7 @@
 import { API_ROUTES } from '../../../plugin/hooks/core/api.ts'
 import type { ApiOp, ApiRequest, ApiResponse } from '../../../plugin/hooks/core/api.ts'
 import { rngFromSeed } from '../../../plugin/hooks/core/rng.ts'
-import { cleanText, parsePathParam, parseRequest, SchemaError } from '../../../plugin/hooks/core/schemas.ts'
+import { cleanText, parsePathParam, parseQuery, parseRequest, SchemaError } from '../../../plugin/hooks/core/schemas.ts'
 import { toHex } from '../../../plugin/hooks/core/sha256.ts'
 import { GENERATOR_VERSION, installSeason, seasonSpecies } from '../../../plugin/hooks/core/species.ts'
 import type { Rng, Species } from '../../../plugin/hooks/core/types.ts'
@@ -73,12 +73,15 @@ type RouteOptions = { limit?: string }
 
 /**
  * The request of an API operation, checked strictly: the JSON body against REQUEST_SCHEMAS (unknown
- * keys refused) and every `:name` path segment against PATH_PARAMS. Any mismatch is a 400 naming the
- * path, never echoing a value.
+ * keys refused), every `:name` path segment against PATH_PARAMS, and on a route with query fields
+ * the query string too (a field it does not take, or one given twice, refused). Any mismatch is a
+ * 400 naming the path, never echoing a value.
  */
-export function requestOf<K extends ApiOp>(ctx: Pick<Ctx, 'body' | 'params'>, op: K): ApiRequest<K> {
+export function requestOf<K extends ApiOp>(ctx: Pick<Ctx, 'body' | 'params'> & { readonly url?: URL }, op: K): ApiRequest<K> {
   try {
     const out = { ...(parseRequest(op, ctx.body) as Record<string, unknown>) }
+    const query = API_ROUTES[op].query
+    if (query && ctx.url) Object.assign(out, parseQuery(query, ctx.url.searchParams))
     for (const [, name] of API_ROUTES[op].path.matchAll(/:([A-Za-z]+)/g)) {
       const value = parsePathParam(name!, ctx.params[name!] ?? '')
       out[name!] = name === 'season' ? Number(value) : value

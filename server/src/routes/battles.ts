@@ -1,5 +1,5 @@
-// Battles (SPEC 5, 13-19, 24, 26, 32): start, finish and catch. The server picks the team, the
-// opponent and the seed, re-simulates the inputs with the battle's own rules version and pays out in
+// Battles (SPEC 5, 8, 13-19, 24, 26, 32): start (wild, a duel, a revenge or a challenge by handle),
+// finish and catch. The server picks the team, the opponent (unless challenged by handle) and the seed, re-simulates the inputs with the battle's own rules version and pays out in
 // one guarded batch; the client only animates. Another player's battle answers 404 (SPEC 26.3).
 // Pacing instead of quotas (SPEC 24): wild starts 8 minutes apart, duels 2, one open battle, and no
 // finish sooner than the server's own replay could have played. A finish pays once; asked again,
@@ -17,6 +17,8 @@ export function battles(api: Api): void {
     let p = ctx.player
     if (req.kind === 'wild') checkWildStart(p, ctx.now)
     else checkDuelStart(p, ctx.now)
+    // a challenge looks a handle up, so it spends from the same bucket as a profile (SPEC 26.4)
+    if (req.handle !== undefined) ctx.limit('profile')
     // one open battle at a time: the one left open settles first, with no inputs (SPEC 15)
     const open = await openBattleOf(ctx.db, p.id)
     if (open) {

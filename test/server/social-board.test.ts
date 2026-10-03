@@ -1,10 +1,11 @@
-// What players see of each other (SPEC 8, 19, 20.3, 26.4): profiles by exact handle, the opt-in
-// leaderboard and the trade board with its matches, recent listings and the Wandering Trader.
+// What players see of each other (SPEC 8, 19, 20.3, 26.4): profiles by exact handle (stats unless
+// hidden), the rating board as 0.1.0 reads it and the trade board with its matches, recent listings
+// and the Wandering Trader. The other boards are in boards-stats.test.ts.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { leagueOf } from '../../plugin/hooks/core/economy.ts'
 import { stmt } from '../../server/src/db.ts'
-import { MINUTE, server } from './scaffold-helpers.ts'
+import { DAY, MINUTE, server } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
 import { assertNoIds, assertPublic, fresh, list, trust } from './social-helpers.ts'
 
@@ -12,7 +13,7 @@ const handle = (p: Player) => p.me.player.handle
 const asleep = (s: Server, ...players: Player[]) => s.db.batch(players.map(p => stmt(`UPDATE players SET last_seen = '2026-09-10' WHERE id = ?`, p.id)))
 
 describe('profiles', () => {
-  it('show exactly the handle, league, team, cards on the trade list and the album count', async () => {
+  it('show exactly the handle, league, team, cards on the trade list, the album count and stats', async () => {
     const s = server()
     const [a, b] = [await s.join(), await s.join('sonnet')]
     await trust(s, b)
@@ -20,8 +21,17 @@ describe('profiles', () => {
     await list(b, w!, held!)
     await b.call('offer', { to: handle(a), give: [held!.id], get: [] })
     await s.db.batch([stmt('UPDATE players SET rating = 1350 WHERE id = ?', b.id)])
+    // the next midnight: a profile shows the numbers of the last one (boards-stats.test.ts)
+    s.set((Math.floor(s.now() / DAY) + 1) * DAY)
     const profile = await a.call('profile', { handle: handle(b) })
-    assert.deepEqual(Object.keys(profile).sort(), ['forTrade', 'handle', 'league', 'seenCount', 'team'])
+    assert.deepEqual(Object.keys(profile).sort(), ['forTrade', 'handle', 'league', 'seenCount', 'stats', 'team'])
+    assert.deepEqual(Object.keys(profile.stats!).sort(), [
+      'catches', 'duelLosses', 'duelWins', 'firstFinds', 'marketSales', 'mythicsFound', 'playersBeaten', 'speciesCollected', 'wildWins',
+    ])
+    assert.equal(profile.stats!.speciesCollected, (await b.call('me')).player.seen.length)
+    await b.call('setLeaderboard', { optIn: false })
+    assert.equal((await a.call('profile', { handle: handle(b) })).stats, undefined, 'hidden: no stats on the profile')
+    await b.call('setLeaderboard', { optIn: true })
     const team = (await b.call('me')).player.team
     const album = (await b.call('me')).player.seen.length
     assert.deepEqual([profile.handle, profile.league, profile.team.map(c => c.id), profile.forTrade.map(c => c.id), profile.seenCount],
@@ -62,25 +72,24 @@ describe('profiles', () => {
   })
 })
 
-describe('the leaderboard', () => {
-  it('lists only players who opted in, best first, with handle, league and rating', async () => {
+describe('the leaderboard (GET /v1/leaderboard, as 0.1.0 reads it)', () => {
+  it('lists every player who has battled and has not hidden, best first, with handle, league and rating', async () => {
     const s = server()
-    const [a, b, c] = [await s.join(), await s.join(), await s.join()]
+    const [a, b, c, d] = [await s.join(), await s.join(), await s.join(), await s.join()]
     await s.db.batch([
-      stmt('UPDATE players SET rating = 1200 WHERE id = ?', a.id),
-      stmt('UPDATE players SET rating = 1750 WHERE id = ?', b.id),
-      stmt('UPDATE players SET rating = 1900 WHERE id = ?', c.id),
+      stmt('UPDATE players SET rating = 1200, battles = 1 WHERE id = ?', a.id),
+      stmt('UPDATE players SET rating = 1750, battles = 4 WHERE id = ?', b.id),
+      stmt('UPDATE players SET rating = 1900, battles = 2 WHERE id = ?', c.id),
     ])
-    assert.deepEqual((await a.call('leaderboard')).top, [])
-    await a.call('setLeaderboard', { optIn: true })
-    await b.call('setLeaderboard', { optIn: true })
-    const { top } = await c.call('leaderboard')
+    assert.equal((await d.call('me')).player.leaderboard, true, 'on the boards by default')
+    await c.call('setLeaderboard', { optIn: false })
+    const { top } = await d.call('leaderboard')
     assert.deepEqual(top, [
       { handle: handle(b), league: leagueOf(1750).name, rating: 1750 },
       { handle: handle(a), league: leagueOf(1200).name, rating: 1200 },
-    ])
-    await a.call('setLeaderboard', { optIn: false })
-    assert.deepEqual((await c.call('leaderboard')).top.map(r => r.handle), [handle(b)])
+    ], 'c hid, d has not battled yet')
+    await c.call('setLeaderboard', { optIn: true })
+    assert.deepEqual((await d.call('leaderboard')).top.map(r => r.handle), [handle(c), handle(b), handle(a)])
   })
 })
 

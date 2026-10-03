@@ -1,8 +1,9 @@
-// Trading between players (SPEC 8, 15, 16, 20, 24, 26, 30): offers whose cards wait in escrow and
+// Trading between players (SPEC 8, 15, 16, 20, 24, 26): offers whose cards wait in escrow and
 // swap in one batch, gifts by code, and what time does to both (expiry, the giver's bonus pack).
 // Every check made here in plain code is made again by a guard in the batch that acts on it, and
-// another player's offer or gift answers 404 exactly like a missing one. No daily quotas: only the
-// trust gate, open-offer and open-gift storage, the trade fee and the claim brute-force cap.
+// another player's offer or gift answers 404 exactly like a missing one. No account limits, fees
+// or trade locks: only open-offer and open-gift storage and the claim brute-force cap. Bound cards
+// (starters, bound drops) never trade: that is the card's own property.
 import type { GiftView, OfferState, OfferView } from '../../../plugin/hooks/core/api.ts'
 import { ECONOMY } from '../../../plugin/hooks/core/economy.ts'
 import { FAMILIES } from '../../../plugin/hooks/core/families.ts'
@@ -16,12 +17,12 @@ import { fail, HttpError } from '../http.ts'
 import type { ErrorCode } from '../http.ts'
 import type { GiftRow, OfferRow, PlayerRow } from '../schema.ts'
 import { leaveTeam, mustBeTradeable } from './collection.ts'
-import { addDays, addSparks, bumpPlayer, commit, DAY, dayStart, HOUR, loadPlayer, mustAfford, newGiftCode, newId, notFound, readJson, rngOf, setPlayer } from './ctx.ts'
+import { addDays, bumpPlayer, commit, DAY, dayStart, HOUR, loadPlayer, newGiftCode, newId, notFound, readJson, rngOf, setPlayer } from './ctx.ts'
 import type { Env } from './ctx.ts'
 import { bumpCards, cardGuard, cardsByIds, grantPack, offerViews, ownCard, ownCards, publicCard, saveCard } from './mint.ts'
 import type { ArenaCounts, StoredCard } from './mint.ts'
 import { notice } from './notices.ts'
-import { trusted } from './pacing.ts'
+import { albumAdd } from './stats.ts'
 
 const TRADE = ECONOMY.trade
 const GIFT = ECONOMY.gift
@@ -31,7 +32,6 @@ const GIFT = ECONOMY.gift
  * one. News of an offer names its receiver only while they still have the handle it was sent to.
  */
 export const SOCIAL_TEXT = {
-  notTrusted: 'Trading opens once your account is 3 days old with 10 battles',
   offerReceived: 'A trade offer arrived',
   countered: 'Your offer came back with a counter-offer',
   accepted: 'Your trade went through',
@@ -42,11 +42,6 @@ export const SOCIAL_TEXT = {
   bonusPack: 'Someone you sent a gift is playing: a bonus pack for you!',
 }
 
-/** Trading and sending gifts wait for the trust gate (SPEC 30); claiming and declining never do. */
-export function mustTrade(p: Pick<PlayerRow, 'joined' | 'battles'>, now: number): void {
-  if (!trusted(p, now)) fail('not_allowed', SOCIAL_TEXT.notTrusted)
-}
-
 export const playerByHandle = (db: Db, handle: string): Promise<PlayerRow | undefined> =>
   db.get<PlayerRow>('SELECT * FROM players WHERE handle = ?', handle)
 
@@ -54,9 +49,6 @@ export const playerByHandle = (db: Db, handle: string): Promise<PlayerRow | unde
 
 /** An offer runs until the first UTC midnight at least 72 hours on. */
 export const offerExpiry = (now: number): number => dayStart(utcDay(now + TRADE.expiryMs)) + DAY
-
-/** A card that changes hands is trade-locked until the first UTC midnight at least 24 hours on. */
-export const tradeLock = (now: number): number => Math.ceil((now + TRADE.lockMs) / DAY) * DAY
 
 /** A gift's lapse day: it can be claimed until the first UTC midnight at least 14 days on. */
 export const giftExpiry = (now: number): string => addDays(utcDay(now + GIFT.ttlMs), 1)
@@ -67,27 +59,25 @@ const giftLive = (g: Pick<GiftRow, 'state' | 'expires'>, now: number): boolean =
 
 const NO_ARENA: ArenaCounts = { haiku: 0, sonnet: 0, opus: 0, fable: 0 }
 
-/** Held for an offer or a gift (`ref`): out of every other action until it resolves. */
-const hold = (c: StoredCard, ref: string): Stmt => saveCard(c, { ...c.card, state: 'escrow' }, { escrowRef: ref })
+/** Held for an offer, a gift or a market listing (`ref`): out of every other action until it resolves. */
+export const hold = (c: StoredCard, ref: string): Stmt => saveCard(c, { ...c.card, state: 'escrow' }, { escrowRef: ref })
 
 /** Every card the owner holds for `ref` goes home. */
-const release = (ref: string, owner: string): Stmt =>
+export const release = (ref: string, owner: string): Stmt =>
   stmt(`UPDATE cards SET state = 'owned', escrow_ref = NULL, version = version + 1 WHERE escrow_ref = ? AND owner_id = ? AND state = 'escrow'`, ref, owner)
 
 /**
- * A card changing hands (SPEC 8): home with its new owner, off the market, rested and trade-locked
- * until the first midnight 24 hours on, so its lock never tells the other side of a trade the hour
- * it went through. It arrives as a gift made today, with its arena counts and raised form gone, so
- * nothing on it tells the new owner when or how the last one got it, or which arenas (which model)
- * they battled in (SPEC 18, 20.2, 20.3).
+ * A card changing hands (SPEC 8): home with its new owner, off the trade list, rested, free to trade
+ * again at once, and its species in the new owner's album. It arrives as a gift made today, with its
+ * arena counts and raised form gone, so nothing on it tells the new owner when or how the last one
+ * got it, or which arenas (which model) they battled in (SPEC 18, 20.2, 20.3).
  */
-export function handOver(c: StoredCard, to: string, now: number): { card: Card; stmt: Stmt } {
+export function handOver(c: StoredCard, to: string, now: number): { card: Card; stmts: Stmt[] } {
   const { raisedIn: _, ...kept } = c.card
   const card: Card = {
-    ...kept, state: 'owned', forTrade: false, tiredUntil: 0, lockedUntil: Math.max(c.card.lockedUntil, tradeLock(now)),
-    origin: 'gift', mintedAt: dayStart(utcDay(now)),
+    ...kept, state: 'owned', forTrade: false, tiredUntil: 0, lockedUntil: 0, origin: 'gift', mintedAt: dayStart(utcDay(now)),
   }
-  return { card, stmt: saveCard(c, card, { owner: to, escrowRef: null, arena: NO_ARENA }) }
+  return { card, stmts: [saveCard(c, card, { owner: to, escrowRef: null, arena: NO_ARENA }), ...albumAdd(to, c.card.species, now)] }
 }
 
 // ---- offers ------------------------------------------------------------------------------------
@@ -130,26 +120,26 @@ export async function liveOffer(ctx: PlayerCtx, id: string, as: 'from' | 'to'): 
  * What an offer may ask for: the receiver's cards on their trade list, the only ones their profile
  * shows; a counter-offer may also ask for the cards coming home from the offer it answers.
  */
-function askable(c: StoredCard | undefined, owner: string, now: number, answering?: OfferRow): c is StoredCard {
-  if (!c || c.owner !== owner || c.card.bound || c.card.lockedUntil > now) return false
+function askable(c: StoredCard | undefined, owner: string, answering?: OfferRow): c is StoredCard {
+  if (!c || c.owner !== owner || c.card.bound) return false
   if (answering && c.card.state === 'escrow' && c.escrowRef === answering.id) return true
   return c.card.state === 'owned' && c.card.forTrade
 }
 
 export type Outgoing = { to: PlayerRow; give: StoredCard[]; get: StoredCard[] }
 
-/** An offer the caller (already past the trust gate) wants to send: the 20 open offers, then every card. */
+/** An offer the caller wants to send: the open offers it may hold (storage), then every card. */
 export async function checkOffer(ctx: PlayerCtx, to: PlayerRow, giveIds: readonly string[], getIds: readonly string[], answering?: OfferRow): Promise<Outgoing> {
   const p = ctx.player
   if (to.id === p.id) fail('not_allowed', 'A trade takes two players')
   const open = (await ctx.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM offers WHERE from_id = ? AND state = 'open'`, p.id))!.n
   if (open >= TRADE.openOutgoing) fail('cap_reached', `You have ${TRADE.openOutgoing} offers waiting: cancel one to send another`)
   const give = await ownCards(ctx.db, p.id, giveIds)
-  for (const c of give) mustBeTradeable(c, ctx.now)
+  for (const c of give) mustBeTradeable(c)
   const found = await cardsByIds(ctx.db, getIds)
   const get = getIds.map(id => {
     const c = found.get(id)
-    return askable(c, to.id, ctx.now, answering) ? c : notFound('card')
+    return askable(c, to.id, answering) ? c : notFound('card')
   })
   return { to, give, get }
 }
@@ -183,13 +173,12 @@ export function sendOffer(ctx: PlayerCtx, o: Outgoing, text: string): { view: Of
 }
 
 /**
- * Accepting (SPEC 8): the offered cards are still held for it, every card asked for is still the
- * caller's and free to trade, and each side can pay 10 sparks per card it receives (burned). Then
- * everything moves at once; if anything changed meanwhile, the batch fails and the handler re-runs.
+ * Accepting (SPEC 8): the offered cards are still held for it and every card asked for is still the
+ * caller's and free to trade. Then everything moves at once, with no fee; if anything changed
+ * meanwhile, the batch fails and the handler re-runs.
  */
 export async function acceptOffer(ctx: PlayerCtx, o: OfferRow): Promise<OfferView> {
   const p = ctx.player
-  mustTrade(p, ctx.now)
   const from = (await loadPlayer(ctx.db, o.from_id)) ?? notFound('offer')
   const giveIds = idsOf(o.give), getIds = idsOf(o.get)
   const cards = await cardsByIds(ctx.db, [...giveIds, ...getIds])
@@ -197,22 +186,16 @@ export async function acceptOffer(ctx: PlayerCtx, o: OfferRow): Promise<OfferVie
   if (give.length !== giveIds.length) fail('conflict', 'Those cards are no longer on offer')
   const get = getIds.map(id => cards.get(id)).filter((c): c is StoredCard => c?.owner === p.id)
   if (get.length !== getIds.length) fail('conflict', 'You no longer have every card they asked for')
-  for (const c of get) mustBeTradeable(c, ctx.now)
-  const myFee = give.length * TRADE.fee
-  const theirFee = get.length * TRADE.fee
-  mustAfford(p, myFee)
-  if (from.sparks < theirFee) fail('insufficient_sparks', 'They cannot pay the trade fee right now')
+  for (const c of get) mustBeTradeable(c)
   const moves = [...give.map(c => handOver(c, p.id, ctx.now)), ...get.map(c => handOver(c, from.id, ctx.now))]
   await commit(ctx, [
     liveGuard(o, ctx.now),
-    guard('SELECT sparks >= ? FROM players WHERE id = ?', theirFee, from.id),
+    guard('SELECT 1 FROM players WHERE id = ?', from.id),
     ...give.map(c => cardGuard(c, 'escrow')),
     ...get.map(c => cardGuard(c, 'owned')),
-    ...moves.map(m => m.stmt),
+    ...moves.flatMap(m => m.stmts),
     ...leaveTeam(p, getIds),
-    addSparks(p.id, -myFee),
-    // the sender's sparks change, so their version moves: a spend of theirs read before this re-runs
-    addSparks(from.id, -theirFee),
+    // the sender's album (and its count) may change, so their version moves
     bumpPlayer(from.id),
     settle(o, 'accepted', ctx.now),
     bumpCards(p.id),
@@ -245,7 +228,6 @@ export async function cancelOffer(ctx: PlayerCtx, o: OfferRow): Promise<OfferVie
  * the handle the offer came from, so a sender who has rerolled since is never named by the new one.
  */
 export async function counterOffer(ctx: PlayerCtx, o: OfferRow, giveIds: readonly string[], getIds: readonly string[]): Promise<OfferView> {
-  mustTrade(ctx.player, ctx.now)
   const sender = (await loadPlayer(ctx.db, o.from_id)) ?? notFound('offer')
   const sent = sendOffer(ctx, await checkOffer(ctx, { ...sender, handle: o.from_handle }, giveIds, getIds, o), SOCIAL_TEXT.countered)
   await commit(ctx, [liveGuard(o, ctx.now), release(o.id, o.from_id), settle(o, 'declined', ctx.now), bumpCards(o.from_id), ...sent.stmts])
@@ -259,9 +241,8 @@ const giftGuard = (g: GiftRow): Stmt => guard(`SELECT 1 FROM gifts WHERE code = 
 /** POST /v1/gifts (SPEC 8): one tradeable card held under a fresh code, valid for 14 days. */
 export async function makeGift(ctx: PlayerCtx, cardId: string): Promise<GiftView> {
   const p = ctx.player
-  mustTrade(p, ctx.now)
   const c = await ownCard(ctx.db, p.id, cardId)
-  mustBeTradeable(c, ctx.now)
+  mustBeTradeable(c)
   const open = (await ctx.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM gifts WHERE giver_id = ? AND state = 'open'`, p.id))!.n
   if (open >= GIFT.open) fail('cap_reached', `You have ${GIFT.open} gifts waiting to be claimed`)
   // a code already in use is a unique-key Conflict: the handler re-runs and draws another
@@ -290,7 +271,7 @@ export async function cancelGift(ctx: PlayerCtx, code: string): Promise<GiftView
 }
 
 /**
- * POST /v1/claim (SPEC 8): open to everyone but the giver, no trust gate (the invite loop). Every
+ * POST /v1/claim (SPEC 8): open to everyone but the giver (the invite loop). Every
  * attempt, right or wrong, spends one of 5 tries an hour, counted exactly on the player row. A wrong,
  * spent and lapsed code answer alike. The giver's bonus waits for a claimant who joined after the gift.
  */
@@ -318,7 +299,7 @@ export async function claimGift(ctx: PlayerCtx, code: string): Promise<Card> {
     spend,
     guard(`SELECT 1 FROM gifts WHERE code = ? AND state = 'open' AND version = ? AND expires > ?`, g.code, g.version, day),
     cardGuard(held, 'escrow'),
-    moved.stmt,
+    ...moved.stmts,
     stmt(`UPDATE gifts SET state = 'claimed', claimed_by = ?, resolved = ?, bonus = ?, version = version + 1 WHERE code = ?`,
       p.id, day, p.joined >= g.created ? 1 : 0, g.code),
     bumpCards(p.id),

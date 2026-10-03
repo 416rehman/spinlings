@@ -61,7 +61,7 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     return err
   }
 
-  /** Past the trust gate and rich, straight in the database: this suite checks shapes, the e2e run plays the days out. */
+  /** Older and rich, straight in the database: this suite checks shapes, the e2e run plays the days out. */
   const trust = (who: Client) => boot.db.batch([stmt('UPDATE players SET battles = 10, joined = ?, sparks = 5000 WHERE handle = ?', utcDay(T0 - 3 * DAY), handleOf(who))])
   const handles = new Map<Client, string>()
   const everyone: Client[] = []
@@ -101,7 +101,7 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     const wish = familySpecies(1, 'fable').slice(0, 2).map(s => s.id)
     assert.deepEqual((await a.call('setWishlist', { species: wish })).wishlist, wish)
     assert.deepEqual(await a.call('setLeaderboard', { optIn: true }), { leaderboard: true })
-    assert.deepEqual((await b.call('leaderboard', {})).top.map(r => r.handle), [handleOf(a)])
+    assert.deepEqual((await b.call('leaderboard', {})).top, [], 'nobody has battled yet')
     const renamed = await a.call('rerollHandle', {})
     handles.set(a, renamed.handle)
     await refused(a, 'rerollHandle', {}, 'rate_limited', 429)
@@ -206,8 +206,7 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     assert.equal(counter.from, handleOf(b))
     const [sa, sb] = [(await a.me()).player.sparks, (await b.me()).player.sparks]
     assert.equal((await a.call('acceptOffer', { offerId: counter.id })).offer.state, 'accepted')
-    assert.equal((await a.me()).player.sparks, sa - ECONOMY.trade.fee)
-    assert.equal((await b.me()).player.sparks, sb - ECONOMY.trade.fee)
+    assert.deepEqual([(await a.me()).player.sparks, (await b.me()).player.sparks], [sa, sb], 'no fee')
     const lapsing = await send([m3!], [])
     boot.clock.tick(4 * DAY)
     await refused(b, 'acceptOffer', { offerId: lapsing.id }, 'expired', 410)
@@ -219,6 +218,34 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     handles.set(c, (await c.join()).player.handle)
     await refused(c, 'claim', { code: 'quiet-otter-lamp-0000' }, 'not_found', 404)
     assert.equal((await c.call('claim', { code: g2.code })).card.id, m2!.id)
+  })
+
+  it('the market, a challenge and the leaderboards: list, browse, buy, swap, cancel, every board', async () => {
+    const [x, y, w] = (await freeCards(a)).filter(k => k.species.startsWith('s'))
+    const sparks = (await a.call('listCard', { cardId: x!.id, price: 25 })).listing
+    await refused(a, 'listCard', { cardId: x!.id, price: 25 }, 'not_allowed', 403)
+    const fit = (await freeCards(b)).find(k => k.species.startsWith('s'))!
+    const swap = (await a.call('listCard', { cardId: y!.id, want: { family: fit.family } })).listing
+    assert.deepEqual((await a.me()).listings!.map(l => l.id).sort(), [sparks.id, swap.id].sort())
+    const page = await b.call('market', { sort: 'cheapest', family: x!.family, minPrice: 1 })
+    assert.ok(page.listings.some(l => l.id === sparks.id))
+    await refused(a, 'buyListing', { listingId: sparks.id }, 'not_allowed', 403)
+    const bought = await b.call('buyListing', { listingId: sparks.id })
+    assert.equal(bought.card.id, x!.id)
+    await refused(b, 'buyListing', { listingId: sparks.id }, 'conflict', 409)
+    await refused(b, 'buyListing', { listingId: swap.id }, 'bad_request', 400)
+    assert.equal((await b.call('buyListing', { listingId: swap.id, cardId: fit.id })).listing.state, 'sold')
+    const back = (await a.call('listCard', { cardId: w!.id, price: 3 })).listing
+    await refused(b, 'cancelListing', { listingId: back.id }, 'not_found', 404)
+    assert.equal((await a.call('cancelListing', { listingId: back.id })).listing.state, 'cancelled')
+    await refused(a, 'market', { sort: 'priciest', after: 'not-a-cursor' }, 'bad_request', 400)
+
+    const sales = await a.call('rankings', { board: 'sales', period: 'season' })
+    assert.deepEqual([sales.board, sales.period, sales.me?.value], ['sales', 'season', 2])
+    boot.clock.until((await b.me()).player.nextDuelAt)
+    const duel = await battle(boot, b, 'duel', { handle: handleOf(a) })
+    assert.ok(duel.start.opponent.kind === 'player' && duel.start.opponent.handle === handleOf(a))
+    assert.ok((await a.call('profile', { handle: handleOf(b) })).stats)
   })
 
   it('drops: a code redeemed once, then refused', async () => {

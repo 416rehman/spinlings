@@ -165,17 +165,24 @@ Fuse any two of your cards into one brand-new hybrid. Both parents are used up.
 - **Craft** any current-season species from the Album with fresh DNA: 50, 200, 800 or 3200 sparks for common, rare, epic or legendary.
 - **Recycle** a card for 4, 15, 60 or 250 sparks by rarity. Shiny doubles it, foil pays 1.5x, and a Mythic doubles once more. Bound cards cannot be recycled. A pack's worth of cards recycles for well under the 150 sparks a pack costs.
 
-## Trading and gifts
+## Trading, the market and gifts
 
-Trading and gifts are online only.
+Trading, the market and gifts are online only. Any online account can use them from its first day: there is no waiting period, no fee and no lock on cards that change hands. Only bound cards (starters and cards from bound drops) never trade.
 
 ### Offers
 
 - Open a player's profile (the opponent you just battled, someone on the trade board, or `/spin trade <handle>`) to see their cards marked **for trade**.
 - Offer 1 to 3 of your cards for 0 to 3 of theirs. Your cards are held for the trade until the other player accepts, declines or counters, or the offer expires after 72 hours.
-- On accept, the swap is atomic, and each side pays 10 sparks per card received; those sparks are burned. If either side cannot pay, nothing moves. Traded cards leave teams, and received cards cannot be traded again until the first UTC midnight at least 24 hours later.
-- **Who can trade:** accounts at least 3 days old that have finished 10 battles. You can have up to 20 offers waiting at once.
-- Starter cards are bound forever, welcome-pack cards stay locked until your account is 7 days old, and cards held for another trade or recently traded cannot be offered.
+- On accept, the swap is atomic and costs nothing. Traded cards leave teams, and received cards can be traded on at once.
+- You can have up to 50 offers waiting at once. Bound cards, and cards held for another trade, a gift or the market, cannot be offered.
+
+### The market
+
+- **Sell a card** for sparks, for a card you want, or both. The card waits on the market, off your team, until someone buys it, you take it back, or 14 days pass. Your last team card cannot go on the market.
+- **What you can ask for:** a price in sparks, and/or a card: a species, or a family and a lowest rarity, and if you like only shiny or only foil.
+- **Buying** works any time, even while the seller is away. You pay the price and, if the listing wants a card, hand over one of yours that fits. Every spark goes to the seller; there is no fee. If two players buy at once, one gets it and the other is told it is already sold.
+- **Browse** by family, rarity, species, shiny, foil, kind and price, newest first, cheapest or priciest. Each species shows its last 5 sale prices, with the day and no names.
+- You can have up to 100 cards on the market at once. A listing shows your handle, the card, the price, what you want and the day you listed it.
 
 ### The trade board
 
@@ -187,8 +194,8 @@ A non-player trader with 3 deals each UTC day, picked by the date. For example: 
 
 ### Gifts
 
-- `/spin gift <card>` holds the card and gives you a code like `quiet-otter-lamp-4821`, valid for 14 days, plus a link to a page showing the card and how to claim it. Sending gifts needs the same 3 days and 10 battles as trading.
-- Anyone with Spinlings can claim it with `/spin claim <code>`, however new their account. The card arrives as a wrapped present and is trade-locked until the first UTC midnight at least 24 hours later. You cannot claim your own gift.
+- `/spin gift <card>` holds the card and gives you a code like `quiet-otter-lamp-4821`, valid for 14 days, plus a link to a page showing the card and how to claim it.
+- Anyone with Spinlings can claim it with `/spin claim <code>`, however new their account. The card arrives as a wrapped present, free to trade on at once. You cannot claim your own gift.
 - Unclaimed gifts come back to you after 14 days.
 - If the person who claims it joined after you made the gift, you get a bonus pack once they have finished 5 battles on 2 different days.
 - You can have 10 gifts waiting at once, and a player can try 5 claim codes an hour.
@@ -208,9 +215,9 @@ A non-player trader with 3 deals each UTC day, picked by the date. For example: 
 | Craft a current-season species | 50 / 200 / 800 / 3200 by rarity |
 | An extra pack | 150 |
 | Fusion | 40 (20 on Fusion Fair days) |
-| Trade fee | 10 per card received, burned |
+| A card on the market | its price, all of it to the seller |
 
-New players start with 100 sparks. Sparks cannot be bought, sold or cashed out.
+New players start with 100 sparks. Sparks cannot be bought or cashed out for money; on the market they only pass between players.
 
 ## Streaks, leagues and seasons
 
@@ -218,7 +225,8 @@ New players start with 100 sparks. Sparks cannot be bought, sold or cashed out.
 - **Leagues** come from your rating: Pebble from 0, Brook from 1100, Grove from 1300, Peak from 1500 and Star from 1700. Crossing a league line, either way, gets a short badge moment.
 - **Seasons** last 28 days; season 1 started on 2026-10-01. Each brings 36 new species: 8 regular and 1 legendary per family. Cards from past seasons stay yours and keep battling and trading; crafting covers the current season only.
 - **Season end.** On your first visit of a new season, you get reward packs by your final league (1 for Pebble, 2 for Brook, 3 for Grove, 4 for Peak and 5 for Star, which also brings a guaranteed foil legendary), and your rating moves halfway back toward 1000.
-- **Leaderboard.** `/spin leaderboard` shows the top players. You are only on it if you join with `/spin leaderboard on`, and then it shows your handle, league and rating.
+- **Leaderboards.** `/spin leaderboard` shows the top players, all time or this season: by rating, players beaten, duel wins, species collected, Mythics found and market sales, with your own rank. Every player is on them unless they leave with `/spin leaderboard off`, which also takes their stats off their profile. Rivals never appear.
+- **Challenges.** You can duel a particular player's team by their handle, with the usual 2 minutes between duels. Only the first 3 duels between the same two players in any 24 hours move rating or count toward duel stats.
 
 ## The living world
 

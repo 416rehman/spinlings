@@ -26,7 +26,7 @@ import {
 import { cardGuard, cardsOf, giftViews, grantPack, mintCards, offerViews, ownCard, ownCards, saveCard } from '../../server/src/game/mint.ts'
 import { notice, noticesOf } from '../../server/src/game/notices.ts'
 import {
-  battleFinished, checkCharge, checkWildStart, markCharge, nextChargeAt, pairDuels, recentCharges, trusted,
+  battleFinished, checkCharge, checkWildStart, markCharge, nextChargeAt, pairDuels, recentCharges,
 } from '../../server/src/game/pacing.ts'
 import { sweepGame } from '../../server/src/game/retention.ts'
 import { LATEST_CLIENT, SERVER_VERSION, roughCount } from '../../server/src/routes/account.ts'
@@ -153,8 +153,13 @@ describe('joining', () => {
     assert.ok(HANDLE_RE.test(me.handle) && !isBlocked(me.handle))
     assert.deepEqual(
       { sparks: me.sparks, rating: me.rating, league: me.league, battles: me.battles, canTrade: me.canTrade, streak: me.streak, joinedDay: me.joinedDay },
-      { sparks: 100, rating: 1000, league: 'Pebble', battles: 0, canTrade: false, streak: 0, joinedDay: '2026-10-02' },
+      { sparks: 100, rating: 1000, league: 'Pebble', battles: 0, canTrade: true, streak: 0, joinedDay: '2026-10-02' },
     )
+    assert.equal(me.leaderboard, true, 'on the leaderboards unless they hide')
+    assert.deepEqual(me.stats, {
+      duelWins: 0, duelLosses: 0, playersBeaten: 0, wildWins: 0, catches: 0, speciesCollected: 3, firstFinds: me.stats!.firstFinds,
+      mythicsFound: 0, marketSales: 0,
+    }, 'the starters fill the album')
     assert.equal(me.nextWildAt, 0, 'the first encounter may come at once')
     assert.equal(me.nextChargeAt, T0 + ECONOMY.packs.chargeSpacingMs, 'the first charge waits like any other')
     const cards = (await cardsOf(s.db, p.id)).map(c => c.card)
@@ -170,8 +175,7 @@ describe('joining', () => {
     assert.deepEqual(p.me.packs.map(k => k.source), ['welcome', 'welcome'])
     assert.ok(p.me.packs.some(k => k.family === 'opus'))
     const locks = await s.db.all<{ lock_until: number }>('SELECT lock_until FROM packs WHERE owner_id = ?', p.id)
-    // 7 days from the join day, to a midnight: no hour of joining is kept (SPEC 20.4)
-    assert.deepEqual(locks.map(l => l.lock_until), [Date.UTC(2026, 9, 9), Date.UTC(2026, 9, 9)])
+    assert.deepEqual(locks.map(l => l.lock_until), [0, 0], 'welcome packs open cards free to trade (SPEC 8)')
   })
 
   it('makes the public starter team from a family of its own, never the one the player joined with (SPEC 20.2)', async () => {
@@ -539,12 +543,6 @@ describe('pacing', () => {
     assert.equal(recentCharges(p, t + DAY).length, 0)
   })
 
-  it('opens trading after 3 calendar days and 10 finished battles', () => {
-    assert.equal(trusted(at({ battles: 10 }), Date.UTC(2026, 9, 4, 23)), false)
-    assert.equal(trusted(at({ battles: 9 }), Date.UTC(2026, 9, 5)), false)
-    assert.equal(trusted(at({ battles: 10 }), Date.UTC(2026, 9, 5)), true)
-  })
-
   it('counts finished battles and the distinct days they fall on', async () => {
     const s = server()
     const p = await s.join()
@@ -573,7 +571,7 @@ describe('notices', () => {
       notice(e, p.id, 'defense-win', 'first'),
       notice({ ...e, now: T0 + DAY }, p.id, 'defense-loss', 'second \u001b[31mred\u001b[0m', { other: q.id, revengeUntil: T0 + 2 * DAY }),
     ])
-    const list = await noticesOf(s.db, p.id)
+    const list = (await noticesOf(s.db, p.id)).filter(n => n.kind !== 'notice') // the join notice
     assert.deepEqual(list.map(n => [n.day, n.kind, n.text, n.handle]), [
       ['2026-10-03', 'defense-loss', 'second red', q.me.player.handle],
       ['2026-10-02', 'defense-win', 'first', undefined],

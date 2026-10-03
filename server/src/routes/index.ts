@@ -9,6 +9,7 @@ import { account } from './account.ts'
 import { auth } from './auth.ts'
 import { battles } from './battles.ts'
 import { collection } from './collection.ts'
+import { market } from './market.ts'
 import { social } from './social.ts'
 
 export function registerRoutes(api: Api): void {
@@ -19,5 +20,6 @@ export function registerRoutes(api: Api): void {
   battles(api)
   collection(api)
   social(api)
+  market(api)
   pages(api)
 }

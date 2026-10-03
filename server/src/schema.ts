@@ -13,6 +13,14 @@ export type PlayerRow = {
   hello_day: string; first_win_day: string
   last_wild_at: number; last_duel_at: number; last_charge_at: number; charges: string
   claim_hour: number; claim_tries: number
+  /** 0003: off the leaderboards (and stats off the profile) when 1 */
+  board_hidden: number
+  duel_wins: number; duel_losses: number; beaten: number; wild_wins: number; catches: number
+  species_count: number; first_finds: number; mythics_found: number; market_sales: number
+  /** the season the s_* counts are for */
+  stats_season: number; s_duel_wins: number; s_beaten: number; s_species: number; s_mythics: number; s_sales: number
+  /** 0003: the public numbers as they stood at midnight (JSON, game/stats.ts publish), saved on the day pub_day */
+  pub_day: string; pub_stats: string
 }
 
 export type CardRow = {
@@ -45,6 +53,16 @@ export type GiftRow = {
   code: string; version: number; giver_id: string; card_id: string; state: string
   created: string; expires: string; claimed_by: string | null; resolved: string | null; bonus: number
 }
+
+export type ListingRow = {
+  id: string; version: number; seller_id: string; seller_handle: string; card_id: string
+  species: string; family: string; rarity: string; shiny: number; foil: number
+  price: number; want: string | null; kind: string; state: string
+  created: string; expires: string; resolved: string | null
+}
+
+export type MarketSaleRow = { id: number; species: string; rarity: string; shiny: number; foil: number; price: number; day: string }
+export type BeatenRow = { player_id: string; other_id: string; season: number }
 
 export type NoticeRow = {
   id: string; player_id: string; day: string; kind: string; text: string

@@ -4,7 +4,7 @@
 
 [![ci](https://github.com/416rehman/spinlings/actions/workflows/ci.yml/badge.svg)](https://github.com/416rehman/spinlings/actions/workflows/ci.yml)
 
-Spinlings is a creature card game that lives inside Claude Code. While Claude works, wild creatures rustle into a slim band above the prompt and your team of three battles them. Win, and you might catch one. Every card is one of a kind, with its own look, genes and traits. You can fuse two cards into a hybrid nobody has seen before, and trade or gift cards with other players.
+Spinlings is a creature card game that lives inside Claude Code. While Claude works, wild creatures rustle into a slim band above the prompt and your team of three battles them. Win, and you might catch one. Every card is one of a kind, with its own look, genes and traits. You can fuse two cards into a hybrid nobody has seen before, trade, sell or gift cards to other players, challenge them to duels and climb the global leaderboards.
 
 The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your machine if you play offline.
 
@@ -72,12 +72,12 @@ claude plugin validate spinlings/plugin
   </picture>
 </p>
 
-**Season 1.** 36 species, eight per family plus a legendary. Every card you find hatches with its own colours, genes and traits.
+**Every season.** 36 new species, eight per family plus a legendary, and each one stays a shadow in your album until you meet it. Every card you find hatches with its own colours, genes and traits.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/gallery-dark.svg">
-    <img src="docs/media/gallery-light.svg" width="848" alt="A poster of the 36 species of season 1 in four rows by family: Haiku, Sonnet, Opus and Fable, each growing through its three stages, with the four legendaries framed in foil.">
+    <img src="docs/media/gallery-light.svg" width="848" alt="Under the line '36 new species hide in every season.', the 36 species of season 1 as shadows in four rows by family, Haiku, Sonnet, Opus and Fable, each row ending in a gold-rimmed legendary, with ??? where the names would be. Now and then one shadow wobbles, opens its eyes, glances aside and blinks.">
   </picture>
 </p>
 
@@ -120,8 +120,8 @@ About 1 wild encounter in 40 is led by a **Mythic**: a creature generated on the
 | Wild encounters and catches | Yes. Creatures only show up while Claude's main turn runs. |
 | Packs charging | No. Idle time counts, and so does time spent at a rate limit. You can hold 12 unopened packs. |
 | Opening packs, team, fusion, album, recycling, crafting | No |
-| Trading, gifts, claims | No |
-| Duels (`/spin battle`, revenge) | No. Duels start at least 2 minutes apart. |
+| Trading, the market, gifts, claims | No. Players buy your listings while you are away. |
+| Duels (`/spin battle`, revenge, challenges) | No. Duels start at least 2 minutes apart. |
 
 Hitting a rate limit is neither rewarded nor punished: packs keep charging as usual. The status line just says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
 
@@ -151,7 +151,7 @@ There is one command, `/spin`. On its own it opens the pane, with four tabs (Tea
 | `/spin redeem <code>` | Redeem a drop code, such as `FOUNDERS` |
 | `/spin world online\|offline` | Switch worlds; each keeps its own collection |
 | `/spin devices` | Your devices, and saving a passkey to play on another computer |
-| `/spin leaderboard [on\|off]` | See the top players, and join or leave the board (you are off it unless you join) |
+| `/spin leaderboard [on\|off]` | See the top players, and leave or rejoin the leaderboards (every player is on them unless they leave) |
 | `/spin handle [new]` | Show your handle, or draw a new one (once a week) |
 | `/spin quiet [on\|off]` | Silence everything |
 | `/spin sound on\|off` | Tiny chimes for big moments (off by default) |
@@ -208,9 +208,9 @@ Privacy outranks every other rule in the game. In short:
 
 - **No identity.** You are a random token and a random handle (`adjective-noun-NN`) chosen by the server. The mod never sends your Claude account, email, organization, machine name, OS user, session id or model id. You can reroll your handle once a week.
 - **No work or usage data leaves your machine**, except the model *family* (haiku, sonnet, opus or fable) when you join, a pack charges or a battle starts. Nobody else ever sees it. It is kept no longer than that pack or battle, and battles are deleted 7 days after they end.
-- **Other players see only** your handle, your team, the cards you mark for trade, your album count and your league, plus your handle on things you do with them, such as offers, gifts and duels. They never see wins, losses, battle counts, when you joined or were last seen, your activity, or which model you used. The leaderboard is opt-in.
+- **Other players see only** your handle, your team, the cards you mark for trade, your album count and your league, your market listings, and your game stats and leaderboard places (counts such as duel wins and players beaten, as they stood at the last midnight), plus your handle on things you do with them, such as offers, gifts, sales and duels. They never see battle counts, when you joined or were last seen, your activity, which model you used, or any time. `/spin leaderboard off` takes you off every board and your stats off your profile.
 - **The server keeps the minimum**: dates instead of times wherever a rule allows, no IP addresses, no request logs. Old notices, offers and gifts are deleted after 30 days.
-- **Delete everything** from `/spin privacy`, behind a 2-second hold. Cards you already traded away stay with their new owners.
+- **Delete everything** from `/spin privacy`, behind a 2-second hold. Cards you already traded or sold stay with their new owners.
 - **Check it yourself.** `/spin privacy` shows the last 20 requests the mod sent, with your token hidden.
 
 The full version, including retention times and exactly what each request contains, is in [PRIVACY.md](PRIVACY.md).
@@ -219,7 +219,7 @@ The full version, including retention times and exactly what each request contai
 
 The server is the only authority, and the mod is an untrusted renderer. A modified client can automate what an honest, attentive, heavy player does, at the same pace, and nothing more. Here is exactly where the lines are.
 
-**Only the server decides.** Every card is minted on the server with `crypto.getRandomValues`: packs, catches, bounties, streak and season rewards, crafting and Mythics, along with their DNA, genes, traits, shiny and foil. The server picks the opponent and the battle seed, and replays the battle from your button presses to decide the result. Sparks, XP, rating, streaks, leagues, spacing and pair limits are computed inside the same atomic write as the change they guard. Trades and gifts check ownership, escrow and locks in that write too.
+**Only the server decides.** Every card is minted on the server with `crypto.getRandomValues`: packs, catches, bounties, streak and season rewards, crafting and Mythics, along with their DNA, genes, traits, shiny and foil. The server picks the opponent and the battle seed, and replays the battle from your button presses to decide the result. Sparks, XP, rating, streaks, leagues, spacing and pair limits are computed inside the same atomic write as the change they guard. Trades, market sales and gifts check ownership and escrow in that write too, so of two buyers of one listing exactly one gets the card.
 
 **What a modified client can fake, and what that gets it:**
 
@@ -233,17 +233,18 @@ The server is the only authority, and the mod is an untrusted renderer. A modifi
 
 **Multiple accounts.**
 - Joining takes a proof of work, and there are at most 5 joins an hour and 20 a day per network. Networks are counted by a keyed hash of the address that changes every day; the address itself is never stored.
-- Starter cards are bound forever, and welcome-pack cards are trade-locked until midnight UTC 7 days after the join day.
-- Trading and sending gifts need an account at least 3 days old with 10 finished battles. Claiming a gift is always allowed.
-- Every trade burns 10 sparks per card received.
+- Starter cards are bound forever.
+- Trading has no account limits: no minimum age or battle count, no fee and no lock on cards that change hands.
 
 **Rating.**
-- Matchmaking is random within your rating window, so you cannot pick an opponent.
+- Matchmaking is random within your rating window. You pick an opponent only with a revenge or a challenge by handle.
+- A challenge is friendly: it moves no rating, counts for no stat or board, and pays XP and the sparks of a loss whatever the result.
 - Revenge works only against a player who beat your team in the last 24 hours, once per loss.
-- Only the first 3 finished duels between the same two players in any 24 hours move rating or pay defense sparks.
-- The leaderboard lists real players only.
+- Only the first 3 finished duels between the same two players in any 24 hours move rating, pay defense sparks, count toward duel stats or tell the defender. After that a duel pays like a loss.
+- A market sale counts toward your sales once per buyer, so two accounts passing a card back and forth add nothing.
+- The leaderboards list real players only, never Rivals.
 
-**What this does not stop.** Someone patient on many networks can run several accounts and funnel cards between them, slowly, paying the fees and waiting out the locks. A script can play every battle the pacing allows, around the clock, which is more than any person plays. We accept that: the pace is the same ceiling for everyone, and nothing a script earns is out of reach of a person playing at that pace.
+**What this does not stop.** Someone patient on many networks can run several accounts and funnel cards and sparks between them through trades and the market. Each account still earns only at the pace above, and the pair limit, friendly challenges and sales counted once per buyer keep a ring of accounts from padding rating or the boards. A script can play every battle the pacing allows, around the clock, which is more than any person plays. We accept that: the pace is the same ceiling for everyone, and nothing a script earns is out of reach of a person playing at that pace.
 
 **Self-hosted servers are separate worlds.** Anything goes on a server you run, and nothing from it reaches any other server.
 

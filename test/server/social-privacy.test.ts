@@ -1,6 +1,7 @@
 // The required social tests of SPEC 20.9 and 26.7: the authorization matrix (another player's
-// offer, gift or card is a 404 and changes nothing), exposure (anything about another player
-// carries only the public fields) and enumeration (guessing reveals nothing beyond public profiles).
+// offer, gift, listing or card is a 404 and changes nothing), exposure (anything about another
+// player carries only the public fields) and enumeration (guessing reveals nothing beyond public
+// profiles).
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ApiOp, ApiRequest } from '../../plugin/hooks/core/api.ts'
@@ -13,25 +14,26 @@ import { assertNoIds, assertPublic, fresh, list, midnight, snapshot, trust } fro
 
 const handle = (p: Player) => p.me.player.handle
 
-/** a sent b an offer and holds an open gift; m is a third player, trusted, with cards of their own. */
+/** a sent b an offer, holds an open gift and a market listing wanting a card; m is a third player with cards of their own. */
 async function world() {
   const s = server()
   const [a, b, m] = [await s.join(), await s.join(), await s.join()]
   await trust(s, a, b, m)
-  const [x, y, g] = await fresh(s, a, 3)
+  const [x, y, g, l] = await fresh(s, a, 4)
   const [z] = await fresh(s, b, 1)
   const [mc] = await fresh(s, m, 1)
   await list(a, y!)
   await list(b, z!)
   const { offer } = await a.call('offer', { to: handle(b), give: [x!.id], get: [z!.id] })
   const { gift } = await a.call('gift', { cardId: g!.id })
+  const { listing } = await a.call('listCard', { cardId: l!.id, price: 5, want: { rarity: 'common' } })
   for (const p of [a, b, m]) await p.call('me') // today's touch done, so a refused call writes nothing
-  return { s, a, b, m, x: x!, y: y!, z: z!, mc: mc!, offer, gift }
+  return { s, a, b, m, x: x!, y: y!, z: z!, mc: mc!, offer, gift, listing }
 }
 
 describe('the authorization matrix (SPEC 26.7)', () => {
   it("answers 404 to anyone acting on another player's offer, gift or card, and changes nothing", async () => {
-    const { s, a, b, m, x, y, z, mc, offer, gift } = await world()
+    const { s, a, b, m, x, y, z, mc, offer, gift, listing } = await world()
     type Case = [Player, ApiOp, unknown, string]
     const cases: Case[] = [
       [m, 'acceptOffer', { offerId: offer.id }, 'a stranger accepting'],
@@ -48,6 +50,11 @@ describe('the authorization matrix (SPEC 26.7)', () => {
       [m, 'offer', { to: handle(b), give: [y.id], get: [] }, "a stranger offering a's card"],
       [m, 'offer', { to: handle(a), give: [mc.id], get: [z.id] }, "asking a for b's card"],
       [m, 'offer', { to: handle(b), give: [mc.id], get: [x.id] }, "asking b for a's card"],
+      [m, 'cancelListing', { listingId: listing.id }, "a stranger taking a's card off the market"],
+      [b, 'cancelListing', { listingId: listing.id }, "another trader taking a's card off the market"],
+      [m, 'listCard', { cardId: y.id, price: 5 }, "a stranger listing a's card"],
+      [m, 'buyListing', { listingId: listing.id, cardId: z.id }, "paying for a's listing with b's card"],
+      [b, 'buyListing', { listingId: listing.id, cardId: y.id }, "paying a with a's own card"],
     ]
     for (const [p, op, req, what] of cases) {
       const before = await snapshot(s.db)
@@ -58,11 +65,12 @@ describe('the authorization matrix (SPEC 26.7)', () => {
     // and the rightful parties still can
     assert.equal((await b.call('declineOffer', { offerId: offer.id })).offer.state, 'declined')
     assert.equal((await a.call('cancelGift', { code: gift.code })).gift.card.state, 'owned')
+    assert.equal((await a.call('cancelListing', { listingId: listing.id })).listing.state, 'cancelled')
   })
 })
 
 describe('exposure (SPEC 20.3, 20.9)', () => {
-  it('shows other players only handles, leagues, public battle cards, days and an opted-in rating', async () => {
+  it('shows other players only handles, leagues, public battle cards, days, ratings on boards and public game counts', async () => {
     const { a, b, m, offer } = await world()
     await b.call('setLeaderboard', { optIn: true })
     const ids = [a.id, b.id, m.id]
@@ -75,6 +83,17 @@ describe('exposure (SPEC 20.3, 20.9)', () => {
     const top = (await m.call('leaderboard')).top
     answers.push(['leaderboard', top])
     for (const r of top) assert.deepEqual(Object.keys(r).sort(), ['handle', 'league', 'rating'])
+
+    const market = await m.call('market', {})
+    answers.push(['market', market])
+    for (const l of market.listings) {
+      assert.deepEqual(Object.keys(l).sort(), ['card', 'day', 'id', 'price', 'seller', 'state', 'want'])
+      assert.match(l.day, DAY_RE)
+      assertPublic(l.card, 'market')
+    }
+    const ranks = await m.call('rankings', { board: 'species' })
+    answers.push(['rankings', ranks])
+    for (const r of [...ranks.top, ...(ranks.me ? [ranks.me] : [])]) assert.deepEqual(Object.keys(r).sort(), ['handle', 'league', 'rank', 'value'])
 
     await m.call('setWishlist', { species: [] })
     const board = await m.call('board')
@@ -106,6 +125,7 @@ describe('exposure (SPEC 20.3, 20.9)', () => {
         assert.ok(!json.includes(k), `${where} shows ${k}`)
       }
       if (where !== 'leaderboard') assert.ok(!json.includes('"rating"'), `${where} shows a rating`)
+      assert.ok(!/"\w*(At|Until|Time)"/.test(json.replace(/"(createdAt|expiresAt)"/g, '')), `${where} shows a time`)
     }
   })
 })
@@ -182,7 +202,7 @@ describe('what never links back to the player (SPEC 20.1-20.3)', () => {
 
 describe('enumeration (SPEC 26.7)', () => {
   it('guessed handles, offer ids and gift codes all look like nothing, under rate limits', async () => {
-    const { s, m, offer, gift } = await world()
+    const { s, m, offer, gift, listing } = await world()
     const bodyOf = async (method: string, path: string, body?: unknown) => {
       const res = await s.request(method, path, { token: m.token, ...(body ? { body } : {}) })
       return `${res.status} ${await res.text()}`
@@ -191,6 +211,7 @@ describe('enumeration (SPEC 26.7)', () => {
     const random = base32(crypto.getRandomValues(new Uint8Array(16)))
     assert.equal(await bodyOf('POST', `/v1/offers/${offer.id}/accept`, {}), await bodyOf('POST', `/v1/offers/${random}/accept`, {}))
     assert.equal(await bodyOf('POST', `/v1/gifts/${gift.code}/cancel`, {}), await bodyOf('POST', '/v1/gifts/quiet-otter-lamp-4821/cancel', {}))
+    assert.equal(await bodyOf('POST', `/v1/market/${listing.id}/cancel`, {}), await bodyOf('POST', `/v1/market/${random}/cancel`, {}))
     // handles: 404s with one body, then the profile bucket runs dry
     const seen = new Set<string>()
     let limited = false

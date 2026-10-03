@@ -188,19 +188,20 @@ describe('opening packs', () => {
     assert.equal((await p.call('cards')).cards.length, 8, 'a replay mints nothing')
   })
 
-  it('opens welcome packs trade-locked until 7 days from the join day, and bound packs into bound cards', async () => {
+  it('opens welcome packs into cards free to trade at once, and bound packs into bound cards', async () => {
     const s = server()
     const p = await s.join()
-    s.tick(2 * DAY)
     const welcome = (await p.call('me')).packs.find(k => k.source === 'welcome')!
     const { cards } = await p.call('openPack', { packId: welcome.id })
-    assert.ok(cards.every(c => c.lockedUntil === Date.UTC(2026, 9, 9) && !c.bound), 'a midnight: the hour of joining is not kept')
+    assert.ok(cards.every(c => c.lockedUntil === 0 && !c.bound), 'no welcome lock (SPEC 8)')
+    assert.equal((await s.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM packs WHERE lock_until > 0'))!.n, 0, 'no pack is made locked')
     const bound = grantPack(env(s), p.id, 'opus', 'promo', { bound: true })
     await s.db.batch([bound.stmt])
     assert.ok((await p.call('openPack', { packId: bound.pack.id })).cards.every(c => c.bound && c.lockedUntil === 0))
-    s.set(Date.UTC(2026, 9, 9))
-    const late = (await p.call('me')).packs.find(k => k.source === 'welcome')!
-    assert.ok((await p.call('openPack', { packId: late.id })).cards.every(c => c.lockedUntil === 0), 'the lock has passed')
+    // a pack made locked before 0003 opens free all the same
+    const old = grantPack(env(s), p.id, 'haiku', 'welcome', { lockUntil: T0 + 7 * DAY })
+    await s.db.batch([old.stmt])
+    assert.ok((await p.call('openPack', { packId: old.pack.id })).cards.every(c => c.lockedUntil === 0))
   })
 
   it('rolls from the season the pack is opened in, not the one it was charged in', async () => {
@@ -244,14 +245,10 @@ describe('the team', () => {
 })
 
 describe('for trade', () => {
-  it('lists a card once the account passes the trust gate, and takes it off any time', async () => {
+  it('lists a card from the first day, with no account limits, and takes it off any time', async () => {
     const s = server()
     const p = await s.join()
     const [c] = await give(s, p, [fresh(s, 'opus', 'rare')])
-    const early = await p.fails('setForTrade', { cardId: c!.id, forTrade: true })
-    assert.equal(early.code, 'not_allowed')
-    assert.match(early.message, /3 days old with 10 battles/)
-    await trust(s, p)
     const v0 = (await p.call('me')).player.cardsVersion
     assert.equal((await p.call('setForTrade', { cardId: c!.id, forTrade: true })).card.forTrade, true)
     assert.equal((await p.call('setForTrade', { cardId: c!.id, forTrade: true })).card.forTrade, true)
@@ -261,19 +258,15 @@ describe('for trade', () => {
     assert.equal((await p.call('setForTrade', { cardId: c!.id, forTrade: false })).card.forTrade, false)
   })
 
-  it('never lists bound, trade-locked or held cards', async () => {
+  it('never lists bound or held cards; an old trade lock no longer stops one', async () => {
     const s = server()
     const p = await s.join()
-    await trust(s, p)
     const [st] = await starters(p)
     const [locked, held] = await give(s, p, [fresh(s, 'opus', 'rare'), fresh(s, 'haiku', 'rare')], { lockedUntil: T0 + 7 * DAY })
-    await s.db.batch([stmt('UPDATE cards SET locked_until = 0 WHERE id = ?', held!.id)])
     await escrow(s, held!.id)
     assert.match((await p.fails('setForTrade', { cardId: st!.id, forTrade: true })).message, /for good/)
-    assert.match((await p.fails('setForTrade', { cardId: locked!.id, forTrade: true })).message, /traded from 2026-10-09/)
-    assert.match((await p.fails('setForTrade', { cardId: held!.id, forTrade: true })).message, /held for a trade/)
+    assert.match((await p.fails('setForTrade', { cardId: held!.id, forTrade: true })).message, /held for a trade, a gift or the market/)
     assert.equal((await p.fails('setForTrade', { cardId: held!.id, forTrade: false })).code, 'not_allowed')
-    s.set(T0 + 7 * DAY)
     assert.equal((await p.call('setForTrade', { cardId: locked!.id, forTrade: true })).card.forTrade, true)
   })
 })
@@ -316,12 +309,12 @@ describe('fusion (SPEC 4)', () => {
     assert.equal((await p.call('me')).player.sparks, 200 - 6 * 20)
   })
 
-  it('keeps a hybrid of a trade-locked parent locked as long', async () => {
+  it('makes a hybrid free to trade, whatever its parents carried', async () => {
     const s = server()
     const p = await s.join()
     const [a] = await give(s, p, [fresh(s, 'opus', 'common')], { lockedUntil: T0 + 5 * DAY })
     const [b] = await give(s, p, [fresh(s, 'haiku', 'common')], { lockedUntil: T0 + 2 * DAY })
-    assert.equal((await p.call('fuse', { cardId: a!.id, otherId: b!.id })).card.lockedUntil, T0 + 5 * DAY)
+    assert.equal((await p.call('fuse', { cardId: a!.id, otherId: b!.id })).card.lockedUntil, 0)
   })
 
   it('refuses bound or held parents, one card twice and a fusion the player cannot afford, changing nothing', async () => {

@@ -10,7 +10,15 @@ import type {
 export const API_VERSION = 1
 
 /** Feature flags a server may list in GET /v1/version; the mod hides what a server does not list. */
-export const FEATURES = ['rivals', 'trader', 'redeem', 'passkey', 'leaderboard', 'handle-reroll', 'mythics', 'seasons'] as const
+export const FEATURES = [
+  'rivals', 'trader', 'redeem', 'passkey', 'leaderboard', 'handle-reroll', 'mythics', 'seasons',
+  /** the market: listCard, market, buyListing, cancelListing and MeResponse.listings */
+  'market',
+  /** StartBattleRequest.handle: a duel against one player's saved team */
+  'challenge',
+  /** player stats (PlayerView.stats, ProfileResponse.stats) and every leaderboard (rankings) */
+  'stats',
+] as const
 export type Feature = (typeof FEATURES)[number]
 
 export type ApiErrorCode =
@@ -27,13 +35,13 @@ export type PlayerView = {
   sparks: number
   rating: number
   league: LeagueName
-  /** listed on the public leaderboard (opt-in, off by default) */
+  /** on the public leaderboards, with stats on the profile: on by default, off hides both (SPEC 20) */
   leaderboard: boolean
   /** UTC day of joining (day granularity, SPEC section 20) */
   joinedDay: string
-  /** finished battles in all; the trust gate counts them */
+  /** finished battles in all */
   battles: number
-  /** passes the trust gate for trading and sending gifts (3 days old, 10 battles) */
+  /** always true online: trading has no account limits (a 0.1.0 mod reads it as its old trust gate) */
   canTrade: boolean
   team: string[]
   wishlist: string[]
@@ -49,6 +57,30 @@ export type PlayerView = {
   nextWildAt: number
   nextDuelAt: number
   nextChargeAt: number
+  /** the player's own stats, all time (servers listing the `stats` feature) */
+  stats?: PlayerStats
+}
+
+/**
+ * Public game numbers (SPEC 8, 20): counts only, never who or when. The player's own are as they are now; everyone
+ * else sees them (on a profile, and on the boards) as they stood at the last UTC midnight.
+ */
+export type PlayerStats = {
+  /** duels against players won and lost, attacking or defending, while the pair limit counts them; never a challenge */
+  duelWins: number
+  duelLosses: number
+  /** distinct players beaten in a duel: a count, never who */
+  playersBeaten: number
+  wildWins: number
+  catches: number
+  /** species ever owned (the album) */
+  speciesCollected: number
+  /** First Discovered stamps */
+  firstFinds: number
+  /** Mythics caught */
+  mythicsFound: number
+  /** cards sold on the market, counted once per buyer */
+  marketSales: number
 }
 
 export type PackSource = 'welcome' | 'charge' | 'bought' | 'daily' | 'bonus' | 'streak' | 'season' | 'trader' | 'promo'
@@ -57,6 +89,7 @@ export type PackView = { id: string; family: Family; source: PackSource; /** UTC
 export type NoticeKind =
   | 'defense-win' | 'defense-loss' | 'evolved' | 'gift-claimed' | 'gift-returned' | 'offer-received' | 'offer-accepted'
   | 'offer-declined' | 'offer-expired' | 'bonus-pack' | 'daily-pack' | 'streak-pack' | 'season-end' | 'new-device'
+  | 'market-sold' | 'market-expired'
   /** the tolerant reader's fallback for a kind this client does not know: show the text only */
   | 'notice'
 
@@ -67,7 +100,7 @@ export type Notice = {
   kind: NoticeKind
   /** server-composed from fixed templates; the client still sanitizes it */
   text: string
-  /** the other player, for defense notices (revenge) and offers */
+  /** the other player, for defense notices (revenge), offers and market sales */
   handle?: string
 }
 
@@ -86,12 +119,41 @@ export type OfferView = {
 
 export type GiftView = { code: string; card: Card; createdAt: number; expiresAt: number; claimedBy?: string }
 
+export type ListingState = 'open' | 'sold' | 'cancelled' | 'expired'
+export type ListingKind = 'sparks' | 'swap' | 'both'
+
+/**
+ * The card a listing asks for besides (or instead of) sparks: a species, or a family and/or a minimum rarity, and
+ * optionally shiny and/or foil. At least one field; a species names its family, so never both.
+ */
+export type MarketWant = { species?: string; family?: Family; rarity?: Rarity; shiny?: true; foil?: true }
+
+/** A market listing as anyone sees it (SPEC 8, 20): the public card, the seller's handle, the terms and the day only. */
+export type ListingView = {
+  id: string
+  /** the seller's handle as it was when listed */
+  seller: string
+  card: BattleCard
+  /** sparks the buyer pays the seller; 0 when the listing asks only for a card */
+  price: number
+  /** the card the buyer hands over too; absent when the listing asks only for sparks */
+  want?: MarketWant
+  /** the UTC day it was listed; it lapses at the first midnight 14 days on */
+  day: string
+  state: ListingState
+}
+
+/** One recent sale of a species (SPEC 8): the day, the sparks and the card's kind; never who sold or bought. */
+export type SaleView = { day: string; price: number; rarity: Rarity; shiny: boolean; foil: boolean }
+
 export type MeResponse = {
   player: PlayerView
   packs: PackView[]
   notices: Notice[]
   offers: { incoming: OfferView[]; outgoing: OfferView[] }
   gifts: GiftView[]
+  /** the player's own open listings, newest first (servers listing the `market` feature) */
+  listings?: ListingView[]
   now: number
 }
 
@@ -139,7 +201,17 @@ export type OpenPackRequest = { packId: string }
 export type OpenPackResponse = { cards: Card[] }
 export type TeamRequest = { cardIds: string[] }
 export type TeamResponse = { team: string[] }
-export type StartBattleRequest = { kind: 'wild' | 'duel'; family: Family; /** duel this player (a revenge from a defense notice) */ revenge?: string }
+export type StartBattleRequest = {
+  kind: 'wild' | 'duel'
+  family: Family
+  /** duel this player (a revenge from a defense notice) */
+  revenge?: string
+  /**
+   * duel this player's saved team: a challenge by handle (servers listing the `challenge` feature). Friendly: it
+   * moves no rating or stat and pays XP and a loss's sparks whatever the result (no bounty, streak or packs).
+   */
+  handle?: string
+}
 export type Opponent =
   | { kind: 'wild' }
   | { kind: 'player'; handle: string; league: LeagueName }
@@ -183,8 +255,14 @@ export type ForTradeRequest = { forTrade: boolean }
 export type CraftRequest = { speciesId: string; rarity: Rarity }
 export type WishlistRequest = { species: string[] }
 export type WishlistResponse = { wishlist: string[] }
-/** Exactly what another player may see (SPEC section 20): no rating, counts, dates or activity. */
-export type ProfileResponse = { handle: string; league: LeagueName; team: BattleCard[]; forTrade: BattleCard[]; seenCount: number }
+/**
+ * Exactly what another player may see (SPEC section 20): no dates, activity or arena. `stats` are public game numbers,
+ * absent for a player who is hidden from the leaderboards. The league, `seenCount` and `stats` are as they stood at
+ * the last UTC midnight, so they never move while the player plays.
+ */
+export type ProfileResponse = {
+  handle: string; league: LeagueName; team: BattleCard[]; forTrade: BattleCard[]; seenCount: number; stats?: PlayerStats
+}
 export type TraderDealView = TraderDeal & { used: boolean }
 export type BoardResponse = {
   matches: { handle: string; theirs: BattleCard; mine: BattleCard }[]
@@ -197,8 +275,47 @@ export type CounterRequest = { give: string[]; get: string[] }
 export type GiftRequest = { cardId: string }
 export type GiftResponse = { gift: GiftView }
 export type ClaimRequest = { code: string }
-/** Opt-in players only: handle, league and rating. */
+/** The rating board's top 50, all time: handle, league and rating of every player who is not hidden, as of the last UTC midnight. */
 export type LeaderboardResponse = { top: { handle: string; league: LeagueName; rating: number }[] }
+export type BoardName = 'rating' | 'beaten' | 'duelWins' | 'species' | 'mythics' | 'sales'
+export type BoardPeriod = 'all' | 'season'
+/** GET /v1/leaderboards?board=&period= (both optional: rating, all) */
+export type RankingsRequest = { board?: BoardName; period?: BoardPeriod }
+/** `rank` is 1 + the number of players with a higher value, so ties share a rank */
+export type RankRow = { rank: number; handle: string; league: LeagueName; value: number }
+/**
+ * The top 50 and the caller's own row, all by the numbers of the last UTC midnight; `me` is absent when the caller is
+ * hidden or had nothing on this board at that midnight.
+ */
+export type RankingsResponse = { board: BoardName; period: BoardPeriod; season: number; top: RankRow[]; me?: RankRow }
+export type MarketSort = 'newest' | 'cheapest' | 'priciest'
+/** GET /v1/market, every field an optional query field; `after` is the last page's `next`, with the same filters and sort */
+export type MarketRequest = {
+  family?: Family
+  rarity?: Rarity
+  /** a card species: a species id, or fusion, mythic or promo */
+  species?: string
+  shiny?: boolean
+  foil?: boolean
+  kind?: ListingKind
+  minPrice?: number
+  maxPrice?: number
+  sort?: MarketSort
+  after?: string
+}
+export type MarketResponse = {
+  listings: ListingView[]
+  next?: string
+  /** for each season species on this page, its last few sales for sparks, newest first */
+  prices: { species: string; sales: SaleView[] }[]
+}
+/** At least one of `price` (whole sparks) and `want`. */
+export type ListCardRequest = { cardId: string; price?: number; want?: MarketWant }
+export type ListingResponse = { listing: ListingView }
+/** `cardId`: the caller's card that matches the listing's want, exactly when it has one */
+export type BuyRequest = { cardId?: string }
+/** the listing, the card bought (now the caller's) and the caller's sparks after paying */
+export type BuyResponse = { listing: ListingView; card: Card; sparks: number }
 export type RedeemRequest = { code: string }
 export type RedeemResponse = { cards: Card[]; packs: PackView[] }
 export type TraderResponse = { day: string; deals: TraderDealView[] }
@@ -269,8 +386,10 @@ export interface SpinlingsApi {
   setWishlist(req: WishlistRequest): Promise<WishlistResponse>
   /** GET /v1/players/:handle */
   profile(req: { handle: string }): Promise<ProfileResponse>
-  /** GET /v1/leaderboard */
+  /** GET /v1/leaderboard: the rating board, as 0.1.0 reads it */
   leaderboard(req: EmptyRequest): Promise<LeaderboardResponse>
+  /** GET /v1/leaderboards: any board, all time or this season, with the caller's own rank */
+  rankings(req: RankingsRequest): Promise<RankingsResponse>
   /** GET /v1/board */
   board(req: EmptyRequest): Promise<BoardResponse>
   /** POST /v1/offers */
@@ -289,6 +408,14 @@ export interface SpinlingsApi {
   cancelGift(req: { code: string }): Promise<GiftResponse>
   /** POST /v1/claim */
   claim(req: ClaimRequest): Promise<CardResponse>
+  /** GET /v1/market: open listings, filtered and sorted, a page at a time */
+  market(req: MarketRequest): Promise<MarketResponse>
+  /** POST /v1/market: lists one of the caller's cards, which waits in escrow */
+  listCard(req: ListCardRequest): Promise<ListingResponse>
+  /** POST /v1/market/:listingId/buy */
+  buyListing(req: { listingId: string } & BuyRequest): Promise<BuyResponse>
+  /** POST /v1/market/:listingId/cancel: the card comes home */
+  cancelListing(req: { listingId: string }): Promise<ListingResponse>
   /** POST /v1/redeem */
   redeem(req: RedeemRequest): Promise<RedeemResponse>
   /** GET /v1/trader */
@@ -346,6 +473,7 @@ export const API_ROUTES: Readonly<Record<ApiOp, ApiRoute>> = {
   setWishlist: r('PUT', '/v1/wishlist', true, false),
   profile: r('GET', '/v1/players/:handle', true, false),
   leaderboard: r('GET', '/v1/leaderboard', true, false),
+  rankings: r('GET', '/v1/leaderboards', true, false, ['board', 'period']),
   board: r('GET', '/v1/board', true, false),
   offer: r('POST', '/v1/offers', true, false),
   acceptOffer: r('POST', '/v1/offers/:offerId/accept', true, false),
@@ -355,6 +483,10 @@ export const API_ROUTES: Readonly<Record<ApiOp, ApiRoute>> = {
   gift: r('POST', '/v1/gifts', true, false),
   cancelGift: r('POST', '/v1/gifts/:code/cancel', true, false),
   claim: r('POST', '/v1/claim', true, false),
+  market: r('GET', '/v1/market', true, false, ['family', 'rarity', 'species', 'shiny', 'foil', 'kind', 'minPrice', 'maxPrice', 'sort', 'after']),
+  listCard: r('POST', '/v1/market', true, false),
+  buyListing: r('POST', '/v1/market/:listingId/buy', true, false),
+  cancelListing: r('POST', '/v1/market/:listingId/cancel', true, false),
   redeem: r('POST', '/v1/redeem', true, false),
   trader: r('GET', '/v1/trader', true, true),
   traderDeal: r('POST', '/v1/trader/:dealId', true, true),

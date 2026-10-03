@@ -1,4 +1,4 @@
-// Shared by the social tests, on top of scaffold-helpers: players past the trust gate, fresh
+// Shared by the social tests, on top of scaffold-helpers: older players, fresh
 // tradeable cards, listings and wishes, whole-database snapshots for the authorization matrix, and
 // the checks for anything one player may see of another (SPEC 20.3, 26.7).
 import assert from 'node:assert/strict'
@@ -20,7 +20,7 @@ export const BATTLE_CARD_KEYS = new Set([
 const random = (n: number) => crypto.getRandomValues(new Uint8Array(n))
 export const envOf = (s: Server) => ({ db: s.db, now: s.now(), randomBytes: random })
 
-/** Past the trust gate (SPEC 30): joined 3 days ago, with 10 finished battles. */
+/** An older account: joined 3 days ago, with 10 finished battles. Trading needs neither any more (SPEC 8). */
 export async function trust(s: Server, ...players: Player[]): Promise<void> {
   for (const p of players) await s.db.batch([stmt('UPDATE players SET joined = ?, battles = 10 WHERE id = ?', utcDay(s.now() - 3 * DAY), p.id)])
 }

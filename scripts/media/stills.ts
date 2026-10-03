@@ -1,5 +1,6 @@
 // PNG stills for launch, drawn with the server's own canvas and 5x7 pixel font (server/src/png.ts) and the game's
-// own pixels: core sprites, and the band's and the ceremonies' frame effects (glow, sparkles, foil, card backs).
+// own pixels: core sprites, and the band's and the ceremonies' frame effects (glow, sparkles, foil, card backs, the
+// rustle's shadows).
 // Product Hunt gallery 1270 x 760 (4), X 1200 x 675, GitHub social preview 1280 x 640. The palette is the site's
 // og:image palette, so a shared link and a launch post look like one thing.
 import type { Card, Family } from '../../plugin/hooks/core/types.ts'
@@ -12,6 +13,7 @@ import { foil, glowOutline, sparkles } from '../../plugin/hooks/client/anim.ts'
 import { FAMILY_COLOR, INK, RARITY_COLOR, hexInt } from '../../plugin/hooks/ui/tokens.ts'
 import type { Canvas } from '../../server/src/png.ts'
 import { createCanvas, encodePng, textWidth } from '../../server/src/png.ts'
+import { albumForm, eyes, shadow } from './shadows.ts'
 import { dayWith, mediaWorld } from './world.ts'
 
 const { eggPixels } = await import('../../plugin/hooks/ui/ceremony-art.tsx')
@@ -215,20 +217,28 @@ function foilHue(t: number): number {
   return (f(0) << 16) | (f(8) << 8) | f(4)
 }
 
-/** Product Hunt 4: the season, and what the game never reads. */
+/**
+ * Product Hunt 4: the season, held back. All 36 species as the shadows they stay until you meet them (the band's
+ * rustle, shadows.ts), a row per family, the legendaries rimmed in gold; one has opened its eyes.
+ */
 function season(W: number, H: number): Canvas {
   const c = frame(W, H)
-  heading(c, W, '36 new species every 28 days', 'New creatures to find every season.')
-  const s = 4, cell = 16 * s + 34, rowH = 16 * s + 36
-  const x0 = Math.round((W - 9 * cell + 34) / 2)
+  heading(c, W, 'A new season every 28 days', '36 species in each. Every one is a shadow until you find it.')
+  // the legendary stands a little apart from its eight
+  const s = 4, side = 20 * s, gap = 22, apart = 18, pitch = side + 16
+  const label = Math.max(...FAMILIES.map(f => textWidth(FAMILY_INFO[f].name, 2)))
+  const x0 = Math.round((W - (label + 24 + 9 * side + 8 * gap + apart)) / 2) + label + 24, y0 = 262
   FAMILIES.forEach((f, row) => {
+    const y = y0 + row * pitch
     familySpecies(1, f).forEach((sp, i) => {
-      const x = x0 + i * cell, y = 262 + row * rowH
-      sprite(c, spriteFor({ form: sp, stage: sp.legendary ? 3 : 1 }), x, y, s)
+      const px = albumForm(sp), x = x0 + i * (side + gap) + (sp.legendary ? apart : 0)
+      plate(c, shadow(px, !!sp.legendary, true), x, y, s, sp.legendary ? GOLD : FAMILY_COLOR[f])
+      if (f === 'sonnet' && i === 2) sprite(c, eyes(px, hexInt(INK.bright)), x + 2 * s, y + 2 * s, s)
     })
-    text(c, x0 - 16 - textWidth(FAMILY_INFO[f].name, 2), 262 + row * rowH + 26, FAMILY_INFO[f].name, FAMILY_COLOR[f], 2)
+    const name = FAMILY_INFO[f].name
+    text(c, x0 - 24 - textWidth(name, 2), y + side / 2 - 7, name, FAMILY_COLOR[f], 2)
   })
-  text(c, x0 + 8 * cell + centre(16 * s, 'Legendary', 2), 236, 'Legendary', GOLD, 2)
+  text(c, x0 + 8 * (side + gap) + apart + centre(side, 'Legendary', 2), y0 - 30, 'Legendary', GOLD, 2)
   wordmark(c, W - 72 - textWidth('spinlings', 4), H - 92, 4, SOFT)
   return c
 }

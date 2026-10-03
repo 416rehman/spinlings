@@ -97,3 +97,19 @@ test('a duel win may roll a bounty of the opponent\'s lead; a card that left the
   const gone = fight('duel', 'win', { held: new Map() }).plan
   assert.deepEqual([gone.cards, gone.answer.xp], [[], []])
 })
+
+test('a duel that moves no rating (a challenge, or past the pair limit) pays like a loss: no bounty, packs or streak', () => {
+  const always = () => 0 // every roll hits
+  const full = fight('duel', 'win', { rng: always, opponentRating: 1000 })
+  assert.ok(full.plan.bounty, 'a counted duel win rolls the bounty')
+  assert.deepEqual([full.plan.answer.sparks, full.plan.answer.streak, full.plan.answer.streakPack, full.plan.answer.dailyWinPack],
+    [B.sparks.duelWin, 3, true, true])
+  const friendly = fight('duel', 'win', { rng: always, counts: false, revenge: true })
+  const { answer } = friendly.plan
+  assert.deepEqual([answer.result, answer.sparks, answer.ratingDelta, answer.streak, answer.streakPack, answer.dailyWinPack, friendly.plan.bounty],
+    ['win', B.sparks.loss, 0, 2, false, false, null], 'the streak stays where it was, neither grown nor broken')
+  assert.deepEqual(answer.xp.map(x => x.xp), [B.xp.win], 'the cards still learn from it')
+  const lost = fight('duel', 'loss', { counts: false })
+  assert.deepEqual([lost.plan.answer.sparks, lost.plan.answer.streak], [B.sparks.loss, 2])
+  assert.equal(fight('wild', 'win', { counts: true }).plan.answer.sparks, B.sparks.win, 'counts is for duels; omitted, it is true')
+})

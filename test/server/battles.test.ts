@@ -690,7 +690,7 @@ describe('abandoned battles and touch', () => {
     const row = await battleRow(s, start.id)
     assert.deepEqual([row.state, row.result, row.catch_options], ['settled', 'win', null])
     assert.deepEqual([me.player.battles, me.player.sparks, me.player.streak], [1, 110, 1])
-    assert.deepEqual(me.notices.map(n => n.kind).sort(), ['daily-pack', 'evolved'])
+    assert.deepEqual(me.notices.map(n => n.kind).filter(k => k !== 'notice').sort(), ['daily-pack', 'evolved'], 'besides the join notice')
     assert.match(me.notices.find(n => n.kind === 'evolved')!.text, /^\S.* evolved into \S.*!$/)
     assert.equal((await p.row()).wild_won, 0)
     const lead = await ownCard(s.db, p.id, start.setup.attacker[0]!.id)

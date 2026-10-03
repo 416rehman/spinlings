@@ -5,6 +5,8 @@ import { describe, it } from 'node:test'
 import { sha256 } from '../../plugin/hooks/core/sha256.ts'
 import { CborError, decodeCbor, decodeCborPrefix } from '../../server/src/game/cbor.ts'
 import { passkeyPage } from '../../server/src/game/auth.ts'
+import { NOTICE_TEXT, NOTICES_SHOWN, WARNINGS_SHOWN } from '../../server/src/game/notices.ts'
+import { stmt } from '../../server/src/db.ts'
 import type { PasskeyPage } from '../../server/src/game/auth.ts'
 import {
   b64urlDecode, b64urlEncode, coseKey, derToRaw, FLAG, parseAuthData, PasskeyError, verifyAssertion, verifyRegistration,
@@ -337,6 +339,25 @@ describe('passkey tickets and polls', () => {
     assert.equal((await addPasskey(s, p, await softAuthenticator())).status, 200)
     const [news] = (await p.call('me')).notices
     assert.deepEqual([news!.kind, news!.text], ['new-device', 'A passkey was saved for your collection · Reset access if this was not you'])
+  })
+
+  it('keep that warning in sight however many other notices come after it', async () => {
+    const s = server()
+    const p = await s.join()
+    assert.equal((await addPasskey(s, p, await softAuthenticator())).status, 200)
+    // another player's challenges, or anything else, leave a flood of newer notices
+    const flood = (n: number, kind: string) => s.db.batch(Array.from({ length: n }, (_, i) => stmt(
+      `INSERT INTO notices (id, player_id, day, kind, text) VALUES (?, ?, '2026-10-09', ?, 'x')`, `${kind}-${i}`, p.id, kind)))
+    await flood(NOTICES_SHOWN + 10, 'defense-win')
+    let news = (await p.call('me')).notices
+    assert.equal(news.length, NOTICES_SHOWN)
+    assert.deepEqual([news[0]!.kind, news[0]!.text], ['new-device', NOTICE_TEXT.passkeySaved()])
+    assert.deepEqual(news.slice(1).map(n => n.day), Array(NOTICES_SHOWN - 1).fill('2026-10-09'), 'then the newest of the rest')
+    // the warnings shown first are bounded too
+    await flood(WARNINGS_SHOWN + 5, 'new-device')
+    news = (await p.call('me')).notices
+    assert.equal(news.length, NOTICES_SHOWN)
+    assert.deepEqual(news.map(n => n.kind), [...Array(WARNINGS_SHOWN).fill('new-device'), ...Array(NOTICES_SHOWN - WARNINGS_SHOWN).fill('defense-win')])
   })
 
   it('end with reset access: a passkey saved with a leaked token, and one half saved, stop working', async () => {

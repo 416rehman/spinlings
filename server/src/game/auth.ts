@@ -65,8 +65,8 @@ export const retireHandle = (handle: string, now: number): Stmt => stmt(
 /**
  * POST /v1/join: checks the proof of work and the join limits, then in one batch creates the player
  * (100 sparks, rating 1000), its first session, the bound starter team (saved as the team) and two
- * welcome packs (the joining family and one other), whose cards open trade-locked until the midnight
- * 7 days after the join day, which keeps no hour of joining (SPEC 15, 20.4). The starters come from
+ * welcome packs (the joining family and one other), whose cards trade like any other (SPEC 8), and a
+ * notice that they are on the leaderboards and how to stay off. The starters come from
  * a family the server picks, in a shuffled order: the team is public, and the joining family is the
  * model in use (SPEC 20.2). The first wild battle is allowed at once; the first pack charge 45
  * minutes on, as for any charge.
@@ -82,8 +82,7 @@ export async function joinPlayer(ctx: Ctx, req: JoinRequest): Promise<{ token: s
   await ensureSeason(ctx.db, season)
   const rng = rngOf(ctx)
   const starters = await mintCards(ctx, id, shuffle(rng, starterTeam(pick(rng, FAMILIES), rng, ctx.now)), { bound: true })
-  const lockUntil = dayStart(day) + ECONOMY.welcomeLockMs
-  const packs = [req.family, otherFamily(req.family, rng)].map(f => grantPack(ctx, id, f, 'welcome', { lockUntil }))
+  const packs = [req.family, otherFamily(req.family, rng)].map(f => grantPack(ctx, id, f, 'welcome'))
   const team = starters.cards.map(c => c.id)
   await ctx.db.batch([
     ...ticket.stmts,
@@ -95,6 +94,11 @@ export async function joinPlayer(ctx: Ctx, req: JoinRequest): Promise<{ token: s
     sessionStmt({ randomBytes: ctx.randomBytes, playerId: id, tokenHash: ticket.tokenHash, now: ctx.now }),
     ...starters.stmts,
     ...packs.map(p => p.stmt),
+    // every player is on the boards; a 0.1.0 mod's account pane still says they are opt-in (SPEC 8)
+    notice(ctx, id, 'notice', NOTICE_TEXT.onBoards()),
+    // others see the starting numbers today, as if the player had been there at midnight, so no number shows the
+    // day they joined (the album's publish above saved the empty row from before the starters)
+    stmt(`UPDATE players SET pub_day = '', pub_stats = '{}' WHERE id = ?`, id),
   ])
   return { token: ticket.token, playerId: id }
 }
@@ -263,9 +267,10 @@ export async function passkeyPage(db: Db, o: { kind: PollKind; ticket: string; n
 
 /**
  * DELETE /v1/me, as statements for one batch behind the player's version guard: the player and
- * everything that is theirs (sessions, passkeys, cards, packs, battles, offers, gifts, notices,
- * wishlist, album, Fusion Log, Trader uses, redemptions). First-discovery rows and Mythic finds stay
- * without a player, so nobody else becomes first. Cards already traded away stay with their owners;
+ * everything that is theirs (sessions, passkeys, cards, packs, battles, offers, gifts, market
+ * listings, notices, wishlist, album, Fusion Log, Trader uses, redemptions, and both sides of every
+ * "beaten" and "sold to" pair; other players' counts stay). Recent sale prices name nobody, so they stay.
+ * First-discovery rows and Mythic finds stay without a player, so nobody else becomes first. Cards already traded away stay with their owners;
  * cards other players had held for an offer to this player go back to them, with a notice. The
  * handle stays taken for 30 days.
  */
@@ -283,6 +288,9 @@ export function deletionStmts(p: PlayerRow, now: number): Stmt[] {
     ),
     stmt('DELETE FROM offers WHERE from_id = ? OR to_id = ?', id, id),
     stmt('DELETE FROM gifts WHERE giver_id = ?', id),
+    stmt('DELETE FROM listings WHERE seller_id = ?', id),
+    stmt('DELETE FROM beaten WHERE player_id = ? OR other_id = ?', id, id),
+    stmt('DELETE FROM sold_to WHERE seller_id = ? OR buyer_id = ?', id, id),
     stmt('UPDATE gifts SET claimed_by = NULL, bonus = 0 WHERE claimed_by = ?', id),
     stmt('DELETE FROM battles WHERE attacker_id = ?', id),
     stmt('UPDATE battles SET defender_id = NULL WHERE defender_id = ?', id),

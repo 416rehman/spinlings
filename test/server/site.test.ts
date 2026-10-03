@@ -13,7 +13,7 @@ import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 import { RULE_INFO, utcDay, worldOf } from '../../plugin/hooks/core/world.ts'
 import { stmt } from '../../server/src/db.ts'
 import { mintCards } from '../../server/src/game/mint.ts'
-import { INSTALL_STEPS, PAGE_CSP, REPO, SCRIPT_CSP, SITE_CSP } from '../../server/src/pages-html.ts'
+import { INSTALL_STEPS, PAGE_CSP, REPO, SCRIPT_CSP, SITE_CSP, SOURCE_NAME } from '../../server/src/pages-html.ts'
 import { SITE_ASSETS } from '../../server/static/site.gen.ts'
 import { counts, DAY, MINUTE, server } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
@@ -176,6 +176,48 @@ describe('site pages', () => {
     const code = await gift(s, a, (await looseCard(s, a)).id)
     await drop(s)
     for (const path of ['/', `/c/${card.id}`, `/g/${code}`, '/d/founders', '/w/20261002-morning-abcdefgh']) assertNotDefensive(await get(s, path))
+  })
+
+  it('show the source in every header: the GitHub mark, named at every width, one plain link to the repo', async () => {
+    const { s, a } = await world()
+    const card = await mythicFor(s, a, 'gh01')
+    const code = await gift(s, a, (await looseCard(s, a)).id)
+    await drop(s)
+    const ticket = (url: string) => new URL(url).searchParams.get('t')!
+    const add = ticket((await a.call('passkeyStart', {})).url)
+    const signin = ticket((await s.call('authStart', {})).url)
+    const pages: [string, number][] = [
+      ['/', 200], ['/odds', 200], ['/privacy', 200], [`/u/${a.me.player.handle}`, 200], [`/c/${card.id}`, 200], [`/g/${code}`, 200],
+      ['/d/founders', 200], ['/w/20261002-dusk-abcdefgh', 200], [`/passkey/add?t=${add}`, 200], [`/passkey/signin?t=${signin}`, 200],
+      ['/u/nobody-here-11', 404], ['/w/not-a-seed', 404],
+    ]
+    for (const [path, status] of pages) {
+      const p = await get(s, path)
+      assert.equal(p.status, status, path)
+      const links = [...p.html.matchAll(/<a class="gh"[^>]*>([\s\S]*?)<\/a>/g)]
+      assert.equal(links.length, 1, `${path}: one way to the source`)
+      const [tag, inner] = [links[0]![0], links[0]![1]!]
+      const header = p.html.slice(p.html.indexOf('<header class="top" id="top">'), p.html.indexOf('</header>'))
+      assert.ok(header.includes(tag), `${path}: it sits in the top bar`)
+      assert.ok(tag.startsWith('<a class="gh" href="https://github.com/416rehman/spinlings" aria-label="Open source on GitHub">'), `${path}: a plain link to the repo, named (${tag.slice(0, 120)})`)
+      assert.doesNotMatch(tag.slice(0, tag.indexOf('>')), /target=|js-only|hidden/, `${path}: same tab, there without script`)
+      // the mark is drawn inline and says nothing itself; the words the link shows begin its name
+      assert.match(inner, /^<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3\.58 0 0 3\.58 0 8c0 3\.54[^"]+"\/><\/svg>/, path)
+      assert.doesNotMatch(inner, /xmlns|href|url\(/, `${path}: the mark asks nobody for anything`)
+      const shown = textOf(inner).trim()
+      assert.equal(shown, 'Open source')
+      assert.equal(SOURCE_NAME, 'Open source on GitHub', 'the name keeps the visible words and says where it goes')
+      assert.doesNotMatch(p.html.match(/<style>([\s\S]*?)<\/style>/)![1]!, /\/\*/, `${path}: the stylesheet ships without its notes`)
+    }
+    // the words show from 1024 px; narrower, the mark stands alone and the name still reads in full
+    const css = (await get(s, '/')).html.match(/<style>([\s\S]*?)<\/style>/)![1]!
+    assert.ok(css.includes('.ghl{display:none}') && css.includes('@media (min-width:1024px){.ghl{display:inline}}'))
+    assert.ok(css.includes('.gh:focus-visible::before{outline:3px solid'), 'a focus ring round the frame')
+    // a tap is not a hover: the lit state answers a real pointer only, so it never sticks on a phone
+    assert.ok(css.includes('@media (hover:hover){.gh:hover::before{'), 'hover lives behind (hover:hover)')
+    assert.doesNotMatch(css.replace(/@media \(hover:hover\)\{[^@]*?\}\}/g, ''), /\.gh:hover/, 'no hover rule outside it')
+    // the sparkle rides the focus ring's corner rather than breaking it
+    assert.ok(css.includes('.gh:focus-visible::after{opacity:1;animation:twk 1.8s steps(1) infinite;right:-6px;top:calc(var(--fy) - 8px)}'))
   })
 
   it('answer HEAD like GET without a body, and refuse other methods', async () => {

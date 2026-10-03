@@ -22,7 +22,7 @@ import {
   packGuard, redeemStmts, seasonOfSpecies, takeCards, traderView, useDeal,
 } from '../game/collection.ts'
 import { bumpCards, CARDS_CURSOR, cardGuard, cardsPage, grantPack, mintCards, ownCard, ownCards, packsOf, saveCard, unopenedCount } from '../game/mint.ts'
-import { checkCharge, markCharge, trusted } from '../game/pacing.ts'
+import { checkCharge, markCharge } from '../game/pacing.ts'
 
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
@@ -57,11 +57,12 @@ export function collection(api: Api): void {
   })
 
   // The cards are rolled now, from the current season (SPEC 6). The row goes, so a replay finds nothing.
+  // No pack opens locked cards any more (SPEC 8); a bound drop's packs open bound ones.
   apiRoute(api, 'openPack', async (ctx, req) => {
     const p = ctx.player
     const pack = (await ownPack(ctx.db, p.id, req.packId)) ?? notFound('pack')
     const rolled = rollPack(pack.family as Family, seasonOf(ctx.now), rngOf(ctx), ctx.now)
-    const minted = await mintCards(ctx, p.id, rolled, { ...(pack.lock_until > ctx.now ? { lockedUntil: pack.lock_until } : {}), bound: pack.bound === 1 })
+    const minted = await mintCards(ctx, p.id, rolled, { bound: pack.bound === 1 })
     await commit(ctx, [packGuard(p.id, pack.id), deletePack(pack.id), ...minted.stmts])
     return { cards: minted.cards }
   })
@@ -78,22 +79,19 @@ export function collection(api: Api): void {
     return { team: req.cardIds }
   })
 
-  // Listing is part of trading, so it waits for the trust gate (SPEC 8, 30); taking a card off never does.
+  // Any card that can trade may go on the trade list (SPEC 8); taking one off always works.
   apiRoute(api, 'setForTrade', async (ctx, req) => {
     const p = ctx.player
     const c = await ownCard(ctx.db, p.id, req.cardId)
-    if (req.forTrade) {
-      mustBeTradeable(c, ctx.now)
-      if (!trusted(p, ctx.now)) fail('not_allowed', 'Trading opens once your account is 3 days old with 10 battles')
-    } else mustBeHome(c)
+    if (req.forTrade) mustBeTradeable(c)
+    else mustBeHome(c)
     if (c.card.forTrade === req.forTrade) return { card: c.card }
     const next = { ...c.card, forTrade: req.forTrade }
     await commit(ctx, [cardGuard(c, 'owned'), saveCard(c, next), bumpCards(p.id)])
     return { card: next }
   })
 
-  // Parent A gives the shape, B the family and colours (SPEC 4). A hybrid of a trade-locked parent
-  // stays locked as long, so fusing never frees a welcome card early.
+  // Parent A gives the shape, B the family and colours (SPEC 4).
   apiRoute(api, 'fuse', async (ctx, req) => {
     const p = ctx.player
     if (req.cardId === req.otherId) fail('bad_request', 'Pick two different cards')
@@ -103,8 +101,7 @@ export function collection(api: Api): void {
     mustBeFree(b)
     const cost = fusionCost(dailyRule(ctx.now))
     mustAfford(p, cost)
-    const lock = Math.max(a.card.lockedUntil, b.card.lockedUntil)
-    const minted = await mintCards(ctx, p.id, [fuse(a.card, b.card, rngOf(ctx), ctx.now)], lock > ctx.now ? { lockedUntil: lock } : {})
+    const minted = await mintCards(ctx, p.id, [fuse(a.card, b.card, rngOf(ctx), ctx.now)])
     await commit(ctx, [...takeCards(p, [a, b]), addSparks(p.id, -cost), ...minted.stmts])
     return { card: minted.cards[0]!, consumed: [a.card.id, b.card.id] as [string, string] }
   })

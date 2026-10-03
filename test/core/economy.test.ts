@@ -20,8 +20,10 @@ test('no per-day quotas anywhere in the economy (SPEC section 24)', () => {
   assert.deepEqual(ECONOMY.levels.evolveAt, [4, 8])
   assert.deepEqual(ECONOMY.stats.stageMult, [1, 1.15, 1.3])
   assert.equal(ECONOMY.packs.bank, 12)
-  assert.equal(ECONOMY.trade.openOutgoing, 20)
+  // storage sizes, not quotas: open offers, gifts and market listings at once
+  assert.equal(ECONOMY.trade.openOutgoing, 50)
   assert.equal(ECONOMY.gift.open, 10)
+  assert.equal(ECONOMY.market.open, 100)
 })
 
 test('pacing: pack charge spacing doubles only beyond 16 charges a day; finish waits 1.5 s a round', () => {

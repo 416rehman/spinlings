@@ -1,12 +1,11 @@
-// Offers (SPEC 8, 15, 16, 24, 26, 30): escrow, the atomic swap with its fees, decline, cancel,
-// counter, expiry, the trust gate, storage limits, races and strict request parsing.
+// Offers (SPEC 8, 15, 16, 24, 26): escrow, the atomic swap with no fee and no lock, decline,
+// cancel, counter, expiry, no account limits, storage limits, races and strict request parsing.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import type { Card } from '../../plugin/hooks/core/types.ts'
 import { stmt } from '../../server/src/db.ts'
 import type { Db } from '../../server/src/db.ts'
-import { tradeLock } from '../../server/src/game/social.ts'
 import { openDatabase } from '../../server/src/node.ts'
 import type { CardRow } from '../../server/src/schema.ts'
 import { ApiFailure, DAY, HOUR, server, T0 } from './scaffold-helpers.ts'
@@ -50,7 +49,7 @@ function holding(): { db: Db; next(sql: RegExp): { reached: Promise<void>; relea
   }
 }
 
-/** a and b past the trust gate, a with two fresh cards, b with one listed for trade */
+/** a and b, a with two fresh cards, b with one listed for trade */
 async function pair(s = server()) {
   const a = await s.join('haiku')
   const b = await s.join('opus')
@@ -84,7 +83,7 @@ describe('sending an offer', () => {
     assert.ok(!news.text.includes(handle(a)), 'the text names nobody; the handle rides along')
   })
 
-  it('refuses what cannot be traded: bound, held, trade-locked, unlisted or someone else’s', async () => {
+  it('refuses what cannot be traded: bound, held, unlisted or someone else’s', async () => {
     const { s, a, b, x, y, z } = await pair()
     const c = await s.join()
     await trust(s, c)
@@ -97,7 +96,6 @@ describe('sending an offer', () => {
     const to = handle(b)
     const cases: [string, Parameters<Player['call']>[1], string][] = [
       ['a bound starter', { to, give: [starter.id], get: [] }, 'not_allowed'],
-      ['a welcome card, trade-locked for 7 days', { to, give: [welcome!.id], get: [] }, 'not_allowed'],
       ['a card already held for an offer', { to, give: [y.id], get: [] }, 'not_allowed'],
       ['their card not on their trade list', { to, give: [x.id], get: [unlisted!.id] }, 'not_found'],
       ['a third player’s listed card', { to, give: [x.id], get: [w!.id] }, 'not_found'],
@@ -110,33 +108,33 @@ describe('sending an offer', () => {
       assert.equal((await a.fails('offer', req as never)).code, code, what)
       assert.deepEqual(await snapshot(s.db), before, `${what}: nothing changed`)
     }
+    assert.equal((await a.call('offer', { to, give: [welcome!.id], get: [] })).offer.state, 'open', 'a welcome card trades at once')
   })
 
-  it('waits for the trust gate, which never shows whether the other player has passed it', async () => {
+  it('has no account limits: two players on their first day send, counter and accept', async () => {
     const s = server()
     const a = await s.join()
     const b = await s.join()
     const [x] = await fresh(s, a, 1)
-    assert.equal((await a.fails('offer', { to: handle(b), give: [x!.id], get: [] })).code, 'not_allowed')
-    // no handle probing before the gate either
-    assert.equal((await a.fails('offer', { to: 'no-such-player-99', give: [x!.id], get: [] })).code, 'not_allowed')
-    await trust(s, a)
+    const [z] = await fresh(s, b, 1)
+    await list(b, z!)
     const { offer } = await a.call('offer', { to: handle(b), give: [x!.id], get: [] })
-    // b has not passed the gate: accepting and countering wait, declining never does
-    assert.equal((await b.fails('acceptOffer', { offerId: offer.id })).code, 'not_allowed')
-    assert.equal((await b.fails('counterOffer', { offerId: offer.id, give: [x!.id], get: [] })).code, 'not_allowed')
-    assert.equal((await b.call('declineOffer', { offerId: offer.id })).offer.state, 'declined')
+    const counter = (await b.call('counterOffer', { offerId: offer.id, give: [z!.id], get: [x!.id] })).offer
+    assert.equal((await a.call('acceptOffer', { offerId: counter.id })).offer.state, 'accepted')
+    assert.equal((await cardIn(a, z!.id))!.state, 'owned')
+    assert.equal((await a.call('me')).player.canTrade, true, 'a 0.1.0 mod reads its old gate as passed')
   })
 
-  it('keeps at most 20 open outgoing offers (storage, not a quota): cancelling makes room', async () => {
+  it(`keeps at most ${ECONOMY.trade.openOutgoing} open outgoing offers (storage, not a quota): cancelling makes room`, async () => {
     const { s, a, b } = await pair()
-    const cards = await fresh(s, a, 21)
+    const n = ECONOMY.trade.openOutgoing
+    const cards = await fresh(s, a, n + 1)
     const sent = []
-    for (const c of cards.slice(0, 20)) sent.push((await a.call('offer', { to: handle(b), give: [c.id], get: [] })).offer)
-    const full = await a.fails('offer', { to: handle(b), give: [cards[20]!.id], get: [] })
+    for (const c of cards.slice(0, n)) sent.push((await a.call('offer', { to: handle(b), give: [c.id], get: [] })).offer)
+    const full = await a.fails('offer', { to: handle(b), give: [cards[n]!.id], get: [] })
     assert.deepEqual([full.status, full.code], [429, 'cap_reached'])
     await a.call('cancelOffer', { offerId: sent[0]!.id })
-    assert.equal((await a.call('offer', { to: handle(b), give: [cards[20]!.id], get: [] })).offer.state, 'open')
+    assert.equal((await a.call('offer', { to: handle(b), give: [cards[n]!.id], get: [] })).offer.state, 'open')
   })
 
   it('parses requests strictly: no unknown keys, card data, bad sizes or bad ids', async () => {
@@ -158,7 +156,7 @@ describe('sending an offer', () => {
 })
 
 describe('accepting', () => {
-  it('swaps the cards at once, burns 10 sparks a card received, and lets nothing of the old owner travel', async () => {
+  it('swaps the cards at once with no fee and no lock, and lets nothing of the old owner travel', async () => {
     const { s, a, b, x, z } = await pair()
     await b.call('setTeam', { cardIds: [z.id] })
     // z has battled under b (arena counts, tired), which must not reach a
@@ -168,12 +166,10 @@ describe('accepting', () => {
     const versions = [(await a.row()).cards_version, (await b.row()).cards_version]
     const res = (await b.call('acceptOffer', { offerId: offer.id })).offer
     assert.deepEqual([res.state, res.from, res.to, res.give.map(c => c.id), res.get.map(c => c.id)], ['accepted', handle(a), handle(b), [x.id], [z.id]])
-    assert.deepEqual([(await a.row()).sparks, (await b.row()).sparks], [sa - 10, sb - 10])
-    // trade-locked until the first midnight 24 hours on: the lock never tells a the hour b accepted (SPEC 20.3)
-    const lock = Date.UTC(2026, 9, 4)
+    assert.deepEqual([(await a.row()).sparks, (await b.row()).sparks], [sa, sb], 'no fee')
     for (const [p, id] of [[a, z.id], [b, x.id]] as const) {
       const c = (await cardIn(p, id))!
-      assert.deepEqual([c.state, c.forTrade, c.tiredUntil, c.lockedUntil], ['owned', false, 0, lock], id)
+      assert.deepEqual([c.state, c.forTrade, c.tiredUntil, c.lockedUntil], ['owned', false, 0, 0], id)
       const r = await row(s, id)
       assert.deepEqual([r.owner_id, r.escrow_ref, r.arena_haiku, r.arena_sonnet, r.arena_opus, r.arena_fable], [p.id, null, 0, 0, 0, 0])
     }
@@ -182,46 +178,28 @@ describe('accepting', () => {
     assert.ok((await a.row()).cards_version > versions[0]! && (await b.row()).cards_version > versions[1]!)
     const news = (await a.call('me')).notices.find(n => n.kind === 'offer-accepted')!
     assert.equal(news.handle, handle(b))
-    // received cards are trade-locked for 24 hours and more, up to that midnight
-    assert.equal((await a.fails('gift', { cardId: z.id })).code, 'not_allowed')
-    s.set(lock - 1)
-    assert.equal((await a.fails('gift', { cardId: z.id })).code, 'not_allowed')
-    s.set(lock)
+    // the album counts a species received, and a received card trades on at once
+    assert.ok((await a.call('me')).player.seen.includes(z.species))
     assert.equal((await a.call('gift', { cardId: z.id })).gift.card.id, z.id)
     // and a repeat is refused cleanly
     assert.equal((await b.fails('acceptOffer', { offerId: offer.id })).code, 'conflict')
   })
 
-  it('locks a card that changed hands until the first UTC midnight at least 24 hours on', () => {
-    const today = Date.UTC(2026, 9, 2)
-    assert.equal(tradeLock(today), today + DAY, 'exactly 24 hours on is that midnight')
-    assert.equal(tradeLock(today + 1), today + 2 * DAY)
-    assert.equal(tradeLock(T0), today + 2 * DAY)
-    assert.equal(tradeLock(today + DAY - 1), today + 2 * DAY)
-  })
-
-  it('a pure gift-trade asks for nothing and costs its sender nothing', async () => {
+  it('a pure gift-trade asks for nothing and costs nobody anything', async () => {
     const { a, b, x } = await pair()
     const { offer } = await a.call('offer', { to: handle(b), give: [x.id], get: [] })
     const [sa, sb] = [(await a.row()).sparks, (await b.row()).sparks]
     await b.call('acceptOffer', { offerId: offer.id })
-    assert.deepEqual([(await a.row()).sparks, (await b.row()).sparks], [sa, sb - 10])
+    assert.deepEqual([(await a.row()).sparks, (await b.row()).sparks], [sa, sb])
     assert.equal((await cardIn(b, x.id))!.state, 'owned')
   })
 
-  it('is refused, with nothing moving, when either side cannot pay or a card is no longer free', async () => {
+  it('goes through with no sparks at all, and is refused, with nothing moving, when a card is no longer free', async () => {
     const { s, a, b, x, y, z } = await pair()
     const { offer } = await a.call('offer', { to: handle(b), give: [x.id], get: [z.id] })
-    await s.db.batch([stmt('UPDATE players SET sparks = 9 WHERE id = ?', b.id)])
-    let before = await snapshot(s.db)
-    assert.equal((await b.fails('acceptOffer', { offerId: offer.id })).code, 'insufficient_sparks')
-    assert.deepEqual(await snapshot(s.db), before)
-    await s.db.batch([stmt('UPDATE players SET sparks = 100 WHERE id = ?', b.id), stmt('UPDATE players SET sparks = 9 WHERE id = ?', a.id)])
-    before = await snapshot(s.db)
-    const err = await b.fails('acceptOffer', { offerId: offer.id })
-    assert.deepEqual([err.code, err.message], ['insufficient_sparks', '409 insufficient_sparks: They cannot pay the trade fee right now'])
-    assert.deepEqual(await snapshot(s.db), before)
-    await s.db.batch([stmt('UPDATE players SET sparks = 100 WHERE id = ?', a.id)])
+    await s.db.batch([stmt('UPDATE players SET sparks = 0 WHERE id IN (?, ?)', a.id, b.id)])
+    const other = (await a.call('offer', { to: handle(b), give: [y.id], get: [] })).offer
+    assert.equal((await b.call('acceptOffer', { offerId: other.id })).offer.state, 'accepted', 'no fee to pay')
     // the card asked for is now held for b's own offer elsewhere
     await b.call('offer', { to: handle(a), give: [z.id], get: [] })
     assert.equal((await b.fails('acceptOffer', { offerId: offer.id })).code, 'not_allowed')
@@ -231,7 +209,7 @@ describe('accepting', () => {
     assert.equal((await b.fails('acceptOffer', { offerId: offer.id })).code, 'conflict')
     assert.equal((await cardIn(a, x.id))!.state, 'escrow', 'the offer stays open for a to cancel')
     assert.equal((await a.call('cancelOffer', { offerId: offer.id })).offer.state, 'cancelled')
-    assert.equal((await cardIn(a, y.id))!.state, 'owned')
+    assert.equal((await cardIn(a, x.id))!.state, 'owned')
   })
 })
 
@@ -330,12 +308,11 @@ describe('races', () => {
   }
 
   it('two accepts at once: one swap, one conflict', async () => {
-    const { a, b, x, z } = await pair()
+    const { s, a, b, x, z } = await pair()
     const { offer } = await a.call('offer', { to: handle(b), give: [x.id], get: [z.id] })
-    const sb = (await b.row()).sparks
     const r = await settled(b.call('acceptOffer', { offerId: offer.id }), b.call('acceptOffer', { offerId: offer.id }))
     assert.deepEqual([r.ok, r.codes], [1, ['conflict']])
-    assert.equal((await b.row()).sparks, sb - 10, 'paid once')
+    assert.deepEqual([(await row(s, x.id)).owner_id, (await row(s, z.id)).owner_id], [b.id, a.id], 'swapped once')
   })
 
   it('accept against cancel: exactly one wins and every card ends up with exactly one owner', async () => {
@@ -365,30 +342,30 @@ describe('races', () => {
     assert.equal((await row(s, x.id)).escrow_ref, open[0]!.id)
   })
 
-  it('a spend the sender began before an accept took the fee re-runs and is refused, never a server error', async () => {
+  it('a spend the sender began before an accept moved their row re-runs and goes through, never a server error', async () => {
     const held = holding()
     const { s, a, b, x, z } = await pair(server({ db: held.db }))
     const { offer } = await a.call('offer', { to: handle(b), give: [x.id], get: [z.id] })
     const cost = ECONOMY.packs.buyCost
     await s.db.batch([stmt('UPDATE players SET sparks = ? WHERE id = ?', cost + 5, a.id)])
-    // a's buy has read cost + 5 sparks; b's accept takes the 10-spark fee from a before the buy writes
+    // a's buy has read its row; b's accept moves a's row (its album) before the buy writes
     const gate = held.next(/INSERT INTO packs/)
-    const buying = a.fails('buyPack', { family: 'opus' })
+    const buying = a.call('buyPack', { family: 'opus' })
     await gate.reached
+    const v = (await a.row()).version
     await b.call('acceptOffer', { offerId: offer.id })
+    assert.ok((await a.row()).version > v, 'the accept moved the sender\'s version')
     gate.release()
-    const err = await buying
-    assert.deepEqual([err.status, err.code], [409, 'insufficient_sparks'])
-    assert.equal((await a.row()).sparks, cost - 5)
+    await buying
+    assert.equal((await a.row()).sparks, 5, 'no fee: the pack is all that was paid')
   })
 
-  it('an accept racing the sender spending their sparks never lets the fee go unpaid', async () => {
+  it('an accept and the sender spending their sparks both go through: there is no fee to race', async () => {
     const { s, a, b, x, z } = await pair()
     const { offer } = await a.call('offer', { to: handle(b), give: [x.id], get: [z.id] })
     await s.db.batch([stmt('UPDATE players SET sparks = 150 WHERE id = ?', a.id)])
-    // 150 sparks pay for the pack or the fee, never both
     const r = await settled(b.call('acceptOffer', { offerId: offer.id }), a.call('buyPack', { family: 'opus' }))
-    assert.deepEqual([r.ok, r.codes], [1, ['insufficient_sparks']])
-    assert.ok([0, 140].includes((await a.row()).sparks))
+    assert.deepEqual([r.ok, r.codes], [2, []])
+    assert.equal((await a.row()).sparks, 0)
   })
 })

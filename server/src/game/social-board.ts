@@ -1,8 +1,8 @@
-// What players see of each other (SPEC 8, 19, 20.3, 26.4): a profile by exact handle, the opt-in
-// leaderboard and the trade board. Only handles, leagues, public battle cards and an album count,
-// plus a rating for players who opted in. Nothing is ordered by activity: the board takes players
-// seen within the matchmaking window and shows them in a random order.
-import type { BoardResponse, LeaderboardResponse, ProfileResponse } from '../../../plugin/hooks/core/api.ts'
+// What players see of each other (SPEC 8, 19, 20.3, 26.4): a profile by exact handle and the trade
+// board. Only handles, leagues, public battle cards, an album count and, unless the player hid from
+// the leaderboards, their stats (game/stats.ts has the boards). Numbers are the last midnight's. Nothing is ordered by activity: the
+// board takes players seen within the matchmaking window and shows them in a random order.
+import type { BoardResponse, ProfileResponse } from '../../../plugin/hooks/core/api.ts'
 import { ECONOMY, leagueOf } from '../../../plugin/hooks/core/economy.ts'
 import { shuffle } from '../../../plugin/hooks/core/rng.ts'
 import { utcDay } from '../../../plugin/hooks/core/world.ts'
@@ -13,8 +13,8 @@ import { traderView } from './collection.ts'
 import { newId, rngOf, teamOf } from './ctx.ts'
 import { cardsByIds, handlesOf, publicCard, queryCards } from './mint.ts'
 import type { StoredCard } from './mint.ts'
+import { publicRow, statsOf } from './stats.ts'
 
-export const LEADERBOARD_SIZE = 50
 const PROFILE_FOR_TRADE = 200
 /** Matches are built from at most this many of the other side's listed cards. */
 const MATCH_SCAN = 400
@@ -22,7 +22,7 @@ const MINE_SCAN = 500
 const RECENT = { cards: 20, perPlayer: 2, scan: 80 }
 const CHUNK = 90
 
-/** A card on the market: listed, at home, never bound or trade-locked (`a` is the cards alias; binds `now`). */
+/** A card on the trade list: marked, at home and never bound (`a` is the cards alias; binds `now`, which no card waits on any more). */
 const listed = (a: string) => `${a}.for_trade = 1 AND ${a}.state = 'owned' AND ${a}.bound = 0 AND ${a}.locked_until <= ?`
 const marks = (list: readonly unknown[]) => list.map(() => '?').join(', ')
 
@@ -31,32 +31,26 @@ const marks = (list: readonly unknown[]) => list.map(() => '?').join(', ')
  * (which shows fewer cards for trade); null for a retired or unknown handle.
  */
 export async function profileOf(db: Db, handle: string, now: number, forTradeShown = PROFILE_FOR_TRADE): Promise<ProfileResponse | null> {
-  const p = await db.get<Pick<PlayerRow, 'id' | 'handle' | 'rating' | 'team'>>('SELECT id, handle, rating, team FROM players WHERE handle = ?', handle)
+  const p = await db.get<PlayerRow>('SELECT * FROM players WHERE handle = ?', handle)
   if (!p) return null
   const ids = teamOf(p)
-  const [team, forTrade, seen] = await Promise.all([
+  // league, album count and stats as they stood at midnight, so none of them shows play as it happens (SPEC 20.3)
+  const pub = publicRow(p, now)
+  const [team, forTrade] = await Promise.all([
     cardsByIds(db, ids),
     queryCards(db, `SELECT * FROM cards c WHERE c.owner_id = ? AND ${listed('c')} ORDER BY c.power DESC, c.id LIMIT ?`, p.id, now, forTradeShown),
-    db.get<{ n: number }>('SELECT COUNT(*) AS n FROM album WHERE player_id = ?', p.id),
   ])
   return {
     handle: p.handle,
-    league: leagueOf(p.rating).name,
+    league: leagueOf(pub.rating).name,
     team: ids.flatMap(id => {
       const c = team.get(id)
       return c && c.owner === p.id ? [publicCard(c.card)] : []
     }),
     forTrade: forTrade.map(c => publicCard(c.card)),
-    seenCount: seen!.n,
+    seenCount: pub.species_count,
+    ...(p.board_hidden ? {} : { stats: statsOf(pub) }),
   }
-}
-
-/** GET /v1/leaderboard: players who opted in, highest rating first. */
-export async function leaderboardTop(db: Db): Promise<LeaderboardResponse> {
-  const rows = await db.all<{ handle: string; rating: number }>(
-    'SELECT handle, rating FROM players WHERE leaderboard = 1 ORDER BY rating DESC, handle LIMIT ?', LEADERBOARD_SIZE,
-  )
-  return { top: rows.map(r => ({ handle: r.handle, league: leagueOf(r.rating).name, rating: r.rating })) }
 }
 
 async function wishesOf(db: Db, players: readonly string[]): Promise<Map<string, Set<string>>> {

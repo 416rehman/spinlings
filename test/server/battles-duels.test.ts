@@ -156,8 +156,9 @@ describe('rating, defense and the pair limit', () => {
     const fourth = await duelB(a)
     assert.deepEqual([fourth.fin.result, fourth.fin.ratingDelta, fourth.fin.rating], ['loss', 0, fourth.before.a.rating])
     assert.deepEqual([fourth.after.b.rating, fourth.after.b.sparks], [fourth.before.b.rating, fourth.before.b.sparks])
+    // the defender hears of the duels inside the pair limit only, so nobody can fill their notices
     const notes = (await b.call('me')).notices.filter(n => n.kind === 'defense-win')
-    assert.deepEqual(notes.map(n => n.text), [BATTLE_TEXT.defenseWin(0), BATTLE_TEXT.defenseWin(4), BATTLE_TEXT.defenseWin(4)])
+    assert.deepEqual(notes.map(n => n.text), [BATTLE_TEXT.defenseWin(4), BATTLE_TEXT.defenseWin(4)])
 
     s.set(T0 + 2 * DAY)
     assert.notEqual((await duelB(a)).fin.ratingDelta, 0, 'a new day for the pair')
@@ -173,6 +174,7 @@ describe('rating, defense and the pair limit', () => {
     assert.equal(fin.result, 'win')
     const elo = eloDelta(1000, 1000, 'win')
     const me = await b.call('me')
+    me.notices = me.notices.filter(n => n.kind !== 'notice')
     assert.deepEqual(me.notices.map(n => ({ ...n, id: '' })), [
       { id: '', day: utcDay(s.now()), kind: 'defense-loss', text: BATTLE_TEXT.defenseLoss(), handle: a.me.player.handle },
     ])
@@ -193,7 +195,7 @@ describe('rating, defense and the pair limit', () => {
     s.tick(ECONOMY.battle.abandonMs)
     const me = await b.call('me')
     assert.equal((await battleRow(s, start.id)).state, 'settled')
-    assert.deepEqual(me.notices.map(n => [n.kind, n.handle]), [['defense-loss', a.me.player.handle]])
+    assert.deepEqual(me.notices.filter(n => n.kind !== 'notice').map(n => [n.kind, n.handle]), [['defense-loss', a.me.player.handle]])
     const row = await a.row()
     assert.deepEqual([row.battles, row.sparks, row.streak], [1, 112, 1])
     assert.ok(row.version > version)
@@ -210,7 +212,7 @@ describe('rating, defense and the pair limit', () => {
     s.set(start.finishAfter)
     const fin = await a.call('finishBattle', { battleId: start.id, inputs: [] })
     assert.deepEqual([fin.result, fin.ratingDelta], ['win', eloDelta(1000, 1000, 'win').attacker])
-    assert.equal((await s.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM notices'))!.n, 0)
+    assert.equal((await s.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM notices WHERE kind != 'notice'`))!.n, 0)
   })
 })
 
@@ -279,11 +281,13 @@ describe('what a duel shows of one player to another', () => {
     await setRow(s, b, 'rating', 1234)
     await setRow(s, b, 'battles', 77)
     await statsAll(s, a, STRONG)
+    // the league shown is the one of the last midnight (SPEC 20.3): b's rating moved today, so the next day
+    s.set(T0 + DAY)
     const { start, fin } = await fight(s, a)
     const seen = JSON.stringify([start, fin, await a.call('me')])
     for (const secret of [b.id, '"rating":1234', '"battles":77']) assert.ok(!seen.includes(secret), secret)
     assert.deepEqual(start.opponent, { kind: 'player', handle: b.me.player.handle, league: leagueOf(1234).name })
-    const notice = (await b.call('me')).notices[0]!
+    const notice = (await b.call('me')).notices.find(n => n.kind === 'defense-loss')!
     assert.deepEqual(Object.keys(notice).sort(), ['day', 'handle', 'id', 'kind', 'text'])
     assert.doesNotMatch(notice.text, FAMILY_WORDS)
   })

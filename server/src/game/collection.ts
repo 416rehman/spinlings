@@ -20,9 +20,9 @@ import type { StoredCard } from './mint.ts'
 
 // ---- which cards an action may take ------------------------------------------------------------
 
-/** Team, for-trade and every other card action: not while it is held for an offer or a gift. */
+/** Team, for-trade and every other card action: not while it is held for an offer, a gift or the market. */
 export function mustBeHome(c: StoredCard): void {
-  if (c.card.state !== 'owned') fail('not_allowed', 'That card is held for a trade or a gift')
+  if (c.card.state !== 'owned') fail('not_allowed', 'That card is held for a trade, a gift or the market')
 }
 
 /** Fuse, recycle and the Trader: home, and not bound (starters and keepsakes stay for good). */
@@ -31,10 +31,15 @@ export function mustBeFree(c: StoredCard): void {
   if (c.card.bound) fail('not_allowed', 'That card stays with you for good')
 }
 
-/** Listing for trade: free, and past any trade lock. */
-export function mustBeTradeable(c: StoredCard, now: number): void {
+/** Offers, gifts and the market: free. No card ever waits to trade (SPEC 8). */
+export function mustBeTradeable(c: StoredCard): void {
   mustBeFree(c)
-  if (c.card.lockedUntil > now) fail('not_allowed', `That card can be traded from ${utcDay(c.card.lockedUntil)}`)
+}
+
+/** A card leaving for the market may not empty the team: a saved team is what defends (SPEC 5). */
+export function mustKeepTeam(p: Pick<PlayerRow, 'team'>, id: string): void {
+  const team = teamOf(p)
+  if (team.length === 1 && team[0] === id) fail('not_allowed', 'That is your last team card: put another one on your team first')
 }
 
 /** The team without these cards: one write when any of them was on it. */

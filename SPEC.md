@@ -316,18 +316,32 @@ New players start with 100 sparks.
 - **Weekly roamer.** Each ISO week, one of the season's legendaries roams. Any wild encounter not led by a Mythic has a 1% chance to include it as the lead, at the season's legendary stats. Catching it follows the normal 60% roll, so it is the rarest moment in the game.
 - **Seasons** bring 36 new species every 28 days.
 
-## 8. Trading and gifts (async)
+## 8. Players together: trading, the market, gifts, challenges and leaderboards (async)
+
+Everything here works while the other player is away. **No account limits:** any online account trades, lists, buys, sends gifts and challenges from its first day. There is no trust gate, no fee and no trade lock. What stays is a property of the card, not the account: **bound** cards (starters and cards from bound drops) never trade. Storage sizes keep tables small; they are not quotas. This section overrides every other mention of a trade lock, the welcome lock, a trade fee, the trust gate or an opt-in leaderboard (sections 6, 12, 19 and 26), and any rule that lets a player pick an opponent only through revenge.
 
 ### Offers
 - **Starting a trade.** Open a player's profile in the pane: from the opponent you just battled, from the trade board, or with `/spin trade <handle>`. You see their cards marked **for trade**.
 - **Building an offer.** Pick 1 to 3 of your cards and 0 to 3 of theirs, then send. Either side may be empty except yours, so an offer can be a pure gift-trade.
 - **Escrow.** Your offered cards go into escrow until the offer resolves.
 - **Responding.** The receiver can **accept**, **decline** or **counter**. A counter declines the offer and sends a new one with the roles swapped.
-- **Expiry.** Offers expire after 72 hours, and expired offers return escrowed cards.
-- **Accepting.** On accept, the server checks that every requested card is still owned by the receiver and still tradeable. It then swaps atomically and charges each side 10 sparks per card received. If a side cannot pay, the accept is refused and nothing moves. Traded cards leave teams. Received cards are trade-locked until the first UTC midnight at least 24 hours later.
-- **Who can trade:** online accounts at least 3 days old with 10 finished battles (section 30). Claiming a gift is always allowed.
-- **Limits:** at most 20 open outgoing offers at once (storage, not a quota). Bound, escrowed and trade-locked cards can't be offered.
+- **Expiry.** Offers expire at the first UTC midnight at least 72 hours on, and expired offers return escrowed cards.
+- **Accepting.** On accept, the server checks that every requested card is still owned by the receiver and still tradeable, then swaps atomically. No sparks change hands. Traded cards leave teams and arrive free to trade on at once.
+- **Storage:** at most 50 open outgoing offers at once. Bound and escrowed cards can't be offered.
 - **What an offer shows:** the other player's cards appear as public battle cards: no ownership details or timestamps (section 20).
+
+### The market
+- **Listing.** `POST /v1/market` puts one of your tradeable cards up for **sparks**, for a **wanted card**, or **both**. The card goes into escrow and leaves your team. Your last team card cannot be listed: a saved team is what defends you.
+- **Price and want.** The price is whole sparks, 1 to 1,000,000. A want names a species id, or a family and/or a minimum rarity, and may also ask for shiny and/or foil. A species already names its family, so never both. A listing asks for at least one of price and want.
+- **Buying.** Any other player buys a listing at any time, also while the seller is away: `POST /v1/market/{id}/buy`, with `cardId` exactly when the listing wants a card (one of the buyer's own tradeable cards that matches the want, not their last team card). One guarded batch moves the listed card to the buyer, every spark of the price to the seller (no fee), and the buyer's card to the seller. Of two buyers at once, exactly one wins; the other gets `409 conflict` "Already sold".
+- **Not your own.** The seller cannot buy their own listing.
+- **Taking it off.** The seller can cancel an open listing; the card comes home. Anyone else's cancel answers 404.
+- **Lapsing.** A listing lapses at the first UTC midnight at least 14 days on. The hourly sweep (or the seller's next visit, or a buyer who arrives late) sends the card home with a notice.
+- **Notices.** The seller hears of a sale (`market-sold`, naming the buyer's handle, like any trade) and of a lapse (`market-expired`). Both carry the day only.
+- **Browsing.** `GET /v1/market` lists open listings in time, 50 a page with a `next` cursor, filtered by family, rarity, species, shiny, foil, kind (`sparks`, `swap`, `both`) and price range, sorted newest first, cheapest or priciest (a card-only listing counts as 0 sparks). Each listing shows the public card, the seller's handle as it was when listed, the price, the want and the day it was listed. Never a time.
+- **Recent prices.** With each page, every season species on it comes with its last 5 sales for sparks: day, price, rarity, shiny and foil. Never who sold or bought. Only a sale for sparks alone keeps a price (sparks plus a card would understate it), and only a buyer's first purchase from that seller this season, so two accounts passing a card back and forth cannot set a price. Sale records are deleted after 90 days.
+- **Your listings** are in `GET /v1/me` as `listings`, newest first.
+- **Storage:** at most 100 open listings per player.
 
 ### Trade board
 - Every card has a **for trade** toggle.
@@ -337,11 +351,27 @@ New players start with 100 sparks.
 - The board always shows the Wandering Trader's deals too (section 19).
 
 ### Gifts
-- **Making a gift.** `POST /v1/gift` puts one tradeable card in escrow and returns a code: 3 words plus 4 digits, e.g. `quiet-otter-lamp-4821`. The code is valid for 14 days. The share link is `{server}/g/{code}`, a page that shows the card and how to install and claim.
-- **Claiming.** `POST /v1/claim` gives the card to the claimant and trade-locks it until the first UTC midnight at least 24 hours later. You cannot claim your own gift.
+- **Making a gift.** `POST /v1/gifts` puts one tradeable card in escrow and returns a code: 3 words plus 4 digits, e.g. `quiet-otter-lamp-4821`. The code is valid for 14 days. The share link is `{server}/g/{code}`, a page that shows the card and how to install and claim.
+- **Claiming.** `POST /v1/claim` gives the card to the claimant, free to trade on at once. You cannot claim your own gift.
 - **Bonus for the giver.** If the claimant joined after the gift was made, the giver gets a bonus pack once the claimant has finished 5 battles on 2 different days (section 24).
 - **Expiry.** Expired gifts return to the giver the next time the giver touches the server.
-- **Limits:** 10 open gifts at once (storage) and 5 claim attempts per hour (brute-force protection on codes).
+- **Storage and codes:** 10 open gifts at once, and 5 claim attempts per hour (brute-force protection on codes).
+
+### Challenges
+- **Duel a player by handle.** `POST /v1/battles` with `kind: duel` and `handle` fights that player's saved team, while they are away, with the same 2-minute duel spacing and a snapshot of their team.
+- **A challenge is friendly.** Picking the opponent means it moves no rating and counts for no stat or board, and it pays XP and the sparks of a loss whatever the result: no bounty, no streak (it neither grows nor breaks), no streak pack, no daily pack and no defense sparks. So beating one weak team over and over pays nothing extra, and a challenge never pads a leaderboard.
+- **The defender hears of it** (and gets a revenge after a loss) only inside the pair limit (section 5): the first 3 finished duels between the same two accounts in any 24 hours, challenges included. Nobody can fill another player's notices.
+- **Refused:** your own handle, and a player with no team out. An unknown handle answers 404. Every challenge spends from the same rate bucket as a profile lookup.
+- **Past the pair limit** any duel pays like a challenge: XP and a loss's sparks, no bounty, streak or pack, and no defense notice. This overrides section 5 where it says otherwise.
+- Automatic duels and revenge stay as they are.
+
+### Stats and leaderboards
+- **Stats** are public game numbers, counted on the server in the same write as what they count: duel wins and losses (against players, attacking or defending, matched or revenge, while the pair limit counts the duel; never a challenge), distinct players beaten (a count, never who), wild wins, catches, species collected (the album), First Discovered stamps, Mythics found and market sales (to distinct buyers: a seller's sales to one buyer count once, and once more each season for the season board). Rival duels count for no stat. The player sees their own in `/v1/me`, as they are; anyone sees them on the public profile unless the player has hidden.
+- **As of the last midnight.** Everything another player sees of these numbers (profile stats, album count and league, every board, the 0.1.0 board, the league in a duel) is as it stood at the last UTC midnight, so nothing shows that someone is playing right now. A new player shows their starting numbers on their first day.
+- **Leaderboards** are global: every online player is on them by default, and each new player hears so in a notice when they join. `GET /v1/leaderboards?board=&period=` shows one board: `rating` (with league), `beaten`, `duelWins`, `species`, `mythics` or `sales`, all time or `season`. Each shows the top 50 and the caller's own rank; ties share a rank. A player is on a board once they have something on it (the rating board: a finished battle; this season's rating board: a battle this season).
+- **This season** counts only what happened this season: the first count of a new season starts every season number from 0, and this season's species board counts this season's species in the album.
+- **Hiding.** `PUT /v1/me/leaderboard { optIn: false }` takes the player off every board and their stats off their profile, at once; `optIn: true` brings them back. Rivals are not players and never appear. A deleted account vanishes from every board. Players who joined while the leaderboard was opt-in were put on the boards when they opened to everyone, and each got one notice saying so and how to stay off.
+- `GET /v1/leaderboard` (the 0.1.0 mod's board) answers the rating board's top 50.
 
 ## 9. Surfaces
 
@@ -689,7 +719,7 @@ The rule for every moment in section 13: **build up, pause, pay off, celebrate i
 | Minting | Every card (pack open, catch, bounty, daily, streak, season and craft cards) is minted server-side. Randomness comes from `crypto.getRandomValues`. DNA, genes, traits, shiny and foil are rolled on the server. |
 | Battles | The server chooses the opponent, the arena check and the seed. The client submits only `inputs` (strictly increasing round numbers, at most 30). The server re-simulates and decides the result. A battle can be finished once, only by its attacker, within 10 minutes. |
 | Rewards and pacing | Sparks, XP, rating, streaks, leagues, spacing and pair limits are computed server-side, inside the same guarded batch as the change they guard. |
-| Trades and gifts | Escrow, ownership checks, lock checks and the swap all happen in one guarded atomic batch (section 16). |
+| Trades, gifts and the market | Escrow, ownership checks and the swap or sale all happen in one guarded atomic batch (section 16). Of two buyers of one listing, exactly one wins. |
 
 ### What clients report, and the bound on lying about it
 | Client claim | Effect if faked | Bound |
@@ -713,16 +743,13 @@ The rule for every moment in section 13: **build up, pause, pay off, celebrate i
 - **Join:**
   - proof of work, 16 bits by default;
   - 5 joins per hour and 20 per day per daily-salted IP hash.
-- **Card restrictions:**
-  - Starter cards are bound forever.
-  - Welcome-pack cards are trade-locked until midnight UTC 7 days after the join day (`lockedUntil = dayStart(joinDay) + 7 days`).
-- **Who may trade or send gifts:** online accounts at least 3 days old with 10 finished battles (section 30). Claiming a gift is always allowed (that is the invite loop).
-- **Every trade burns sparks:** 10 per card received.
+- **Card restrictions:** starter cards and cards from bound drops are bound forever. That is a property of the card, not a limit on the account.
+- **No account limits on trading** (section 8): no trust gate, no fee and no trade lock. A new account can trade, list, buy and send gifts at once. What a ring of alts can move is bounded by what each alt can earn: the join proof of work and limits above, bound starters, the pace on everything that pays (section 24), the pair limit on rating and duel stats below, friendly challenges (section 8), and market sales that count once per buyer.
 
 ### Rating integrity
-- **Matchmaking is random** within the rating windows. A player cannot choose an opponent, except through revenge.
+- **Matchmaking is random** within the rating windows. A player picks an opponent only through revenge or a challenge by handle (section 8). A challenge moves no rating or stat and pays like a loss, and the pair limit keeps revenge from farming rating or a leaderboard.
 - **Revenge** is allowed only against a player who won a duel against your team in the last 24 hours, once per defense loss.
-- **Pair limit:** rating moves only for the first 3 finished duels between the same two players in any rolling 24 hours. After that the delta is 0.
+- **Pair limit:** rating, defense sparks, duel stats and the defense notice move only for the first 3 finished duels between the same two players in any rolling 24 hours, challenges included. After that the delta is 0, and the duel pays like a loss (section 8).
 - **Rivals** (section 19) move only the player's rating, against the Rival's generated rating.
 
 ### Request integrity
@@ -849,19 +876,26 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 
    | Surface | Visible |
    |---|---|
-   | Profile | handle, team, for-trade cards, album count, league |
-   | Leaderboard | Opt-in only: handle, league, rating |
+   | Profile | handle, team, for-trade cards, album count, league, and the player's stats unless they hide from the leaderboards: duel wins and losses, players beaten, wild wins, catches, species collected, First Discovered stamps, Mythics found and market sales |
+   | Leaderboards | Every player unless they hide: handle, league, rank and the board's number (rating, players beaten, duel wins, species, Mythics found or market sales), all time or this season |
+   | Market listings | The seller's handle as it was when listed, the public card, the price, the wanted card and the day it was listed |
+   | Recent sale prices | Species, rarity, shiny, foil, price and day. Never who sold or bought |
+   | A market sale | The seller's notice names the buyer's handle, with the day only |
    | Defense notices | The other handle and the result, with the time rounded to "today" or "yesterday" |
 
-   Never visible: win/loss/battle counts, join dates, last-seen, activity, the arena or model used, and timestamps.
+   Stats and board places are public game numbers under a random handle: counts of game events, with no time on any of them. Others see every such number, the album count and the league as they stood at the last UTC midnight, never as they move, so none of them tells that a player is playing right now. A player can hide them, all at once and at any time, with `/spin leaderboard off`.
+
+   Never visible: battle counts, join dates, last-seen, activity, the arena or model used, who beat whom, who bought what from whom (beyond the two sides of one sale), and timestamps.
 4. **What the server stores** is minimised:
    - Day-granularity dates instead of timestamps wherever a rule allows. `last_seen` is a date.
-   - Notices are deleted after 30 days, and expired offers and gifts after 30 days.
+   - Notices are deleted after 30 days, and expired offers, gifts and closed market listings after 30 days. Sale prices, which name nobody, are deleted after 90 days.
+   - Which players beat each other in a duel, and which buyers each seller has sold to, are kept only to count each player beaten and each buyer once. They are never shown to anyone, and both sides' rows go when either account is deleted.
+   - The public numbers as they stood at midnight sit on the player row for the day, as one saved copy that is replaced the next day.
    - Challenges are deleted on use or expiry.
    - Join counters are deleted after 24 hours.
 5. **IP addresses** are never stored. Join limiting uses `HMAC(SECRET, utcDate + ip)` truncated to 16 bytes, kept at most 24 hours. `SECRET` is a Worker secret.
 6. **No request logging.** Cloudflare Workers observability and logpush stay off. The server logs only error codes, never URLs, bodies, tokens, handles or IPs.
-7. **Deletion is total.** `DELETE /v1/me` removes the player, their cards, packs, battles, offers, gifts, notices, wishlist and firsts credit. The handle is freed after 30 days. Cards already traded away stay with their new owners.
+7. **Deletion is total.** `DELETE /v1/me` removes the player, their cards, packs, battles, offers, gifts, market listings, notices, wishlist, firsts credit, stats and board places, and every pair of players beaten or of seller and buyer that names them. The handle is freed after 30 days. Cards already traded away or sold stay with their new owners, and sale prices stay, naming nobody.
 8. **Public pages** expose only what the profile shows, and Mythic discoveries as handle plus name.
 9. **CI asserts privacy:** tests fail if any response visible to another player contains a field outside the lists above, and if the client sends anything not in the documented request shapes.
 
@@ -1043,18 +1077,18 @@ The seam's blocklist (`isBlocked`) has the last word: a blocked species or fusio
 
 ## 24. No daily quotas: pace, pairs and sinks (overrides every per-day cap anywhere above)
 
-**Principle:** regular players must never hit a wall. Abuse is bounded by **pace**, which matches the natural rhythm of honest play, **pair limits**, which only stop collusion between the same two accounts, **one-time trust gates**, and **economic sinks**. Never by "N per day".
+**Principle:** regular players must never hit a wall. Abuse is bounded by **pace**, which matches the natural rhythm of honest play, **pair limits**, which only stop collusion between the same two accounts, and **economic sinks**. Never by "N per day", and never by limits on the account (section 8).
 
 | Old daily cap | Replacement |
 |---|---|
-| 20 battle starts and 12 rewarded battles a day | Removed. Every finished battle pays. Server pacing: a wild start must be at least 8 minutes after the previous wild start, a duel start at least 2 minutes after the previous duel start, plus the minimum battle duration and the one-open-battle rule (section 15). |
+| 20 battle starts and 12 rewarded battles a day | Removed. Every finished battle pays (a challenge, or a duel past the pair limit, pays XP and a loss's sparks, section 8). Server pacing: a wild start must be at least 8 minutes after the previous wild start, a duel start at least 2 minutes after the previous duel start, plus the minimum battle duration and the one-open-battle rule (section 15). |
 | 6 catches a day | Removed. Flat catch chance on every wild win. |
 | 3 pack charges a day | Removed. One charge per 50 presence minutes, server spacing of at least 45 minutes, and a bank of 12 unopened packs (a storage size, not a quota: opening packs frees space). Beyond 16 charges in any rolling 24 hours, the spacing doubles ("your lamp needs sleep"). No human reaches that. |
 | 1 bought pack a day | Removed. Packs cost 150 sparks each, with no limit. |
 | 3 fusions a day | Removed. The 40-spark cost is the limit. |
-| 10 trades and 10 offers a day | Removed. At most 20 open outgoing offers at once (anti-spam storage, not a quota). The fee stays. |
+| 10 trades and 10 offers a day | Removed. At most 50 open outgoing offers and 100 open market listings at once (storage, not quotas). No fee. |
 | 3 open gifts | 10 open gifts at once (storage) |
-| Defense rewards 10 a day | **Pair limit:** defense sparks and rating move only for the first 3 finished duels between the same two accounts per rolling 24 hours. |
+| Defense rewards 10 a day | **Pair limit:** defense sparks, rating and the defense notice move only for the first 3 finished duels between the same two accounts per rolling 24 hours. |
 | Rating pair cap | Kept: the same pair limit as above. |
 | Streak packs (max 2 a day) | Removed. Every 3rd consecutive win pays a streak pack, however close together the wins come (section 14). |
 | Gift bonus packs (3 a week) | Removed. The giver's bonus pack pays only when the claimant (who joined after the gift) has finished 5 battles on 2 different days. The claimant must really play. |
@@ -1063,8 +1097,7 @@ The seam's blocklist (`isBlocked`) has the last word: a blocked species or fusio
 | Wandering Trader deals (each once per player per day) | Kept: the Trader's daily stock is a rotating shop, not a cap on normal play (section 19) |
 
 ### Rules this keeps
-- The trust gate for trading and gifting: an online account at least 3 days old with 10 finished battles (section 30).
-- Welcome-pack cards trade-locked until midnight UTC 7 days after the join day, and starter cards bound forever.
+- Starter cards and cards from bound drops bound forever. There is no trust gate, trade lock or trade fee (section 8).
 - Proof of work and join limits per IP hash.
 - The server re-simulates every battle, makes every roll, and uses guards in every write.
 
@@ -1247,15 +1280,16 @@ GitHub sign-in was withdrawn (section 30): the game never asks who you are, and 
   4. The server verifies the challenge, origin, RP id hash and flags, parses the COSE key with our own minimal CBOR decoder (no dependencies), and stores `passkeys(id, player_id, credential_id, public_key, sign_count, created_day)`.
   5. The mod's poll sees `done`.
 - **Sign in on another computer** (no auth):
-  1. "Sign in with a passkey" in the mod calls `POST /v1/auth/start`, which returns `{ url, pollId }` for `{server}/passkey/signin?p={pollId}`.
+  1. "Sign in with a passkey" in the mod calls `POST /v1/auth/start`, which returns `{ url, pollId }`. The URL is `{server}/passkey/signin?t={ticket}`: a single-use ticket, alive 10 minutes and stored hashed. The pollId never appears in a URL, so a link left in a browser's history cannot collect a session.
   2. The page calls `navigator.credentials.get`: discoverable credentials, no username, `userVerification: "preferred"`.
   3. The server verifies the assertion signature with WebCrypto (`crypto.subtle.verify`, ECDSA P-256 or RSASSA-PKCS1-v1_5), checks `signCount` monotonicity when it is non-zero, then issues a new session to the poll.
-  4. The mod polls `GET /v1/auth/poll/{pollId}` (section 29) and switches to that account. The machine's previous anonymous account, if it had one and it has no passkey, stays on the server as is and can be deleted from `/spin privacy`.
+  4. The mod polls `GET /v1/auth/poll/{pollId}` (section 29) and switches to that account, with everything that is the account's: cards, open offers and market listings, stats and leaderboard places. The machine's previous anonymous account, if it had one and it has no passkey, stays on the server as is and can be deleted from `/spin privacy`.
 - **Pages:**
   - Only the two passkey pages carry one small first-party script (`/static/passkey.js`), under CSP `script-src 'self'`. Every other page stays script-free.
   - Both pages carry the phishing warning from section 29.
   - The domain is shown plainly.
-- **Devices:** `/spin devices` shows `Signed in on 2 devices · passkey saved ✓ · Reset access`. Reset access revokes every session; passkeys stay, so any machine can sign back in.
+- **Devices:** `/spin devices` shows `Signed in on 2 devices · passkey saved ✓ · Reset access`. Reset access removes every way into the account at once: every session, every saved passkey and every passkey flow still open (whoever held a leaked token could have saved a passkey of their own). The device that resets keeps one new session, and the player saves a passkey again afterwards.
+- **Warnings:** each saved passkey and each passkey sign-in leaves the account a notice (`new-device`) that says to reset access if it was not them. `/v1/me` always lists the latest 10 of these first, ahead of the other notices, so no stream of other notices can push them out of sight.
 - **Losing every device without a passkey loses the online account.** The UI states this honestly next to the passkey offer.
 
 ### Stored
@@ -1264,7 +1298,7 @@ GitHub sign-in was withdrawn (section 30): the game never asks who you are, and 
 - **Deletion:** `DELETE /v1/me` removes sessions and passkeys.
 
 ### Removed
-GitHub sign-in, link codes, recovery codes and `established`. The trust gate for trading and gifting is an online account at least 3 days old with 10 finished battles. Welcome-pack cards stay locked for 7 days.
+GitHub sign-in, link codes, recovery codes and `established`. The trust gate and the welcome lock are gone too: every online account trades, lists, buys and sends gifts from its first day (section 8).
 
 ### Domain warning
 Passkeys are bound to `rp.id` forever. The production domain must be final before launch; moving later invalidates every passkey. Self-hosters use their own domain.

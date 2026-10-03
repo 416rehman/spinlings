@@ -10,6 +10,8 @@ import type { Env } from './ctx.ts'
 
 /** Notices /v1/me shows, newest first. */
 export const NOTICES_SHOWN = 30
+/** Of those, sign-in and passkey warnings always shown first, however many other notices came after them. */
+export const WARNINGS_SHOWN = 10
 
 export type NoticeOptions = {
   /** the other player (defense, offers, gifts): shown by their current handle, and the revenge target */
@@ -37,16 +39,27 @@ export function notice(env: Pick<Env, 'now' | 'randomBytes'>, playerId: string, 
 export const NOTICE_TEXT = {
   newDevice: () => 'A new device signed in · Reset access if this was not you',
   passkeySaved: () => 'A passkey was saved for your collection · Reset access if this was not you',
+  /** the 0003 migration's notice to every player then, word for word */
+  boardsOpen: () => 'Leaderboards now show every player, with stats on profiles. To stay off them: /spin leaderboard off',
+  /** a new player's first notice: a mod from before the boards opened still says they are opt-in */
+  onBoards: () => 'You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off',
   seasonEnd: (season: number, league: string, packs: number, legendary: boolean) =>
     `Season ${season} ended in ${league}: ${packs} reward pack${packs === 1 ? '' : 's'}${legendary ? ' and a foil legendary' : ''}!`,
 }
 
-/** The player's latest notices, newest first, with the other player's current handle. */
+/**
+ * The player's latest notices, with the other player's current handle: the latest sign-in and passkey warnings
+ * (`new-device`, kept 30 days like any notice) first, then the rest newest first, `limit` in all. So no stream of
+ * other notices, such as defenses another player can cause, ever pushes a warning out of sight.
+ */
 export async function noticesOf(db: Db, playerId: string, limit = NOTICES_SHOWN): Promise<Notice[]> {
-  const rows = await db.all<{ id: string; day: string; kind: NoticeKind; text: string; handle: string | null }>(
+  type Row = { id: string; day: string; kind: NoticeKind; text: string; handle: string | null }
+  const read = (kind: string, n: number) => db.all<Row>(
     `SELECT n.id, n.day, n.kind, n.text, p.handle FROM notices n LEFT JOIN players p ON p.id = n.other_id
-     WHERE n.player_id = ? ORDER BY n.day DESC, n.rowid DESC LIMIT ?`,
-    playerId, limit,
+     WHERE n.player_id = ? AND n.kind ${kind} 'new-device' ORDER BY n.day DESC, n.rowid DESC LIMIT ?`,
+    playerId, n,
   )
+  const warnings = await read('=', Math.min(WARNINGS_SHOWN, limit))
+  const rows = [...warnings, ...await read('!=', limit - warnings.length)]
   return rows.map(r => ({ id: r.id, day: r.day, kind: r.kind, text: r.text, ...(r.handle ? { handle: r.handle } : {}) }))
 }
