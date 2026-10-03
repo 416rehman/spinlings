@@ -3,6 +3,8 @@
 // read with the client's own reader and must be exactly what it parsed (scaffold-helpers' exact).
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { allCards } from '../../plugin/hooks/client/game.ts'
+import { routeOf } from '../../plugin/hooks/core/api.ts'
 import { cardStats, rarityRank, stageFor } from '../../plugin/hooks/core/cards.ts'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { generateMythic } from '../../plugin/hooks/core/mythics.ts'
@@ -15,7 +17,7 @@ import { stmt } from '../../server/src/db.ts'
 import { setPlayer } from '../../server/src/game/ctx.ts'
 import { grantPack, mintCards } from '../../server/src/game/mint.ts'
 import type { MintOptions } from '../../server/src/game/mint.ts'
-import { DAY, FIRST_CHARGE, HOUR, MINUTE, server, T0 } from './scaffold-helpers.ts'
+import { DAY, exact, FIRST_CHARGE, HOUR, MINUTE, server, T0 } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
 
 const rand = (n: number) => crypto.getRandomValues(new Uint8Array(n))
@@ -66,20 +68,25 @@ describe('GET /v1/cards', () => {
     await give(s, p, [fresh(s, 'opus', 'rare')])
     const all = (await s.db.all<{ id: string }>('SELECT id FROM cards WHERE owner_id = ? ORDER BY minted, id', p.id)).map(r => r.id)
     const got: string[] = []
-    let after: string | null = null
+    let after: string | undefined
     let pages = 0
     do {
-      const res = await s.request('GET', `/v1/cards${after ? `?after=${after}` : ''}`, { token: p.token })
+      const { path } = routeOf('cards', after === undefined ? {} : { after })
+      const res = await s.request('GET', path, { token: p.token })
       const text = await res.text()
       assert.equal(res.status, 200)
       assert.ok(new TextEncoder().encode(text).length < 256 * 1024, `page ${pages} fits the mod's cap`)
-      const page = JSON.parse(text) as { cards: Card[]; version: number; next?: string }
+      // `next` is part of the wire contract: the client's reader keeps every field of every page
+      const page = exact('cards', JSON.parse(text))
+      assert.equal(page.version, (await p.row()).cards_version)
       got.push(...ids(page.cards))
-      after = page.next ?? null
+      after = page.next
       pages++
-    } while (after)
+    } while (after !== undefined)
     assert.ok(pages >= 2, `${pages} pages`)
     assert.deepEqual(got, all, 'every card once, in order')
+    // and the mod reads them all, through its own request builder
+    assert.deepEqual(ids((await allCards({ cards: req => p.call('cards', req) })).cards), all)
     for (const bad of ['nope', '2026-10-02.', `2026-10-02.${'A'.repeat(26)}`]) {
       assert.equal((await s.request('GET', `/v1/cards?after=${bad}`, { token: p.token })).status, 400, bad)
     }

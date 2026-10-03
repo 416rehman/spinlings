@@ -26,11 +26,8 @@ export const ECONOMY = {
   shiny: { chance: 1 / 100, hourChance: 1 / 25, hourStartUtc: 18 },
   /** a separate holographic finish on any rarity; legendaries and Mythics are always foil */
   foil: { chance: 1 / 16 },
-  /**
-   * every 3rd consecutive win pays a streak pack, with no daily limit; a win adds to the streak only `spacingMs` after
-   * the win that last did, so duels 2 minutes apart pay no faster than honest play (SPEC 15)
-   */
-  streak: { every: 3, spacingMs: 8 * MIN },
+  /** every 3rd consecutive win pays a streak pack, with no daily limit; battle spacing is the only pace (SPEC 14, 24) */
+  streak: { every: 3 },
   /** rating floors, lowest first; season-end reward packs by league */
   leagues: [
     { name: 'Pebble', min: 0, seasonPacks: 1 },
@@ -104,6 +101,8 @@ export const ECONOMY = {
     /** after this long without a battle the next wild lead is rare or better */
     restedMs: 4 * HOUR,
     restedRarity: [['rare', 18], ['epic', 4]] as [Rarity, number][],
+    /** beginner's luck: the first wild encounter ever is one common at this level, or two below the team's if lower */
+    firstLevel: 1,
   },
 
   rating: { start: 1000, floor: 0, k: 32, windows: [150, 400], recentOpponents: 5, seenWithinMs: 14 * DAY },
@@ -178,6 +177,14 @@ export function isRested(lastBattleAt: number, now: number): boolean {
   return now - lastBattleAt >= ECONOMY.wild.restedMs
 }
 
+/**
+ * Beginner's luck (SPEC 13): a player who has never won a wild battle and has no wild start on record meets a gentle
+ * first creature (rollFirstWild). `lastWildAt` is 0 for never.
+ */
+export function firstWildDue(wildWon: boolean, lastWildAt: number): boolean {
+  return !wildWon && lastWildAt === 0
+}
+
 /** Server spacing before the next pack charge: 45 minutes, doubled beyond 16 charges in the last 24 hours. */
 export function chargeSpacingMs(chargesInLast24h: number): number {
   return ECONOMY.packs.chargeSpacingMs * (chargesInLast24h >= ECONOMY.packs.fastCharges ? 2 : 1)
@@ -205,19 +212,6 @@ export function giftBonusDue(claimantBattles: number, claimantBattleDays: number
 
 export function streakPackDue(streak: number): boolean {
   return streak > 0 && streak % ECONOMY.streak.every === 0
-}
-
-export type Streak = { streak: number; streakAt: number }
-
-/**
- * The streak after a finished battle (SPEC 14). A loss or draw ends it. A win starts one, or adds to a running one once
- * `streak.spacingMs` has passed since the win that last added (`streakAt`); a quicker win holds it where it is.
- */
-export function nextStreak(s: Streak, win: boolean, now: number): Streak & { pack: boolean } {
-  if (!win) return { streak: 0, streakAt: s.streakAt, pack: false }
-  if (s.streak > 0 && now - s.streakAt < ECONOMY.streak.spacingMs) return { streak: s.streak, streakAt: s.streakAt, pack: false }
-  const streak = s.streak + 1
-  return { streak, streakAt: now, pack: streakPackDue(streak) }
 }
 
 export function canRerollHandle(lastRerollAt: number, now: number): boolean {

@@ -18,7 +18,8 @@ import { blankState, LIMITS } from './save.ts'
 
 /**
  * A new offline save (SPEC 6, First run): the bound starter team saved as the team, two welcome packs (this family
- * and one other) whose cards open trade-locked for 7 days, 100 sparks, and today's hello already counted.
+ * and one other) whose cards open trade-locked for 7 days, 100 sparks, and today's hello already counted. Hatching
+ * counts as a charge, as joining does online: the welcome packs are the first payoff, and the lamp starts from here.
  */
 export function firstRun(ctx: Ctx, family: Family): LocalState {
   const { now, rng } = ctx
@@ -28,6 +29,7 @@ export function firstRun(ctx: Ctx, family: Family): LocalState {
   s.rating = ECONOMY.rating.start
   s.season = seasonOf(now)
   s.helloDay = day
+  s.lastChargeAt = now
   s.generators[String(s.season)] = GENERATOR_VERSION
   s.team = addCards(s, ctx, starterTeam(family, rng, now), { bound: true }).map(c => c.id)
   const lockUntil = now + ECONOMY.welcomeLockMs

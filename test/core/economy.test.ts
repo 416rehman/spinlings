@@ -1,11 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ECONOMY, canRerollHandle, canTrade, chargeSpacingMs, finishAfter, giftBonusDue, isRested, leagueOf, nextStreak, pairCounts,
+  ECONOMY, canRerollHandle, canTrade, chargeSpacingMs, finishAfter, firstWildDue, giftBonusDue, isRested, leagueOf, pairCounts,
   seasonEnd, streakPackDue,
 } from '../../plugin/hooks/core/economy.ts'
-import type { Streak } from '../../plugin/hooks/core/economy.ts'
-import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR
 
@@ -46,39 +44,8 @@ test('pair limit, trust gate, gift bonus, streaks, handle rerolls and the rested
   assert.equal(canRerollHandle(0, 7 * DAY - 1), false)
   assert.equal(isRested(0, 4 * HOUR), true)
   assert.equal(isRested(HOUR, 4 * HOUR), false)
-})
-
-test('streaks: a loss ends one; a win adds only 8 minutes after the win that last did', () => {
-  const gap = ECONOMY.streak.spacingMs
-  assert.equal(gap, 8 * MIN)
-  let s: Streak = { streak: 0, streakAt: 0 }
-  const step = (win: boolean, now: number) => { const r = nextStreak(s, win, now); s = r; return [r.streak, r.pack] }
-  assert.deepEqual(step(true, HOUR), [1, false])
-  assert.deepEqual(step(true, HOUR + 2 * MIN), [1, false], 'too soon: the streak holds')
-  assert.deepEqual(step(true, HOUR + gap), [2, false])
-  assert.deepEqual(step(true, HOUR + 2 * gap), [3, true])
-  assert.deepEqual(step(false, HOUR + 2 * gap + MIN), [0, false])
-  assert.deepEqual(step(true, HOUR + 2 * gap + 2 * MIN), [1, false], 'a new streak starts on any win')
-})
-
-test('a day of duels every 2 minutes earns no more streak packs than presence charging does', () => {
-  const day = (winRate: number, everyMs: number) => {
-    const rng = rngFromSeed(`streaks/${winRate}/${everyMs}`)
-    let s: Streak = { streak: 0, streakAt: 0 }, packs = 0
-    for (let t = 0; t < DAY; t += everyMs) {
-      const next = nextStreak(s, rng() < winRate, t)
-      if (next.pack) packs++
-      s = next
-    }
-    return packs
-  }
-  // a script that never loses: one pack per three spaced wins, at most
-  assert.ok(day(1, 2 * MIN) <= Math.ceil(DAY / (ECONOMY.streak.every * ECONOMY.streak.spacingMs)), `${day(1, 2 * MIN)}`)
-  // a Rival-sized team wins about half its duels; presence alone charges a pack every 45 minutes
-  for (const every of [2 * MIN, ECONOMY.streak.spacingMs]) {
-    const packs = day(0.55, every)
-    assert.ok(packs <= DAY / ECONOMY.packs.chargeSpacingMs, `${packs} streak packs a day, duels every ${every / MIN} min`)
-  }
+  // beginner's luck: only before any wild start on record, and never once a wild win has caught
+  assert.deepEqual([firstWildDue(false, 0), firstWildDue(false, HOUR), firstWildDue(true, 0)], [true, false, false])
 })
 
 test('leagues and the season-end grant', () => {

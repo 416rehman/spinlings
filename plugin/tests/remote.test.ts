@@ -74,11 +74,18 @@ test('requests carry the client version, and the token only where the route need
   expect(path.body).toBe('{"inputs":[2,5]}')
   const empty = buildRequest(ORIGIN, 'recycle', { cardId: 'c1' }, TOKEN, CLIENT_VERSION)
   expect(empty.body).toBe('{}')
+  // a page of cards: the cursor rides in the query, and only when there is one
+  expect(buildRequest(ORIGIN, 'cards', {}, TOKEN, CLIENT_VERSION).url).toBe(`${ORIGIN}/v1/cards`)
+  const page = buildRequest(ORIGIN, 'cards', { after: '2026-10-02.abc' }, TOKEN, CLIENT_VERSION)
+  expect([page.url, page.init.body]).toEqual([`${ORIGIN}/v1/cards?after=2026-10-02.abc`, undefined])
+  const read = readAnswer('cards', answer(200, { cards: [], version: 3, next: '2026-10-02.abc' }))
+  expect(read.next).toBe('2026-10-02.abc')
 })
 
 test('the mod never sends a field or a path the documented shape lacks', () => {
   expect(() => buildRequest(ORIGIN, 'openPack', { packId: 'p1', extra: 1 } as never, TOKEN, CLIENT_VERSION)).toThrow()
   expect(() => buildRequest(ORIGIN, 'profile', { handle: '../me' }, TOKEN, CLIENT_VERSION)).toThrow()
+  expect(() => buildRequest(ORIGIN, 'cards', { after: 'x&y=1' }, TOKEN, CLIENT_VERSION)).toThrow()
   expect(() => buildRequest(ORIGIN, 'join', { challenge: 'abcdefgh', nonce: '1', family: 'opus', email: 'x' } as never, null, CLIENT_VERSION)).toThrow()
   expect(caught(() => buildRequest(ORIGIN, 'me', {}, null, CLIENT_VERSION)).code).toBe('unauthorized')
 })

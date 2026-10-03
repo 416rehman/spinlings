@@ -8,6 +8,8 @@ import {
   speciesNames, syllables,
 } from '../../plugin/hooks/core/names.ts'
 import type { Stage } from '../../plugin/hooks/core/names.ts'
+import { BLOCKED_WORDS, fusionNameLine, isBlocked, mythicNameFor } from '../../plugin/hooks/core/naming.ts'
+import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 
 const FAMILIES: readonly Family[] = ['haiku', 'sonnet', 'opus', 'fable']
 type Shape = { syllables: readonly [number, number]; letters: readonly [number, number] }
@@ -312,6 +314,24 @@ test('mythics are two pronounceable words from their own lists, never built like
   }
 })
 
+test('every seed names a Mythic, and a season that holds every name still names its species', () => {
+  // a seed whose early picks were all unusable used to throw (test/mythic/830 among them)
+  for (let i = 0; i < 10000; i++) {
+    const m = mythicName(`test/mythic/${i}`)
+    const parts = m.split(' ')
+    assert.equal(parts.length, 2, m)
+    for (const p of parts) { assertClean(p, `mythic ${i}`); assertShape(p, MYTHIC_WORD_SHAPE, `mythic ${i}`) }
+    assert.ok(!isBlocked(m), m)
+  }
+  assert.equal(mythicNameFor('test/mythic/830'), mythicName('test/mythic/830'))
+  for (const f of FAMILIES) {
+    const [name] = speciesNames('spinlings/season/2/x/8', f, true, legendaryNames(f))
+    assert.ok(legendaryNames(f).includes(name), `${f}: ${name}`)
+  }
+  const line = speciesNames('spinlings/season/5/opus/3', 'opus', false, allSpecies)
+  line.forEach((n, i) => { assertClean(n, 'crowded season'); assertShape(n, STAGE_SHAPE[(i + 1) as Stage], 'crowded season') })
+})
+
 test('fusions keep both parents: A\'s root up front, B heard at every stage, never a species name', () => {
   const rimeOf = (w: string) => w.replace(/^[^aeiouy]+/, '')
   const heard = [0, 0, 0]
@@ -342,6 +362,78 @@ test('fusions keep both parents: A\'s root up front, B heard at every stage, nev
   assert.match(one, /^Moth/)
   assert.match(two.toLowerCase(), /^mothasp/)
   assert.match(three.toLowerCase(), /^moth.*as/)
+})
+
+test('any two names fuse: 5,000 random pairs of every kind give a clean, growing line, never a throw', () => {
+  const rng = rngFromSeed('test/fusion/any-pair')
+  const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rng() * xs.length)]!
+  // promos are whatever an admin types that the schema allows (SPEC section 25), so some no root opens
+  const promos = ['Founder', 'Founder II', 'Goldie', 'Sparkle', 'Emberlight', 'Nightingale', 'Captainmarvelous', 'Pip', 'Ia',
+    'Eerie', 'Oolong', 'Strengths', 'Xyzzy', 'Qwerty', 'Aeiou', 'Brr', 'Tsk', 'Oyo']
+  // and any letters at all
+  const any: string[] = []
+  while (any.length < 300) {
+    const n = Array.from({ length: 3 + Math.floor(rng() * 9) }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(rng() * 26)]).join('')
+    if (!isBlocked(n)) any.push(n[0]!.toUpperCase() + n.slice(1))
+  }
+  // names minted before this generator: prefix + suffix names, and the blends the old fallback gave
+  const old = ['Pipkin', 'Fogmaw', 'Brasslord', 'Mossling', 'Quillcolossus', 'Thornregent', 'Gloamsprout', 'Netheink',
+    'Nethebeast', 'Nethemonarch', 'Briarlute', 'Briarsage', 'Nightimol']
+  const made: string[] = fusions.flatMap(f => f.line)
+  const legendary = FAMILIES.flatMap(f => legendaryNames(f))
+  const mythic = Array.from({ length: 600 }, (_, i) => mythicName(`test/fusion/mythic/${i}`))
+  const kinds: Record<string, () => string> = {
+    species: () => pick(pick(regular).line),
+    legendary: () => pick(legendary),
+    mythic: () => pick(mythic),
+    promo: () => pick(promos),
+    any: () => pick(any),
+    old: () => pick(old),
+    fusion: () => pick(made),
+  }
+  const names = Object.keys(kinds)
+  const pairings = new Set<string>()
+  for (let i = 0; i < 5000; i++) {
+    const [ka, kb] = [pick(names), pick(names)]
+    const a = kinds[ka]!()
+    const b = kinds[kb]!()
+    const taken = rng() < 0.5 ? pick(seasonNames) : []
+    const label = `${a} (${ka}) + ${b} (${kb})${taken.length ? ' in a season' : ''}`
+    let line: Line
+    try {
+      line = fusionLine(a, b, taken)
+    } catch (e) {
+      assert.fail(`${label} throws: ${(e as Error).message}`)
+    }
+    assert.deepEqual(fusionNameLine(a, b, taken), line, `${label}: the seam sends a name back`)
+    const full = `${label} -> ${line.join(' / ')}`
+    line.forEach((n, s) => {
+      assertClean(n, full)
+      assertShape(n, STAGE_SHAPE[(s + 1) as Stage], full)
+      assert.ok(!isBlocked(n), `${full}: ${n} is blocked`)
+      assert.ok(!isSpeciesName(n), `${full}: ${n} is a species name`)
+      assert.ok(!isNearDuplicate(n, [a, b, ...a.split(' '), ...b.split(' ')]), `${full}: ${n} copies a parent`)
+      assert.ok(!isNearDuplicate(n, taken), `${full}: ${n} is a season name`)
+    })
+    const [x, y, z] = line.map(lower) as [string, string, string]
+    assert.ok(y.length > x.length && z.length > y.length && syllables(z) > syllables(x), `${full} does not grow`)
+    // a parent a generator named keeps its opening (Net- for Netherhowl, Br- for Briarvale); a fusion may descend
+    // from letters no root opens
+    if (!['promo', 'any', 'fusion'].includes(ka)) assert.equal(x.slice(0, 2), lower(a).slice(0, 2), `${full} loses A's opening`)
+    made.push(pick(line))
+    pairings.add(`${ka}+${kb}`)
+  }
+  assert.equal(pairings.size, names.length ** 2, 'every pairing of kinds is tried')
+  // the pairs the generator could not blend before: a legendary whose stem opens a word, a Mythic whose stem ends in
+  // a vowel
+  assert.deepEqual(fusionLine('Netherhowl', 'Figmink').map(n => n.slice(0, 3)), ['Net', 'Net', 'Net'])
+  assert.ok(fusionLine('Briarvale Snowpaw', 'Foamlute').every(n => n.startsWith('Br')))
+})
+
+test('the generator\'s blocklists hold every word of the seam\'s, so the seam never sends a name back', () => {
+  for (const w of BLOCKED_WORDS) {
+    for (const n of [w, `mos${w}`, `${w}el`, `mos${w}el`, `Fern ${w}`]) assert.notEqual(blockReason(n), null, n)
+  }
 })
 
 test('junctions read one way only', () => {
@@ -431,6 +523,13 @@ test('near-duplicates are edit distance 1, case-insensitive', () => {
   assert.equal(editDistance('abcdef', 'uvwxyz', 2), 3)
   assert.ok(isNearDuplicate('Mossip', ['MOSSAP']))
   assert.ok(!isNearDuplicate('Mossip', ['Mossalin', 'Fernip']))
+  // the quick one-edit check agrees with the full distance
+  const rng = rngFromSeed('test/near-duplicates')
+  const word = () => Array.from({ length: Math.floor(rng() * 7) }, () => 'abcab'[Math.floor(rng() * 5)]).join('')
+  for (let i = 0; i < 20000; i++) {
+    const [a, b] = [word(), word()]
+    assert.equal(isNearDuplicate(a, [b]), editDistance(a, b) <= 1, `${a} / ${b}`)
+  }
 })
 
 test('root pools are plain nature and whimsy words: no rude, developer or franchise words', () => {

@@ -47,7 +47,8 @@ test('the first me() hatches a save: starter team set, two welcome packs, 100 sp
     assert.equal(w.saves, 1)
     const p = me.player
     assert.deepEqual([p.handle, p.sparks, p.rating, p.league, p.battles, p.streak, p.canTrade, p.leaderboard], [OFFLINE_HANDLE, 100, 1000, 'Pebble', 0, 0, false, false])
-    assert.deepEqual([p.joinedDay, p.nextWildAt, p.nextDuelAt, p.nextChargeAt], [utcDay(NOW), 0, 0, 0])
+    // hatching counts as a charge: the welcome packs are the first payoff, the lamp starts from here
+    assert.deepEqual([p.joinedDay, p.nextWildAt, p.nextDuelAt, p.nextChargeAt], [utcDay(NOW), 0, 0, NOW + ECONOMY.packs.chargeSpacingMs])
     assert.equal(me.now, NOW)
     assert.deepEqual([me.offers, me.gifts, me.notices], [{ incoming: [], outgoing: [] }, [], []])
 

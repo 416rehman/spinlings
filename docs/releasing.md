@@ -45,7 +45,7 @@ Done once by hand, never from CI:
 
   Rotating it is harmless: it only keys the join counters, which last 24 hours.
 - Workers observability, Logpush and Tail Workers stay off (PRIVACY.md promises no request logs). Check the dashboard after any change to `wrangler.jsonc`.
-- **Before launch:** once `https://spinlings.dev` serves the Worker, set `"workers_dev": false` in `wrangler.jsonc`, so there is exactly one origin (SPEC 31). The domain is final: passkeys are bound to it forever. If the token has no zone permission, attach the domain once in the dashboard: Workers, then spinlings, then Settings, then Domains & Routes.
+- **One origin.** `https://spinlings.dev` serves the Worker as a custom domain, and `wrangler.jsonc` keeps `"workers_dev": false` and `"preview_urls": false`, so there is exactly one origin (SPEC 31). The domain is final: passkeys are bound to it forever, so never move it. If the token has no zone permission and the domain ever needs attaching again, do it once in the dashboard: Workers, then spinlings, then Settings, then Domains & Routes.
 
 ## Cutting a release
 

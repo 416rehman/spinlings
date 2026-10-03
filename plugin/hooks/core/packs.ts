@@ -1,7 +1,7 @@
 // Server-side rolls: pack contents, wild teams and duel bounties. Every draw comes from the given Rng.
 import type { BattleCard, DailyRule, Family, NewCard, Rarity, Rng, Species } from './types.ts'
 import { ECONOMY } from './economy.ts'
-import { FAMILIES } from './families.ts'
+import { FAMILIES, typeMult } from './families.ts'
 import { mintCard, toBattleCard } from './cards.ts'
 import { generateMythic, mythicSeed } from './mythics.ts'
 import { chance, between, pick, uint32, weighted } from './rng.ts'
@@ -83,6 +83,25 @@ export function rollWildTeam(o: WildOptions): BattleCard[] {
     team.push(toBattleCard({ ...card, id: `wild-${slot}` }))
   }
   return team
+}
+
+/**
+ * The first wild encounter ever (beginner's luck, SPEC 13): one common at ECONOMY.wild.firstLevel (or two below the
+ * team's level if that is lower) from the family that fares worst against the player's lead today, with the type
+ * cycle, Topsy-Turvy and the arena bonus all counted. A starter team wins it almost always, and that first wild win
+ * always catches. Never a Mythic or the roamer; it may still be shiny or foil. The id is 'wild-0'.
+ */
+export function rollFirstWild(o: Pick<WildOptions, 'rng' | 'arena' | 'now' | 'level' | 'rule'> & { lead: Family }): BattleCard[] {
+  const { rng, arena, now, lead } = o
+  const rule = o.rule ?? dailyRule(now)
+  // how hard a family hits the lead against how hard the lead hits it back
+  const edge = (f: Family) => (typeMult(f, lead, rule) * (f === arena ? ECONOMY.battle.arena : 1)) / typeMult(lead, f, rule)
+  const family = FAMILIES.reduce((a, b) => (edge(b) < edge(a) ? b : a))
+  const species = pick(rng, familySpecies(seasonOf(now), family).filter(s => !s.legendary))
+  const level = Math.max(1, Math.min(ECONOMY.wild.firstLevel, Math.round(o.level) - 2))
+  const shiny = chance(rng, shinyChance(now, rule))
+  const card = mintCard({ species, rarity: 'common', shiny, dna: uint32(rng), origin: 'catch', now, level, foil: chance(rng, ECONOMY.foil.chance) })
+  return [toBattleCard({ ...card, id: 'wild-0' })]
 }
 
 /**

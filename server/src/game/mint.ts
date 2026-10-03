@@ -1,7 +1,8 @@
 // Cards on the server: mintCards is the ONLY place a card row is inserted (server-computed stats,
 // first discoveries, the album, the Fusion Log and the Mythics list all follow from it). Also the row
 // <-> wire conversions, the loaders and guards every route uses, pack grants, and the views of rows
-// that carry cards (packs, offers, gifts).
+// that carry cards (packs, offers, gifts). A Mythic's finder is never stored on the card: the
+// loaders name them from the Mythics list as each card is read.
 import type { GiftView, OfferState, OfferView, PackSource, PackView } from '../../../plugin/hooks/core/api.ts'
 import { cardPower, cardStats, toBattleCard } from '../../../plugin/hooks/core/cards.ts'
 import { FAMILIES } from '../../../plugin/hooks/core/families.ts'
@@ -30,10 +31,13 @@ export type StoredCard = {
 
 const isSeasonSpecies = (species: string) => SPECIES_ID.test(species)
 
+/** A form as stored: never a finder's name, which rows minted before finders were named on reading may still carry. */
+const withoutFinder = ({ discoveredBy: _, ...form }: CardForm): CardForm => form
+
 export function cardOf(r: CardRow): StoredCard {
   const base = {
     species: r.species,
-    ...(r.form ? { form: JSON.parse(r.form) as CardForm } : {}),
+    ...(r.form ? { form: withoutFinder(JSON.parse(r.form) as CardForm) } : {}),
     genes: JSON.parse(r.genes) as Genes,
     traits: JSON.parse(r.traits) as TraitId[],
     rarity: r.rarity as Rarity,
@@ -79,11 +83,39 @@ export function publicCard(card: Card | BattleCard): BattleCard {
 
 // ---- loaders (each installs the seasons its cards come from, so stats and names resolve) --------
 
+const CHUNK = 90 // D1 binds at most 100 parameters per statement
+
 /** Cards by any SELECT over `cards`; keep the SELECT bounded. */
 export async function queryCards(db: Db, sql: string, ...params: SqlParam[]): Promise<StoredCard[]> {
   const rows = await db.all<CardRow>(sql, ...params)
   await ensureSeasons(db, rows.map(r => r.season))
-  return rows.map(cardOf)
+  const cards = rows.map(cardOf)
+  await nameFinders(db, cards)
+  return cards
+}
+
+/**
+ * Who found each caught Mythic, named as it is read (SPEC 18, 20.1): the finder's handle while it is
+ * still the one they found it under. After a reroll or a deletion the card names nobody (the site
+ * says "a trainer"), so no card, copy or list ever shows an old handle beside a new one.
+ */
+async function nameFinders(db: Db, cards: readonly StoredCard[]): Promise<void> {
+  const ids = cards.filter(c => c.card.form?.kind === 'mythic').map(c => c.card.id)
+  if (!ids.length) return
+  const finders = new Map<string, string>()
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const part = ids.slice(i, i + CHUNK)
+    const rows = await db.all<{ card_id: string; handle: string }>(
+      `SELECT m.card_id, p.handle FROM mythics m JOIN players p ON p.id = m.finder_id AND p.handle = m.handle
+       WHERE m.card_id IN (${part.map(() => '?').join(', ')})`,
+      ...part,
+    )
+    for (const r of rows) finders.set(r.card_id, r.handle)
+  }
+  for (const { card } of cards) {
+    const by = finders.get(card.id)
+    if (by) card.form = { ...card.form!, discoveredBy: by }
+  }
 }
 
 /** Every card a player holds, oldest first. */
@@ -132,8 +164,6 @@ export async function ownCards(db: Db, owner: string, ids: readonly string[]): P
     return c && c.owner === owner ? c : notFound('card')
   })
 }
-
-const CHUNK = 90 // D1 binds at most 100 parameters per statement
 
 /** Any cards by id, whoever owns them (offers, battle snapshots); missing ids are simply absent. */
 export async function cardsByIds(db: Db, ids: readonly string[]): Promise<Map<string, StoredCard>> {
@@ -195,11 +225,14 @@ export type MintOptions = {
  * generateMythic, promoCard...) into rows for `owner`: random ids, stats computed here, the first
  * card of a species anyone obtained gets firstFind and a `firsts` row (a lost race on it is a
  * Conflict, so the handler re-runs and the card is no longer first), season species go into the
- * album, the player's own fusions into the Fusion Log, caught Mythics onto the public list. Commit
+ * album, the player's own fusions into the Fusion Log, caught Mythics onto the public list with
+ * `owner` as their finder (a `discoveredBy` the card claims is ignored and never stored). Commit
  * `stmts` in the handler's batch; return `cards` to the client.
  */
 export async function mintCards(env: Env, owner: string, fresh: readonly NewCard[], o: MintOptions = {}): Promise<{ cards: Card[]; stmts: Stmt[] }> {
   await ensureSeasons(env.db, fresh.map(c => c.season))
+  const caught = (c: Pick<NewCard, 'species' | 'origin'>) => c.species === 'mythic' && c.origin === 'catch'
+  const finder = fresh.some(caught) ? (await env.db.get<{ handle: string }>('SELECT handle FROM players WHERE id = ?', owner))?.handle : undefined
   const species = [...new Set(fresh.map(c => c.species).filter(isSeasonSpecies))]
   const firstTaken = new Set<string>()
   for (let i = 0; i < species.length; i += CHUNK) {
@@ -215,6 +248,7 @@ export async function mintCards(env: Env, owner: string, fresh: readonly NewCard
     const first = isSeasonSpecies(c.species) && !firstTaken.has(c.species)
     if (first) firstTaken.add(c.species)
     const { firstFind: _, ...rest } = c as NewCard & { firstFind?: true }
+    if (rest.form) rest.form = withoutFinder(rest.form)
     // a self-check: a card that would not pass the client's own reader is a server bug, not a row
     const card = parseCard({
       ...rest,
@@ -245,13 +279,14 @@ export async function mintCards(env: Env, owner: string, fresh: readonly NewCard
     if (card.species === 'fusion' && card.origin === 'fusion') {
       stmts.push(stmt('INSERT INTO fusions (player_id, form, day) VALUES (?, ?, ?)', owner, JSON.stringify(card.form), day))
     }
-    if (card.species === 'mythic' && card.origin === 'catch') {
+    if (caught(card)) {
+      // the handle it was found under: the loaders name the finder only while it is still theirs
       stmts.push(stmt(
         'INSERT INTO mythics (card_id, name, finder_id, handle, day) VALUES (?, ?, ?, ?, ?)',
-        id, card.form!.names[2], owner, card.form!.discoveredBy ?? null, day,
+        id, card.form!.names[2], owner, finder ?? null, day,
       ))
     }
-    cards.push(card)
+    cards.push(caught(card) && finder ? { ...card, form: { ...card.form!, discoveredBy: finder } } : card)
   }
   if (fresh.length) stmts.push(bumpCards(owner))
   return { cards, stmts }

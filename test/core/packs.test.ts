@@ -1,13 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Rarity } from '../../plugin/hooks/core/types.ts'
-import { otherFamily, rollBounty, rollPack, rollWildTeam } from '../../plugin/hooks/core/packs.ts'
-import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
+import { otherFamily, rollBounty, rollFirstWild, rollPack, rollWildTeam } from '../../plugin/hooks/core/packs.ts'
+import { int, pick, rngFromSeed, shuffle } from '../../plugin/hooks/core/rng.ts'
+import { RULES_VERSION, simulateBattle } from '../../plugin/hooks/core/battle.ts'
+import { FAMILIES, beatenBy, beats, typeMult } from '../../plugin/hooks/core/families.ts'
 import { getSpecies, legendaryOf } from '../../plugin/hooks/core/species.ts'
 import { mythicForm } from '../../plugin/hooks/core/mythics.ts'
-import { DAY_MS, EPOCH_MS, dailyRule, featuredSpecies, weeklyRoamer } from '../../plugin/hooks/core/world.ts'
+import { DAY_MS, EPOCH_MS, dailyRule, featuredSpecies, seasonOf, weeklyRoamer } from '../../plugin/hooks/core/world.ts'
 import { parseBattleCard, parseCard } from '../../plugin/hooks/core/schemas.ts'
-import { recycleValue, stageFor } from '../../plugin/hooks/core/cards.ts'
+import { recycleValue, stageFor, starterTeam, toBattleCard } from '../../plugin/hooks/core/cards.ts'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { fighter, NOW, near } from './helpers.ts'
 
@@ -209,4 +211,46 @@ test('a rested player meets a rare-or-better wild lead', () => {
     if (team[0]!.rarity === 'epic') epic++
   }
   assert.ok(near(epic, n, 4 / 22), `epic ${epic / n}`)
+})
+
+test('beginner\'s luck: the first wild encounter is one level-1 common of the family the lead fares best against', () => {
+  const rng = rngFromSeed('first-wild')
+  for (const lead of FAMILIES) {
+    for (const arena of FAMILIES) {
+      for (const rule of ['calm', 'topsyTurvy'] as const) {
+        const team = rollFirstWild({ rng, arena, now: NOW, level: 3, rule, lead })
+        assert.equal(team.length, 1)
+        const c = team[0]!
+        assert.deepEqual([c.id, c.rarity, c.level, c.stage, c.season], ['wild-0', 'common', 1, 1, seasonOf(NOW)])
+        assert.equal(c.family, rule === 'topsyTurvy' ? beatenBy(lead) : beats(lead))
+        assert.ok(typeMult(lead, c.family, rule) > 1 && typeMult(c.family, lead, rule) < 1)
+        assert.doesNotThrow(() => parseBattleCard(c))
+      }
+    }
+  }
+  // a higher tuned level still sits two below the team's
+  const w = ECONOMY.wild as { firstLevel: number }
+  const saved = w.firstLevel
+  w.firstLevel = 5
+  try {
+    assert.deepEqual([4, 9].map(level => rollFirstWild({ rng, arena: 'opus', now: NOW, level, lead: 'haiku' })[0]!.level), [2, 5])
+  } finally {
+    w.firstLevel = saved
+  }
+})
+
+test('beginner\'s luck: starter teams win the first wild encounter in at least 95% of 2,000 seeds, pressing nothing', () => {
+  const n = 2000
+  let wins = 0
+  for (let i = 0; i < n; i++) {
+    const rng = rngFromSeed('first-wild-sim/' + i)
+    const now = EPOCH_MS + int(rng, 120) * DAY_MS + int(rng, DAY_MS)
+    const rule = dailyRule(now)
+    const arena = pick(rng, FAMILIES)
+    const attacker = shuffle(rng, starterTeam(pick(rng, FAMILIES), rng, now)).map((c, k) => toBattleCard({ ...c, id: `starter-${k}` }))
+    const defender = rollFirstWild({ rng, arena, now, level: ECONOMY.starter.level, rule, lead: attacker[0]!.family })
+    const setup = { seed: `first-${i}`, kind: 'wild' as const, arena, rule, rules: RULES_VERSION, attacker, defender }
+    if (simulateBattle(setup, []).result === 'win') wins++
+  }
+  assert.ok(wins >= 0.95 * n, `${wins} of ${n}`)
 })

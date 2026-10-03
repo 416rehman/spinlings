@@ -313,13 +313,15 @@ export function deletionStmts(p: PlayerRow, now: number): Stmt[] {
 
 /**
  * The Mythics this player found stop naming them, on the public list and on each card wherever it
- * lives now (its owner's collection version moves), so an old handle never sits beside a new one.
+ * lives now, so an old handle never sits beside a new one. Cards hold no finder (the loaders name
+ * one while `mythics.handle` is still theirs), so each owner's collection version moves for the
+ * stamp to go, and rows minted before that rule lose the name they still carry.
  */
 function forgetFinder(id: string): Stmt[] {
-  const stamped = `id IN (SELECT card_id FROM mythics WHERE finder_id = ?) AND json_extract(form, '$.discoveredBy') IS NOT NULL`
+  const found = 'id IN (SELECT card_id FROM mythics WHERE finder_id = ?)'
   return [
-    stmt(`UPDATE players SET cards_version = cards_version + 1 WHERE id IN (SELECT owner_id FROM cards WHERE ${stamped})`, id),
-    stmt(`UPDATE cards SET form = json_remove(form, '$.discoveredBy'), version = version + 1 WHERE ${stamped}`, id),
+    stmt(`UPDATE players SET cards_version = cards_version + 1 WHERE id IN (SELECT owner_id FROM cards WHERE ${found})`, id),
+    stmt(`UPDATE cards SET form = json_remove(form, '$.discoveredBy'), version = version + 1 WHERE ${found} AND json_extract(form, '$.discoveredBy') IS NOT NULL`, id),
     stmt('UPDATE mythics SET handle = NULL WHERE finder_id = ?', id),
   ]
 }

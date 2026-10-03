@@ -3,13 +3,14 @@
 // Rival) and the seed. Settling re-simulates with the battle's own rules version and pays everything
 // in one guarded batch: sparks, XP and evolution with arena counts, rating under the pair limit,
 // defense, streaks, the daily first win, the catch roll and the bounty. No daily caps (SPEC 24).
-import type { FinishBattleResponse, Opponent, StartBattleRequest, StartBattleResponse } from '../../../plugin/hooks/core/api.ts'
-import { applyRating, battleRewards, eloDelta, participants, RULES_VERSION, simulateBattle } from '../../../plugin/hooks/core/battle.ts'
-import { applyXp, cardFromBattleCard, cardName, cardPower, raisingFamily, toBattleCard } from '../../../plugin/hooks/core/cards.ts'
-import { ECONOMY, finishAfter, leagueOf, streakPackDue } from '../../../plugin/hooks/core/economy.ts'
-import { rollBounty, rollWildTeam } from '../../../plugin/hooks/core/packs.ts'
+import type { FinishBattleResponse, NoticeKind, Opponent, StartBattleRequest, StartBattleResponse } from '../../../plugin/hooks/core/api.ts'
+import { participants, RULES_VERSION, simulateBattle } from '../../../plugin/hooks/core/battle.ts'
+import { cardFromBattleCard, cardPower, toBattleCard } from '../../../plugin/hooks/core/cards.ts'
+import { ECONOMY, finishAfter, firstWildDue, leagueOf } from '../../../plugin/hooks/core/economy.ts'
+import { rollFirstWild, rollWildTeam } from '../../../plugin/hooks/core/packs.ts'
 import { rollRival } from '../../../plugin/hooks/core/rivals.ts'
-import { chance } from '../../../plugin/hooks/core/rng.ts'
+import { BATTLE_TEXT, settlePlan } from '../../../plugin/hooks/core/settle.ts'
+import type { SettleMode } from '../../../plugin/hooks/core/settle.ts'
 import { SPECIES_ID } from '../../../plugin/hooks/core/species.ts'
 import type { BattleCard, BattleLog, BattleSetup, Card } from '../../../plugin/hooks/core/types.ts'
 import { utcDay, worldOf } from '../../../plugin/hooks/core/world.ts'
@@ -49,14 +50,8 @@ export const RIVAL = 'rival'
 /** What the row keeps about the opponent beyond the wire view: the rating Elo settles against. */
 type StoredOpponent = { kind: 'wild' } | { kind: 'player'; rating: number } | { kind: 'rival'; name: string; rating: number }
 
-/** Fixed lines for notices: results only, never the arena; the other player's handle rides alongside. */
-export const BATTLE_TEXT = {
-  defenseWin: (sparks: number) => `Your team held off a challenger${sparks ? ` · +${sparks} sparks` : ''}`,
-  defenseLoss: () => 'A challenger beat your team · revenge is open for a day',
-  evolved: (from: string, to: string) => `${from} evolved into ${to}!`,
-  dailyPack: () => 'Your first win today brought a pack',
-  streakPack: (streak: number) => `Hot streak! ${streak} wins in a row brought a pack`,
-}
+export { BATTLE_TEXT }
+export type { SettleMode }
 
 const battleGuard = (b: Pick<BattleRow, 'id' | 'version'>): Stmt =>
   guard(`SELECT 1 FROM battles WHERE id = ? AND state = 'open' AND version = ?`, b.id, b.version)
@@ -192,15 +187,18 @@ async function duelFoe(env: Env, p: PlayerRow, team: readonly StoredCard[]): Pro
 }
 
 /**
- * Wild creatures (SPEC 5, 7, 17, 18): the arena family, the featured species, the roamer, a Mythic,
- * the rested bonus (never for a player's very first battles: they are not back from a break).
+ * Wild creatures (SPEC 5, 7, 13, 17, 18): the arena family, the featured species, the roamer, a Mythic,
+ * the rested bonus (never for a player's very first battles: they are not back from a break). The
+ * first wild encounter ever is one gentle creature against the lead (beginner's luck); the sweep
+ * forgets a wild start after a day, so a player who has still never won one meets another then.
  */
 function wildFoe(env: Env, p: PlayerRow, req: StartBattleRequest, team: readonly StoredCard[]): Foe {
   const w = worldOf(env.now)
   const level = team.reduce((n, c) => n + c.card.level, 0) / team.length
-  const defender = rollWildTeam({
-    rng: rngOf(env), arena: req.family, now: env.now, level, rule: w.rule, featured: w.featured, roamer: w.roamer, rested: restedNow(p, env.now),
-  })
+  const o = { rng: rngOf(env), arena: req.family, now: env.now, level, rule: w.rule }
+  const defender = firstWildDue(p.wild_won === 1, p.last_wild_at)
+    ? rollFirstWild({ ...o, lead: team[0]!.card.family })
+    : rollWildTeam({ ...o, featured: w.featured, roamer: w.roamer, rested: restedNow(p, env.now) })
   return { defender, defenderId: null, kind: 'wild', opponent: { kind: 'wild' }, stored: { kind: 'wild' }, stmts: [] }
 }
 
@@ -253,13 +251,6 @@ export async function prepareStart(env: Env, p: PlayerRow, req: StartBattleReque
 
 // ---- settling ----------------------------------------------------------------------------------
 
-/**
- * How a battle settles: `finish` is the attacker's own POST .../finish; `auto` is an abandoned
- * battle (touch) or one a new start pushed aside. An auto settle rolls no catch, since nobody is
- * there to pick (a Mythic is gone for good), and so leaves beginner's luck for the next wild win.
- */
-export type SettleMode = 'finish' | 'auto'
-
 /** Closes a battle that cannot be replayed (an unreadable row): settled, nothing paid. */
 export const closeBattle = (b: Pick<BattleRow, 'id' | 'version'>, now: number): Stmt[] => [
   battleGuard(b),
@@ -267,10 +258,11 @@ export const closeBattle = (b: Pick<BattleRow, 'id' | 'version'>, now: number): 
 ]
 
 /**
- * Settles an open battle for its attacker `p` (their fresh row). Returns the answer and the batch:
- * guards for the battle, the cards and the pair limit first, then every write. It does not guard
- * the attacker's row: commit() it for the caller, or add playerGuard(p) and bumpPlayer when settling
- * for someone else. Writes to both players' rows are relative.
+ * Settles an open battle for its attacker `p` (their fresh row) by the core settlePlan, the same
+ * one the offline world applies. Returns the answer and the batch: guards for the battle, the cards
+ * and the pair limit first, then every write. It does not guard the attacker's row: commit() it for
+ * the caller, or add playerGuard(p) and bumpPlayer when settling for someone else. Writes to both
+ * players' rows are relative.
  */
 export async function settleBattle(
   env: Env, b: BattleRow, p: PlayerRow, mode: SettleMode, log: BattleLog,
@@ -279,97 +271,77 @@ export async function settleBattle(
   const stored = readJson<StoredOpponent>(b.opponent, { kind: 'wild' })
   const { now } = env
   const { result } = log
-  const win = result === 'win'
-  const wild = b.kind === 'wild'
-  const firstWildWin = wild && win && mode === 'finish' && p.wild_won === 0
-  const rewards = battleRewards(setup.kind, result, setup.rule, { revenge: b.revenge === 1, firstWildWin })
   const rng = rngOf(env)
   const guards: Stmt[] = [battleGuard(b)]
   const writes: Stmt[] = []
-  const told = (kind: Parameters<typeof notice>[2], text: string) => { if (mode === 'auto') writes.push(notice(env, p.id, kind, text)) }
 
-  // XP, evolution and arena counts for the team cards that took part and are still the player's
-  const slots = participants(log, 'a')
-  const held = await cardsByIds(env.db, slots.map(i => setup.attacker[i]!.id))
-  // after a draw or a loss, fainted cards rest 15 minutes from the battle's end: now, or for an auto
-  // settle its earliest finish (SPEC 5, Outcomes)
-  const tiredUntil = (mode === 'finish' ? now : b.finish_after) + B.tiredMs
-  const xp: FinishBattleResponse['xp'] = []
-  const tired: string[] = []
-  for (const slot of slots) {
-    const prev = held.get(setup.attacker[slot]!.id)
-    if (!prev || prev.owner !== p.id) continue
-    const arena = { ...prev.arena, [setup.arena]: prev.arena[setup.arena] + 1 }
-    const grown = applyXp(prev.card, rewards.xp, raisingFamily(arena, prev.card.family))
-    let next: Card = grown.card
-    if (!win && log.fainted.a.includes(slot) && tiredUntil > now) {
-      next = { ...next, tiredUntil: Math.max(next.tiredUntil, tiredUntil) }
-      tired.push(next.id)
-    }
-    guards.push(cardGuard(prev))
-    writes.push(saveCard(prev, next, { arena }))
-    xp.push({ cardId: next.id, xp: rewards.xp, levelsGained: grown.levelsGained, evolved: grown.evolved, stage: next.stage })
-    if (grown.evolved) told('evolved', BATTLE_TEXT.evolved(cardName(prev.card), cardName(next)))
+  // the team cards that took part and are still the player's
+  const found = await cardsByIds(env.db, participants(log, 'a').map(i => setup.attacker[i]!.id))
+  const held = new Map([...found].filter(([, c]) => c.owner === p.id))
+
+  // duels: the pair limit, the defending player, and the bounty's species (the opponent's lead)
+  const duel = b.kind !== 'wild'
+  const d = duel && b.defender_id ? await env.db.get<PlayerRow>('SELECT * FROM players WHERE id = ?', b.defender_id) : undefined
+  let counts = duel
+  if (d) {
+    const earlier = await pairDuels(env.db, p.id, d.id, now)
+    counts = pairCounts(earlier)
+    guards.push(pairGuard(p.id, d.id, now, earlier))
   }
-  if (xp.length) writes.push(bumpCards(p.id))
+  const lead = setup.defender[0]!
+  if (duel) await ensureSeasons(env.db, [lead.season, ...(lead.form?.parents ?? []).flatMap(seasonsIn)])
+  const theirs = d?.rating ?? ('rating' in stored ? stored.rating : ECONOMY.rating.start)
+  const plan = settlePlan({
+    setup, log, mode, now, finishAfter: b.finish_after, rng, held, streak: p.streak, rating: p.rating,
+    opponentRating: counts ? theirs : null, wildWon: p.wild_won !== 0, firstWinDue: firstWinDue(p, now), revenge: b.revenge === 1,
+  })
+  const { answer } = plan
+  const told = (kind: NoticeKind) => {
+    for (const n of plan.notices) if (n.kind === kind) writes.push(notice(env, p.id, kind, n.text))
+  }
 
-  // rating (duels and Rivals), the pair limit, and the defending player's side
-  let ratingDelta = 0
-  if (!wild) {
-    const d = b.defender_id ? await env.db.get<PlayerRow>('SELECT * FROM players WHERE id = ?', b.defender_id) : undefined
-    let counts = true
-    if (d) {
-      const earlier = await pairDuels(env.db, p.id, d.id, now)
-      counts = pairCounts(earlier)
-      guards.push(pairGuard(p.id, d.id, now, earlier))
-    }
-    const theirs = d?.rating ?? ('rating' in stored ? stored.rating : ECONOMY.rating.start)
-    const elo = eloDelta(p.rating, theirs, result)
-    if (counts) ratingDelta = applyRating(p.rating, elo.attacker) - p.rating
-    if (ratingDelta) writes.push(addRating(p.id, ratingDelta))
-    if (d) {
-      const defense = result === 'loss' && counts ? B.defenseSparks : 0
-      if (counts && elo.defender) writes.push(addRating(d.id, elo.defender))
-      if (defense) writes.push(addSparks(d.id, defense))
-      if (result === 'loss') writes.push(notice(env, d.id, 'defense-win', BATTLE_TEXT.defenseWin(defense), { other: p.id }))
-      if (win) writes.push(notice(env, d.id, 'defense-loss', BATTLE_TEXT.defenseLoss(), { other: p.id, revengeUntil: now + DAY }))
-      writes.push(bumpPlayer(d.id))
-    }
+  // XP, evolution and arena counts
+  for (const c of plan.cards) {
+    guards.push(cardGuard(c.held))
+    writes.push(saveCard(c.held, c.next, { arena: c.arena }))
+  }
+  told('evolved')
+  if (plan.cards.length) writes.push(bumpCards(p.id))
+
+  // rating, and the defending player's side
+  if (answer.ratingDelta) writes.push(addRating(p.id, answer.ratingDelta))
+  if (d) {
+    const defense = result === 'loss' && counts ? B.defenseSparks : 0
+    if (plan.defenderDelta) writes.push(addRating(d.id, plan.defenderDelta))
+    if (defense) writes.push(addSparks(d.id, defense))
+    if (result === 'loss') writes.push(notice(env, d.id, 'defense-win', BATTLE_TEXT.defenseWin(defense), { other: p.id }))
+    if (result === 'win') writes.push(notice(env, d.id, 'defense-loss', BATTLE_TEXT.defenseLoss(), { other: p.id, revengeUntil: now + DAY }))
+    writes.push(bumpPlayer(d.id))
   }
 
   // sparks, the streak and its pack, the daily first win, the trust gate's count
-  const streak = win ? p.streak + 1 : 0
-  const streakPack = win && streakPackDue(streak)
-  const dailyWinPack = win && firstWinDue(p, now)
-  writes.push(addSparks(p.id, rewards.sparks), battleFinished(p.id, now))
-  if (streak !== p.streak) writes.push(setPlayer(p.id, { streak }))
-  if (streakPack) {
+  writes.push(addSparks(p.id, answer.sparks), battleFinished(p.id, now))
+  if (answer.streak !== p.streak) writes.push(setPlayer(p.id, { streak: answer.streak }))
+  if (answer.streakPack) {
     writes.push(grantPack(env, p.id, setup.arena, 'streak').stmt)
-    told('streak-pack', BATTLE_TEXT.streakPack(streak))
+    told('streak-pack')
   }
-  if (dailyWinPack) {
+  if (answer.dailyWinPack) {
     writes.push(grantPack(env, p.id, setup.arena, 'daily').stmt, markFirstWin(p, now))
-    told('daily-pack', BATTLE_TEXT.dailyPack())
+    told('daily-pack')
   }
 
-  // a wild win's catch roll among the creatures it defeated (the first one ever always catches; a
-  // win on the round limit may have defeated none, and then beginner's luck waits), a duel win's bounty
-  const defeated = setup.defender.filter((_, i) => log.fainted.d.includes(i))
-  const catchOptions = wild && win && mode === 'finish' && defeated.length && chance(rng, rewards.catchChance) ? defeated : []
-  if (firstWildWin && catchOptions.length) writes.push(setPlayer(p.id, { wild_won: 1 }))
+  // the catch spends beginner's luck once one is offered; the bounty is minted here
+  if (plan.luckSpent) writes.push(setPlayer(p.id, { wild_won: 1 }))
   let bounty: Card | null = null
-  if (rewards.bountyChance > 0 && chance(rng, rewards.bountyChance)) {
-    const lead = setup.defender[0]!
-    await ensureSeasons(env.db, [lead.season, ...(lead.form?.parents ?? []).flatMap(seasonsIn)])
-    const minted = await mintCards(env, p.id, [rollBounty(lead, rng, now, setup.rule)])
+  if (plan.bounty) {
+    const minted = await mintCards(env, p.id, [plan.bounty])
     bounty = minted.cards[0]!
     writes.push(...minted.stmts)
   }
 
-  const response: FinishBattleResponse = {
-    result, sparks: rewards.sparks, xp, rating: p.rating + ratingDelta, ratingDelta, catchOptions, bounty, dailyWinPack, streak, streakPack,
-    tired, log,
-  }
+  const response: FinishBattleResponse = { ...answer, bounty }
+  const { catchOptions } = answer
   // the row keeps the result, any catch and a finish's answer for a retry (finishedAgain); the arena,
   // both teams and the seed go now (SPEC 20.2)
   writes.push(stmt(
@@ -414,15 +386,15 @@ const seasonsIn = (species: string): number[] => {
 
 /**
  * POST /v1/battles/:id/catch: one of the defeated wild creatures becomes the attacker's card, with
- * the same DNA, genes, traits and level. A Mythic is stamped with its finder's handle and joins the
- * public Mythics list (mintCards). One-shot: the options go in the same batch.
+ * the same DNA, genes, traits and level. A Mythic joins the public Mythics list with its finder
+ * (mintCards; the loaders name them as the card is read). One-shot: the options go in the same batch.
  */
 export async function prepareCatch(env: Env, p: PlayerRow, b: BattleRow, index: number): Promise<{ card: Card; stmts: Stmt[] }> {
   const options = readJson<BattleCard[] | null>(b.catch_options, null)
   if (b.state !== 'settled' || !options?.length) fail('conflict', 'Nothing is waiting to be caught')
   if (env.now >= b.catch_until) fail('expired', 'It wandered off')
   const pick = options[index] ?? fail('bad_request', 'No creature in that spot')
-  const fresh = cardFromBattleCard(pick, 'catch', env.now, pick.species === 'mythic' ? { discoveredBy: p.handle } : {})
+  const fresh = cardFromBattleCard(pick, 'catch', env.now)
   const minted = await mintCards(env, p.id, [fresh])
   return {
     card: minted.cards[0]!,

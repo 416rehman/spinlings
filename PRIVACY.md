@@ -70,7 +70,7 @@ These are all the kinds of request body the mod can send:
 | Finish a battle | the round numbers on which you pressed 1 |
 | Redeem a drop | the code you typed |
 | Everything else (catching, packs, team, fusion, recycling, crafting, trading, the Wandering Trader, wishlist, gifts, claims, the leaderboard switch, a new handle, passkeys, resetting access, settings) | the ids of the cards, packs, species, offers, players or gift codes involved, and simple choices such as which catch you picked or a for-trade switch |
-| Reading your game, profiles, the trade board, the leaderboard and the world | nothing |
+| Reading your game, profiles, the trade board, the leaderboard and the world | nothing; a big collection comes a page at a time, and each next page is asked for by the marker the server sent with the last one (a day and one of your own card ids) |
 
 A model family is one of `haiku`, `sonnet`, `opus` or `fable`, never a model id. Every request also carries the mod's version in an `X-Spinlings-Client` header, which is the same for everyone on that version and is never stored. Claude Code's own HTTP layer may add standard headers such as a user agent; the server never stores them.
 
@@ -138,7 +138,7 @@ Cards other players see show the creature, its level, stats and traits, and noth
 
 Cards belong to families, and a pack charges in the family of the model you used most while it charged. So the families of the cards you show, on your team and marked for trade, can hint at which model family you tend to use. Catches, trades, gifts and crafting mix families up, and you choose which cards are on your team and marked for trade.
 
-Your starter team says more. It is one card from the family of the model you joined with, one from the family it beats and one from the family that beats it, so while all three starters are on your saved team, anyone who sees your team can work out the family you joined with. Starters cannot be traded away, but you can take them off your team.
+Your starter team says nothing about the model you joined with. The server builds it around a family it picks at random (that family, the one it beats and the one that beats it, in a shuffled order), so it looks the same whichever model you used.
 
 Other players never see dates, times or amounts.
 
@@ -156,7 +156,7 @@ Uninstalling the mod does not delete your account, so delete it first. Otherwise
 - CI checks the mod's hooks, the event fields it reads and its `$` calls against fixed lists, both in the source and in `claude plugin validate --json`, on every pull request.
 - The mod and server are open source, so you can read both.
 
-## Self-hosted servers
+## Community servers
 
 The promises on this page describe this code. Whoever runs a server controls it, and a modified server could keep more. The default server is run by the maintainer of this repository. You can point the mod at any server with `/spin server <url>`, including one you run yourself. The mod shows a one-time notice before it connects to any server other than `https://spinlings.dev`.
 

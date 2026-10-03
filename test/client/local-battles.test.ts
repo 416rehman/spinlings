@@ -6,6 +6,7 @@ import type { BattleCard, Family } from '../../plugin/hooks/core/types.ts'
 import { RULES_VERSION, eloDelta, perfectRounds, simulateBattle } from '../../plugin/hooks/core/battle.ts'
 import { toBattleCard } from '../../plugin/hooks/core/cards.ts'
 import { ECONOMY, finishAfter, leagueOf } from '../../plugin/hooks/core/economy.ts'
+import { typeMult } from '../../plugin/hooks/core/families.ts'
 import { generateMythic } from '../../plugin/hooks/core/mythics.ts'
 import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 import { DAY_MS, EPOCH_MS } from '../../plugin/hooks/core/world.ts'
@@ -118,6 +119,67 @@ test('the first wild win always catches; the catch is the creature itself, once;
   assert.equal(second.done.dailyWinPack, false)
 })
 
+test('beginner\'s luck: the first wild encounter is one level-1 common the lead beats, then wild teams are ordinary', async () => {
+  const w = world({ family: 'sonnet' })
+  await w.backend.me({})
+  const s0 = w.state()
+  const lead = s0.cards.find(c => c.id === s0.team[0])!
+  const wild = ECONOMY.wild as { mythicChance: number }
+  const saved = wild.mythicChance
+  wild.mythicChance = 1
+  try {
+    const { start, done } = await battle(w, 'wild', 'win', 'opus')
+    const [c, ...more] = start.setup.defender
+    assert.deepEqual([more, c!.rarity, c!.level], [[], 'common', 1])
+    assert.ok(typeMult(lead.family, c!.family, start.setup.rule) > 1 && typeMult(c!.family, lead.family, start.setup.rule) < 1)
+    assert.deepEqual(done.catchOptions.map(x => [x.id, x.species, x.dna]), [[c!.id, c!.species, c!.dna]])
+    w.now += B.wildSpacingMs
+    assert.equal((await w.backend.startBattle({ kind: 'wild', family: 'opus' })).setup.defender[0]!.species, 'mythic')
+  } finally {
+    wild.mythicChance = saved
+  }
+})
+
+test('a catch offers only the creatures a win defeated: a round-limit win defeats none, and beginner\'s luck waits', async () => {
+  const w = world()
+  await w.backend.me({})
+  const start = await w.backend.startBattle({ kind: 'wild', family: 'haiku' })
+  // chips against 999 HP: the attacker wins on the HP fraction at round 20 and nobody faints; the wild side is a
+  // plain haiku, so no heal (Couplet, Regrowth) can top it back up
+  w.edit(s => {
+    if (s.battle?.state !== 'open') return
+    s.battle.setup.attacker = s.battle.setup.attacker.map(c => ({ ...c, stats: { hp: 999, atk: 50, def: 999, spd: 999 } }))
+    s.battle.setup.defender = s.battle.setup.defender.map(c => ({
+      ...c, species: 's1-haiku-0', family: 'haiku' as const, traits: ['swift' as const], stats: { hp: 999, atk: 1, def: 999, spd: 1 },
+    }))
+  })
+  w.now = start.finishAfter
+  const done = await w.backend.finishBattle({ battleId: start.id, inputs: [] })
+  assert.deepEqual([done.result, done.log.fainted.d, done.catchOptions, w.state().wildWon], ['win', [], [], false])
+
+  w.now += B.wildSpacingMs
+  const next = await battle(w, 'wild', 'win')
+  assert.ok(next.done.catchOptions.length)
+  assert.deepEqual(next.done.catchOptions.map(c => c.id), next.done.log.fainted.d.map(i => `wild-${i}`).sort())
+  assert.equal(w.state().wildWon, true)
+})
+
+test('a win tires nobody, even a creature that fainted in it', async () => {
+  const w = world()
+  await w.backend.me({})
+  const start = await w.backend.startBattle({ kind: 'wild', family: 'haiku' })
+  w.edit(s => {
+    if (s.battle?.state !== 'open') return
+    const setup = s.battle.setup
+    setup.attacker = setup.attacker.map((c, i) => (i === 0 ? weak(c) : mighty(c)))
+    setup.defender = setup.defender.map(c => ({ ...c, traits: ['swift'], stats: { hp: 50, atk: 50, def: 1, spd: 50 } }))
+  })
+  w.now = start.finishAfter
+  const done = await w.backend.finishBattle({ battleId: start.id, inputs: [] })
+  assert.deepEqual([done.result, done.log.fainted.a, done.tired], ['win', [0], []])
+  assert.ok(w.state().cards.every(c => c.tiredUntil === 0))
+})
+
 test('later wild wins catch by the catch roll; a catch window runs out after 10 minutes', async () => {
   let caught = 0
   const n = 60
@@ -228,12 +290,16 @@ test('a battle left open 10 minutes settles with no presses and no catch; a new 
   const me = await w.backend.me({})
   assert.equal(me.player.battles, 1)
   assert.equal(me.player.streak, 1)
+  // what nobody watched arrives as notices, as online
+  assert.deepEqual(me.notices.map(n => n.kind).sort(), ['daily-pack', 'evolved'])
+  assert.match(me.notices.find(n => n.kind === 'evolved')!.text, /^\S.* evolved into \S.*!$/)
   await refused(w.backend.finishBattle({ battleId: start.id, inputs: [] }), 'conflict')
   await refused(w.backend.catchCreature({ battleId: start.id, index: 0 }), 'conflict')
   assert.equal(w.state().wildWon, false, 'beginner\'s luck waits for a win someone watched')
 
   w.now += B.duelSpacingMs
   const a = await w.backend.startBattle({ kind: 'duel', family: 'opus' })
+  w.edit(s => { if (s.battle?.state === 'open') s.battle.setup.defender = s.battle.setup.defender.map(weak) })
   w.now += B.duelSpacingMs
   await w.backend.startBattle({ kind: 'duel', family: 'opus' })
   assert.equal((await w.backend.me({})).player.battles, 2)

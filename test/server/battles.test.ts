@@ -8,6 +8,7 @@ import type { StartBattleRequest } from '../../plugin/hooks/core/api.ts'
 import { RULES_VERSION, simulateBattle } from '../../plugin/hooks/core/battle.ts'
 import { cardStats, toBattleCard } from '../../plugin/hooks/core/cards.ts'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
+import { beats } from '../../plugin/hooks/core/families.ts'
 import { seasonOf, seasonStart, utcDay, worldOf } from '../../plugin/hooks/core/world.ts'
 import type { BattleSetup, Stats } from '../../plugin/hooks/core/types.ts'
 import { stmt } from '../../server/src/db.ts'
@@ -72,6 +73,9 @@ async function dump(db: Db): Promise<string> {
   return JSON.stringify(out)
 }
 
+/** A player who met a wild creature an hour ago: past the gentle first one, and the next start is an ordinary wild team. */
+const metWild = (s: Server, p: Player) => s.db.batch([stmt('UPDATE players SET last_wild_at = ? WHERE id = ?', s.now() - HOUR, p.id)])
+
 const teamCards = async (s: Server, p: Player) => {
   const cards = new Map((await cardsOf(s.db, p.id)).map(c => [c.card.id, c]))
   return (await p.call('me')).player.team.map(id => cards.get(id)!)
@@ -83,6 +87,7 @@ describe('POST /v1/battles: a wild encounter', () => {
   it('battles the saved team against wild creatures of the season, in the arena, under today\'s rule and rules version', async () => {
     const s = server()
     const p = await s.join('opus')
+    await metWild(s, p)
     const team = await teamCards(s, p)
     const res = await p.call('startBattle', { kind: 'wild', family: 'haiku' })
     const w = worldOf(T0)
@@ -138,6 +143,7 @@ describe('POST /v1/battles: a wild encounter', () => {
     await tuned({ wild: { mythicChance: 1 } }, async () => {
       const s = server()
       const p = await s.join()
+      await metWild(s, p)
       const res = await p.call('startBattle', { kind: 'wild', family: 'fable' })
       const lead = res.setup.defender[0]!
       assert.deepEqual([lead.species, lead.form?.kind, lead.rarity, lead.foil, lead.stage], ['mythic', 'mythic', 'legendary', true, 3])
@@ -146,8 +152,47 @@ describe('POST /v1/battles: a wild encounter', () => {
     await tuned({ wild: { mythicChance: 0, roamerChance: 1 } }, async () => {
       const s = server()
       const p = await s.join()
+      await metWild(s, p)
       const lead = (await p.call('startBattle', { kind: 'wild', family: 'fable' })).setup.defender[0]!
       assert.deepEqual([lead.species, lead.rarity, lead.stage], [worldOf(T0).roamer, 'legendary', 3])
+    })
+  })
+
+  it('meets a new player with one gentle level-1 common their lead beats, once; the first win catches it', async () => {
+    await tuned({ wild: { mythicChance: 1 } }, async () => {
+      const s = server()
+      const p = await s.join('opus')
+      const lead = (await teamCards(s, p))[0]!.card
+      await statsAll(s, p, STRONG)
+      const first = await fight(s, p, { kind: 'wild', family: 'haiku' })
+      const [wild, ...more] = first.start.setup.defender
+      assert.deepEqual(more, [])
+      assert.deepEqual(
+        [wild!.id, wild!.rarity, wild!.level, wild!.stage, wild!.family, wild!.season],
+        ['wild-0', 'common', 1, 1, beats(lead.family), seasonOf(T0)],
+      )
+      assert.deepEqual([first.fin.result, first.fin.catchOptions], ['win', [wild]])
+      assert.equal((await p.row()).wild_won, 1)
+      s.tick(WILD)
+      const next = await p.call('startBattle', { kind: 'wild', family: 'haiku' })
+      assert.equal(next.setup.defender[0]!.species, 'mythic', 'past the first, wild teams are ordinary')
+    })
+  })
+
+  it('meets a player who has never won one gently again once the sweep forgets their last wild start', async () => {
+    await tuned({ wild: { mythicChance: 1 } }, async () => {
+      const s = server()
+      const p = await s.join()
+      await statsAll(s, p, WEAK)
+      const lost = await fight(s, p, { kind: 'wild', family: 'haiku' })
+      assert.deepEqual([lost.start.setup.defender.length, lost.fin.result, (await p.row()).wild_won], [1, 'loss', 0])
+      s.tick(ECONOMY.battle.tiredMs)
+      assert.equal((await p.call('startBattle', { kind: 'wild', family: 'haiku' })).setup.defender[0]!.species, 'mythic')
+      s.tick(DAY + HOUR)
+      await s.app.sweep(s.now())
+      assert.equal((await p.row()).last_wild_at, 0)
+      const again = await p.call('startBattle', { kind: 'wild', family: 'haiku' })
+      assert.deepEqual(again.setup.defender.map(c => [c.rarity, c.level]), [['common', 1]])
     })
   })
 
@@ -480,11 +525,12 @@ describe('POST /v1/battles/:id/catch', () => {
   it('offers only the creatures a win defeated: a win on the round limit defeats none, and beginner\'s luck waits', async () => {
     const s = server()
     const p = await s.join()
-    // chips of 2 against 999 HP: the attacker wins on the HP fraction at round 20 and nobody faints
+    // chips of 2 against 999 HP: the attacker wins on the HP fraction at round 20 and nobody faints;
+    // the wild side is a plain haiku, so no heal (Couplet, Regrowth) can top it back up
     await statsAll(s, p, { hp: 999, atk: 50, def: 999, spd: 999 })
     const start = await p.call('startBattle', { kind: 'wild', family: 'haiku' })
     const setup = JSON.parse((await battleRow(s, start.id)).setup) as BattleSetup
-    for (const c of setup.defender) c.stats = { hp: 999, atk: 1, def: 999, spd: 1 }
+    for (const c of setup.defender) Object.assign(c, { species: 's1-haiku-0', family: 'haiku', traits: ['swift'], stats: { hp: 999, atk: 1, def: 999, spd: 1 } })
     await s.db.batch([stmt('UPDATE battles SET setup = ? WHERE id = ?', JSON.stringify(setup), start.id)])
     s.set(Math.max(start.finishAfter, readyAt({ startedAt: start.startedAt, setup })))
     const fin = await p.call('finishBattle', { battleId: start.id, inputs: [] })
@@ -561,6 +607,7 @@ describe('POST /v1/battles/:id/catch', () => {
     await tuned({ wild: { mythicChance: 1 } }, async () => {
       const s = server()
       const p = await s.join()
+      await metWild(s, p)
       await statsAll(s, p, STRONG)
       const { start } = await fight(s, p, { kind: 'wild', family: 'opus' })
       const { card } = await p.call('catchCreature', { battleId: start.id, index: 0 })

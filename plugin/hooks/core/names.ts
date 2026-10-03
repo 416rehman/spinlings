@@ -6,7 +6,8 @@
 // opening consonants, so its stressed syllable survives and it is still heard: a portmanteau, not a stem with a stock
 // suffix. When no word suits a root, the ending is built for that species from its family's sounds (Foggo and Mothyn
 // at stage 1, Coalobar at stage 2). Legendaries are stately compounds of two whole words (Rivertide, Anvilmaw), Mythics
-// are two words from lists of their own (Briarmoor Rainsinger), and a fusion keeps both parents audible.
+// are two words from lists of their own (Briarmoor Rainsinger), and a fusion keeps both parents audible. Every seed
+// is named and any two names fuse: nothing here throws for a seed or a parent.
 //
 // Every family has a large vocabulary and the rotation spreads it: within a year a stage-2 or stage-3 word ends at most
 // three of a family's lines, a small word about five and a built ending one or two, and no root's name comes back for
@@ -17,7 +18,7 @@
 //
 // Pure ES2023: no I/O, no clock, no Math.random. All randomness comes from the seed through rng.ts.
 
-import type { Family } from './types.ts'
+import type { Family, Rng } from './types.ts'
 import { hash128, hashString, rngFromSeed, shuffle } from './rng.ts'
 
 export type Stage = 1 | 2 | 3
@@ -512,7 +513,7 @@ const FRANCHISE = words(`
 const FAMOUS_SHORT = words(`
   dobby appa halo nemo rodan groot artax ganon gimli frodo bilbo aslan dory fernet mintel ribena rbena drizzy elmo
   ewok yoda grogu gundam muppet inkling twiglet elfo elfen fennix fenix goyle aldi ebay lidl tesco plavix oberon
-  alcon erbil fanta`)
+  alcon erbil fanta wookie`)
 // Edit distance 2 from a famous name of seven letters or more (Pikachoo, Bulbasar); a shorter famous name allows one
 // edit (Eeveel, Gengor) and a four-letter one must match exactly, or the rule would catch half the two-syllable names
 // in the language (Mossin is two edits from Moomin, Fernip two from Fernet).
@@ -529,16 +530,24 @@ const FRANCHISE_GRAMS = new Map(FRANCHISE.map(f => [f, bigrams(f)]))
 // famous one still holds one of any 2r + 1 of its pairs, and only names holding one get measured.
 const GRAM_COUNT = new Map<string, number>()
 for (const gs of FRANCHISE_GRAMS.values()) for (const g of gs) GRAM_COUNT.set(g, (GRAM_COUNT.get(g) ?? 0) + 1)
-const BY_GRAM = new Map<string, string[]>()
-for (const [f, gs] of FRANCHISE_GRAMS) {
-  const rare = [...gs].sort((a, b) => GRAM_COUNT.get(a)! - GRAM_COUNT.get(b)!).slice(0, 2 * franchiseReach(f.length) + 1)
-  for (const g of rare) (BY_GRAM.get(g) ?? BY_GRAM.set(g, []).get(g)!).push(f)
-}
+// a letter pair as a number, so a name's pairs are a lookup table rather than a set of strings
+const pairCode = (w: string, i: number): number => (w.charCodeAt(i) - 97) * 26 + w.charCodeAt(i + 1) - 97
+const BY_PAIR: number[][] = Array.from({ length: 676 }, () => [])
+const FAMOUS_PAIRS = FRANCHISE.map(f => [...FRANCHISE_GRAMS.get(f)!].map(g => pairCode(g, 0)))
+FRANCHISE.forEach((f, k) => {
+  const rare = [...FRANCHISE_GRAMS.get(f)!].sort((a, b) => GRAM_COUNT.get(a)! - GRAM_COUNT.get(b)!).slice(0, 2 * franchiseReach(f.length) + 1)
+  for (const g of rare) BY_PAIR[pairCode(g, 0)]!.push(k)
+})
 const FRANCHISE_SET = new Set(FRANCHISE)
+const LONGEST_FRANCHISE = Math.max(...FRANCHISE.map(f => f.length))
 // famous names that hide inside a longer name even with one letter changed (Mammondor holds a near Gondor)
 const FAMOUS_CHUNKS = words(`
   gondor mordor aladdin aladin hobbit pippin merlin gandalf sauron balrog narnia ribena pikachu charizard gollum
   smaug totoro mothra godzilla gengar snorlax rivendell hogwarts gremlin mewtwo`)
+const CHUNK_HALVES = FAMOUS_CHUNKS.map(f => {
+  const half = Math.ceil(f.length / 2)
+  return { f, head: f.slice(0, half), tail: f.slice(f.length - half) }
+})
 
 // Common English words (and their plain forms) are never names: a creature called Ribbon or Mellow reads as a typo.
 const COMMON = new Set(words(`
@@ -816,6 +825,20 @@ function skeletonKey(w: string): string {
   return `${vowelClass(m[1]!)}:${k.replace(/[aeiouy]+/g, 'V')}`
 }
 
+/** True when a and b are at most one edit apart, as editDistance(a, b, 1) <= 1 but without the table. */
+function withinOne(a: string, b: string): boolean {
+  if (a === b) return true
+  const la = a.length
+  const lb = b.length
+  if (la - lb > 1 || lb - la > 1) return false
+  const short = Math.min(la, lb)
+  let i = 0
+  while (i < short && a.charCodeAt(i) === b.charCodeAt(i)) i++
+  let j = 0
+  while (j < short - i && a.charCodeAt(la - 1 - j) === b.charCodeAt(lb - 1 - j)) j++
+  return i + j >= (la === lb ? la - 1 : short)
+}
+
 /** Levenshtein distance; stops early and returns max + 1 once the distance must exceed `max`. */
 export function editDistance(a: string, b: string, max = Infinity): number {
   if (a === b) return 0
@@ -840,35 +863,55 @@ export function editDistance(a: string, b: string, max = Infinity): number {
   return prev[b.length]!
 }
 
-function nearFranchise(w: string): string | null {
-  // an edit breaks at most two of a word's letter pairs, so a near match keeps nearly all of them
-  const grams = bigrams(w)
-  const seen = new Set<string>()
-  for (const g of grams) {
-    for (const f of BY_GRAM.get(g) ?? []) {
-      if (seen.has(f)) continue
-      seen.add(f)
+// scratch tables for nearFranchise, cleared after every call: the pairs a name holds, and the famous names measured
+const HELD = new Uint8Array(676)
+const MEASURED = new Uint8Array(FRANCHISE.length)
+
+/** The famous name a word is within reach of (two edits, one for a short name), measured pair by pair. */
+function nearByPairs(w: string): string | null {
+  const pairs: number[] = []
+  for (let i = 0; i + 1 < w.length; i++) {
+    const c = pairCode(w, i)
+    if (!HELD[c]) { HELD[c] = 1; pairs.push(c) }
+  }
+  const measured: number[] = []
+  let hit: string | null = null
+  search: for (const c of pairs) {
+    for (const k of BY_PAIR[c]!) {
+      const f = FRANCHISE[k]!
       const reach = franchiseReach(f.length)
-      if (Math.abs(f.length - w.length) > reach) continue
-      let common = 0
-      for (const x of FRANCHISE_GRAMS.get(f)!) if (grams.has(x)) common++
-      if (common >= FRANCHISE_GRAMS.get(f)!.size - 2 * reach && editDistance(w, f, reach) <= reach) return f
+      if (Math.abs(f.length - w.length) > reach || MEASURED[k]) continue
+      MEASURED[k] = 1
+      measured.push(k)
+      // an edit breaks at most two of a word's letter pairs, so a near match keeps all but 2 * reach of them
+      let lost = 0
+      for (const x of FAMOUS_PAIRS[k]!) if (!HELD[x] && ++lost > 2 * reach) break
+      if (lost <= 2 * reach && editDistance(w, f, reach) <= reach) { hit = f; break search }
     }
   }
+  for (const c of pairs) HELD[c] = 0
+  for (const k of measured) MEASURED[k] = 0
+  return hit
+}
+
+function nearFranchise(w: string): string | null {
+  const near = nearByPairs(w)
+  if (near) return near
   // a famous name held whole anywhere inside
-  for (let i = 0; i < w.length; i++) for (let j = i + 5; j <= w.length; j++) if (FRANCHISE_SET.has(w.slice(i, j))) return w.slice(i, j)
+  for (let i = 0; i < w.length; i++) {
+    for (let j = i + 5; j <= Math.min(w.length, i + LONGEST_FRANCHISE); j++) if (FRANCHISE_SET.has(w.slice(i, j))) return w.slice(i, j)
+  }
   for (const f of FAMOUS_SHORT) if (w.includes(f)) return f
   // one letter off inside a longer name: an edit inside the chunk leaves one of its halves intact, so look there
-  for (const f of FAMOUS_CHUNKS) {
+  for (const { f, head, tail } of CHUNK_HALVES) {
     if (w.length < f.length) continue
-    const half = Math.ceil(f.length / 2)
-    if (!w.includes(f.slice(0, half)) && !w.includes(f.slice(f.length - half))) continue
+    if (!w.includes(head) && !w.includes(tail)) continue
     for (let i = 0; i < w.length; i++) {
       // a short famous name only by one changed letter (mondor), a long one also by one dropped or added
       const spread = f.length >= 7 ? 1 : 0
       for (let len = f.length - spread; len <= f.length + spread; len++) {
         if (i + len > w.length) break
-        if (editDistance(w.slice(i, i + len), f, 1) <= 1) return f
+        if (withinOne(w.slice(i, i + len), f)) return f
       }
     }
   }
@@ -893,10 +936,10 @@ function plainWordReason(w: string): string | null {
   for (let len = w.length - 1; len <= w.length + 1; len++) {
     // one edit leaves the first or the last letter in place, so only those words are measured
     for (const r of ROOT_WORDS_BY_LEN[len] ?? []) {
-      if ((r[0] === w[0] || r.at(-1) === w.at(-1)) && editDistance(w, r, 1) <= 1) return `plain word: ${r}`
+      if ((r[0] === w[0] || r.at(-1) === w.at(-1)) && withinOne(w, r)) return `plain word: ${r}`
     }
     for (const n of NAMES_BY_LEN[len] ?? []) {
-      if ((n[0] === w[0] || n.at(-1) === w.at(-1)) && editDistance(w, n, 1) <= 1) return `a first name: ${n}`
+      if ((n[0] === w[0] || n.at(-1) === w.at(-1)) && withinOne(w, n)) return `a first name: ${n}`
     }
   }
   const heard = SOUND_KEYS.get(soundKey(w))
@@ -1030,7 +1073,7 @@ export function isBlockedName(name: string): boolean {
 /** Season uniqueness: names within edit distance 1 of each other (case-insensitive) are near-duplicates. */
 export function isNearDuplicate(name: string, taken: Iterable<string>): boolean {
   const n = name.toLowerCase()
-  for (const t of taken) if (editDistance(n, t.toLowerCase(), 1) <= 1) return true
+  for (const t of taken) if (withinOne(n, t.toLowerCase())) return true
   return false
 }
 
@@ -1842,11 +1885,14 @@ export function speciesNames(seed: string, family: Family, legendary = false, ta
   if (legendary) {
     const pool = legendPool(family)
     // on a clash, one from the far side of the order, so a later season's does not come early
+    const at = (i: number): string => pool[(slot.legend + (i ? Math.floor(pool.length / 2) + i : 0)) % pool.length]!
     for (let i = 0; i < pool.length; i++) {
-      const name = pool[(slot.legend + (i ? Math.floor(pool.length / 2) + i : 0)) % pool.length]!
+      const name = at(i)
       if (!t.clashes(name) && !t.rootTaken(nameStem(name))) return [name, name, name]
     }
-    throw new Error(`no free ${family} legendary for seed ${seed}`)
+    // a season that holds every root: then only a free name, and last the slot's own
+    const name = Array.from(pool, (_, i) => at(i)).find(n => !t.clashes(n)) ?? at(0)
+    return [name, name, name]
   }
   const tab = table(family)
   const seasonStart = slot.pos - (slot.pos % SPECIES_PER_SEASON)
@@ -1877,7 +1923,15 @@ export function speciesNames(seed: string, family: Family, legendary = false, ta
       }
     }
   }
-  throw new Error(`no usable ${family} name for seed ${seed}`)
+  // a season so full that no ending is free: any root's line clear of its names, and last the slot's own root's line,
+  // which a deck root always grows
+  for (const avoid of [(n: string): number => (t.clashes(n) ? Infinity : 0), (): number => 0]) {
+    for (const root of order) {
+      const fresh = nextLine(tab.prepared.get(root.full)!, avoid, counts, new Set())
+      if (fresh) return [fresh.one.name, fresh.two.name, fresh.three.name]
+    }
+  }
+  throw new Error(`the ${family} deck grows no line`)
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1946,38 +2000,40 @@ function compound(a: string, b: string): string {
 export function mythicName(seed: string): string {
   const rng = rngFromSeed(`spinlings/mythic/${seed}`)
   const pick = <T>(list: readonly T[]): T => list[Math.floor(rng() * list.length)]!
-  const first = bestWord(() => {
-    const root = pick(MYTHIC_ROOTS)
-    const [place, kind] = pick(PLACES)
-    const w = ROOT_KINDS[root] === kind || root === place ? '' : compound(root, place)
-    return LEGEND_NAMES().has(w) ? '' : w
-  }, [])
-  const second = bestWord(() => {
-    const root = pick(MYTHIC_ROOTS)
-    const beast = pick(BEASTS)
-    const w = first.toLowerCase().startsWith(root) || root === beast ? '' : compound(root, beast)
-    return LEGEND_NAMES().has(w) ? '' : w
-  }, [first])
+  const place = (root: string, [w, kind]: readonly [string, Kind]): string => {
+    const name = ROOT_KINDS[root] === kind || root === w ? '' : compound(root, w)
+    return LEGEND_NAMES().has(name) ? '' : name
+  }
+  const first = bestWord(() => place(pick(MYTHIC_ROOTS), pick(PLACES)), [], rng, () => MYTHIC_ROOTS.flatMap(r => PLACES.map(p => place(r, p))))
+  const beast = (root: string, b: string): string => {
+    const name = first.toLowerCase().startsWith(root) || root === b ? '' : compound(root, b)
+    return LEGEND_NAMES().has(name) ? '' : name
+  }
+  const second = bestWord(() => beast(pick(MYTHIC_ROOTS), pick(BEASTS)), [first], rng, () => MYTHIC_ROOTS.flatMap(r => BEASTS.map(b => beast(r, b))))
   return `${first} ${second}`
 }
 
-function bestWord(make: () => string, taken: string[]): string {
+/** The best of the first CANDIDATES words `make` offers; when none is usable, the first usable of `every` word, shuffled. */
+function bestWord(make: () => string, taken: string[], rng: Rng, every: () => string[]): string {
   const t = new Taken(taken)
+  const score = (w: string): number =>
+    !w || (/ing$/i.test(w) && !/wing$/i.test(w)) || t.rootTaken(nameStem(w)) ? -1 : usable(w, MYTHIC_WORD_SHAPE, t)
   let best = ''
   let bestQ = -1
   for (let tries = 0, made = 0; made < CANDIDATES && tries < CANDIDATES * 20; tries++) {
     const w = make()
     if (!w) continue
     made++
-    if ((/ing$/i.test(w) && !/wing$/i.test(w)) || t.rootTaken(nameStem(w))) continue
-    const p = usable(w, MYTHIC_WORD_SHAPE, t)
+    const p = score(w)
     if (p < 0) continue
     const q = quality(p)
     if (q > bestQ) { best = w; bestQ = q }
     if (q >= GOOD_SCORE) break
   }
-  if (!best) throw new Error('no usable mythic word')
-  return best
+  if (best) return best
+  const any = shuffle(rng, every()).find(w => score(w) >= 0)
+  if (!any) throw new Error('no mythic word is usable')
+  return any
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1985,7 +2041,8 @@ function bestWord(make: () => string, taken: string[]): string {
 // jasper -> Mothasp), stage 2 takes B's whole root word or a word of any family that carries B's sound (Mothasper),
 // and stage 3 a grand word that carries it (Mothastodon). A fusion is never a species name of any season the rotation
 // has built, never a legendary and never near one of the season's names; a name a species could still be given one
-// day is a last resort.
+// day is a last resort. Any two names fuse: when A's root takes no line (Neth- opens a word, Bri- takes no ending, a
+// promo's letters open no root) a shorter stem of A's own spelling stands in, then the root that sounds most like it.
 
 /** The root at the front of a name: its first syllable, closed by the next consonant (Mossalorn -> moss). */
 export function nameStem(name: string): string {
@@ -2079,8 +2136,12 @@ export function isSpeciesName(name: string): boolean {
 
 const ALL_MID: readonly (Source & { family: Family })[] = FAMILY_ORDER.flatMap(f => VOICES[f].mid.map(s => ({ ...s, family: f })))
 const ALL_GRAND: readonly (Source & { family: Family })[] = FAMILY_ORDER.flatMap(f => VOICES[f].grand.map(s => ({ ...s, family: f })))
+const ALL_ROOTS: readonly Root[] = FAMILY_ORDER.flatMap(f => VOICES[f].roots)
 
-/** The three names of a fusion of A (front) and B (back). Same parents, same names. */
+/**
+ * The three names of a fusion of A (front) and B (back). Same parents, same names. Any two names fuse: species of any
+ * season or generator, legendaries, Mythics, promos and fusions of fusions, and even a name no root opens.
+ */
 export function fusionLine(nameA: string, nameB: string, taken: Iterable<string> = []): NameLine {
   // the same parents in the same season always fuse to the same names, so a fusion is worked out once
   const list = [...taken]
@@ -2094,15 +2155,84 @@ export function fusionLine(nameA: string, nameB: string, taken: Iterable<string>
 }
 const FUSIONS = new Map<string, NameLine>()
 
+const letters = (w: string): string => w.toLowerCase().replace(/[^a-z]/g, '')
+
 function fuse(nameA: string, nameB: string, taken: readonly string[]): NameLine {
-  const a = plain(nameA).split(/\s+/)[0]!.toLowerCase()
+  const a = letters(plain(nameA).split(/\s+/)[0]!)
   const bWords = plain(nameB).split(/\s+/)
-  const b = bWords[bWords.length - 1]!.toLowerCase()
+  const b = letters(bWords[bWords.length - 1]!)
   const t = new Taken([...taken, nameA, nameB, ...nameA.split(/\s+/), ...nameB.split(/\s+/)])
-  const A = parentRoot(a)
+  const own = parentRoot(a)
   const B = parentRoot(b)
   const fam = familyOfName(b)
-  const rng = rngFromSeed(`spinlings/fusion/${a}/${b}`)
+  for (const A of fronts(a, b, own)) {
+    const line = blend(A, B, fam, t, rngFromSeed(`spinlings/fusion/${a}/${b}${A === own ? '' : `/${A.stem}`}`))
+    if (line) return line
+  }
+  return spareLine(t, `${a}/${b}`)
+}
+
+/**
+ * The fronts a fusion may open with, best first: A's root (Moth- for Mothyn); then a one-syllable stem of A's own
+ * spelling (Net- for Netherhowl, whose Neth- opens a legendary's word); then the roots that sound most like A (Br- roots
+ * for Briarvale, whose Bri- takes no ending, or for a name no root opens).
+ */
+function* fronts(a: string, b: string, own: Root): Generator<Root> {
+  const seen = new Set([own.stem])
+  const fresh = (stem: string): boolean => /^[a-z]{2,8}$/.test(stem) && /[aeiouy]/.test(stem) && !seen.has(stem) && !!seen.add(stem)
+  if (own.stem) yield own
+  for (const stem of ownStems(a)) if (fresh(stem)) yield stemRoot(stem)
+  const shared = (r: Root): number => {
+    let k = 0
+    while (k < r.stem.length && r.stem[k] === a[k]) k++
+    return k
+  }
+  const order = (r: Root): number => hashString(`spinlings/fusion/front/${a}/${b}/${r.full}`)
+  const near = [...ALL_ROOTS].sort((x, y) => shared(y) - shared(x) || order(x) - order(y))
+  for (const r of near.slice(0, 6)) if (fresh(r.stem)) yield r
+}
+
+/** The regular root a stem is, or a root of the stem alone. */
+function stemRoot(stem: string): Root {
+  const known = ROOT_FORMS.get(stem)?.root
+  return known && !known.legend && known.stem === stem ? known : { stem, full: stem, double: SHORT_CVC.test(stem), magicE: false }
+}
+
+/** A word's closed first syllables: frost, nim from nimble, neth and its clipped net from nether; none for briar. */
+function ownStems(w: string): string[] {
+  const us = tokenize(w)
+  const v = us.findIndex(u => u.v)
+  const c1 = us[v + 1]
+  const c2 = us[v + 2]
+  if (v < 0 || !c1 || c1.v || c1.silent) return []
+  const head = us.slice(0, v + 1).map(u => u.s).join('')
+  const out: string[] = []
+  if (CODA1.has(c1.s)) out.push(head + c1.s)
+  if (c2 && !c2.v && !c2.silent && CODA2.has(`${c1.s}|${c2.s}`)) out.push(head + c1.s + c2.s)
+  if (c1.s.length === 2 && CODA1.has(c1.s[0]!)) out.push(head + c1.s[0])
+  return out
+}
+
+/**
+ * The last resort, which no parents a test has tried reach: a line of a family's own roots, grown as a species line
+ * grows, clear of the season and of every species name where any is. A deck root always grows a line.
+ */
+function spareLine(t: Taken, seed: string): NameLine {
+  const avoids = [(n: string): number => (t.clashes(n) || isSpeciesName(n) ? Infinity : 0), (): number => 0]
+  for (const avoid of avoids) {
+    for (const f of FAMILY_ORDER) {
+      const tab = table(f)
+      for (const r of shuffle(rngFromSeed(`spinlings/fusion/spare/${seed}/${f}`), tab.deck)) {
+        const pick = nextLine(tab.prepared.get(r.full)!, avoid, new Map(), new Set())
+        if (pick) return [pick.one.name, pick.two.name, pick.three.name]
+      }
+    }
+  }
+  throw new Error('no family can grow a line')
+}
+
+/** A fusion's line on front A, or null when A takes no growing line. */
+function blend(A: Root, B: Root, fam: Family, t: Taken, rng: Rng): NameLine | null {
   // B's stressed syllable, its doubled close made single at the end of a name (cobb -> cob)
   const bCore = normalStem(B.stem)
   const bRime = rimeOf(bCore)
@@ -2161,7 +2291,7 @@ function fuse(nameA: string, nameB: string, taken: readonly string[]): NameLine 
   }
   const two2 = weigh(twos, 2, 2 * CANDIDATES)
   const three3 = weigh(threes, 3, 2 * CANDIDATES)
-  if (!two2.length || !three3.length) throw new Error(`no fusion of ${nameA} and ${nameB}`)
+  if (!two2.length || !three3.length) return null
   // when no blend of the two roots is free, stage 1 takes a small word or a built syllable on A's root, B's family's
   // first (the other families' when A's own species have them), and B is heard from stage 2
   const voiced = (): string[] => uniq([fam, ...FAMILY_ORDER.filter(f => f !== fam)].flatMap(f => stageCands(A, f, 1))
@@ -2187,7 +2317,7 @@ function fuse(nameA: string, nameB: string, taken: readonly string[]): NameLine 
     }
     if (best) return best
   }
-  throw new Error(`no fusion of ${nameA} and ${nameB}`)
+  return null
 }
 
 /** The fusion of A and B at a stage (1, 2 or 3). */
@@ -2220,7 +2350,12 @@ export function* scanCandidates(): Generator<{ name: string; use: string; root: 
     for (const b of BEASTS) yield { name: r + b, use: 'mythic', root: r, word: b }
   }
   const allRoots = FAMILY_ORDER.flatMap(f => VOICES[f].roots)
-  for (const A of allRoots) {
+  // the fronts a legendary or a Mythic lends a fusion: its stem, or a shorter one of its spelling (Net- for nether)
+  const lent = new Map<string, Root>()
+  for (const w of [...FAMILY_ORDER.flatMap(f => VOICES[f].firsts), ...MYTHIC_FRONTS]) {
+    for (const r of [parentRoot(w), ...ownStems(w).map(stemRoot)]) if (!allRoots.some(x => x.stem === r.stem)) lent.set(r.stem, r)
+  }
+  for (const A of [...allRoots, ...lent.values()]) {
     for (const B of allRoots) {
       if (A === B) continue
       const bCore = normalStem(B.stem)

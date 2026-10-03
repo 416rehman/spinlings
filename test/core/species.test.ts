@@ -169,16 +169,16 @@ test('a season frozen by the server replaces the generated one; bad lists are re
   assert.ok(Object.isFrozen(getSpecies('s77-haiku-0')))
 })
 
-test('a fusion the generator cannot blend still gets three clean names, the same every time', () => {
-  // the generator finds no blend for some legendary and Mythic parents
+test('legendary and Mythic parents with an awkward front still fuse into three clean names, the same every time', () => {
+  // "Neth-" is a blocked opening and "Bri-" takes no stage-2 ending: the generator finds another front from A
   for (const [a, b] of [['Netherhowl', 'Figmink'], ['Briarvale Snowpaw', 'Foamlute']] as const) {
     const line = fusionNameLine(a, b, [])
     assert.deepEqual(fusionNameLine(a, b, []), line)
     assert.equal(new Set(line).size, 3, line.join())
     for (const n of line) {
-      assert.match(n, /^[A-Z][a-z]{3,23}$/)
+      assert.match(n, /^[A-Z][a-z]{3,10}$/)
       assert.equal(isBlocked(n), false, n)
-      assert.ok(n.startsWith(a.slice(0, 4)), `${n} keeps the front of ${a}`)
+      assert.ok(n.startsWith(a.slice(0, 2)), `${n} keeps the front of ${a}`)
     }
   }
 })

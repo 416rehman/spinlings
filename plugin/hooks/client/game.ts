@@ -2,7 +2,7 @@
 // handshake (32), presence and pack charging (6), waiting battles on the encounter timing (13), the content-blind
 // signal handlers (10), and every action the band and the pane can take. Pure in the sense the mod needs: it touches
 // the world only through the injected Fx, so it never reads a clock, rolls a die or sends a request on its own.
-import type { ApiOp, ApiRequest, ApiResponse, MeResponse } from '../core/api.ts'
+import type { ApiOp, ApiRequest, ApiResponse, CardsResponse, MeResponse } from '../core/api.ts'
 import { API_ROUTES } from '../core/api.ts'
 import type { BattleLog, Card, Family, Rarity } from '../core/types.ts'
 import { RULES_VERSION, paceMs, perfectRounds, simulateBattle } from '../core/battle.ts'
@@ -212,6 +212,30 @@ export function failureText(err: unknown, host: string): string {
     case 'unauthorized': return `This computer is signed out of ${host}.`
     case 'unavailable': return isUnreachable(err) ? `Can't reach ${host} right now.` : safe(err.message, 80)
     default: return safe(err.message, 80) || 'That did not work.'
+  }
+}
+
+/** Far more pages of GET /v1/cards than any collection needs, so a server that never ends cannot hold the mod. */
+export const CARD_PAGES = 100
+
+/**
+ * Every card, a page at a time (SPEC 32), oldest first. A collection that changed between pages is read again from the
+ * start, up to 3 times; one still changing keeps what arrived under the first page's version, so the next refresh,
+ * which sees a newer version, reads it again.
+ */
+export async function allCards(backend: Pick<Backend, 'cards'>): Promise<CardsResponse> {
+  for (let tries = 1; ; tries++) {
+    const first = await backend.cards({})
+    const cards = [...first.cards]
+    let { next } = first
+    let moved = false
+    for (let page = 1; next !== undefined && page < CARD_PAGES && !moved; page++) {
+      const more = await backend.cards({ after: next })
+      moved = more.version !== first.version
+      cards.push(...more.cards)
+      next = more.next
+    }
+    if (!moved || tries === 3) return { cards, version: first.version }
   }
 }
 
@@ -499,7 +523,7 @@ export function createGame(o: GameOptions): Game {
     const account = await get(fx, 'account')
     const cache = account.world === 'online' ? readCache(await fx.store.get(KEYS.cache(account.server))) : null
     if (!force && me && cache?.cards && cache.cards.version === me.player.cardsVersion && cards.length > 0) return
-    const res = await backend.cards({})
+    const res = await allCards(backend)
     await put(fx, 'cards', res.cards)
     if (account.world === 'online' && me) await fx.store.set(KEYS.cache(account.server), cacheRecord(me, res))
     await ensureSeasons(fx, res.cards)
@@ -683,7 +707,7 @@ export function createGame(o: GameOptions): Game {
     const backend = local()
     try {
       await setMe(fx, await backend.me({}))
-      await put(fx, 'cards', (await backend.cards({})).cards)
+      await put(fx, 'cards', (await allCards(backend)).cards)
       await upd(fx, 'account', a => ({ ...a, link: 'ready', note: '' }))
       await welcome(fx)
     } catch (err) {

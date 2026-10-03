@@ -8,16 +8,18 @@ Spinlings is a creature card game that lives inside Claude Code. While Claude wo
 
 Spinlings never knows what you are working on. It reads only the shape of the session (which model, the effort setting, whether Claude is busy). It never reads your files, prompts or output, and it costs zero tokens.
 
+The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your machine if you play offline.
+
 <!-- Hero: rendered from the mod's own views by `node scripts/media/build.ts`. Once the real capture from the
      desktop app exists (docs/launch.md, shot 1), swap the srcset/src for docs/media/hero.gif. -->
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/encounter-dark.svg">
-    <img src="docs/media/encounter-light.svg" width="864" alt="In the Code tab of the desktop app, while Claude works, something rustles in the band above the prompt. A wild Snowelkie appears, Sootwolf's special lands a Perfect hit on 1, and the catch wobbles three times before Gotcha!">
+    <img src="docs/media/encounter-light.svg" width="864" alt="The Code tab of the Claude desktop app while Claude works: something rustles in the band above the prompt, a wild Snowelkie appears, Sootwolf lands a Perfect Crescendo when 1 is pressed, and the catch wobbles three times before Gotcha!">
   </picture>
 </p>
 
-- **No account.** The server gives you a random handle like `soft-otter-42`. It has nothing to do with your Claude account, email, organization or machine. There is no signup and no email.
+- **No account.** The server gives you a random handle like `soft-otter-42`. It has nothing to do with your Claude account, email, organization or machine. There is no signup, no email, no password and no GitHub login. An optional passkey brings your collection to another computer.
 - **No telemetry.** No analytics and no third-party requests. The mod talks to one server, and you can run your own.
 - **Stays out of Claude's way.** It makes no model calls, adds nothing to Claude's context, and never blocks or slows Claude.
 - **Playable alone.** Generated Rivals and a Wandering Trader fill in whenever no other player is around, so the game works on day one.
@@ -26,7 +28,7 @@ Spinlings never knows what you are working on. It reads only the shape of the se
 
 ## Install
 
-Inside Claude Code:
+One line inside Claude Code:
 
 ```
 /plugin install spinlings --marketplace 416rehman/spinlings
@@ -48,9 +50,9 @@ git clone https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 
-**First run.** Instead of a signup, the mod solves a small proof of work and joins on its own. You get a starter team of three, two welcome packs and 100 sparks. The band says it once: `✦ A Spinling hatched!`, with `[1] Open your welcome pack`.
+**First run.** There is nothing to type. Instead of a signup, the mod solves a small proof of work and joins [spinlings.dev](https://spinlings.dev) on its own. You get a starter team of three, two welcome packs and 100 sparks. The band says it once: `✦ A Spinling hatched!`, with `[1] Open your welcome pack`. Then creatures find you while Claude works, and `/spin` opens your collection whenever you like.
 
-**Online or offline.** You start in the online world: anonymous, with no sign-up and nothing personal. To play entirely offline, where nothing ever leaves your machine, set **World** to `offline` for Spinlings in `/config` before your first session, or run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
+**Online or offline.** You start in the online world: anonymous, with no sign-up and nothing personal. To play entirely offline, where nothing ever leaves your machine, set the **World** option to `offline` before your first session (`/plugin configure spinlings@spinlings`, or add `--config world=offline` to the shell install), or run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
 
 `/spin quiet` silences everything. To leave for good, delete your account from `/spin privacy`, then run `claude plugin uninstall spinlings@spinlings`.
 
@@ -125,7 +127,7 @@ About 1 wild encounter in 40 is led by a **Mythic**: a creature generated on the
 | Trading, gifts, claims | No |
 | Duels (`/spin battle`, revenge) | No. Duels start at least 2 minutes apart. |
 
-Hitting a rate limit earns nothing and costs nothing. The status line just says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a Claude turn, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
+Hitting a rate limit earns nothing and costs nothing. The status line just says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
 
 ### When nobody else is around
 
@@ -146,7 +148,7 @@ There is one command, `/spin`. On its own it opens the pane, with four tabs (Tea
 | `/spin` | Open the pane |
 | `/spin battle` | Challenge a duel now (at most one every 2 minutes) |
 | `/spin pack` | Open the pack view |
-| `/spin team <a> <b> <c>` | Set your team; slot order is play order |
+| `/spin team <a> <b> <c>` | Set your team from one to three cards, by name or id; slot order is play order |
 | `/spin trade <handle>` | Open a player's profile to make an offer |
 | `/spin gift <card>` / `/spin claim <code>` | Make a gift code, or claim one |
 | `/spin share [card]` | Copy a short text with an emoji mosaic of the card and a link |
@@ -164,7 +166,7 @@ There is one command, `/spin`. On its own it opens the pane, with four tabs (Tea
 
 There is no `/spin wild`. Wild creatures only ever find you.
 
-The full rules are in [docs/how-to-play.md](docs/how-to-play.md): families, traits, foil, Mythics, raised forms, packs, fusion, trading, sparks, streaks, leagues and the daily rules. Every number is in [SPEC.md](SPEC.md).
+The full rules are in [docs/how-to-play.md](docs/how-to-play.md): families, traits, foil, Mythics, raised forms, packs, fusion, trading, sparks, streaks, leagues and the daily rules. [spinlings.dev/odds](https://spinlings.dev/odds) publishes every rate, and [SPEC.md](SPEC.md) has the design behind them.
 
 ## What Spinlings can't read
 
@@ -250,11 +252,13 @@ The server is the only authority, and the mod is an untrusted renderer. A modifi
 
 If you find a way past these limits, that is a security bug. Please report it through [SECURITY.md](SECURITY.md).
 
-## Run your own server
+## Community servers
 
-The default server is `https://spinlings.dev`. The same server code runs on Cloudflare (a Worker with a D1 database) or on plain Node. Each server is its own world: cards, ratings and trades do not move between servers.
+The default server is [`https://spinlings.dev`](https://spinlings.dev), run by the maintainer of this repository. Anyone can run another one from the same code, on Cloudflare (a Worker with a D1 database) or on plain Node. Each server is its own world: cards, accounts, ratings and trades never move between servers.
 
-**Cloudflare:**
+**Playing on one.** `/spin server https://their.host` switches to it after a one-time notice that someone else runs it, and `/spin server default` comes back. Your account on each server is kept apart, so switching never mixes or deletes anything, and the pane always shows which server you are on.
+
+**Running one on Cloudflare:**
 
 ```sh
 git clone https://github.com/416rehman/spinlings && cd spinlings
@@ -266,7 +270,7 @@ npx wrangler d1 migrations apply spinlings --remote
 npx wrangler deploy
 ```
 
-**Node** (22.18 or later; it runs the TypeScript directly on `node:http` and the built-in `node:sqlite`, and applies the migrations at start):
+**Running one on Node** (22.18 or later; it runs the TypeScript directly on `node:http` and the built-in `node:sqlite`, and applies the migrations at start):
 
 ```sh
 SECRET="$(node -e "console.log(crypto.randomBytes(32).toString('base64url'))")" npm run dev:server
@@ -274,7 +278,7 @@ SECRET="$(node -e "console.log(crypto.randomBytes(32).toString('base64url'))")" 
 
 For other people, also set `ORIGIN` to the https address players reach it at (it is the passkey domain, and every link is built from it). A `Dockerfile` runs the same Node server as a non-root user with its data in `/data`.
 
-Then point the mod at it with `/spin server https://your.host`, or set **Server URL** for Spinlings in `/config`. The mod allows plain http only for `localhost` and `127.0.0.1`, so a server for other people needs https.
+Then point the mod at it with `/spin server https://your.host`, or set the **Server URL** option with `/plugin configure spinlings@spinlings`. The mod allows plain http only for `localhost` and `127.0.0.1`, so a server for other people needs https.
 
 The details, including reverse proxies, updates and what you owe your players' privacy, are in [docs/self-hosting.md](docs/self-hosting.md).
 
@@ -325,19 +329,19 @@ More in [SPEC.md](SPEC.md), sections 11, 12, 15, 16 and 20.
 
 **What if nobody else is playing?** You can still do everything. Rivals take duels when no real player fits, the Wandering Trader trades when nobody else does, and wild creatures and packs never needed anyone else.
 
-**Can other people see when or how much I use Claude?** No. Other players never see timestamps, activity, battle counts or which model you used. Cards do belong to families, and packs follow the model you use most, so the cards you choose to show can hint at your favourite family, and your three starters, while they are on your team, show which family you joined with; [PRIVACY.md](PRIVACY.md) explains. Your requests reach the server as ordinary HTTPS traffic, so whoever runs your network can see that Spinlings talks to its server, but not what it says.
+**Can other people see when or how much I use Claude?** No. Other players never see timestamps, activity, battle counts or which model you used. Cards do belong to families, and packs follow the model you use most, so the cards you choose to show can hint at your favourite family; your three starters do not, since the server picks their families at random. [PRIVACY.md](PRIVACY.md) explains. Your requests reach the server as ordinary HTTPS traffic, so whoever runs your network can see that Spinlings talks to its server, but not what it says.
 
 **Why is there a server at all?** So that duels, trades and gifts work between people, and so that nobody can mint cards on their own machine. The server rolls every card.
 
 **Can I play on another computer?** Yes, with a passkey: `/spin devices` saves one (no email, no password), and the other computer signs in with it. Without a passkey, losing every device loses the online account, so save one if your collection matters to you.
 
-**What happens if the server is down?** Claude Code works as usual. The game just has nothing to show until the server is back.
+**What happens if the server is down?** Claude Code works as usual. The pane keeps showing your collection as it last saw it and says it can't reach the server, and online play picks up again when it is back. The offline world never needs a server at all.
 
 **Is there anything to buy?** No. There are no purchases, no paid currency and no crypto of any kind: no coins, tokens or NFTs. Sparks are earned in the game and cannot be bought or cashed out. Anything claiming otherwise is not this project.
 
 **Can someone message me?** No. There is no chat and no free text anywhere; handles are generated.
 
-**Does it work in the desktop app?** Yes. Sprites are drawn with half-block characters in the terminal and as SVG in the desktop app.
+**Does it work in the desktop app?** Yes, and that is where it looks best: in the Code tab of the Claude desktop app, sprites are crisp SVG and the ceremonies play as smooth SVG animation, in light and dark mode alike. In the terminal, sprites are drawn with half-block characters.
 
 **Is this made by Anthropic?** No. Spinlings is an independent open-source project and is not affiliated with or endorsed by Anthropic.
 

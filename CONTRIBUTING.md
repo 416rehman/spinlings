@@ -53,7 +53,7 @@ Pass the test path as a quoted glob: `node --test test/` does not work. Test fil
 
 CI runs the tests, `validate`, `test:plugin` and a `wrangler deploy --dry-run` on every pull request, with one pinned, hash-checked Claude Code build, and fails if any test is skipped. Two kinds of test skip on a machine that lacks their tools: the real-D1 suites need wrangler's local workerd, and the validator check in `test/e2e/manifest.test.ts` needs a Claude Code with `plugin validate --json` (point `SPINLINGS_CLAUDE` at one if the `claude` on your PATH is older).
 
-The docs are tested too: `test/docs/` fails on per-day quota wording, on a `/spin` command or hook the README leaves out, and if the balance figures in SPEC.md section 5 drift.
+The docs are tested too: `test/docs/` fails on per-day quota wording, on a `/spin` command or hook the README leaves out, on a number the README, PRIVACY.md, SECURITY.md or `docs/how-to-play.md` quotes that no longer matches `ECONOMY` (`plugin/hooks/core/economy.ts`) or the server's limits, on a README image that is missing or has no alt text, and if the balance figures in SPEC.md section 5 drift. When you change a number, change the docs that quote it in the same pull request.
 
 ## Code rules
 
@@ -71,6 +71,7 @@ The docs are tested too: `test/docs/` fails on per-day quota wording, on a `/spi
 - **Schema changes are new migrations** in `server/migrations/`, numbered `NNNN_name.sql`. Never edit one that has shipped. A migration runs before the new Worker goes live, so it must keep working with the previous release.
 - Never put tokens, bodies, URLs, handles or addresses in errors or logs.
 - Keep the existing terse style. Comments only where they earn their place.
+- Text files use LF line endings on every platform; `.gitattributes` makes Git check them out that way even with `core.autocrlf` on.
 
 ## Dependencies
 

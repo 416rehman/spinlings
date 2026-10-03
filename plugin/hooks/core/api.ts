@@ -128,7 +128,10 @@ export type HandleResponse = { handle: string; handleRerollFrom: string }
 export type LeaderboardOptRequest = { optIn: boolean }
 export type LeaderboardOptResponse = { leaderboard: boolean }
 export type DeleteResponse = { deleted: true }
-export type CardsResponse = { cards: Card[]; version: number }
+/** GET /v1/cards?after={next}: the page after a previous answer's `next` */
+export type CardsRequest = { after?: string }
+/** The cards oldest first, as many as fit one answer; `next` (absent on the last page) is where the next page starts. */
+export type CardsResponse = { cards: Card[]; version: number; next?: string }
 export type ChargeRequest = { family: Family }
 export type BuyPackRequest = { family: Family }
 export type PacksResponse = { packs: PackView[] }
@@ -238,8 +241,8 @@ export interface SpinlingsApi {
   rerollHandle(req: EmptyRequest): Promise<HandleResponse>
   /** PUT /v1/me/leaderboard */
   setLeaderboard(req: LeaderboardOptRequest): Promise<LeaderboardOptResponse>
-  /** GET /v1/cards */
-  cards(req: EmptyRequest): Promise<CardsResponse>
+  /** GET /v1/cards, a page at a time */
+  cards(req: CardsRequest): Promise<CardsResponse>
   /** POST /v1/packs/charge */
   chargePack(req: ChargeRequest): Promise<PacksResponse>
   /** POST /v1/packs/buy */
@@ -306,9 +309,12 @@ export type ApiRoute = {
   auth: boolean
   /** implemented by the offline LocalBackend */
   offline: boolean
+  /** GET only: request fields sent as the query string when present, each checked like a path parameter */
+  query?: readonly string[]
 }
 
-const r = (method: ApiRoute['method'], path: string, auth: boolean, offline: boolean): ApiRoute => ({ method, path, auth, offline })
+const r = (method: ApiRoute['method'], path: string, auth: boolean, offline: boolean, query?: readonly string[]): ApiRoute =>
+  ({ method, path, auth, offline, ...(query ? { query } : {}) })
 
 export const API_ROUTES: Readonly<Record<ApiOp, ApiRoute>> = {
   version: r('GET', '/v1/version', false, false),
@@ -325,7 +331,7 @@ export const API_ROUTES: Readonly<Record<ApiOp, ApiRoute>> = {
   passkeyStart: r('POST', '/v1/me/passkey/start', true, false),
   rerollHandle: r('POST', '/v1/me/handle', true, false),
   setLeaderboard: r('PUT', '/v1/me/leaderboard', true, false),
-  cards: r('GET', '/v1/cards', true, true),
+  cards: r('GET', '/v1/cards', true, true, ['after']),
   chargePack: r('POST', '/v1/packs/charge', true, true),
   buyPack: r('POST', '/v1/packs/buy', true, true),
   openPack: r('POST', '/v1/packs/open', true, true),
@@ -355,8 +361,8 @@ export const API_ROUTES: Readonly<Record<ApiOp, ApiRoute>> = {
 }
 
 /**
- * Splits a request object into the filled path and the JSON body (every field that is not a path parameter).
- * GET and DELETE carry no body. Path values are URI-encoded.
+ * Splits a request object into the filled path, with any query fields present, and the JSON body (every other field).
+ * GET and DELETE carry no body. Path and query values are URI-encoded.
  */
 export function routeOf<K extends ApiOp>(op: K, req: ApiRequest<K>): { method: ApiRoute['method']; path: string; body: Record<string, unknown> | null } {
   const route = API_ROUTES[op]
@@ -367,5 +373,10 @@ export function routeOf<K extends ApiOp>(op: K, req: ApiRequest<K>): { method: A
     if (typeof v !== 'string' && typeof v !== 'number') throw new TypeError(`${op}: missing path parameter ${name}`)
     return encodeURIComponent(String(v))
   })
-  return { method: route.method, path, body: route.method === 'GET' || route.method === 'DELETE' ? null : rest }
+  const query = (route.query ?? []).flatMap(name => {
+    const v = rest[name]
+    delete rest[name]
+    return v === undefined ? [] : [`${name}=${encodeURIComponent(String(v))}`]
+  })
+  return { method: route.method, path: query.length ? `${path}?${query.join('&')}` : path, body: route.method === 'GET' || route.method === 'DELETE' ? null : rest }
 }

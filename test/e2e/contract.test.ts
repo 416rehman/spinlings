@@ -11,7 +11,7 @@ import { BackendError } from '../../plugin/hooks/client/types.ts'
 import { API_ROUTES } from '../../plugin/hooks/core/api.ts'
 import type { ApiErrorCode, ApiOp, ApiRequest, OfferView } from '../../plugin/hooks/core/api.ts'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
-import { parseApiError, parseRequest } from '../../plugin/hooks/core/schemas.ts'
+import { parseApiError, parsePathParam, parseRequest } from '../../plugin/hooks/core/schemas.ts'
 import { familySpecies } from '../../plugin/hooks/core/species.ts'
 import { traderGiveProblem } from '../../plugin/hooks/core/trader.ts'
 import type { Card } from '../../plugin/hooks/core/types.ts'
@@ -308,6 +308,10 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
         assert.equal(w.headers['x-spinlings-client'], '0.1.0')
         assert.equal('authorization' in w.headers, API_ROUTES[op].auth, `${op}: the token rides only on authenticated routes`)
         assert.ok(!Object.keys(w.headers).some(h => h === 'cookie'))
+        for (const [k, v] of new URL(w.url).searchParams) {
+          assert.ok(API_ROUTES[op].query?.includes(k), `${op}: ?${k} is a documented query field`)
+          assert.equal(parsePathParam(k, v), v)
+        }
         if (w.body === undefined) {
           assert.ok(w.method === 'GET' || w.method === 'DELETE')
           continue

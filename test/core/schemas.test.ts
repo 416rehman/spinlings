@@ -329,6 +329,12 @@ test('the route table, request and response schemas and path parameters cover ev
   assert.deepEqual(routeOf('profile', { handle: 'soft-otter-42' }), { method: 'GET', path: '/v1/players/soft-otter-42', body: null })
   assert.deepEqual(routeOf('season', { season: 3 }), { method: 'GET', path: '/v1/season/3', body: null })
   assert.deepEqual(routeOf('recycle', { cardId: 'c1' }), { method: 'POST', path: '/v1/cards/c1/recycle', body: {} })
+  assert.deepEqual(routeOf('cards', {}), { method: 'GET', path: '/v1/cards', body: null })
+  assert.deepEqual(routeOf('cards', { after: '2026-10-02.abc' }), { method: 'GET', path: '/v1/cards?after=2026-10-02.abc', body: null })
+  for (const op of ops) for (const q of API_ROUTES[op].query ?? []) {
+    assert.equal(API_ROUTES[op].method, 'GET', `${op} ?${q}`)
+    assert.ok(Object.hasOwn(PATH_PARAMS, q), `${op} ?${q}`)
+  }
   assert.throws(() => routeOf('acceptOffer', {} as never), TypeError)
   assert.equal(parsePathParam('dealId', '2026-10-04-1'), '2026-10-04-1')
   assert.equal(parsePathParam('code', 'quiet-otter-lamp-4821'), 'quiet-otter-lamp-4821')

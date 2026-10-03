@@ -172,6 +172,8 @@ export const SEMVER_RE = /^\d{1,4}\.\d{1,4}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,32})?$/
 /** what a player types for a drop; normalizeDropCode makes it comparable */
 export const DROP_CODE_RE = /^[A-Za-z0-9]+(?:[- ][A-Za-z0-9]+)*$/
 export const TRADER_DEAL_RE = /^\d{4}-\d{2}-\d{2}-\d$/
+/** a page cursor (CardsResponse.next): opaque to the mod, which only sends it back as `?after=` */
+export const CURSOR_RE = /^[A-Za-z0-9._~-]{1,64}$/
 const CARD_SPECIES_RE = /^(?:s[1-9]\d{0,3}-(?:haiku|sonnet|opus|fable)-[0-8]|fusion|mythic|promo)$/
 const PLAIN_TEXT_RE = /^[^\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]*$/
 const TOKEN_RE = /^[A-Za-z0-9_-]+$/
@@ -436,7 +438,7 @@ export const authPollResponseSchema = union<AuthPollResponse>('status', {
 export const handleResponseSchema = view<HandleResponse>({ handle, handleRerollFrom: day })
 export const leaderboardOptResponseSchema = view<LeaderboardOptResponse>({ leaderboard: bool })
 export const deleteResponseSchema = view<DeleteResponse>({ deleted: oneOf([true] as const) })
-export const cardsResponseSchema = view<CardsResponse>({ cards: arr(cardSchema, { max: 10_000 }), version: count })
+export const cardsResponseSchema = view<CardsResponse>({ cards: arr(cardSchema, { max: 10_000 }), version: count, next: optional(str({ max: 64, re: CURSOR_RE })) })
 export const packsResponseSchema = view<PacksResponse>({ packs: arr(packViewSchema, { max: 50 }) })
 export const openPackResponseSchema = view<OpenPackResponse>({ cards: arr(cardSchema, { min: 1, max: 5 }) })
 export const teamResponseSchema = view<TeamResponse>({ team: arr(id, { max: 3 }) })
@@ -524,6 +526,8 @@ export const traderDealRequestSchema = obj<TraderDealRequest>({ cardIds: ids(1, 
 export const PATH_PARAMS: Readonly<Record<string, RegExp>> = {
   season: /^[1-9]\d{0,3}$/, pollId: ID_RE, battleId: ID_RE, cardId: ID_RE, offerId: ID_RE, dealId: TRADER_DEAL_RE,
   handle: HANDLE_RE, code: GIFT_CODE_RE,
+  // query parameters (ApiRoute.query) are checked the same way
+  after: CURSOR_RE,
 }
 
 /** The JSON body schema of every operation; null where the operation sends no body (GET and DELETE). */

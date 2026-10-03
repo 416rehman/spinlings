@@ -1,17 +1,18 @@
 // Offline battles (SPEC 5, 13, 17-19, 22, 24, 28): wild teams and Rival duels from the shared core rolls, settled by the
-// core simulator and paid with the core rewards, exactly as the server would: sparks, XP and evolution with raised
+// core simulator and paid by the core settlePlan, exactly as the server pays: sparks, XP and evolution with raised
 // forms, rating against a Rival, streaks and their packs, the daily first win, the catch roll and the duel bounty.
 import type { CardResponse, CatchRequest, FinishBattleRequest, FinishBattleResponse, StartBattleRequest, StartBattleResponse } from '../../core/api.ts'
 import type { BattleLog, BattleSetup, Card } from '../../core/types.ts'
-import { applyRating, battleRewards, eloDelta, participants, RULES_VERSION, simulateBattle } from '../../core/battle.ts'
-import { applyXp, cardFromBattleCard, cardPower, raisingFamily, toBattleCard } from '../../core/cards.ts'
-import { ECONOMY, finishAfter, isRested, leagueOf, streakPackDue } from '../../core/economy.ts'
-import { rollBounty, rollWildTeam } from '../../core/packs.ts'
+import { RULES_VERSION, simulateBattle } from '../../core/battle.ts'
+import { cardFromBattleCard, cardPower, toBattleCard } from '../../core/cards.ts'
+import { ECONOMY, finishAfter, firstWildDue, isRested, leagueOf } from '../../core/economy.ts'
+import { rollFirstWild, rollWildTeam } from '../../core/packs.ts'
 import { rollRival } from '../../core/rivals.ts'
-import { chance } from '../../core/rng.ts'
+import { settlePlan } from '../../core/settle.ts'
+import type { SettleMode } from '../../core/settle.ts'
 import { utcDay, worldOf } from '../../core/world.ts'
 import type { Ctx } from './state.ts'
-import { addCards, grantPack, hasRoom, nextDuelAt, nextWildAt, refuse, TEXT } from './state.ts'
+import { addCards, addNotice, grantPack, hasRoom, nextDuelAt, nextWildAt, refuse, TEXT } from './state.ts'
 import type { ArenaCounts, LocalState, OpenBattle } from './save.ts'
 
 const B = ECONOMY.battle
@@ -61,10 +62,11 @@ export function startBattle(s: LocalState, ctx: Ctx, req: StartBattleRequest): S
   let defender
   if (req.kind === 'wild') {
     const level = cards.reduce((n, c) => n + c.level, 0) / cards.length
-    defender = rollWildTeam({
-      rng, arena: req.family, now, level, rule: w.rule, featured: w.featured, roamer: w.roamer,
-      rested: isRested(Math.max(s.lastWildAt, s.lastDuelAt), now),
-    })
+    const o = { rng, arena: req.family, now, level, rule: w.rule }
+    // beginner's luck: the first wild encounter ever is one gentle creature against the lead
+    defender = firstWildDue(s.wildWon, s.lastWildAt)
+      ? rollFirstWild({ ...o, lead: cards[0]!.family })
+      : rollWildTeam({ ...o, featured: w.featured, roamer: w.roamer, rested: isRested(Math.max(s.lastWildAt, s.lastDuelAt), now) })
   } else {
     const r = rollRival({ rng, now, rating: s.rating, power: cards.reduce((n, c) => n + cardPower(c), 0), size: cards.length })
     rival = { name: r.name, rating: r.rating }
@@ -99,72 +101,46 @@ export function finishBattle(s: LocalState, ctx: Ctx, req: { battleId: string } 
 }
 
 /**
- * Settles an open battle. `auto` is one left behind (ten quiet minutes, or a new start): it rolls no catch, since
- * nobody is there to choose, and so keeps beginner's luck for the next wild win. Same steps as the server's.
+ * Settles an open battle by the core settlePlan, the server's own: `auto` is one left behind (ten quiet minutes, or a
+ * new start), which rolls no catch and tells its news as notices.
  */
-export function settle(s: LocalState, ctx: Ctx, b: OpenBattle, mode: 'finish' | 'auto', log: BattleLog = simulateBattle(b.setup, [])): FinishBattleResponse {
-  const { now, rng } = ctx
+export function settle(s: LocalState, ctx: Ctx, b: OpenBattle, mode: SettleMode, log: BattleLog = simulateBattle(b.setup, [])): FinishBattleResponse {
+  const { now } = ctx
   const { setup } = b
-  const win = log.result === 'win'
-  const wild = setup.kind === 'wild'
-  const firstWildWin = wild && win && mode === 'finish' && !s.wildWon
-  const rewards = battleRewards(setup.kind, log.result, setup.rule, { firstWildWin })
+  const held = new Map(s.cards.map(card => [card.id, { card, arena: s.arena[card.id] ?? noCounts() }]))
+  const plan = settlePlan({
+    setup, log, mode, now, finishAfter: b.finishAfter, rng: ctx.rng, held, streak: s.streak, rating: s.rating,
+    opponentRating: b.rival?.rating ?? null, wildWon: s.wildWon, firstWinDue: s.firstWinDay !== utcDay(now), revenge: false,
+  })
+  const { answer } = plan
 
-  // XP, evolution and raised forms for the team cards that took part and are still here
-  const tiredUntil = (mode === 'finish' ? now : b.finishAfter) + B.tiredMs
-  const xp: FinishBattleResponse['xp'] = []
-  const tired: string[] = []
-  for (const slot of participants(log, 'a')) {
-    const i = s.cards.findIndex(c => c.id === setup.attacker[slot]?.id)
-    const prev = s.cards[i]
-    if (!prev) continue
-    const counts = { ...(s.arena[prev.id] ?? noCounts()) }
-    counts[setup.arena]++
-    const grown = applyXp(prev, rewards.xp, raisingFamily(counts, prev.family))
-    let next = grown.card
-    if (log.fainted.a.includes(slot) && tiredUntil > now) {
-      next = { ...next, tiredUntil: Math.max(next.tiredUntil, tiredUntil) }
-      tired.push(next.id)
-    }
-    s.cards[i] = next
-    // the counts only matter until the first evolution fixes the raising family
-    if (next.raisedIn === undefined && next.stage === 1) s.arena[next.id] = counts
+  // XP, evolution and raised forms; the arena counts only matter until the first evolution fixes the raising family
+  for (const { next, arena } of plan.cards) {
+    s.cards[s.cards.findIndex(c => c.id === next.id)] = next
+    if (next.raisedIn === undefined && next.stage === 1) s.arena[next.id] = arena
     else delete s.arena[next.id]
-    xp.push({ cardId: next.id, xp: rewards.xp, levelsGained: grown.levelsGained, evolved: grown.evolved, stage: next.stage })
   }
-  if (xp.length) s.cardsVersion++
+  if (plan.cards.length) s.cardsVersion++
 
-  // rating moves against a Rival's generated rating; wild battles leave it be
-  const ratingDelta = b.rival ? applyRating(s.rating, eloDelta(s.rating, b.rival.rating, log.result).attacker) - s.rating : 0
-  s.rating += ratingDelta
-
-  // sparks, the streak and its pack, the daily first win, the finished-battle count
-  const streak = win ? s.streak + 1 : 0
-  const streakPack = win && streakPackDue(streak)
-  const dailyWinPack = win && s.firstWinDay !== utcDay(now)
-  s.sparks += rewards.sparks
+  // rating, sparks, the streak and its pack, the daily first win, the finished-battle count, beginner's luck
+  s.rating = answer.rating
+  s.sparks += answer.sparks
   s.battles++
-  s.streak = streak
-  if (streakPack) grantPack(s, ctx, setup.arena, 'streak')
-  if (dailyWinPack) {
+  s.streak = answer.streak
+  if (answer.streakPack) grantPack(s, ctx, setup.arena, 'streak')
+  if (answer.dailyWinPack) {
     grantPack(s, ctx, setup.arena, 'daily')
     s.firstWinDay = utcDay(now)
   }
+  if (plan.luckSpent) s.wildWon = true
+  for (const n of plan.notices) addNotice(s, ctx, n.kind, n.text)
+  // a full collection lets the bounty go
+  const bounty: Card | null = plan.bounty && hasRoom(s, 1, true) ? addCards(s, ctx, [plan.bounty])[0]! : null
 
-  // a wild win's catch roll (the first one ever always catches), a duel win's bounty
-  const catchOptions = wild && win && mode === 'finish' && chance(rng, rewards.catchChance) ? setup.defender : []
-  if (firstWildWin) s.wildWon = true
-  let bounty: Card | null = null
-  if (win && chance(rng, rewards.bountyChance) && hasRoom(s, 1, true)) {
-    bounty = addCards(s, ctx, [rollBounty(setup.defender[0]!, rng, now, setup.rule)])[0]!
-  }
-
+  const { catchOptions } = answer
   s.battle = { id: b.id, state: 'settled', options: catchOptions, until: catchOptions.length ? now + B.catchWindowMs : 0 }
   s.done = [...s.done.filter(x => x !== b.id), b.id].slice(-8)
-  return {
-    result: log.result, sparks: rewards.sparks, xp, rating: s.rating, ratingDelta, catchOptions, bounty, dailyWinPack, streak,
-    streakPack, tired, log,
-  }
+  return { ...answer, bounty }
 }
 
 /** One of the defeated wild creatures becomes a card with the same DNA, genes, traits and level. One-shot. */

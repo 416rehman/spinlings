@@ -26,12 +26,14 @@ export type Built = { url: string; init: HttpInit; method: string; path: string;
 
 /**
  * One operation as a request. The request is checked with the same strict schema the server uses, so the mod never
- * sends a field the documented shape lacks (SPEC 20.9), and every path parameter is format-checked before it is
- * encoded. Throws SchemaError for a bad request.
+ * sends a field the documented shape lacks (SPEC 20.9), and every path and query parameter is format-checked before
+ * it is encoded. Throws SchemaError for a bad request.
  */
 export function buildRequest<K extends ApiOp>(origin: string, op: K, req: ApiRequest<K>, token: string | null, client: string): Built {
   const route = API_ROUTES[op]
-  for (const m of route.path.matchAll(/:([A-Za-z]+)/g)) parsePathParam(m[1]!, String((req as Record<string, unknown>)[m[1]!] ?? ''))
+  const fields = req as Record<string, unknown>
+  for (const m of route.path.matchAll(/:([A-Za-z]+)/g)) parsePathParam(m[1]!, String(fields[m[1]!] ?? ''))
+  for (const name of route.query ?? []) if (fields[name] !== undefined) parsePathParam(name, String(fields[name]))
   const { method, path, body } = routeOf(op, req)
   const checked = parseRequest(op, body ?? undefined)
   const headers: Record<string, string> = { accept: 'application/json', 'x-spinlings-client': client }

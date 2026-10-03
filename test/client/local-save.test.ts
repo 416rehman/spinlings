@@ -218,6 +218,7 @@ test('calls run one at a time, and another session\'s write in between sends the
     },
   })
   await w2.backend.me({})
+  w2.now += ECONOMY.packs.chargeSpacingMs
   other = world({ seed: 'other' })
   w2.loads = 0
   const sparks = (await w2.backend.me({})).player.sparks

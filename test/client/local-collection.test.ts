@@ -60,11 +60,13 @@ function give(w: ReturnType<typeof world>, family: Family, rarity: Card['rarity'
 
 test('presence charges a pack 45 minutes apart into a bank of 12; past 16 a day the lamp slows to 90', async () => {
   const w = world()
-  await w.backend.me({})
+  assert.equal((await w.backend.me({})).player.nextChargeAt, NOW + ECONOMY.packs.chargeSpacingMs, 'hatching counts as a charge')
+  await refused(w.backend.chargePack({ family: 'fable' }), 'rate_limited')
+  w.now += ECONOMY.packs.chargeSpacingMs
   const first = await w.backend.chargePack({ family: 'fable' })
   assert.equal(first.packs.length, 3)
   assert.deepEqual([first.packs[2]!.family, first.packs[2]!.source], ['fable', 'charge'])
-  assert.equal((await w.backend.me({})).player.nextChargeAt, NOW + ECONOMY.packs.chargeSpacingMs)
+  assert.equal((await w.backend.me({})).player.nextChargeAt, w.now + ECONOMY.packs.chargeSpacingMs)
   await refused(w.backend.chargePack({ family: 'fable' }), 'rate_limited')
   w.now += ECONOMY.packs.chargeSpacingMs
   assert.equal((await w.backend.chargePack({ family: 'haiku' })).packs.length, 4)

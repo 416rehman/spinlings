@@ -301,7 +301,7 @@ New players start with 100 sparks.
 
 ### First run
 1. **Join.** The client joins silently: `GET /v1/challenge`, a proof of work, then `POST /v1/join` with the current family (sections 30 and 34).
-2. **Starter team.** The player gets 3 bound common cards at level 3, 20 xp short of level 4 so one won battle evolves them, saved as the team: one from the current family, one from the family it beats, and one from the family that beats it. They have DNA like any other card.
+2. **Starter team.** The player gets 3 bound common cards at level 3, 20 xp short of level 4 so one won battle evolves them, saved as the team: one from a family the server picks at random, one from the family it beats, and one from the family that beats it, in a shuffled order. The team is public, so it never follows the joining family (section 20.3). They have DNA like any other card.
 3. **Welcome gifts.** 2 welcome packs (the current family and one random other family), trade-locked for 7 days, and 100 sparks.
 4. **Band.** See section 34.
 
@@ -669,7 +669,7 @@ The rule for every moment in section 13: **build up, pause, pay off, celebrate i
 
 ### Streaks
 - The server tracks consecutive wins, wild or duel. A loss or draw resets the count to 0.
-- Every 3rd consecutive win pays a **streak pack**, with no daily limit (section 24).
+- Every 3rd consecutive win pays a **streak pack**, with no daily limit (section 24). Wins count however close together they come: there is no separate streak spacing, and battle pacing (section 15: duels 2 minutes apart, the minimum battle duration, one open battle) is the only bound, the same for a script as for a player pressing `/spin battle`.
 - During a battle the band shows `streak 2 · one more!`. A streak pack plays a `Hot streak! x3` banner.
 - `PlayerView.streak` carries the count.
 
@@ -1046,7 +1046,7 @@ Each stage has its own name, and a line keeps a recognisable root as it grows, e
 - `mythicNameFor` (Mythics) calls `mythicName`;
 - `rivalName` (Rival trainers) is the seam's own.
 
-The seam's blocklist (`isBlocked`) has the last word: a blocked species or fusion name goes back to the generator as taken, and a blocked Mythic name re-seeds. The original prefix-plus-suffix names remain only as a fallback for a seed the generator cannot name, so a season, fusion or Mythic never fails. Wiring the generator in made `GENERATOR_VERSION` 2 (section 32).
+The seam's blocklist (`isBlocked`) has the last word: a blocked species or fusion name goes back to the generator as taken, and a blocked Mythic name re-seeds. The generator names every seed and fuses any two names, so a season, fusion or Mythic never fails; no prefix-plus-suffix fallback remains. Wiring the generator in made `GENERATOR_VERSION` 2 (section 32).
 
 ## 24. No daily quotas: pace, pairs and sinks (overrides every per-day cap anywhere above)
 
@@ -1063,7 +1063,7 @@ The seam's blocklist (`isBlocked`) has the last word: a blocked species or fusio
 | 3 open gifts | 10 open gifts at once (storage) |
 | Defense rewards 10 a day | **Pair limit:** defense sparks and rating move only for the first 3 finished duels between the same two accounts per rolling 24 hours. |
 | Rating pair cap | Kept: the same pair limit as above. |
-| Streak packs (max 2 a day) | Removed. Every 3rd consecutive win pays a streak pack. |
+| Streak packs (max 2 a day) | Removed. Every 3rd consecutive win pays a streak pack, however close together the wins come (section 14). |
 | Gift bonus packs (3 a week) | Removed. The giver's bonus pack pays only when the claimant (who joined after the gift) has finished 5 battles on 2 different days. The claimant must really play. |
 | Claim attempts (5 an hour) | Kept as brute-force protection on codes, not as a game quota |
 | Join and redeem limits per IP hash | Kept as anti-abuse request limits, not game quotas |
@@ -1201,7 +1201,7 @@ Section 30 removed link codes and recovery codes; a passkey is the only way to b
 ### One rulebook, two backends (mod architecture)
 - The mod talks to one interface, `SpinlingsApi` in `core/api.ts`: one method per operation, taking the path parameters and body fields as one object. `API_ROUTES` gives each operation's method, path, whether it needs auth and whether the offline backend implements it; `routeOf` splits a request into path and body. Requests and responses are validated by the same schemas (`REQUEST_SCHEMAS`, `RESPONSE_SCHEMAS`):
   - `RemoteBackend` is the HTTP client.
-  - `LocalBackend` implements the solo subset in the mod (the operations marked `offline`) and answers the rest with `not_allowed`: pure game logic in `plugin/hooks/client/local/*.ts`, built only from the **shared core rule functions** (rolls, simulateBattle, rewards, applyXp, evolution, fuse, rivals, trader deals, mythics), with state persisted through callbacks that `register.tsx` backs with `$.store`.
+  - `LocalBackend` implements the solo subset in the mod (the operations marked `offline`) and answers the rest with `not_allowed`: pure game logic in `plugin/hooks/client/local/*.ts`, built only from the **shared core rule functions** (rolls, simulateBattle, rewards, settling a battle with `settlePlan`, applyXp, evolution, fuse, rivals, trader deals, mythics), with state persisted through callbacks that `register.tsx` backs with `$.store`.
 - No game rule is written twice: if the server needs a rule the local backend also needs, it lives in core and both call it.
 - The local save is versioned (`offline:v1`), kept within `$.store`'s 4 MiB with headroom (at most about 8,000 cards; beyond that the oldest commons are suggested for recycling), and deletable from `/spin privacy`.
 - **Pacing offline.** The same encounter spacing applies offline, for game feel, but nothing is enforced against the player: it is their own save.
@@ -1300,6 +1300,7 @@ Passkeys are bound to `rp.id` forever. The production domain must be final befor
 
   Responses must never be rejected for something new.
 - **Strict writer on the server.** Request parsing stays strict: unknown keys are rejected (security, section 12). A client never sends a field the server's `features` do not list.
+- **Pages.** `GET /v1/cards` answers the cards oldest first, as many as fit under the mod's 256 KB cap, with `next` while more remain. The mod asks again with `?after={next}` until `next` is absent, and reads the whole list again if `version` moved between pages. It sends `after` only back to the server that gave it, so a server without pages is never asked for one.
 
 ### Version handshake
 - **`GET /v1/version`** (public, cacheable for 1 hour) returns:
@@ -1393,3 +1394,17 @@ A `Dockerfile` is provided, built from a `node:22-alpine` image pinned by digest
   - **Cards:** cards have rounded frames, a rarity-coloured border and a foil gradient border. Layout uses the 4/8/16/32 spacing scale, and type hierarchy follows SPEC 21.
   - **Mode safety:** everything reads well in both Claude Desktop light and dark modes.
 - **Quality gate:** the mod's UI tests mount every surface state on `surface: 'desktop'` first. A desktop state may never fall back to a text-only placeholder where art is expected.
+
+## 36. The website: creative, playful, never defensive (overrides the site copy in earlier sections)
+
+- **No defensive copy on marketing surfaces.** The landing page, card pages, gift pages and drop pages never mention what the game does not do: no "we don't read your work", no "zero lines examined", no privacy reassurances. Privacy lives on `/privacy`, in the README and in `PRIVACY.md`, linked quietly from the footer.
+- **The site is a piece of the game, not a brochure.** It must be:
+  - **creative and memorable:** a strong, original art direction built on the game's own pixel creatures and world;
+  - **playful:** the visitor can *do* something on the first screen, e.g. meet a wild creature generated just for them, watch it hatch, or flip a foil card;
+  - **alive:** today's daily rule, the featured species and the season are part of the scene, not a list.
+- **Extremely creative, full of small interactions.** Creatures react to the cursor (look at it, blink, hop or startle), grass rustles where you touch it, and a wild creature generated for this visitor waits to be met. Foil cards tilt and shimmer under the pointer, and clicking things does something delightful. The world shifts with the visitor's local time of day. Small easter eggs are welcome.
+- **Allowed:**
+  - First-party scripts (`script-src 'self'`, static files under `/static/`) for the interactions.
+  - No third-party code, fonts, analytics or requests of any kind.
+  - The page must still read correctly without scripts, respect `prefers-reduced-motion`, be keyboard accessible, and stay fast (under 200 KB of JavaScript, no layout jank).
+- **Quality bar:** it has to look like a beloved indie game's site, not an AI-generated landing page. No purple gradients, no generic icon grids, no card walls of features.

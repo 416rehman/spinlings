@@ -119,3 +119,28 @@ test('a catch whose answer never comes lets the band go, so waiting battles star
   await w.advance(25_000)
   expect(catchOf(w)).toBeUndefined()
 })
+
+test('a collection bigger than one answer arrives whole, a page at a time, read again if it changed on the way', async () => {
+  const w = world({})
+  const asked: unknown[] = []
+  let version = server.me.player.cardsVersion
+  const game = createGame({
+    serverUrl: ORIGIN, world: 'online', slots,
+    remote: () => backend({
+      version: () => Promise.reject(new BackendError('unavailable', 'network', 0, 'offline')),
+      me: async () => server.me,
+      cards: async (req: { after?: string }) => {
+        asked.push(req)
+        const at = req.after === undefined ? 0 : Number(req.after.slice(1))
+        // the collection moves once, while the second page is on its way
+        if (asked.length === 2) version++
+        const next = at + 2 < server.cards.length ? { next: `p${at + 2}` } : {}
+        return { cards: server.cards.slice(at, at + 2), version, ...next }
+      },
+    }),
+  })
+  await game.boot(w.fx, { model: null })
+  await w.advance(5000)
+  expect(w.state.cards.map(c => c.id)).toEqual(server.cards.map(c => c.id))
+  expect(asked).toEqual([{}, { after: 'p2' }, {}, { after: 'p2' }, { after: 'p4' }])
+})
