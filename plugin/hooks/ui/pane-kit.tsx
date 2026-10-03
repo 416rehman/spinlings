@@ -50,19 +50,18 @@ const ALL_TABS: readonly { tab: Tab; label: string }[] = [
   { tab: 'team', label: 'Team' },
   { tab: 'cards', label: 'Collection' },
   { tab: 'album', label: 'Discoveries' },
-  { tab: 'market', label: 'Market' },
   { tab: 'trade', label: 'Community' },
 ]
 
-/** The Market tab shows where it can be used: online, on a server with a market. */
+/** The Market section shows where it can be used: online, on a server with a market. */
 export const marketOpen = (s: GameState) => s.account.world === 'online' && hasFeature(s.account, 'market')
 
-/** The tabs on show, hotkeys 1 to 5 in order (SPEC 21): offline, the Market tab is not there and Trade is 4. */
+/** The four top tabs, hotkeys 1 to 4 (SPEC 21): Market lives inside Community. */
 export function tabsOf(s: GameState): { tab: Tab; label: string; hotkey: string }[] {
-  return ALL_TABS.filter(t => t.tab !== 'market' || marketOpen(s)).map((t, i) => ({ ...t, hotkey: String(i + 1) }))
+  return ALL_TABS.map((t, i) => ({ ...t, hotkey: String(i + 1) }))
 }
 
-/** The hint for the tab keys: `1-4 Tabs`, or `1-5 Tabs` with the Market. */
+/** The hint for the four main tab keys. */
 export const tabsHint = (s: GameState) => `1-${tabsOf(s).length} Tabs`
 
 /** `next pack ███░░ 18 min`, or why it waits (SPEC 13.8): the words a meter's tooltip and the demo read. */
@@ -252,7 +251,7 @@ export function header(c: Ctx): RenderElement {
   const rule = RULE_INFO[dailyRule(c.now)].name
   const tabs = (
     <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.tight} flexShrink={0}>
-      {tabsOf(s).map(t => btn(c, { key: `tab-${t.tab}`, label: t.label, hotkey: c.root ? t.hotkey : undefined, dim: t.tab !== s.pane.tab, on: () => c.actions.tab(t.tab) }))}
+      {tabsOf(s).map(t => btn(c, { key: `tab-${t.tab}`, label: t.label, hotkey: c.root ? t.hotkey : undefined, dim: t.tab !== (s.pane.tab === 'market' ? 'trade' : s.pane.tab), on: () => c.actions.tab(t.tab) }))}
     </Box>
   )
   const open = packs > 0 ? btn(c, { key: 'open-pack', label: `Open pack (${packs})`, hotkey: c.root ? 'o' : undefined, primary: c.root, on: () => c.actions.openPack() }) : null

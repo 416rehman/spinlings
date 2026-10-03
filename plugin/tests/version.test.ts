@@ -97,14 +97,21 @@ test('an updated mod refreshes same-day cached capabilities once, so Market and 
   await settle(clock)
   expect(versionChecks(w)).toBe(1)
   expect((w.store.get(KEYS.meta(ORIGIN)) as { versionClient: string }).versionClient).toBe(CLIENT_VERSION)
-  const ui = await $.ui.mount(PANE(40))
-  expect(await ui.find({ key: 'tab-market' })).toBeDefined()
-  await press(ui, 'tab-trade', clock)
-  expect(await ui.find({ key: 'community-board-species' })).toBeDefined()
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount(PANE(40, surface))
+    expect(await ui.find({ key: 'tab-market' })).toBeUndefined()
+    expect((await ui.find({ key: 'tab-trade' }))?.props.hotkey).toBe('4')
+    await press(ui, 'tab-trade', clock)
+    await press(ui, 'community-market', clock)
+    expect(await ui.find({ key: 'listing-listing-for-sale-pick' })).toBeDefined()
+    await press(ui, 'community-boards', clock)
+    for (const board of ['rating', 'beaten', 'duelWins', 'species', 'mythics', 'sales']) expect(await ui.find({ key: `board-${board}` })).toBeDefined()
+    expect((await ui.find({ key: 'pane-back' }))?.props.label).toBe('Close')
+    await ui.unmount()
+  }
   await $.command.run(RUN('version'))
   await settle(clock)
   expect(versionChecks(w)).toBe(1)
-  await ui.unmount()
 })
 
 // ---------- pure: what each part says ----------

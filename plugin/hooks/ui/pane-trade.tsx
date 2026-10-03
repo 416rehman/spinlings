@@ -1,4 +1,4 @@
-// The Trade tab (SPEC 8, 19, 25): the inbox (accept, decline, counter; cancel your own with a hold), the board of
+// Community's Trading section (SPEC 8, 19, 25): the inbox (accept, decline, counter; cancel your own with a hold), the board of
 // matches and recent cards, the Wandering Trader, and gifts (claim, redeem, your open gifts). A player's profile
 // doubles as the offer builder. Offline, players' trading is one line away: only the Trader is in that world.
 import type { RenderElement } from 'claude-code'

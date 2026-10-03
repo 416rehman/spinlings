@@ -1,4 +1,4 @@
-// The Market tab (SPEC 8): everyone's listings as a grid of card tiles (the art, the rarity gem, the family mark, the
+// The Market section (SPEC 8): everyone's listings as a grid of card tiles (the art, the rarity gem, the family mark, the
 // finish, a price chip and the card a listing wants in return), filtered by chips and pages; your own listings; one
 // listing's page, which is the confirm (what you give, what you get, then Buy); and the sell page, where a card gets a
 // price on a stepper that starts from recent sales, and optionally asks for a card too. Online only.
@@ -91,7 +91,7 @@ function chips(c: Ctx): RenderElement | null {
   ])
 }
 
-/** The Market tab: everyone's listings, or your own with `l`. */
+/** The Market section: everyone's listings, or your own with `l`. */
 export function marketScreen(c: Ctx): Shown {
   const q = marketChips(c.state.pane)
   const me = c.state.me!

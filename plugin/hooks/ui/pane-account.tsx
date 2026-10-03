@@ -14,7 +14,7 @@ import { CHIP, actions, btn, chip, column, heading, holdLine, line, para, worldB
 import { INK, MARK, SPACE } from './tokens.ts'
 
 const GUARANTEE = 'Spinlings reads only the shape of a session: the model\'s family, whether Claude is working, '
-  + 'how many helpers run and when a usage limit is full. Never your prompts, Claude\'s answers, files, commands, paths or cost.'
+  + 'how many helpers run, when a usage limit is full, and effort for local appearance. Never your prompts, Claude\'s answers, files, commands, paths or cost.'
 
 function sent(c: Ctx): RenderElement {
   const log = c.state.privacy.slice(-20).reverse()
@@ -118,10 +118,6 @@ export function privacyScreen(c: Ctx): Shown {
       actions(c, [
         reroll === '' ? btn(c, { key: 'reroll', label: 'Draw a new handle', hotkey: '2', on: () => c.actions.rerollHandle() }) : null,
         board ? btn(c, { key: 'leaderboard', label: c.columns < 26 ? (p!.leaderboard ? 'Hide my stats' : 'Show my stats') : (p!.leaderboard ? 'Hide me from the boards' : 'Show me on the boards'), hotkey: '3', on: () => c.actions.leaderboard(!p!.leaderboard) }) : null,
-        board ? btn(c, { key: 'leaderboard-show', label: 'See the boards', hotkey: '4', dim: true, on: async () => {
-          await c.actions.push({ kind: 'boards', board: 'rating', period: 'all' })
-          await c.actions.rankings('rating', 'all')
-        } }) : null,
       ]),
       reroll ? line(c, `A new handle can be drawn ${reroll} (once a week).`, { dim: true }) : null,
       board ? para(c, 'Every player is on the boards: handle, league and game numbers as they stood at the last midnight. Hidden, your stats leave your profile too.', { dim: true }) : null,

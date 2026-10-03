@@ -12,14 +12,13 @@ import { hello, screenOf, withTop } from '../client/viewmodels.ts'
 import { ceremonyScreen } from './ceremony.tsx'
 import { privacyScreen, devicesScreen } from './pane-account.tsx'
 import { albumScreen, speciesScreen } from './pane-album.tsx'
-import { boardsScreen } from './pane-boards.tsx'
 import { cardScreen, cardsScreen, fuseScreen } from './pane-cards.tsx'
 import type { Ctx, Shown } from './pane-kit.tsx'
 import { actions, btn, column, formMini, frame, line, marketOpen, para, playable } from './pane-kit.tsx'
-import { listingScreen, marketScreen, sellScreen } from './pane-market.tsx'
+import { listingScreen, sellScreen } from './pane-market.tsx'
 import { teamScreen } from './pane-team.tsx'
-import { communityScreen, helpScreen, mineScreen, todayScreen } from './pane-community.tsx'
-import { giftScreen, profileScreen, tradeScreen } from './pane-trade.tsx'
+import { communityScreen, helpScreen, todayScreen } from './pane-community.tsx'
+import { giftScreen, profileScreen } from './pane-trade.tsx'
 import { INK, SPACE } from './tokens.ts'
 
 type Env = Parameters<PaneView>[0]
@@ -107,9 +106,8 @@ function helloBanner(c: Ctx): RenderElement | null {
 
 function tabScreen(c: Ctx): Shown {
   const tab = c.state.pane.tab
-  // the Market tab is only there online on a server with a market; a world switched to without one shows the Team
-  const shown = tab === 'cards' ? cardsScreen(c) : tab === 'album' ? albumScreen(c) : tab === 'trade' ? communityScreen(c)
-    : tab === 'market' && marketOpen(c.state) ? marketScreen(c) : teamScreen(c)
+  // The old Market tab remains readable as Community's Market section; unavailable sections fall back to Profile.
+  const shown = tab === 'cards' ? cardsScreen(c) : tab === 'album' ? albumScreen(c) : tab === 'trade' || tab === 'market' ? communityScreen(c) : teamScreen(c)
   return { ...shown, banner: helloBanner(c) }
 }
 
@@ -138,12 +136,12 @@ function route(c: Ctx): Shown {
     case 'gift': return giftScreen(c, top.code)
     case 'privacy': return privacyScreen(c)
     case 'devices': return devicesScreen(c)
-    case 'trades': return tradeScreen(c)
-    case 'mine': return mineScreen(c)
+    case 'trades': return communityScreen(c, { section: 'trades' })
+    case 'mine': return communityScreen(c, { section: 'profile' })
     case 'help': return helpScreen(c)
     case 'today': return todayScreen(c)
     case 'demo': return tabScreen({ ...c, root: true })
-    case 'boards': return c.offline ? onlineOnly(c) : boardsScreen(c, top)
+    case 'boards': return c.offline ? onlineOnly(c) : communityScreen(c, { section: 'boards', boards: top })
     case 'listing': return c.offline ? onlineOnly(c) : listingScreen(c, top)
     case 'sell': return c.offline ? onlineOnly(c) : sellScreen(c, top)
   }

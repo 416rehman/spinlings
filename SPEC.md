@@ -391,17 +391,27 @@ Everything here works while the other player is away. **No account limits:** any
 | Welcome | 2 rows, once ever | See "First run" in section 6 |
 
 ### Pane (`/spin`)
-Five tabs, hotkeys 1–5; offline there is no Market tab, so the four left take 1–4. The displayed labels are Team, Collection, Discoveries, Market and Community; their saved ids remain `team`, `cards`, `album`, `market` and `trade`. A header shows the tabs, then `[o] Open pack (n)`, the pack meter as a small pack filling in the family's colour with a labelled countdown (`Next pack 18m`), the daily rule as a button that opens its effect, the world as a dot and the host, and, until a passkey is saved, a `Not backed up` marker that opens the passkey steps. Every piece shows whole; the header wraps rather than cut one.
+Four tabs, hotkeys 1–4, online and offline: Team, Collection, Discoveries and Community. Their saved ids are `team`, `cards`, `album` and `trade`; the legacy `market` tab maps to Community's Market section. A header shows the tabs, then `[o] Open pack (n)`, the pack meter as a small pack filling in the family's colour with a labelled countdown (`Next pack 18m`), the daily rule as a button that opens its effect, the world as a dot and the host, and, until a passkey is saved, a `Not backed up` marker that opens the passkey steps. Every piece shows whole; the header wraps rather than cut one.
 
 | Tab | Shows |
 |---|---|
-| Team | 3 slots with resting timers (an empty slot is a button to pick one), labelled league, rating, sparks and win streak, Duel, Your profile and Leaderboards, packs waiting as art to open, defense notices. Slots stack as card rows when three tiles do not fit |
+| Team | 3 slots with resting timers (an empty slot is a button to pick one), labelled league, rating, sparks and win streak, Duel, packs waiting as art to open, defense notices. Slots stack as card rows when three tiles do not fit |
 | Collection | Your cards as a grid with family and rarity filters; card detail (stats, genes, traits, origin) with set in team, for trade, fuse, sell, recycle and gift |
 | Discoveries | The season's 4 families × 9 species with silhouettes for unseen ones, plus craft; also the Fusion Log. Counts describe species discovered, separate from cards owned |
-| Market | Everyone's listings as a grid of card tiles (art, rarity gem, family mark, finish, a price chip in sparks and the creature it wants in return), filter chips (family, rarity, kind, sort, shiny, foil), pages; your own listings with `l`. A listing's page is the confirm: the card in full, the seller with Challenge, recent prices, what you give and what you get, then `1` Buy. Selling starts from a card's page (`l`): a price stepper that starts from recent sales (or what crafting one costs), up to three suggested prices, and an optional card asked in return (a wishlist species, or the card's family at its rarity or better) |
-| Community | Your profile, six labelled leaderboards, then Trading: Offers, Find a trade, Wandering Trader and Gifts. Each trading action opens the relevant pushed Trading screen; offline, the Trader and your local profile remain available |
+| Community | Opens on your Profile. A consistent local section bar switches between Profile, Market, Rankings and Trading, with only the supported sections shown |
 
-Pushed over the tabs: the leaderboards (six labelled board choices plus `n`/`p`, all time or this season with `a`, the top rows with a league badge and the value, your own rank pinned, and from each row the player's profile or Challenge); your profile (handle, league, rating, sparks, win streak, live own stats, cards owned and species discovered, settings and devices, and links to the active server's `/account` and public profile); another player's profile (league, album count, stats as tiles, Challenge, their team and the offer builder); Trading; Help; and Today, explaining the daily rule.
+Community's sections use local ids `profile`, `market`, `boards` and `trades`. A missing selection means Profile. Switching a section replaces the root section rather than pushing a view; child details push over it, and Back restores the selected section. Market appears online where supported; Rankings appears online where leaderboard or stats support is available. Profile and Trading remain offline, with Trading showing the Wandering Trader.
+
+| Community section | Shows |
+|---|---|
+| Profile | Handle, league, rating, sparks, win streak, live own stats, cards owned and species discovered, passkey and devices, privacy and settings, and a link to the active server's private `/account` browser view |
+| Market | Everyone's listings as a grid of card tiles (art, rarity gem, family mark, finish, a price chip in sparks and the creature it wants in return), filter chips (family, rarity, kind, sort, shiny, foil), pages; your own listings with `l`. A listing's page is the confirm: the card in full, the seller with Challenge, recent prices, what you give and what you get, then `1` Buy. Selling starts from a card's page (`l`): a price stepper that starts from recent sales (or what crafting one costs), up to three suggested prices, and an optional card asked in return (a wishlist species, or the card's family at its rarity or better) |
+| Rankings | Six labelled board choices plus `n`/`p` where stats are supported (rating alone on older servers), all time or this season with `a`, the top rows with a league badge and the value, your own rank pinned, and from each row the player's profile or Challenge |
+| Trading | Offers, Trade board, Wandering Trader and Gifts, switched within Trading; offline, only the Trader |
+
+Each destination has one navigation home: Collection stays in the main tab bar; your Profile, Market, Rankings and Trading stay in Community's section bar. Profile groups private browser access, passkey and settings controls, and Privacy holds the board visibility toggle. Contextual actions remain where needed: pick a card for an empty team slot, sell or gift a specific card, inspect its listing, or open another player's profile from a board, trade or listing.
+
+Pushed over the tabs and sections: card, fuse, species, listing and sell details; another player's profile (league, album count, stats as tiles, Challenge, their team and the offer builder); gift and reveal views; privacy and devices; Help; and Today, explaining the daily rule.
 
 **Visuals are the controls.** Every card tile, team slot, pack, listing and board row is pressable: its button sits under its art, lights up while the pointer is anywhere over the tile, takes Tab focus and, where it matters, a hotkey. A name is never cut: what does not fit a tile's column goes on a line below, and the card's page shows everything whole. On the desktop the art carries the full name as its tooltip.
 
@@ -414,10 +424,10 @@ Pushed over the tabs: the leaderboards (six labelled board choices plus `n`/`p`,
 ### Commands
 - There is one command, `/spin`, with these subcommands:
   - `battle`, `pack` (opens the pack view; never creates a pack)
-  - `duel <handle>` (a challenge, section 8), `market` (opens the Market tab)
+  - `duel <handle>` (a challenge, section 8), `market` (opens Community → Market)
   - `team <a> <b> <c>`
   - `trade <handle>`
-  - `leaderboard [on|off]` (opens the boards; hides or shows you on them), `handle [new]`
+  - `leaderboard [on|off]` (opens Community → Rankings; hides or shows you on the boards), `handle [new]`
   - `gift <card>`, `claim <code>`
   - `share [card]`
   - `redeem <code>`
@@ -914,7 +924,7 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 1. **One primary action per surface.** It is a `variant="primary"` Button and always hotkey `1` (or `o` in ceremonies). At most 2 secondary actions; everything else lives in the card detail.
 2. **The screen answers "what can I do now?"** Actions carry their own hotkeys. The footer has an actual Back or Close button, optional `?` Help and the version or update control; it does not repeat an inventory of the screen's shortcuts. Help explains families, rating, leagues, sparks, streaks and the difference between cards owned and species discovered. Every empty state says what will fill it ("Creatures show up while Claude works. Your first one is on its way.").
 3. **Teach by doing, never by tutorial.** The first session is the onboarding: welcome pack → first encounter → first catch. A hint appears once, at the moment it matters, and never again.
-4. **Chunking.** Navigation, leaderboards and trading have their own groups. At most 5 tabs and 3 choices in a picker; the six named leaderboard categories stay together so players can see what each measures.
+4. **Chunking.** Four main tabs separate Team, Collection, Discoveries and Community. Community has one section bar for Profile, Market, Rankings and Trading, with no duplicate global shortcuts in the bodies. At most 3 choices in a picker; the six named leaderboard categories stay together so players can see what each measures.
 5. **Plain words.** Buttons are verbs: "Open pack", "Set team", "Send offer", "Claim". No jargon in the UI: "held for this trade", not "escrow"; "resting", not "tired_until".
 6. **Instant feedback.** Every press changes something visible within 100 ms (optimistic state, then reconcile with the server). Every wait over 300 ms shows a dim placeholder, never a frozen screen.
 7. **Smart defaults.** The handle is pre-filled, the best pick is pre-selected in pickers, and the album opens at the count you already have, never at 0.
@@ -961,7 +971,7 @@ The same card always looks the same everywhere: same colors, same marks, same or
 - **The pane** adapts to `bodyColumns`. Grids reduce their tile count, headers and action groups wrap, and team slots become stacked rows in narrow panes. Home, Community and your profile also have tiny-pane checks at 24 and 32 columns.
 - **Pane structure:**
   - header row: the tab bar on the left, then the daily rule and pack meter on the right;
-  - body;
+  - body, with the same section bar on every Community section;
   - Back or Close, Help and version/update controls at the bottom.
 
   This is the same on every tab.
@@ -970,7 +980,7 @@ The same card always looks the same everywhere: same colors, same marks, same or
 ### Keys (identical everywhere)
 | Key | Action |
 |---|---|
-| `1`–`5` | Switch tabs (1–4 offline), or choose within a picker of up to 3 |
+| `1`–`4` | Switch main tabs, or choose within a picker of up to 3 |
 | `o` | Open |
 | `f` | Flip next |
 | `d` | Done |

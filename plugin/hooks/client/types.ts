@@ -7,11 +7,11 @@ import type { Family } from '../core/types.ts'
 import type {
   SpinAccount, SpinBattle, SpinBattleLog, SpinBoardName, SpinBoardPeriod, SpinHoldAction, SpinMarketQuery, SpinMarketWant,
   SpinMe, SpinMoment, SpinPane, SpinPrefs, SpinPresence, SpinRarity, SpinReveal, SpinSent, SpinSignals, SpinSocial, SpinTab,
-  SpinView, SpinWorld, SpinCard,
+  SpinView, SpinWorld, SpinCard, SpinCommunitySection,
 } from '../../types/index.d.ts'
 
 export type {
-  SpinAccount as Account, SpinBattle as Battle, SpinBoardName as BoardName, SpinBoardPeriod as BoardPeriod,
+  SpinAccount as Account, SpinBattle as Battle, SpinBoardName as BoardName, SpinBoardPeriod as BoardPeriod, SpinCommunitySection as CommunitySection,
   SpinCatch as Catch, SpinHold as Hold, SpinHoldAction as HoldAction, SpinLink as Link, SpinListing as Listing,
   SpinMarketQuery as MarketQuery, SpinMarketWant as MarketWant, SpinMoment as Moment, SpinOutcome as Outcome,
   SpinPane as PaneUi, SpinPlayerStats as PlayerStats, SpinPrefs as Prefs, SpinPresence as Presence,
@@ -165,9 +165,11 @@ export type Actions = {
 
   // pane navigation
   /** opens the pane (from a press, so it seats at any width), optionally on a tab and a view */
-  open(to?: { tab?: SpinTab; view?: SpinView }): Promise<void>
+  open(to?: { tab?: SpinTab; view?: SpinView; community?: SpinCommunitySection }): Promise<void>
   close(): Promise<void>
   tab(tab: SpinTab): Promise<void>
+  /** Switches Community's local section; its card/player details still use the stack. */
+  community(section: SpinCommunitySection): Promise<void>
   push(view: SpinView): Promise<void>
   back(): Promise<void>
   /** pane-local changes: filters, page, an offer being built */
@@ -201,7 +203,7 @@ export type Actions = {
   list(cardId: string, price: number, want: SpinMarketWant | null): Promise<void>
   /** buys a listing, handing over `cardId` when the listing wants a card */
   buy(listingId: string, cardId: string | null): Promise<void>
-  /** reads the recent sale prices of one species (the sell view's hints), leaving the Market tab as it is */
+  /** reads the recent sale prices of one species (the sell view's hints), leaving the Market section as it is */
   prices(species: string): Promise<void>
   /** reads one leaderboard */
   rankings(board: SpinBoardName, period: SpinBoardPeriod): Promise<void>

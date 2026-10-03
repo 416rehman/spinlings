@@ -37,8 +37,10 @@ test('the market: listings are tiles with art that are buttons, one press opens 
   expect(urls(w)).toContain('GET /v1/market?sort=newest')
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE(80), surface })
-    expect((await ui.find({ key: 'tab-market' }))?.props.hotkey).toBe('4')
-    expect((await ui.find({ key: 'tab-trade' }))?.props.hotkey).toBe('5')
+    expect(await ui.find({ key: 'tab-market' })).toBeUndefined()
+    expect((await ui.find({ key: 'tab-trade' }))?.props.hotkey).toBe('4')
+    expect(await ui.find({ key: 'community-market' })).toBeDefined()
+    expect((await ui.find({ key: 'pane-back' }))?.props.label).toBe('Close')
     const tile = await ui.find({ key: 'listing-listing-for-sale-pick' })
     expect(tile?.type).toBe('Button')
     expect(cardArt(await ui.findAll({ type: surface === 'terminal' ? 'Raster' : 'Svg' })).length).toBeGreaterThan(0)
@@ -67,7 +69,7 @@ test('the market: listings are tiles with art that are buttons, one press opens 
   await ui.unmount()
 })
 
-test('the Market tab reads the market again when what shows is a few minutes old', LONG, async ($, on) => {
+test('Community remembers its Market section and reads it again when what shows is a few minutes old', LONG, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   const w = engine(on)
   await started($, clock)
@@ -76,17 +78,96 @@ test('the Market tab reads the market again when what shows is a few minutes old
   await settle(clock)
   expect(reads()).toBe(1)
   const ui = await $.ui.mount(PANE(80))
-  await ui.press({ key: 'tab-team' })
-  await ui.press({ key: 'tab-market' })
+  await ui.press({ key: 'community-profile' })
   await settle(clock)
+  await ui.redraw()
+  expect(textOf(await ui.drawn())).toMatch(/Your stats/)
+  await ui.press({ key: 'community-market' })
+  await settle(clock)
+  await ui.press({ key: 'tab-team' })
+  await ui.press({ key: 'tab-trade' })
+  await settle(clock)
+  await ui.redraw()
+  expect(await ui.find({ key: 'listing-listing-for-sale-pick' })).toBeDefined()
   expect(reads()).toBe(1)
   for (let m = 0; m < 6; m++) await clock.advance(60_000)
   await settle(clock)
   await ui.press({ key: 'tab-team' })
-  await ui.press({ key: 'tab-market' })
+  await ui.press({ key: 'tab-trade' })
   await settle(clock)
   expect(reads()).toBe(2)
   await ui.unmount()
+})
+
+test('/spin trade replaces nested Market details with one new profile and returns straight to Trading', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on)
+  await started($, clock)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    await $.command.run(RUN('market'))
+    await settle(clock)
+    const ui = await $.ui.mount({ ...PANE(80), surface })
+    await ui.press({ key: 'listing-listing-for-sale-pick' })
+    await settle(clock)
+    await ui.redraw()
+    expect(await ui.find({ key: 'buy' })).toBeDefined()
+    await ui.press({ key: 'seller' })
+    await settle(clock)
+    await ui.redraw()
+    expect(textOf(await ui.drawn())).toContain('soft-otter-42')
+    expect((await ui.find({ key: 'pane-back' }))?.props.label).toBe('Back')
+
+    await $.command.run(RUN('trade misty-lark-18'))
+    await settle(clock)
+    await ui.redraw()
+    expect(urls(w)).toContain('GET /v1/players/misty-lark-18')
+    expect(textOf(await ui.drawn())).toContain('misty-lark-18')
+    expect(textOf(await ui.drawn())).not.toContain('soft-otter-42')
+    expect((await ui.find({ key: 'pane-back' }))?.props.label).toBe('Back')
+    await ui.press({ key: 'pane-back' })
+    await settle(clock)
+    await ui.redraw()
+    expect(await ui.find({ key: 'community-trades' })).toBeDefined()
+    expect(await ui.find({ key: 'section-inbox' })).toBeDefined()
+    expect(await ui.find({ key: 'buy' })).toBeUndefined()
+    expect(await ui.find({ key: 'listing-listing-for-sale-pick' })).toBeUndefined()
+    expect((await ui.find({ key: 'tab-trade' }))?.props.hotkey).toBe('4')
+    expect((await ui.find({ key: 'pane-back' }))?.props.label).toBe('Close')
+    await ui.unmount()
+  }
+})
+
+test('legacy leaderboard-only servers keep Community on 4 and offer rating without newer market or boards routes', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const server = fakeServer(), handle = server.handle
+  server.handle = (url, init) => {
+    const reply = handle(url, init)
+    if (new URL(url).pathname === '/v1/version' && reply.ok) {
+      return { ...reply, text: JSON.stringify({ ...JSON.parse(reply.text), features: ['leaderboard', 'rivals'] }) }
+    }
+    return reply
+  }
+  const w = engine(on, server)
+  await started($, clock)
+  await $.command.run(RUN('market'))
+  await settle(clock)
+  expect(w.logs.at(-1)).toMatch(/has no market/)
+  await $.command.run(RUN('leaderboard'))
+  await settle(clock)
+  expect(urls(w)).toContain('GET /v1/leaderboard')
+  expect(urls(w).some(u => u.startsWith('GET /v1/leaderboards'))).toBe(false)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE(80), surface })
+    expect((await ui.find({ key: 'tab-trade' }))?.props.hotkey).toBe('4')
+    expect(await ui.find({ key: 'tab-market' })).toBeUndefined()
+    expect(await ui.find({ key: 'community-market' })).toBeUndefined()
+    expect(await ui.find({ key: 'community-boards' })).toBeDefined()
+    expect(await ui.find({ key: 'board-rating' })).toBeDefined()
+    for (const board of ['beaten', 'duelWins', 'species', 'mythics', 'sales']) expect(await ui.find({ key: `board-${board}` })).toBeUndefined()
+    expect((await ui.find({ key: 'pane-back' }))?.props.label).toBe('Close')
+    await ui.unmount()
+  }
+  expect(urls(w).some(u => u.startsWith('GET /v1/market'))).toBe(false)
 })
 
 test('selling: Sell on a card page opens the price stepper from recent sales, List sends the price, and your listing shows', LONG, async ($, on) => {
@@ -420,7 +501,7 @@ test('short turns add up: three 8-second turns bring the first encounter, which 
   expect(JSON.parse(starts()[0]!.body)).toEqual({ kind: 'wild', family: 'opus' })
 })
 
-test('offline: no Market tab, no boards, no challenge, no backup marker, and nothing is sent', LONG, async ($, on) => {
+test('offline: Community remains on 4, with no Market or Rankings sections, no backup marker, and nothing is sent', LONG, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   const w = engine(on, fakeServer())
   w.store.set('prefs', { world: 'offline' })
@@ -435,6 +516,12 @@ test('offline: no Market tab, no boards, no challenge, no backup marker, and not
     const pane = await $.ui.mount({ ...PANE(80), surface })
     expect(await pane.find({ key: 'tab-market' })).toBeUndefined()
     expect((await pane.find({ key: 'tab-trade' }))?.props.hotkey).toBe('4')
+    await pane.press({ key: 'tab-trade' })
+    await settle(clock)
+    await pane.redraw()
+    expect(await pane.find({ key: 'community-profile' })).toBeDefined()
+    expect(await pane.find({ key: 'community-market' })).toBeUndefined()
+    expect(await pane.find({ key: 'community-boards' })).toBeUndefined()
     expect(await pane.find({ key: 'boards' })).toBeUndefined()
     expect(await pane.find({ key: 'not-backed-up' })).toBeUndefined()
     await pane.unmount()

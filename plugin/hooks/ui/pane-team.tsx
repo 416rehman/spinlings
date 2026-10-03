@@ -3,7 +3,6 @@
 // Revenge, evolutions, gifts, sales, season ends). Other players show by handle and day only.
 import type { RenderElement } from 'claude-code'
 import { FAMILY_INFO } from '../core/families.ts'
-import { hasFeature } from '../client/game.ts'
 import { dayLabel, dots, safe, span } from '../client/text.ts'
 import { teamSlots, today } from '../client/viewmodels.ts'
 import type { Slot } from '../client/viewmodels.ts'
@@ -78,7 +77,6 @@ export function teamScreen(c: Ctx): Shown {
   const todayDay = today(c.now)
   const notices = me.notices.slice(0, NOTICES)
   let revenge = false
-  const online = c.state.account.world === 'online'
   const rows = notices.map(n => {
     const when = dayLabel(n.day, todayDay)
     const can = n.kind === 'defense-loss' && !!n.handle && (when === 'today' || when === 'yesterday') && !c.state.account.readOnly
@@ -96,7 +94,6 @@ export function teamScreen(c: Ctx): Shown {
   })
   const streak = p.streak > 0 ? `${p.streak} win streak` : ''
   const duel = !c.state.account.readOnly && filled.length > 0
-  const boards = online && (hasFeature(c.state.account, 'stats') || hasFeature(c.state.account, 'leaderboard'))
   const { Box, Text } = c.el
   const standing = (
     <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
@@ -114,11 +111,6 @@ export function teamScreen(c: Ctx): Shown {
       : wide ? <Box flexDirection="row" columnGap={SPACE.tight}>{...shown}</Box> : column(c, shown, SPACE.none),
     actions(c, [
       duel ? btn(c, { key: 'duel', label: 'Duel', hotkey: 'b', on: () => c.actions.duel() }) : null,
-      btn(c, { key: 'team-profile', label: 'Your profile', hotkey: 'p', on: () => c.actions.push({ kind: 'mine' }) }),
-      boards ? btn(c, { key: 'boards', label: `${MARK.rank} Leaderboards`, hotkey: 'l', on: async () => {
-        await c.actions.push({ kind: 'boards', board: 'rating', period: 'all' })
-        await c.actions.rankings('rating', 'all')
-      } }) : null,
     ]),
     packStrip(c),
     heading(c, 'Notices'),
@@ -127,6 +119,6 @@ export function teamScreen(c: Ctx): Shown {
   ])
   return {
     body,
-    hints: [tabsHint(c.state), me.packs.length > 0 ? 'o Open pack' : '', duel ? 'b Duel' : '', boards ? 'l Boards' : '', revenge ? 'r Revenge' : '', filled.length > 0 ? 'Tab Pick a card' : '', 'esc Close'],
+    hints: [tabsHint(c.state), me.packs.length > 0 ? 'o Open pack' : '', duel ? 'b Duel' : '', revenge ? 'r Revenge' : '', filled.length > 0 ? 'Tab Pick a card' : '', 'esc Close'],
   }
 }

@@ -1,54 +1,35 @@
-// The Community hub, your live game numbers, and small explanations reached from the pane's controls.
-import type { RenderElement } from 'claude-code'
+// Community's sections, your live game numbers, and small explanations reached from the pane's controls.
 import { ECONOMY } from '../core/economy.ts'
 import { FAMILIES, FAMILY_INFO, SPECIALS } from '../core/families.ts'
-import { hasFeature } from '../client/game.ts'
+import { communitySection, hasFeature } from '../client/game.ts'
+import type { BoardName, BoardPeriod, CommunitySection } from '../client/types.ts'
 import { safe } from '../client/text.ts'
-import { BOARDS, grouped, hello } from '../client/viewmodels.ts'
+import { grouped, hello } from '../client/viewmodels.ts'
 import type { Ctx, Shown } from './pane-kit.tsx'
-import { actions, btn, column, heading, leagueBadge, line, para, statRow } from './pane-kit.tsx'
-import { FAMILY_COLOR, FAMILY_MARK, MARK, SPACE, STAT } from './tokens.ts'
+import { actions, btn, column, heading, leagueBadge, line, marketOpen, para, statRow } from './pane-kit.tsx'
+import { boardsScreen } from './pane-boards.tsx'
+import { marketScreen } from './pane-market.tsx'
+import { tradeScreen } from './pane-trade.tsx'
+import { FAMILY_COLOR, FAMILY_MARK, MARK, SPACE } from './tokens.ts'
 
-const BOARD_LABEL = { rating: 'Rating', beaten: 'Players beaten', duelWins: 'Duel wins', species: 'Species', mythics: 'Mythics', sales: 'Market sales' } as const
-
-function boardButtons(c: Ctx): RenderElement | null {
-  const full = hasFeature(c.state.account, 'stats')
-  return actions(c, BOARDS.filter(b => full || b.board === 'rating').map(b => btn(c, {
-    key: `community-board-${b.board}`, label: `${STAT[b.stat].mark} ${BOARD_LABEL[b.board]}`,
-    on: async () => {
-      await c.actions.push({ kind: 'boards', board: b.board, period: 'all' })
-      await c.actions.rankings(b.board, 'all')
-    },
-  })))
-}
-
-export function communityScreen(c: Ctx): Shown {
-  const p = c.state.me!.player
+export function communityScreen(c: Ctx, legacy?: { section: CommunitySection; boards?: { board: BoardName; period: BoardPeriod } }): Shown {
   const boards = !c.offline && (hasFeature(c.state.account, 'stats') || hasFeature(c.state.account, 'leaderboard'))
-  const openTrades = async (page: number, load?: 'board' | 'trader') => {
-    await c.actions.pane(pane => ({ ...pane, page }))
-    await c.actions.push({ kind: 'trades' })
-    if (load) await c.actions.load(load)
-  }
-  const incoming = c.state.me!.offers.incoming.filter(o => o.state === 'open').length
+  const requested = legacy?.section ?? communitySection(c.state.pane)
+  const section = requested === 'market' && !marketOpen(c.state) || requested === 'boards' && !boards ? 'profile' : requested
+  const sections: { id: CommunitySection; label: string }[] = [
+    { id: 'profile', label: 'Profile' },
+    ...(marketOpen(c.state) ? [{ id: 'market' as const, label: 'Market' }] : []),
+    ...(boards ? [{ id: 'boards' as const, label: 'Rankings' }] : []),
+    { id: 'trades', label: 'Trading' },
+  ]
+  const shown = section === 'market' ? marketScreen(c) : section === 'boards' ? boardsScreen(c, legacy?.boards ?? c.state.pane.boards ?? { board: 'rating', period: 'all' })
+    : section === 'trades' ? tradeScreen(c) : mineScreen(c)
   return {
     body: column(c, [
-      heading(c, 'Community'),
-      actions(c, [btn(c, { key: 'my-profile', label: `${MARK.dot} Your profile`, hotkey: 'p', on: () => c.actions.push({ kind: 'mine' }) })]),
-      line(c, `${safe(p.handle, 40)} · ${p.league} league · ${grouped(p.rating)} rating`, { dim: true }),
-      boards ? heading(c, 'Leaderboards') : null,
-      boards ? boardButtons(c) : null,
-      c.offline ? para(c, 'Play online to meet other trainers and join the leaderboards.', { dim: true }) : null,
-      heading(c, 'Trading'),
-      actions(c, [
-        c.offline ? btn(c, { key: 'community-online', label: 'Join online', on: () => c.actions.world('online') }) : null,
-        !c.offline ? btn(c, { key: 'community-inbox', label: `Offers${incoming ? ` (${incoming})` : ''}`, hotkey: 'i', on: () => openTrades(0) }) : null,
-        !c.offline ? btn(c, { key: 'community-trade-board', label: 'Find a trade', hotkey: 'b', on: () => openTrades(1, 'board') }) : null,
-        hasFeature(c.state.account, 'trader') ? btn(c, { key: 'community-trader', label: 'Wandering Trader', hotkey: 'w', on: () => openTrades(2, 'trader') }) : null,
-        !c.offline ? btn(c, { key: 'community-gifts', label: 'Gifts', hotkey: 'g', on: () => openTrades(3) }) : null,
-      ]),
+      actions(c, sections.map(s => btn(c, { key: `community-${s.id}`, label: s.label, dim: s.id !== section, on: () => c.actions.community(s.id) }))),
+      shown.body,
     ]),
-    hints: ['esc Close'],
+    hints: shown.hints,
   }
 }
 
@@ -77,12 +58,10 @@ export function mineScreen(c: Ctx): Shown {
       line(c, `${c.state.cards.length} cards · ${p.seen.length} species discovered`, { dim: true }),
       !c.offline ? para(c, p.leaderboard ? 'Your public stats and ranks update at midnight UTC.' : 'Your stats and ranks are hidden from other trainers.', { dim: true }) : null,
       actions(c, [
-        btn(c, { key: 'profile-collection', label: 'Your collection', on: () => c.actions.tab('cards') }),
         !c.offline && hasFeature(c.state.account, 'passkey') ? btn(c, { key: 'profile-devices', label: 'Passkey & devices', on: () => c.actions.push({ kind: 'devices' }) }) : null,
         btn(c, { key: 'profile-privacy', label: 'Privacy & settings', on: () => c.actions.push({ kind: 'privacy' }) }),
       ]),
       !c.offline ? <Link href={`${c.state.account.server}/account`}>Open in browser</Link> : null,
-      !c.offline ? <Link href={`${c.state.account.server}/u/${encodeURIComponent(p.handle)}`}>View public profile</Link> : null,
     ]),
     hints: ['esc Back'],
   }
@@ -112,7 +91,7 @@ export function helpScreen(c: Ctx): Shown {
       para(c, 'First Discovered means the first trainer globally to find that species in its season.', { dim: true }),
       para(c, 'Card stats: HP is health, Atk attack, Def defense, Spd speed. Genes show its individual stat potential. Battles raise its level.', { dim: true }),
       heading(c, 'Where to go'),
-      para(c, 'Collection holds the individual cards you own. Discoveries tracks species you have collected this season, including cards you no longer own. Community holds your profile, leaderboards, offers and gifts.'),
+      para(c, 'Collection holds the cards you own. Discoveries tracks species you collected this season. Community brings together Profile, Market, Rankings and Trading. Pick a section there to see your stats, browse listings, compare ranks or trade.'),
       para(c, 'Press a creature to inspect it. Buttons show their shortcuts; Tab moves between controls.', { dim: true }),
     ]),
     hints: ['esc Back'],

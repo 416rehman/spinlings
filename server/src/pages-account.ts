@@ -20,7 +20,7 @@ export function browserAccount(api: Api): void {
 <div class="accounthead"><h1>${heading('Your collection')}</h1><button class="pbtn" id="signout" hidden>Sign out</button></div>
 <div id="signedout"><p class="lede">Bring your Spinlings here with your saved passkey.</p>
 <button class="pbtn" id="signin">Sign in with a passkey</button>
-<p class="fine">Save a passkey in Claude Code first: open Spinlings, then Community → Your profile → Passkey &amp; devices.</p></div>
+<p class="fine">Save a passkey in Claude Code first: open Spinlings, then Community → Profile → Passkey &amp; devices.</p></div>
 <p id="account-status" role="status" aria-live="polite"></p>
 <div id="dashboard" hidden>
 <nav class="accountnav" aria-label="Your collection"><a href="#myteam">Team</a><a href="#mystats">Stats</a><a href="#myranks">Rankings</a><a href="#mycards">Cards</a></nav>

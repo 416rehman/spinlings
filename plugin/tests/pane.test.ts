@@ -4,7 +4,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Actions, El, GameState, View } from '../hooks/client/types.ts'
-import { INITIAL, MARKET_DEFAULT, nameOf } from '../hooks/client/game.ts'
+import { INITIAL, MARKET_DEFAULT, communitySection, nameOf } from '../hooks/client/game.ts'
 import { demoSteps } from '../hooks/client/demo.ts'
 import {
   bestTeam, cardCan, collection, holdText, paged, revealSummary, statTiles, teamPlace, tradeSection, traderPicks,
@@ -31,7 +31,8 @@ function fakeActions(p: Probe, redraw: () => void): Actions {
   }
   return {
     press: rec('press'), pickCatch: rec('pickCatch'), act: rec('act'), dismiss: rec('dismiss'), open: rec('open'), close: rec('close'),
-    tab: rec('tab', (t: GameState['pane']['tab']) => setPane(x => ({ ...x, tab: t, stack: [], page: 0, hold: null, message: '', hello: false }))),
+    tab: rec('tab', (t: GameState['pane']['tab']) => setPane(x => ({ ...x, tab: t === 'market' ? 'trade' : t, community: t === 'market' ? 'market' : communitySection(x), stack: [], page: 0, hold: null, message: '', hello: false }))),
+    community: rec('community', (section: NonNullable<GameState['pane']['community']>) => setPane(x => ({ ...x, tab: 'trade', community: section, stack: [], page: 0, hold: null, message: '', hello: false }))),
     push: rec('push', (v: View) => setPane(x => ({ ...x, stack: [...x.stack, v] }))),
     back: rec('back', () => setPane(x => ({ ...x, stack: x.stack.slice(0, -1), hold: null }))),
     pane: rec('pane', (f: (x: GameState['pane']) => GameState['pane']) => setPane(f)),
@@ -41,7 +42,7 @@ function fakeActions(p: Probe, redraw: () => void): Actions {
     doneReveal: rec('doneReveal', () => { p.state = { ...p.state, reveal: null }; setPane(x => ({ ...x, flipped: 0, stack: x.stack.filter(v => v.kind !== 'reveal') })) }),
     setTeam: rec('setTeam'), setForTrade: rec('setForTrade'), craft: rec('craft'), buyPack: rec('buyPack'), share: rec('share'), copyUpdate: rec('copyUpdate'),
     duel: rec('duel'), challenge: rec('challenge'), market: rec('market'), list: rec('list'), buy: rec('buy'), prices: rec('prices'),
-    rankings: rec('rankings', (board: never, period: never) => setPane(x => ({ ...x, page: 0, stack: x.stack.map(v => (v.kind === 'boards' ? { ...v, board, period } : v)) }))),
+    rankings: rec('rankings', (board: never, period: never) => setPane(x => ({ ...x, page: 0, boards: { board, period }, stack: x.stack.map(v => (v.kind === 'boards' ? { ...v, board, period } : v)) }))),
     marketFilter: rec('marketFilter', (change: object) => setPane(x => ({ ...x, page: 0, market: { ...(x.market ?? MARKET_DEFAULT), ...change } }))),
     profile: rec('profile'), load: rec('load'), offer: rec('offer'), respond: rec('respond'), counter: rec('counter'),
     claim: rec('claim'), redeem: rec('redeem'), wishlist: rec('wishlist'), trade: rec('trade'), world: rec('world'), connect: rec('connect'),
@@ -416,7 +417,8 @@ test('trading: sections load on demand, offers accept, decline and counter, and 
   await press(ui, 'send-offer')
   expect(p.calls.at(-1)?.[0]).toBe('counter')
   await press(ui, 'tab-trade')
-  await press(ui, 'community-trade-board')
+  await press(ui, 'community-trades')
+  await press(ui, 'section-board')
   expect(p.state.pane.page).toBe(1)
   expect(p.calls.at(-1)).toEqual(['load', ['board']])
   expect(await ui.find({ key: 'match-0-offer' })).toBeDefined()
@@ -432,7 +434,7 @@ test('trading: sections load on demand, offers accept, decline and counter, and 
   await ui.unmount()
 })
 
-test('Community opens your live profile, all six boards and trades with clear controls in tiny panes', { timeoutMs: 90_000 }, async ($, on) => {
+test('four tabs lead to Community sections without duplicate links or pushed navigation in tiny panes', { timeoutMs: 90_000 }, async ($, on) => {
   draws(on, p)
   const base = demoSteps(NOW).find(x => x.title === 'Community · the hub')!.state
   for (const surface of SURFACES) {
@@ -444,10 +446,12 @@ test('Community opens your live profile, all six boards and trades with clear co
       expect((await ui.find({ key: 'tab-cards' }))?.props.label).toBe('Collection')
       expect((await ui.find({ key: 'tab-album' }))?.props.label).toBe('Discoveries')
       expect((await ui.find({ key: 'tab-trade' }))?.props.label).toBe('Community')
-      const boardButtons = (await ui.findAll({ type: 'Button' })).filter(b => String(b.key).startsWith('community-board-'))
-      expect(boardButtons.length).toBe(6)
-      await press(ui, 'my-profile')
-      expect(p.state.pane.stack.at(-1)?.kind).toBe('mine')
+      expect((await ui.find({ key: 'tab-trade' }))?.props.hotkey).toBe('4')
+      expect(await ui.find({ key: 'tab-market' })).toBeUndefined()
+      const sectionButtons = (await ui.findAll({ type: 'Button' })).filter(b => /^community-(profile|market|boards|trades)$/.test(String(b.key)))
+      expect(sectionButtons.map(b => b.props.label)).toEqual(['Profile', 'Market', 'Rankings', 'Trading'])
+      expect(sectionButtons.every(b => b.props.hotkey === undefined)).toBe(true)
+      expect(p.state.pane.stack.length).toBe(0)
       expect(await ui.find({ text: /rating/ })).toBeDefined()
       expect(await ui.find({ text: /sparks/ })).toBeDefined()
       expect(await ui.find({ text: /first finds/ })).toBeDefined()
@@ -456,15 +460,45 @@ test('Community opens your live profile, all six boards and trades with clear co
       gate(await ui.drawn(), columns, `Your profile @${columns} ${surface}`)
       const links = await ui.findAll({ type: 'Link' })
       expect(links.some(l => l.props.href === `${base.account.server}/account`)).toBe(true)
-      await press(ui, 'pane-back')
+      expect(links.some(l => String(l.props.href).includes('/u/'))).toBe(false)
+      expect(await ui.find({ key: 'profile-collection' })).toBeUndefined()
+      expect(await ui.find({ key: 'my-profile' })).toBeUndefined()
+      await press(ui, 'community-market')
+      expect(p.state.pane.community).toBe('market')
       expect(p.state.pane.stack.length).toBe(0)
-      await press(ui, 'community-board-species')
-      expect(p.state.pane.stack.at(-1)).toMatchObject({ kind: 'boards', board: 'species', period: 'all' })
-      expect(p.calls.at(-1)).toEqual(['rankings', ['species', 'all']])
+      gate(await ui.drawn(), columns, `Community Market @${columns} ${surface}`)
+      expect(await ui.find({ key: 'market-mine' })).toBeDefined()
+      const listing = (await ui.findAll({ type: 'Button' })).find(b => /^listing-.+-pick$/.test(String(b.key)))!
+      await press(ui, listing.key!)
+      expect(p.state.pane.stack.at(-1)?.kind).toBe('listing')
       await press(ui, 'pane-back')
-      await press(ui, 'community-trade-board')
-      expect(p.state.pane.stack.at(-1)?.kind).toBe('trades')
+      expect(p.state.pane.community).toBe('market')
+      expect(p.state.pane.stack.length).toBe(0)
+      await press(ui, 'community-boards')
+      expect(p.state.pane.community).toBe('boards')
+      expect(p.state.pane.stack.length).toBe(0)
+      const boardButtons = (await ui.findAll({ type: 'Button' })).filter(b => /^board-/.test(String(b.key)))
+      expect(boardButtons.length).toBe(6)
+      gate(await ui.drawn(), columns, `Community Rankings @${columns} ${surface}`)
+      await press(ui, 'rank-0-who')
+      expect(p.state.pane.stack.at(-1)?.kind).toBe('profile')
+      await press(ui, 'pane-back')
+      expect(p.state.pane.community).toBe('boards')
+      await press(ui, 'board-species')
+      expect(p.state.pane.boards).toEqual({ board: 'species', period: 'all' })
+      expect(p.calls.at(-1)).toEqual(['rankings', ['species', 'all']])
+      await press(ui, 'community-trades')
+      expect(p.state.pane.community).toBe('trades')
+      expect(p.state.pane.stack.length).toBe(0)
+      await press(ui, 'section-board')
       expect(p.calls.at(-1)).toEqual(['load', ['board']])
+      gate(await ui.drawn(), columns, `Community Trading @${columns} ${surface}`)
+      await press(ui, 'tab-team')
+      expect(await ui.find({ key: 'team-profile' })).toBeUndefined()
+      expect(await ui.find({ key: 'boards' })).toBeUndefined()
+      await press(ui, 'tab-trade')
+      expect(p.state.pane.community).toBe('trades')
+      expect(p.state.pane.stack.length).toBe(0)
       await ui.unmount()
     }
   }
@@ -499,6 +533,27 @@ test('tiny Team, Collection, Discoveries, Today and Help panes explain their ico
   expect(await ui.find({ text: /Families are creature types/ })).toBeDefined()
   expect(await ui.find({ text: /First Discovered means the first trainer globally/ })).toBeDefined()
   await ui.unmount()
+})
+
+test('older Market tabs and profile, ranking and trading views remain readable in Community', { timeoutMs: 60_000 }, async ($, on) => {
+  draws(on, p)
+  const base = demoSteps(NOW).find(x => x.title === 'Community · your profile')!.state
+  const oldStates: { patch: Partial<GameState['pane']>; control: string }[] = [
+    { patch: { tab: 'market', community: undefined }, control: 'market-mine' },
+    { patch: { tab: 'team', community: undefined, stack: [{ kind: 'mine' }] }, control: 'profile-privacy' },
+    { patch: { tab: 'trade', community: undefined, stack: [{ kind: 'trades' }] }, control: 'section-inbox' },
+    { patch: { tab: 'team', community: undefined, stack: [{ kind: 'boards', board: 'rating', period: 'all' }] }, control: 'board-rating' },
+  ]
+  for (const old of oldStates) {
+    p.state = { ...base, pane: { ...base.pane, ...old.patch } }
+    const ui = await $.ui.mount(MOUNT(24, 'terminal'))
+    gate(await ui.drawn(), 24, `legacy ${old.control}`)
+    expect(await ui.find({ key: old.control })).toBeDefined()
+    expect(await ui.find({ key: 'tab-market' })).toBeUndefined()
+    await press(ui, 'community-profile')
+    expect(p.state.pane).toMatchObject({ tab: 'trade', community: 'profile', stack: [] })
+    await ui.unmount()
+  }
 })
 
 test('the offer builder picks up to three cards a side and sends only with one of yours', { timeoutMs: 60_000 }, async ($, on) => {

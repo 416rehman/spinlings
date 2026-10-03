@@ -47,7 +47,7 @@ claude plugin validate spinlings/plugin
 
 **Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. To play entirely offline, where nothing leaves your machine, run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
 
-**Your collection in a browser.** Save a passkey from Community → Your profile → Passkey & devices, then sign in at [Your collection](https://spinlings.dev/account) to see your cards, current stats and rankings. Browser access is read-only; opening packs, choosing a team and trading happen in Claude Code.
+**Your collection in a browser.** Save a passkey from Community → Profile → Passkey & devices, then sign in at [Your collection](https://spinlings.dev/account) to see your cards, current stats and rankings. Browser access is read-only; opening packs, choosing a team and trading happen in Claude Code.
 
 `/spin quiet` silences everything. To leave for good, delete your account from `/spin privacy`, then run `claude plugin uninstall spinlings@spinlings`.
 
@@ -134,14 +134,16 @@ Hitting a rate limit is neither rewarded nor punished: packs keep charging as us
 
 ### Commands
 
-There is one command, `/spin`. On its own it opens the pane, with five tabs (Team, Collection, Discoveries, Market, Community) on hotkeys 1 to 5; offline there is no Market, so Community is 4. Collection holds your cards; Discoveries tracks species you have found. Community brings together your profile, stats, leaderboards, offers and gifts. Every card, pack and board row is a button: press it (or Tab to it) to open it. Press the daily rule to see its effect, or Help for a short field guide.
+There is one command, `/spin`. On its own it opens the pane, with four tabs (Team, Collection, Discoveries, Community) on hotkeys 1 to 4. Collection holds your cards; Discoveries tracks species you have found.
+
+Community opens on your Profile, with a section bar for Profile, Market, Rankings and Trading. Market and Rankings appear on online servers that support them; offline, Profile and the Wandering Trader remain available. Open a card, listing or player for details, then Back returns to the section you were using. Every card, pack and board row is a button: press it (or Tab to it) to open it. Press the daily rule to see its effect, or Help for a short field guide.
 
 | Command | What it does |
 |---|---|
 | `/spin` | Open the pane |
 | `/spin battle` | Start a duel now (at most one every 2 minutes) |
 | `/spin duel <handle>` | Challenge one player's saved team: a friendly duel that moves no rating |
-| `/spin market` | Open the Market: buy cards for sparks or a card, and see your own listings |
+| `/spin market` | Open Community → Market: buy cards for sparks or a card, and see your own listings |
 | `/spin pack` | Open the pack view |
 | `/spin team <a> <b> <c>` | Set your team from one to three cards, by name or id; slot order is play order |
 | `/spin trade <handle>` | Open a player's profile to make an offer |
@@ -150,7 +152,7 @@ There is one command, `/spin`. On its own it opens the pane, with five tabs (Tea
 | `/spin redeem <code>` | Redeem a drop code, such as `FOUNDERS` |
 | `/spin world online\|offline` | Switch worlds; each keeps its own collection |
 | `/spin devices` | Your devices, and saving a passkey to play on another computer |
-| `/spin leaderboard [on\|off]` | Open the boards (rating, players beaten, duel wins, species, Mythics, sales; all time or this season), or hide or show yourself on them (every player is on them unless they hide) |
+| `/spin leaderboard [on\|off]` | Open Community → Rankings (rating, players beaten, duel wins, species, Mythics, sales; all time or this season), or hide or show yourself on them (every player is on them unless they hide) |
 | `/spin handle [new]` | Show your handle, or draw a new one (once a week) |
 | `/spin quiet [on\|off]` | Silence everything |
 | `/spin sound on\|off` | Tiny chimes for big moments (off by default) |

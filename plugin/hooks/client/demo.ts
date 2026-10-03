@@ -32,6 +32,7 @@ const done = async () => undefined
 
 /** The demo's actions: every press is a no-op, so nothing in the demo touches the real game. */
 export const INERT: Actions = {
+  community: done,
   press: done, pickCatch: done, act: done, dismiss: done, open: done, close: done, tab: done, push: done, back: done,
   pane: done, hold: done, openPack: done, flip: done, doneReveal: done, setTeam: done, setForTrade: done, craft: done,
   buyPack: done, share: done, copyUpdate: done, duel: done, challenge: done, market: done, list: done, buy: done, prices: done,
@@ -164,8 +165,11 @@ function world(now: number) {
 
 type World = ReturnType<typeof world>
 
-const pane = (s: GameState, p: Partial<PaneUi>): GameState => ({ ...s, pane: { ...s.pane, ...p } })
-const view = (s: GameState, v: View, p: Partial<PaneUi> = {}): GameState => pane(s, { ...p, stack: [v] })
+const pane = (s: GameState, p: Partial<PaneUi>): GameState => ({ ...s, pane: { ...s.pane, ...p, ...(p.tab === 'market' ? { tab: 'trade', community: 'market' } : {}) } })
+const view = (s: GameState, v: View, p: Partial<PaneUi> = {}): GameState => {
+  if (v.kind === 'mine' || v.kind === 'trades' || v.kind === 'boards') return pane(s, { ...p, tab: 'trade', community: v.kind === 'mine' ? 'profile' : v.kind, stack: [], ...(v.kind === 'boards' ? { boards: { board: v.board, period: v.period } } : {}) })
+  return pane(s, { ...p, stack: [v] })
+}
 
 function reveal(w: World, kind: Reveal['kind'], cards: Card[], fresh: string[] = [], packs: Reveal['packs'] = []): Reveal {
   return { id: `demo-reveal-${kind}`, kind, family: kind === 'pack' ? 'opus' : null, cards, packs, fresh, album: { before: 12, after: 12 + fresh.length, total: 36 } }

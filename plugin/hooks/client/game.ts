@@ -29,7 +29,7 @@ import type { ServerMeta, StoredPrefs, StoredPresence } from './store.ts'
 import { KEYS, cacheRecord, readCache, readMeta, readOfflineMeta, readPrefs, readPresence, serverKeys } from './store.ts'
 import type {
   Account, Actions, Backend, Battle, BattleControl, BoardName, BoardPeriod, Catch, Chime, Fx, GameState, HoldAction, MarketQuery,
-  MarketWant, Moment, Outcome, PaneUi, Reveal, RevealControl, Sent, SignIn, Slots, StateKey, Tab, Timer, View, World,
+  MarketWant, Moment, Outcome, PaneUi, Reveal, RevealControl, Sent, SignIn, Slots, StateKey, Tab, Timer, View, World, CommunitySection,
 } from './types.ts'
 import { BackendError, isBackendError, isUnreachable } from './types.ts'
 import { dayLabel, dots, plural, safe, title } from './text.ts'
@@ -59,7 +59,7 @@ export const ROUND_MS = ECONOMY.battle.roundMs
 export const ONLINE_FEATURES_UNKNOWN = '*'
 export const OFFLINE_FEATURES = ['rivals', 'trader', 'mythics', 'seasons']
 
-/** The Market tab's chips before any is pressed: everything, newest first. */
+/** The Market section's chips before any is pressed: everything, newest first. */
 export const MARKET_DEFAULT: MarketQuery & { mine: boolean } = {
   family: 'all', rarity: 'all', kind: 'all', sort: 'newest', shiny: false, foil: false, mine: false,
 }
@@ -67,6 +67,11 @@ export const MARKET_DEFAULT: MarketQuery & { mine: boolean } = {
 /** The pane's market chips, the defaults for a $.state value from before they existed. */
 export function marketChips(p: Pick<PaneUi, 'market'>): MarketQuery & { mine: boolean } {
   return p.market ?? MARKET_DEFAULT
+}
+
+/** Older pane state used a separate Market tab; Community now owns the same filters and listings. */
+export function communitySection(p: Pick<PaneUi, 'tab' | 'community'>): CommunitySection {
+  return p.tab === 'market' ? 'market' : p.community ?? 'profile'
 }
 
 export const INITIAL: GameState = {
@@ -83,7 +88,7 @@ export const INITIAL: GameState = {
   social: { board: null, profile: null, trader: null, leaderboard: null, rankings: null, market: null, gift: null, loading: [] },
   pane: {
     tab: 'team', stack: [], family: 'all', rarity: 'all', album: 'haiku', page: 0, flipped: 0, hold: null, hello: false,
-    showUpdate: false, message: '', tone: 'warn', toCopy: '', market: MARKET_DEFAULT, busy: null, busySince: 0,
+    showUpdate: false, message: '', tone: 'warn', toCopy: '', community: 'profile', boards: { board: 'rating', period: 'all' }, market: MARKET_DEFAULT, busy: null, busySince: 0,
   },
   prefs: { quiet: false, motion: true, sound: false },
   presence: { minutes: 0, need: ECONOMY.packs.presenceMinutes, blocked: null },
@@ -179,7 +184,7 @@ export function worthKeeping(c: Pick<Card, 'rarity' | 'species' | 'shiny' | 'foi
   return c.rarity === 'legendary' || c.species === 'mythic' || c.foil === true || c.shiny || (caught && rarityRank(c.rarity) >= rarityRank('rare'))
 }
 
-/** GET /v1/market's query for the Market tab's chips: only the fields that narrow, `after` for the next page. */
+/** GET /v1/market's query for the Market section's chips: only the fields that narrow, `after` for the next page. */
 export function marketRequest(q: MarketQuery, after?: string): ApiRequest<'market'> {
   return {
     ...(q.family !== 'all' ? { family: q.family } : {}),
@@ -436,7 +441,7 @@ export function createGame(o: GameOptions): Game {
     catching: new Set<string>(),
     /** a buy or a listing in flight: a second press of 1 while it runs sends nothing */
     trading: false,
-    /** when the Market tab's listings were last read in this load of the module (0: never) */
+    /** when the Market section's listings were last read in this load of the module (0: never) */
     marketAt: 0,
     status: null as string | undefined | null,
     /** server clock minus local clock, from the last me() */
@@ -1571,18 +1576,20 @@ export function createGame(o: GameOptions): Game {
 
   // ---------- the pane ----------
 
-  async function openPane(fx: Fx, to?: { tab?: Tab; view?: View }): Promise<void> {
+  async function openPane(fx: Fx, to?: { tab?: Tab; view?: View; community?: CommunitySection }): Promise<void> {
     const now = await fx.now()
     const prefs = await prefsRecord(fx)
     const today = utcDay(now)
     const hello = prefs.helloDay !== today
     if (hello) await savePrefs(fx, { helloDay: today })
     await upd(fx, 'pane', p => ({
-      ...p, hello: p.hello || hello, tab: to?.tab ?? p.tab, showUpdate: to ? false : p.showUpdate,
-      stack: to?.view ? [...p.stack.filter(v => v.kind !== to.view!.kind), to.view] : p.stack,
+      ...p, hello: p.hello || hello, tab: (to?.tab ?? p.tab) === 'market' ? 'trade' : to?.tab ?? p.tab, showUpdate: to ? false : p.showUpdate,
+      community: to?.tab === 'market' ? 'market' : to?.community ?? communitySection(p),
+      stack: to?.view ? to.tab || to.community ? [to.view] : [...p.stack.filter(v => v.kind !== to.view!.kind), to.view] : to?.tab || to?.community ? [] : p.stack,
     }))
     await fx.ui.openPane()
-    if (to?.tab === 'market' && !to.view && await marketStale(fx)) await loadMarket(fx, false)
+    const opened = await get(fx, 'pane')
+    if (opened.tab === 'trade' && communitySection(opened) === 'market' && opened.stack.length === 0 && await marketStale(fx)) await loadMarket(fx, false)
   }
 
   /** esc: the update row first (while it shows), then the view on top, then the pane itself. */
@@ -1930,7 +1937,7 @@ export function createGame(o: GameOptions): Game {
         return
       }
       case 'trade': {
-        await openPane(fx, { tab: 'trade', view: { kind: 'profile', handle: cmd.handle, give: [], get: [], counterOf: null } })
+        await openPane(fx, { tab: 'trade', community: 'trades', view: { kind: 'profile', handle: cmd.handle, give: [], get: [], counterOf: null } })
         return loadProfile(fx, cmd.handle)
       }
       case 'gift': {
@@ -1985,7 +1992,8 @@ export function createGame(o: GameOptions): Game {
     if (account.world === 'offline') return needsOnlineWorld(fx)
     if (!hasFeature(account, 'leaderboard') && !hasFeature(account, 'stats')) { fx.ui.log(`${account.host} has no leaderboards.`); return }
     if (on === null) {
-      await openPane(fx, { view: { kind: 'boards', board: 'rating', period: 'all' } })
+      await upd(fx, 'pane', p => ({ ...p, page: 0, boards: { board: 'rating', period: 'all' } }))
+      await openPane(fx, { tab: 'trade', community: 'boards' })
       return loadRankings(fx, 'rating', 'all')
     }
     const res = await run(fx, 'setLeaderboard', { optIn: on }, on ? 'Showing you on the boards' : 'Hiding you from the boards')
@@ -2030,12 +2038,12 @@ export function createGame(o: GameOptions): Game {
 
   // ---------- the market and the boards (SPEC 8) ----------
 
-  /** The Market tab's listings are missing, or old enough that some have likely sold: worth reading again. */
+  /** The Market section's listings are missing, or old enough that some have likely sold: worth reading again. */
   async function marketStale(fx: Fx): Promise<boolean> {
     return !(await get(fx, 'social')).market || (await fx.now()) - rt.marketAt >= PANE_REFRESH_MS
   }
 
-  /** The Market tab reads the market for its chips; `more` adds the next page to what is shown. */
+  /** The Market section reads the market for its chips; `more` adds the next page to what is shown. */
   async function loadMarket(fx: Fx, more: boolean): Promise<void> {
     const account = await get(fx, 'account')
     if (account.world !== 'online' || !hasFeature(account, 'market')) return
@@ -2057,7 +2065,7 @@ export function createGame(o: GameOptions): Game {
     })
   }
 
-  /** The recent prices of one species, for the sell view's hints: the Market tab's own listings stay as they are. */
+  /** The recent prices of one species, for the sell view's hints: the Market section's own listings stay as they are. */
   async function loadPrices(fx: Fx, species: string): Promise<void> {
     const account = await get(fx, 'account')
     if (account.world !== 'online' || !hasFeature(account, 'market') || !/^s\d/.test(species)) return
@@ -2094,7 +2102,24 @@ export function createGame(o: GameOptions): Game {
     await loading(fx, 'rankings', false)
   }
 
-  /** Lists one of your cards (SPEC 8): it waits on the market, and the Market tab opens on your listings. */
+  /** Read a Community section's existing data; changing sections never pushes a view. */
+  async function loadCommunity(fx: Fx): Promise<void> {
+    const p = await get(fx, 'pane')
+    const section = communitySection(p)
+    if (section === 'market' && await marketStale(fx)) await loadMarket(fx, false)
+    if (section === 'boards') {
+      const selected = p.boards ?? { board: 'rating', period: 'all' }
+      await loadRankings(fx, selected.board, selected.period)
+    }
+    if (section === 'trades' && (await get(fx, 'account')).world === 'offline') {
+      await loading(fx, 'trader', true)
+      const result = await run(fx, 'trader', {}, 'Finding the Trader')
+      if (result) await upd(fx, 'social', s => ({ ...s, trader: result }))
+      await loading(fx, 'trader', false)
+    }
+  }
+
+  /** Lists one of your cards (SPEC 8): it waits on the market, and the Market section opens on your listings. */
   async function listCard(fx: Fx, cardId: string, price: number, want: MarketWant | null): Promise<void> {
     return oneTrade(fx, v => v?.kind === 'sell' && v.cardId === cardId, () => listCardNow(fx, cardId, price, want))
   }
@@ -2120,7 +2145,7 @@ export function createGame(o: GameOptions): Game {
     const res = await run(fx, 'listCard', req, 'Putting it on the market')
     if (!res) return
     await upd(fx, 'me', m => (m ? { ...m, listings: [res.listing, ...(m.listings ?? []).filter(l => l.id !== res.listing.id)] } : m))
-    await upd(fx, 'pane', p => ({ ...p, tab: 'market', stack: [], page: 0, market: { ...marketChips(p), mine: true } }))
+    await upd(fx, 'pane', p => ({ ...p, tab: 'trade', community: 'market', stack: [], page: 0, market: { ...marketChips(p), mine: true } }))
     await message(fx, `${card ? nameOf(card) : 'Your card'} is on the market.`, 'good')
     await refresh(fx)
   }
@@ -2270,9 +2295,12 @@ export function createGame(o: GameOptions): Game {
       open: to => after(openPane(fx, to)),
       close: () => after(fx.ui.closePane()),
       tab: tab => after((async () => {
-        await upd(fx, 'pane', p => ({ ...p, tab, stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false, showUpdate: false }))
-        // the market is read when its tab opens, unless what shows was read in the last few minutes
-        if (tab === 'market' && await marketStale(fx)) await loadMarket(fx, false)
+        await upd(fx, 'pane', p => ({ ...p, tab: tab === 'market' ? 'trade' : tab, community: tab === 'market' ? 'market' : communitySection(p), stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false, showUpdate: false }))
+        if (tab === 'market' || tab === 'trade') await loadCommunity(fx)
+      })()),
+      community: section => after((async () => {
+        await upd(fx, 'pane', p => ({ ...p, tab: 'trade', community: section, stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false, showUpdate: false }))
+        await loadCommunity(fx)
       })()),
       push: view => after(upd(fx, 'pane', p => ({ ...p, stack: [...p.stack, view].slice(-8), hold: null, message: '', toCopy: '', showUpdate: false }))),
       back: () => after(paneClosing(fx, true)),
@@ -2311,7 +2339,7 @@ export function createGame(o: GameOptions): Game {
       list: (cardId, price, want) => after(listCard(fx, cardId, price, want)),
       buy: (listingId, cardId) => after(buyListing(fx, listingId, cardId)),
       rankings: (board, period) => after((async () => {
-        await upd(fx, 'pane', p => ({ ...p, page: 0, stack: p.stack.map(v => (v.kind === 'boards' ? { ...v, board, period } : v)) }))
+        await upd(fx, 'pane', p => ({ ...p, page: 0, boards: { board, period }, stack: p.stack.map(v => (v.kind === 'boards' ? { ...v, board, period } : v)) }))
         await loadRankings(fx, board, period)
       })()),
       marketFilter: change => after((async () => {
@@ -2401,7 +2429,8 @@ export function createGame(o: GameOptions): Game {
       case 'present': {
         await dropMoment(fx, id)
         const cards = (await get(fx, 'cards')).filter(c => m.cardIds.includes(c.id)) as Card[]
-        await openPane(fx, { tab: 'trade' })
+        await upd(fx, 'pane', p => ({ ...p, page: 0 }))
+        await openPane(fx, { tab: 'trade', community: 'trades' })
         // the album already counts what arrived, so nothing is badged NEW that might not be
         if (cards.length > 0) await showReveal(fx, 'present', null, cards, [], (await get(fx, 'me'))?.player.seen ?? [])
         return

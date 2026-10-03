@@ -218,7 +218,7 @@ export type SpinBoardPeriod = 'all' | 'season'
 export type SpinRankRow = { rank: number; handle: string; league: SpinLeague; value: number }
 export type SpinRankings = { board: SpinBoardName; period: SpinBoardPeriod; season: number; top: SpinRankRow[]; me?: SpinRankRow }
 export type SpinMarketSort = 'newest' | 'cheapest' | 'priciest'
-/** What the Market tab asks for: its filter chips, as GET /v1/market takes them. */
+/** What the Market section asks for: its filter chips, as GET /v1/market takes them. */
 export type SpinMarketQuery = {
   family: SpinFamily | 'all'
   rarity: SpinRarity | 'all'
@@ -444,6 +444,10 @@ export type SpinHold = { action: SpinHoldAction; target: string; startedAt: numb
 
 export type SpinPane = {
   tab: SpinTab
+  /** Community's local section; absent means Profile. Legacy tab:'market' means its Market section. */
+  community?: SpinCommunitySection
+  /** The selected ranking category and period, independent of pushed card/player details. */
+  boards?: { board: SpinBoardName; period: SpinBoardPeriod }
   stack: SpinView[]
   family: SpinFamily | 'all'
   rarity: SpinRarity | 'all'
@@ -462,12 +466,14 @@ export type SpinPane = {
   tone: 'warn' | 'good'
   /** what a clipboard did not take (a share where the surface has none), shown to select and copy by hand; '' when none */
   toCopy: string
-  /** the Market tab's filter chips, and `mine`: your own listings in place of everyone's. Absent reads as the defaults. */
+  /** the Market section's filter chips, and `mine`: your own listings in place of everyone's. Absent reads as the defaults. */
   market?: SpinMarketQuery & { mine: boolean }
   /** a request in flight: its label (a dim placeholder shows after 300 ms) */
   busy: string | null
   busySince: number
 }
+
+export type SpinCommunitySection = 'profile' | 'market' | 'boards' | 'trades'
 
 export type SpinPrefs = { quiet: boolean; motion: boolean; sound: boolean }
 
