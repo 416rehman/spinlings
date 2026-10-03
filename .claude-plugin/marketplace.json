@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "spinlings",
-      "description": "A creature card game above your prompt. No sign-up, no telemetry, zero tokens.",
+      "description": "Pixel creatures battle above your prompt while Claude works. Catch, trade and duel.",
       "homepage": "https://github.com/416rehman/spinlings",
       "license": "MIT",
       "source": {

@@ -6,8 +6,6 @@
 
 Spinlings is a creature card game that lives inside Claude Code. While Claude works, wild creatures rustle into a slim band above the prompt and your team of three battles them. Win, and you might catch one. Every card is one of a kind, with its own look, genes and traits. You can fuse two cards into a hybrid nobody has seen before, and trade or gift cards with other players.
 
-It plays off the rhythm of your session, which model is running and whether Claude is busy, and costs zero tokens. The full list of what it hooks is [below](#what-spinlings-cant-read).
-
 The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your machine if you play offline.
 
 <p align="center">
@@ -17,8 +15,7 @@ The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your m
   </picture>
 </p>
 
-- **No sign-up.** The server hands you a random handle like `soft-otter-42`, unrelated to your Claude account, email, organization or machine. No email, no password, no GitHub login. An optional passkey brings your collection to another computer.
-- **No telemetry.** No analytics and no third-party requests. The mod talks to one server, and you can run your own.
+- **No sign-up.** You get a random handle like `soft-otter-42` and start playing. A passkey brings your collection to another computer.
 - **Stays out of Claude's way.** It makes no model calls, adds nothing to Claude's context, and never blocks or slows Claude.
 - **Playable alone.** Generated Rivals and a Wandering Trader fill in whenever no other player is around, so the game works on day one.
 - **Free.** Nothing to buy, and cards have no cash value.
@@ -51,7 +48,7 @@ claude plugin validate spinlings/plugin
 
 **First run.** There is nothing to type. Instead of a sign-up, the mod solves a quick anti-spam puzzle and joins [spinlings.dev](https://spinlings.dev) on its own. You get a starter team of three, two welcome packs and 100 sparks. The band says it once: `✦ A Spinling hatched!`, with `[1] Open your welcome pack`. Then creatures find you while Claude works, and `/spin` opens your collection whenever you like.
 
-**Online or offline.** You start in the online world: anonymous, with no sign-up and nothing personal. To play entirely offline, where nothing ever leaves your machine, set the **World** option to `offline` before your first session (`/plugin configure spinlings@spinlings`, or add `--config world=offline` to the shell install), or run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
+**Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. To play entirely offline, where nothing ever leaves your machine, set the **World** option to `offline` before your first session (`/plugin configure spinlings@spinlings`, or add `--config world=offline` to the shell install), or run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
 
 `/spin quiet` silences everything. To leave for good, delete your account from `/spin privacy`, then run `claude plugin uninstall spinlings@spinlings`.
 
@@ -201,7 +198,7 @@ Some of those events carry content the mod does not need. It never reads these f
 
 **What it calls.** Only the `ui`, `state`, `store`, `clock`, `command`, `http` and `session` parts of the mod API, plus `audio` if you turn sound on. From `session` it calls only `model`, and only the model's family ever reaches the server. It never uses `$.fs`, `$.process`, `$.model`, `$.prompt`, `$.tool`, `$.agent`, `$.mcp` or `$.env`. CI fails if any of those, or any hook outside this table, shows up in the source or in `claude plugin validate --json`.
 
-**It costs zero tokens.** No model calls, nothing added to Claude's context, and no tools Claude can call. Every `/spin` command returns an empty result, and anything it prints goes to a dim log line the model never reads.
+**It uses none of Claude's tokens.** No model calls, nothing added to Claude's context, and no tools Claude can call. Every `/spin` command returns an empty result, and anything it prints goes to a dim log line the model never reads.
 
 **It never rewards usage.** Nothing scales with tokens, turns, tool calls, prompts, cost or context. Battle rewards are fixed amounts per result, never scaled by tokens, turns or time, and the server spaces battles out. Packs charge from time with Claude Code open, idle time included. Burning through your plan earns nothing.
 
@@ -212,7 +209,7 @@ Privacy outranks every other rule in the game. In short:
 - **No identity.** You are a random token and a random handle (`adjective-noun-NN`) chosen by the server. The mod never sends your Claude account, email, organization, machine name, OS user, session id or model id. You can reroll your handle once a week.
 - **No work or usage data leaves your machine**, except the model *family* (haiku, sonnet, opus or fable) when you join, a pack charges or a battle starts. Nobody else ever sees it. It is kept no longer than that pack or battle, and battles are deleted 7 days after they end.
 - **Other players see only** your handle, your team, the cards you mark for trade, your album count and your league, plus your handle on things you do with them, such as offers, gifts and duels. They never see wins, losses, battle counts, when you joined or were last seen, your activity, or which model you used. The leaderboard is opt-in.
-- **The server keeps the minimum**: dates instead of times wherever a rule allows, no IP addresses, no request logs, no telemetry. Old notices, offers and gifts are deleted after 30 days.
+- **The server keeps the minimum**: dates instead of times wherever a rule allows, no IP addresses, no request logs. Old notices, offers and gifts are deleted after 30 days.
 - **Delete everything** from `/spin privacy`, behind a 2-second hold. Cards you already traded away stay with their new owners.
 - **Check it yourself.** `/spin privacy` shows the last 20 requests the mod sent, with your token hidden.
 
