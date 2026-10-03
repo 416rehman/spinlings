@@ -109,7 +109,7 @@ The server keeps a date instead of a time wherever a game rule allows. It keeps 
 
 **No request logging.** Cloudflare Workers observability and Logpush stay off. The server logs only error codes, never URLs, request bodies, tokens, handles or IP addresses.
 
-**The hosting provider.** The default server runs on Cloudflare Workers with a D1 database, so Cloudflare carries its traffic and stores its database as the hosting provider, under Cloudflare's own privacy policy. If you would rather not rely on that, the server is open source and you can run your own (see [docs/self-hosting.md](docs/self-hosting.md)).
+**The hosting provider.** The default server runs on Cloudflare Workers with a D1 database, so Cloudflare carries its traffic and stores its database as the hosting provider, under Cloudflare's own privacy policy. Cloudflare also adds Network Error Logging headers to the website, so a visitor's browser may report failed page loads to Cloudflare. If you would rather not rely on that, the server is open source and you can run your own (see [docs/self-hosting.md](docs/self-hosting.md)).
 
 ## What other players can see
 
@@ -129,7 +129,7 @@ Cards other players see show the creature, its level, stats and traits, and noth
 - **First discoveries:** the first card of a species anyone in the world obtains in a season carries a `First Discovered` stamp wherever that card is shown. The game never says who found it.
 - **Mythics:** if you catch a Mythic, its card says "Discovered by" your handle, and the public "Mythics found" list shows your handle and the Mythic's name, nothing else. If you reroll your handle or delete your account, your handle comes off the card and the list.
 
-**Public pages** (profiles, card pages at `{server}/c/{id}` and gift pages) show only what a profile shows, plus Mythic discoveries as handle and name. They run no scripts and load nothing from other sites. The only pages with a script are the two passkey pages, which load one small file from the same server and nothing else.
+**Public pages** (profiles, card pages at `{server}/c/{id}` and gift pages) show only what a profile shows, plus Mythic discoveries as handle and name. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. The passkey pages run one script that talks only to the same server.
 
 `/spin share` only copies text to your clipboard. Nothing is posted anywhere unless you paste it yourself.
 

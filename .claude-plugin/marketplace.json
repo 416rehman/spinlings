@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "spinlings",
-      "description": "A creature card game above your prompt. Content-blind, no account, no telemetry, zero tokens.",
+      "description": "A creature card game above your prompt. No sign-up, no telemetry, zero tokens.",
       "homepage": "https://github.com/416rehman/spinlings",
       "license": "MIT",
       "source": {

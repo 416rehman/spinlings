@@ -470,7 +470,7 @@ ${raw(footTopSvg().replace('class="edge foottop"', 'class="edge foottop"'))}
 <button class="napper js-only" type="button" aria-label="A napping regular. Wake it.">${raw(napper())}<span class="zzz" aria-hidden="true">${raw(wordSvg('z', 'pw'))}</span></button>
 ${!scripted ? html`<span class="napper" aria-hidden="true">${raw(napper())}</span>` : ''}
 <div class="in wrap">
-<p>A creature card game for Claude Code. Free and open source.</p>
+<p>A creature card game for Claude Code. Free and open source. Not affiliated with Anthropic.</p>
 <p>Season ${season}, day ${day}.</p>
 <nav aria-label="More"><a href="/odds">Odds</a><a href="/privacy">Privacy</a><a href="${REPO}">Source code</a><a href="${REPO}/issues">Report a problem</a><a href="${REPO}/blob/main/SECURITY.md">Report a security issue</a><a href="${REPO}/blob/main/docs/self-hosting.md">Run your own server</a></nav>
 ${scripted ? html`<button class="tbtn keys js-only" type="button" aria-pressed="true" data-keys>Key shortcuts</button>` : ''}

@@ -218,7 +218,7 @@ function foilHue(t: number): number {
 /** Product Hunt 4: the season, and what the game never reads. */
 function season(W: number, H: number): Canvas {
   const c = frame(W, H)
-  heading(c, W, '36 new species every 28 days', 'It reads the rhythm of your session, never its content. No account, no telemetry, zero tokens.')
+  heading(c, W, '36 new species every 28 days', 'It plays off the rhythm of your session. No sign-up, no telemetry, zero tokens.')
   const s = 4, cell = 16 * s + 34, rowH = 16 * s + 36
   const x0 = Math.round((W - 9 * cell + 34) / 2)
   FAMILIES.forEach((f, row) => {
@@ -278,7 +278,7 @@ function social(W: number, H: number): Canvas {
   const c = frame(W, H)
   wordmark(c, 80, 96, 13)
   text(c, 86, 236, 'A creature card game that lives inside Claude Code.', TEXT, 3)
-  text(c, 86, 272, 'Content-blind, no account, zero tokens. Open source.', SOFT, 3)
+  text(c, 86, 272, 'No sign-up, zero tokens. Open source.', SOFT, 3)
   const picks: [Family, number][] = [['haiku', 0], ['sonnet', 1], ['opus', 0], ['fable', 3], ['haiku', 8]]
   picks.forEach(([f, i], k) => {
     const sp = familySpecies(1, f)[i]!

@@ -1072,7 +1072,7 @@ The seam's blocklist (`isBlocked`) has the last word: a blocked species or fusio
 - No player-visible counters of battles, catches, packs or trades per day, and no "come back tomorrow" walls.
 - The only waiting a player can meet is the natural spacing between wild encounters, which the client never asks to break, and a full pack bank, which says "Open some packs to make room".
 
-## 25. Drops: promo codes for launch and virality
+## 25. Drops: promo codes
 
 **Idea:** a drop gives everyone the **same limited creature**, which hatches with **personal DNA**, so every redeemer's copy looks different. That creates a "show me yours" moment on X.
 
@@ -1220,7 +1220,7 @@ GitHub sign-in was withdrawn (section 30): the game never asks who you are, and 
 - A session that goes unused for 180 days expires, and that machine joins anew or signs in with its passkey.
 - UI copy: `Signed in on 2 devices · Reset access`. Players never see the token itself.
 
-## 30. Least-suspicious auth: anonymous by default, optional passkey
+## 30. Auth: anonymous by default, optional passkey
 
 **Principle:** the game never asks who you are. There is no GitHub, no email, no password and no code to remember.
 

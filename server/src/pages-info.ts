@@ -128,8 +128,8 @@ ${table(['Gene or trait', 'Range'], [
 ${table(['Action', 'Sparks'], [
     ['Fuse two cards', `${E.fusion.cost} (${E.fusion.fairCost} on Fusion Fair)`],
     ['Buy a pack', E.packs.buyCost],
-    ...(['common', 'rare', 'epic', 'legendary'] as const).map(r => [`Craft a ${r} of this season`, E.craft[r]] as const),
-    ...(['common', 'rare', 'epic', 'legendary'] as const).map(r => [`Recycle a ${r}`, `${E.recycle[r]}`] as const),
+    ...(['common', 'rare', 'epic', 'legendary'] as const).map(r => [`Craft ${r === 'epic' ? 'an' : 'a'} ${r} of this season`, E.craft[r]] as const),
+    ...(['common', 'rare', 'epic', 'legendary'] as const).map(r => [`Recycle ${r === 'epic' ? 'an' : 'a'} ${r}`, `${E.recycle[r]}`] as const),
   ])}
 <p>A fusion takes the higher parent's rarity, with a ${pct(E.fusion.tierUp)} chance of one tier up (never into legendary). Recycling pays ${E.recycleShiny}x for shiny, ${E.recycleFoil}x for foil and ${E.recycleMythic}x again for a Mythic.</p>
 

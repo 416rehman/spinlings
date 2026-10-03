@@ -6,12 +6,10 @@
 
 Spinlings is a creature card game that lives inside Claude Code. While Claude works, wild creatures rustle into a slim band above the prompt and your team of three battles them. Win, and you might catch one. Every card is one of a kind, with its own look, genes and traits. You can fuse two cards into a hybrid nobody has seen before, and trade or gift cards with other players.
 
-Spinlings never knows what you are working on. It reads only the shape of the session (which model, whether Claude is busy). It never reads your files, prompts or output, and it costs zero tokens.
+It plays off the rhythm of your session, which model is running and whether Claude is busy, and costs zero tokens. The full list of what it hooks is [below](#what-spinlings-cant-read).
 
 The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your machine if you play offline.
 
-<!-- Hero: rendered from the mod's own views by `node scripts/media/build.ts`. Once the real capture from the
-     desktop app exists (docs/launch.md, shot 1), swap the srcset/src for docs/media/hero.gif. -->
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/encounter-dark.svg">
@@ -19,11 +17,11 @@ The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your m
   </picture>
 </p>
 
-- **No account.** The server gives you a random handle like `soft-otter-42`. It has nothing to do with your Claude account, email, organization or machine. There is no signup, no email, no password and no GitHub login. An optional passkey brings your collection to another computer.
+- **No sign-up.** The server hands you a random handle like `soft-otter-42`, unrelated to your Claude account, email, organization or machine. No email, no password, no GitHub login. An optional passkey brings your collection to another computer.
 - **No telemetry.** No analytics and no third-party requests. The mod talks to one server, and you can run your own.
 - **Stays out of Claude's way.** It makes no model calls, adds nothing to Claude's context, and never blocks or slows Claude.
 - **Playable alone.** Generated Rivals and a Wandering Trader fill in whenever no other player is around, so the game works on day one.
-- **No money.** No purchases, no paid currency and no crypto. Cards have no cash value.
+- **Free.** Nothing to buy, and cards have no cash value.
 - **Open source** (MIT), mod and server, with zero npm runtime dependencies.
 
 ## Install
@@ -46,11 +44,11 @@ Spinlings is a Claude Code mod, so it needs Claude Code 2.1.287 or later (`claud
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
 
 ```sh
-git clone https://github.com/416rehman/spinlings
+git clone --branch v0.1.0 https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 
-**First run.** There is nothing to type. Instead of a signup, the mod solves a small proof of work and joins [spinlings.dev](https://spinlings.dev) on its own. You get a starter team of three, two welcome packs and 100 sparks. The band says it once: `✦ A Spinling hatched!`, with `[1] Open your welcome pack`. Then creatures find you while Claude works, and `/spin` opens your collection whenever you like.
+**First run.** There is nothing to type. Instead of a sign-up, the mod solves a quick anti-spam puzzle and joins [spinlings.dev](https://spinlings.dev) on its own. You get a starter team of three, two welcome packs and 100 sparks. The band says it once: `✦ A Spinling hatched!`, with `[1] Open your welcome pack`. Then creatures find you while Claude works, and `/spin` opens your collection whenever you like.
 
 **Online or offline.** You start in the online world: anonymous, with no sign-up and nothing personal. To play entirely offline, where nothing ever leaves your machine, set the **World** option to `offline` before your first session (`/plugin configure spinlings@spinlings`, or add `--config world=offline` to the shell install), or run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
 
@@ -85,7 +83,7 @@ claude plugin validate spinlings/plugin
   </picture>
 </p>
 
-These are drawn by the mod's own code (`node scripts/media/build.ts`); only the window around them is a drawing.
+These are rendered by the mod's own view code from real game states (`node scripts/media/build.ts`), not screen recordings; only the app window around them is drawn.
 
 ## How it plays
 
@@ -127,7 +125,7 @@ About 1 wild encounter in 40 is led by a **Mythic**: a creature generated on the
 | Trading, gifts, claims | No |
 | Duels (`/spin battle`, revenge) | No. Duels start at least 2 minutes apart. |
 
-Hitting a rate limit earns nothing and costs nothing. The status line just says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
+Hitting a rate limit is neither rewarded nor punished: packs keep charging as usual. The status line just says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
 
 ### When nobody else is around
 
@@ -204,7 +202,7 @@ Some of those events carry content the mod does not need. It never reads these f
 
 **It costs zero tokens.** No model calls, nothing added to Claude's context, and no tools Claude can call. Every `/spin` command returns an empty result, and anything it prints goes to a dim log line the model never reads.
 
-**It never rewards usage.** Nothing scales with tokens, turns, tool calls, prompts, cost or context. Every battle pays the same, and the server spaces battles out. Packs charge from time with Claude Code open, idle time included. Burning through your plan earns nothing.
+**It never rewards usage.** Nothing scales with tokens, turns, tool calls, prompts, cost or context. Battle rewards are fixed amounts per result, never scaled by tokens, turns or time, and the server spaces battles out. Packs charge from time with Claude Code open, idle time included. Burning through your plan earns nothing.
 
 ## Privacy
 
@@ -304,14 +302,14 @@ spinlings/
     migrations/                     SQL migrations for D1 and Node
   test/                             node:test suites: core, client, server, end to end, docs and release
   scripts/                          the two-player end-to-end run, the drop tool, media and chimes
-  docs/                             how to play, self-hosting, releasing and launch
+  docs/                             how to play, self-hosting and releasing
   Dockerfile                        the Node server as a non-root container
 ```
 
 - **The server decides everything scarce:** rolls, card DNA, ownership, battle results, sparks, ratings and trades. The mod only animates. It sends just the rounds on which you pressed 1, and the server replays the battle from its seed.
 - **Every state change is atomic.** The server is one stateless Worker over D1, which has no interactive transactions. Each handler reads what it needs, decides in plain code, then writes one batch. The batch starts with guards that re-check everything it read: row versions, owners, escrow and locks. If any guard fails, D1 rolls back the whole batch and the handler starts over, up to 3 times, then answers `409 conflict`. On Node the same batches run inside `BEGIN IMMEDIATE`.
 - **Server data is untrusted on the client.** Every response is checked against its expected shape, every string is stripped of control characters and escape sequences and cut to length, and responses over 256 KB are rejected.
-- **Pages run no scripts,** except the two passkey pages, which load one small first-party script. Card, profile and gift pages are plain server-rendered HTML, with every value escaped and a strict Content-Security-Policy.
+- **Pages load only first-party scripts.** The landing, card, profile, gift and drop pages load two small scripts from the same origin for the art and interactions, under a Content-Security-Policy with `connect-src 'none'`, so those scripts cannot send any request. `/odds` and `/privacy` run none, and the two passkey pages load only `/static/passkey.js`. Every value is escaped.
 - **Supply chain.** There are no runtime npm dependencies anywhere; SHA-256 and the PNG encoder are written here. The only dev dependency is `wrangler`, pinned exactly, with a committed lockfile installed by `npm ci --ignore-scripts`. CI actions are pinned by commit SHA and run with read-only permissions, and every pull request runs the strict `claude plugin validate` and the mod's own tests too. The marketplace installs a tagged release pinned to its commit, not `main`.
 
 More in [SPEC.md](SPEC.md), sections 11, 12, 15, 16 and 20.

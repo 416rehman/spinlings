@@ -2,7 +2,7 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-03)
 
 The first release: Spinlings season 1, the mod and the server, live at [spinlings.dev](https://spinlings.dev).
 

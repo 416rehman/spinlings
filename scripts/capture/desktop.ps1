@@ -11,7 +11,7 @@
   brought to the front and kept on top so no other window can slide into the region; it is put back afterwards.
 
   Whatever is on screen inside the window is recorded, conversation included. Record in a fresh session in a
-  throwaway project (docs/launch.md, "Before you record").
+  throwaway project.
 
 .PARAMETER Name
   Base name of the output files. Default: spinlings-<yyyyMMdd-HHmmss>.
