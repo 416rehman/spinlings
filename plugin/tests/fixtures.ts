@@ -1,6 +1,6 @@
 // A small in-memory Spinlings server for the mod's tests: it answers the routes a first session uses, from real core
 // rules, so every answer passes the same tolerant schemas a real server's would. Not a test file itself.
-import type { MeResponse, StartBattleResponse } from '../hooks/core/api.ts'
+import type { ListingView, MarketWant, MeResponse, StartBattleResponse } from '../hooks/core/api.ts'
 import { FEATURES } from '../hooks/core/api.ts'
 import type { Card, Family, NewCard } from '../hooks/core/types.ts'
 import { RULES_VERSION, simulateBattle } from '../hooks/core/battle.ts'
@@ -10,6 +10,7 @@ import { rollPack } from '../hooks/core/packs.ts'
 import { rngFromSeed } from '../hooks/core/rng.ts'
 import { GENERATOR_VERSION } from '../hooks/core/species.ts'
 import { seasonOf, utcDay } from '../hooks/core/world.ts'
+import { CLIENT_VERSION } from '../hooks/client/remote.ts'
 
 export const NOW = Date.UTC(2026, 9, 2, 12, 0, 0)
 export const ORIGIN = 'https://spinlings.dev'
@@ -33,7 +34,9 @@ export function meFor(now: number, cards: Card[], family: Family): MeResponse {
       handle: 'brave-wren-41', handleRerollFrom: day, sparks: 100, rating: 1000, league: 'Pebble', leaderboard: false,
       joinedDay: day, battles: 0, canTrade: false, team: cards.slice(0, 3).map(c => c.id), wishlist: [], cardsVersion: 1,
       streak: 0, seen: [...new Set(cards.map(c => c.species).filter(s => /^s\d/.test(s)))], rested: false, nextWildAt: 0, nextDuelAt: 0, nextChargeAt: 0,
+      stats: { duelWins: 0, duelLosses: 0, playersBeaten: 0, wildWins: 0, catches: 0, speciesCollected: 5, firstFinds: 0, mythicsFound: 0, marketSales: 0 },
     },
+    listings: [],
     packs: [
       { id: 'pack-welcome-1', family, source: 'welcome', day },
       { id: 'pack-welcome-2', family: family === 'haiku' ? 'fable' : 'haiku', source: 'welcome', day },
@@ -52,6 +55,8 @@ export type FakeServer = {
   poll: 'pending' | 'added' | 'done'
   /** the account a passkey sign-in hands over */
   other: MeResponse
+  /** everyone else's listings on the market */
+  listings: ListingView[]
   handle(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Answer
 }
 
@@ -68,6 +73,10 @@ export function fakeServer(o: { now?: number; family?: Family; difficulty?: numb
   const cards = [...starters, special, mythic]
   const server: FakeServer = {
     calls: [], me: meFor(now, cards, family), cards, down: false, poll: 'pending',
+    listings: [{
+      id: 'listing-for-sale', seller: 'soft-otter-42', price: 40, day: utcDay(now), state: 'open',
+      card: toBattleCard(withIds(rollPack('fable', seasonOf(now), rngFromSeed('market'), now), 'sale-')[4]!),
+    }],
     other: { ...meFor(now, cards, family), player: { ...meFor(now, cards, family).player, handle: 'misty-lark-18', battles: 31 } },
     handle(url, init = {}) {
       const method = init.method ?? 'GET'
@@ -146,6 +155,51 @@ export function fakeServer(o: { now?: number; family?: Family; difficulty?: numb
         })
       }
       if (method === 'POST' && path === '/v1/packs/charge') return json(200, { packs: server.me.packs })
+      // the market, the boards, profiles and challenges (0.2.0)
+      if (method === 'GET' && path.startsWith('/v1/leaderboards')) {
+        const q = new URL(ORIGIN + path).searchParams
+        return json(200, {
+          board: q.get('board') ?? 'rating', period: q.get('period') ?? 'all', season: seasonOf(now),
+          top: [{ rank: 1, handle: 'misty-lark-18', league: 'Star', value: 1744 }, { rank: 2, handle: 'soft-otter-42', league: 'Peak', value: 1600 }],
+          me: { rank: 9, handle: server.me.player.handle, league: 'Pebble', value: 1000 },
+        })
+      }
+      if (method === 'GET' && path.startsWith('/v1/market')) {
+        const open = server.listings.filter(l => l.state === 'open')
+        return json(200, { listings: open, prices: open.map(l => ({ species: l.card.species, sales: [{ day: utcDay(now - 86_400_000), price: 90, rarity: l.card.rarity, shiny: false, foil: false }] })).filter(p => /^s\d/.test(p.species)) })
+      }
+      if (method === 'POST' && path === '/v1/market') {
+        const card = server.cards.find(c => c.id === body.cardId)
+        if (!card) return json(404, { error: { code: 'not_found', message: 'no such card' } })
+        const listing: ListingView = {
+          id: `listing-${server.listings.length + 1}`, seller: server.me.player.handle, card: toBattleCard(card), price: Number(body.price ?? 0),
+          ...(body.want ? { want: body.want as MarketWant } : {}), day: utcDay(now), state: 'open',
+        }
+        server.cards = server.cards.map(c => (c.id === card.id ? { ...c, state: 'escrow' } : c))
+        server.me = { ...server.me, listings: [listing, ...(server.me.listings ?? [])], player: { ...server.me.player, cardsVersion: server.me.player.cardsVersion + 1 } }
+        return json(200, { listing })
+      }
+      const buy = /^\/v1\/market\/([^/]+)\/(buy|cancel)$/.exec(path)
+      if (method === 'POST' && buy) {
+        const listing = [...server.listings, ...(server.me.listings ?? [])].find(l => l.id === buy[1])
+        if (!listing || listing.state !== 'open') return json(409, { error: { code: 'conflict', message: 'Already sold' } })
+        if (buy[2] === 'cancel') {
+          server.me = { ...server.me, listings: (server.me.listings ?? []).filter(l => l.id !== listing.id) }
+          return json(200, { listing: { ...listing, state: 'cancelled' } })
+        }
+        const card: Card = { ...(listing.card as Card), id: `bought-${listing.id}`, xp: 0, bound: false, forTrade: false, origin: 'pack', mintedAt: now, lockedUntil: 0, tiredUntil: 0, state: 'owned' }
+        server.listings = server.listings.map(l => (l.id === listing.id ? { ...l, state: 'sold' } : l))
+        server.cards = [...server.cards, card]
+        server.me = { ...server.me, player: { ...server.me.player, sparks: server.me.player.sparks - listing.price, cardsVersion: server.me.player.cardsVersion + 1 } }
+        return json(200, { listing: { ...listing, state: 'sold' }, card, sparks: server.me.player.sparks })
+      }
+      const player = /^\/v1\/players\/([^/]+)$/.exec(path)
+      if (method === 'GET' && player) {
+        return json(200, {
+          handle: player[1], league: 'Peak', team: server.cards.slice(0, 3).map(toBattleCard), forTrade: [], seenCount: 12,
+          stats: { duelWins: 30, duelLosses: 12, playersBeaten: 11, wildWins: 40, catches: 33, speciesCollected: 12, firstFinds: 1, mythicsFound: 0, marketSales: 5 },
+        })
+      }
       return json(404, { error: { code: 'not_found', message: 'nothing here' } })
     },
   }
@@ -157,3 +211,7 @@ export function fakeServer(o: { now?: number; family?: Family; difficulty?: numb
 export function memoryStore(): Map<string, unknown> {
   return new Map<string, unknown>()
 }
+
+/** Releases newer than this mod, for the tests that need a server naming one: the next minor, and the one after. */
+export const NEXT = CLIENT_VERSION.replace(/^(\d+)\.(\d+)\..*$/, (_, major: string, minor: string) => `${major}.${Number(minor) + 1}.0`)
+export const AFTER_NEXT = CLIENT_VERSION.replace(/^(\d+)\.(\d+)\..*$/, (_, major: string, minor: string) => `${major}.${Number(minor) + 2}.0`)

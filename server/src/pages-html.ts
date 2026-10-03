@@ -238,6 +238,10 @@ html.js .home .walker.on{opacity:1}
 @media (hover:hover){.gh:hover::before{opacity:1;background:color-mix(in srgb,currentColor 14%,#0000)}.gh:hover::after{opacity:1;animation:twk 1.8s steps(1) infinite}.gh:hover svg{animation:ghop .3s steps(1)}}
 @keyframes ghop{0%,66%{transform:translateY(-2px)}33%{transform:translateY(-4px)}}
 .gh:active{padding:2px 12px 0}.gh:active::before{inset:calc(var(--fy) + 2px) 2px var(--fy);box-shadow:0 -2px,0 2px,-2px 0,2px 0}.gh:active::after{translate:0 2px}
+.nb{display:flex;align-items:center;gap:8px;height:44px;padding:0 6px;color:inherit;font-size:.9375rem;font-weight:700;line-height:1;text-decoration:none;white-space:nowrap}
+.nb svg{width:20px;height:20px;transition:transform .2s var(--spring)}
+.nb:hover{text-decoration:underline}.nb:hover svg{transform:translateY(-3px) rotate(-8deg)}
+.nb[aria-current]{text-decoration:underline;text-decoration-thickness:2px}
 .ghl{display:none}
 @media (min-width:1024px){.ghl{display:inline}}
 .home .top{background:var(--sky1);color:var(--ink)}
@@ -253,6 +257,7 @@ html.js .home .walker.on{opacity:1}
 .trail .dots{max-width:none}
 .slot{width:36px;height:44px}.slot .in2{width:32px;height:32px}.slot svg.spr{width:24px;height:24px}
 .end{gap:var(--s2)}.gh{--fy:8px}
+.home .nbl{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 }
 
 /* footer */
@@ -437,7 +442,7 @@ ${scripted ? html`<script type="module" src="/static/${SITE_ASSETS.site}"></scri
 <body class="${kind === 'home' ? 'home' : kind}">
 ${raw(boldDefs(o.body.__html))}
 ${kind === 'home' ? html`<a class="skip" href="#install-cmd">Skip to the install command</a><a class="skip js-only" href="#meet" data-meetskip>Meet the wild one</a>` : ''}
-${header(kind, o.team === true)}
+${header(kind, o.team === true, o.path)}
 <main id="main"${o.mainClass ? html` class="${o.mainClass}"` : ''}${o.world ? html` data-world="${o.world}"` : ''}>
 ${o.body}
 </main>
@@ -475,7 +480,10 @@ export const SOURCE_NAME = 'Open source on GitHub'
 /** The GitHub mark, Octicons' mark-github (MIT), drawn inline so the page still asks nobody for anything. */
 const GITHUB_MARK = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>'
 
-function header(kind: PageKind, team: boolean): Raw {
+/** The way to the boards: a pixel trophy, with its word wherever the bar has room. */
+const TROPHY = '<svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="#f2b33d" d="M0 0h8v3h-1v1h-1v1h-1v1h-2v-1h-1v-1h-1v-1h-1z"/><path fill="#fff1c2" d="M1 1h1v2h-1z"/><path fill="#b5761f" d="M2 6h4v1h1v1h-6v-1h1z"/></svg>'
+
+function header(kind: PageKind, team: boolean, path = ''): Raw {
   const home = kind === 'home'
   return html`<header class="top" id="top">
 <div class="in wrap">
@@ -486,6 +494,7 @@ function header(kind: PageKind, team: boolean): Raw {
 <button class="slot" type="button" data-slot="1"><span class="in2"></span></button>
 <button class="slot" type="button" data-slot="2"><span class="in2"></span></button>
 </div>` : ''}
+<a class="nb" href="/boards"${path.startsWith('/boards') ? html` aria-current="page"` : ''}>${raw(TROPHY)}<span class="nbl">Boards</span></a>
 <a class="gh" href="${REPO}" aria-label="${SOURCE_NAME}">${raw(GITHUB_MARK)}<span class="ghl">Open source</span></a></div>
 </div>
 <div class="hdz" aria-hidden="true">${raw(HEADER_DITHER)}</div>
@@ -511,7 +520,7 @@ ${!scripted ? html`<span class="napper" aria-hidden="true">${raw(napper())}</spa
 <div class="in wrap">
 <p>A creature card game for Claude Code. Free and open source. Not affiliated with Anthropic.</p>
 <p>Season ${season}, day ${day}.</p>
-<nav aria-label="More"><a href="/odds">Odds</a><a href="/privacy">Privacy</a><a href="${REPO}">Source code</a><a href="${REPO}/issues">Report a problem</a><a href="${REPO}/blob/main/SECURITY.md">Report a security issue</a><a href="${REPO}/blob/main/docs/self-hosting.md">Run your own server</a></nav>
+<nav aria-label="More"><a href="/boards">Leaderboards</a><a href="/market">Market</a><a href="/odds">Odds</a><a href="/privacy">Privacy</a><a href="${REPO}">Source code</a><a href="${REPO}/issues">Report a problem</a><a href="${REPO}/blob/main/SECURITY.md">Report a security issue</a><a href="${REPO}/blob/main/docs/self-hosting.md">Run your own server</a></nav>
 ${scripted ? html`<button class="tbtn keys js-only" type="button" aria-pressed="true" data-keys>Key shortcuts</button>` : ''}
 </div>
 </footer>`

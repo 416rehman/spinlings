@@ -108,7 +108,10 @@ const FIXTURES: Fixture[] = [
   { name: 'pack ready', state: moment({ kind: 'pack-ready', id: 'pack-ready', count: 3, until: NOW + 6000 }), art: true, texts: [/A pack is ready!/, /3 packs waiting/], keys: ['act-pack-ready'] },
   { name: 'present', state: moment({ kind: 'present', id: 'present:n1', from: 'quiet-otter-42', cardIds: [], until: null }), art: true, texts: [/quiet-otter-42 sent you a gift!/], keys: ['act-present:n1'] },
   { name: 'update', state: moment({ kind: 'update', id: 'update:0.2.0', version: '0.2.0', until: null }), texts: [/Spinlings 0.2.0 is out/, /claude plugin update spinlings@spinlings/], keys: ['act-update:0.2.0'] },
-  { name: 'passkey offer', state: moment({ kind: 'passkey', id: 'passkey', until: null }), texts: [/Save your collection with a passkey/, /no email, no password/, /losing this computer loses your online cards/], keys: ['act-passkey', 'dismiss-passkey'] },
+  { name: 'passkey offer', state: moment({ kind: 'passkey', id: 'passkey', until: null }), texts: [/Your cards live only on this computer/, /no email, no password/], keys: ['act-passkey', 'dismiss-passkey'] },
+  { name: 'passkey offer at a catch worth keeping', state: moment({ kind: 'passkey', id: 'passkey', until: null, card: wild.epic }), art: true, texts: [/lives only on this computer/, /no email, no password/], keys: ['act-passkey', 'dismiss-passkey'] },
+  { name: 'sold on the market', state: moment({ kind: 'market', id: 'market:n9', outcome: 'sold', card: wild.epic, handle: 'misty-lark-18', price: 1250, until: NOW + 15_000 }), art: true, texts: [/Sold!/, /went to misty-lark-18/, /\+✧ 1,250/], keys: ['act-market:n9'] },
+  { name: 'a listing came home', state: moment({ kind: 'market', id: 'market:n8', outcome: 'expired', card: wild.common, handle: null, price: 0, until: NOW + 15_000 }), art: true, texts: [/came home from the market/], keys: ['act-market:n8'] },
   { name: 'needs online', state: moment({ kind: 'needs-online', id: 'needs-online', until: NOW + 9000 }), texts: [/This needs the online world/], keys: ['act-needs-online', 'dismiss-needs-online'] },
   { name: 'community server', state: moment({ kind: 'server', id: 'server:https://cats.example', origin: 'https://cats.example', until: null }), texts: [/cats.example is a community server run by someone else/], keys: ['act-server:https://cats.example'] },
   { name: 'community server in use (the Server URL option)', state: moment(CATS, { account: { ...base().account, server: 'https://cats.example', host: 'cats.example', community: true } }), texts: [/cats.example is a community server run by someone else/], keys: ['act-server:https://cats.example'] },
@@ -180,7 +183,14 @@ function measure(n: unknown, avail: number, problems: string[]): { w: number; h:
       const inner = width ?? avail
       const row = String(p.flexDirection ?? 'row').startsWith('row')
       const gap = Number(row ? p.columnGap ?? p.gap ?? 0 : p.rowGap ?? p.gap ?? 0)
-      const parts = kids.map(k => measure(k, inner, problems)).filter(x => x.w > 0 || x.h > 0)
+      // in a row that does not wrap, a growing child (the text beside the art) gets only what its siblings leave
+      const grows = (k: unknown) => row && p.flexWrap !== 'wrap' && isNode(k) && Number(k.props?.flexGrow ?? 0) > 0
+      const fixed = kids.map(k => (grows(k) ? null : measure(k, inner, problems)))
+      const shown = kids.filter((k, i) => grows(k) || (fixed[i]!.w > 0 || fixed[i]!.h > 0)).length
+      const growing = kids.filter(grows).length
+      const left = inner - fixed.reduce((s, x) => s + (x?.w ?? 0), 0) - gap * Math.max(0, shown - 1)
+      const parts = kids.map((k, i) => fixed[i] ?? measure(k, Math.max(1, Math.floor(left / Math.max(1, growing))), problems))
+        .filter(x => x.w > 0 || x.h > 0)
       let w: number, h: number
       if (row && p.flexWrap === 'wrap') {
         w = Math.max(0, ...parts.map(x => x.w))

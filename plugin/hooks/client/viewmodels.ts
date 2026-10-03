@@ -1,15 +1,16 @@
 // What the pane shows, as plain data (SPEC 9, 13, 14, 21, 25, 28, 30): team slots, the collection page, the card's
 // possible actions and their consequences, the album, the Trade tab's sections, the Trader's picks, the reveal's
 // summary and the daily hello. Pure: no $, no elements; the views in ui/pane*.tsx and ui/ceremony*.tsx draw these.
-import type { OfferView } from '../core/api.ts'
+import type { MarketWant, OfferView, SaleView } from '../core/api.ts'
 import type { Card, Family, Rarity, Species, TraderDeal } from '../core/types.ts'
 import { ECONOMY } from '../core/economy.ts'
 import { FAMILIES, FAMILY_INFO } from '../core/families.ts'
 import { cardPower, craftCost, rarityFits, rarityRank, recycleValue } from '../core/cards.ts'
+import { wantMatches } from '../core/market.ts'
 import { getSpecies, seasonSpecies } from '../core/species.ts'
 import { RULE_INFO, dailyRule, featuredSpecies, fusionCost, seasonOf, utcDay } from '../core/world.ts'
 import { nameOf } from './game.ts'
-import type { GameState, HoldAction, PaneUi, Reveal, Tab, View } from './types.ts'
+import type { BoardName, GameState, HoldAction, PaneUi, PlayerStats, Reveal, Tab, View } from './types.ts'
 import { dots, plural, safe, span, title } from './text.ts'
 
 const DAY = 86_400_000
@@ -115,33 +116,27 @@ export function bestTeam(cards: readonly Card[]): string[] {
 // ---------- one card's actions ----------
 
 export type CardCan = {
-  /** set for trade / keep (online, past the trust gate, free to trade) */
+  /** set for trade / keep (online, free to trade) */
   trade: boolean
   gift: boolean
+  /** put it on the market (online, a server with the market, free to trade) */
+  sell: boolean
   recycle: boolean
   fuse: boolean
-  /** why trading or gifting is not offered, in plain words; '' when it is (or the world has no trading) */
+  /** a card held for a trade, a gift or a listing: what it waits on, in plain words; '' otherwise */
   tradeNote: string
 }
 
+/** Free to trade, gift, sell or hand the Trader: yours, not bound, not held. The offline world's welcome cards wait a week. */
 export function tradeable(c: Card, now: number): boolean {
   return c.state === 'owned' && !c.bound && c.lockedUntil <= now
 }
 
-export function cardCan(c: Card, o: { offline: boolean; canTrade: boolean; now: number }): CardCan {
-  if (c.state === 'escrow') return { trade: false, gift: false, recycle: false, fuse: false, tradeNote: 'Held for a trade until it settles' }
+export function cardCan(c: Card, o: { offline: boolean; now: number; market?: boolean }): CardCan {
+  if (c.state === 'escrow') return { trade: false, gift: false, sell: false, recycle: false, fuse: false, tradeNote: 'Held until a trade, gift or sale settles' }
   const free = !c.bound
-  const social = !o.offline && free && o.canTrade && c.lockedUntil <= o.now
-  const tradeNote = o.offline || !free ? ''
-    : !o.canTrade ? 'Trading opens once your account is 3 days old with 10 battles'
-    : c.lockedUntil > o.now ? `Can trade in ${span(c.lockedUntil - o.now)}` : ''
-  return {
-    trade: social,
-    gift: social,
-    recycle: free,
-    fuse: free,
-    tradeNote,
-  }
+  const social = !o.offline && tradeable(c, o.now)
+  return { trade: social, gift: social, sell: social && !!o.market, recycle: free, fuse: free, tradeNote: '' }
 }
 
 /** The one-line consequence a 2-second hold shows (SPEC 21.8). */
@@ -166,10 +161,14 @@ export function holdText(action: HoldAction, target: string, s: Pick<GameState, 
       const g = s.me?.gifts.find(x => x.code === target)
       return `The code stops working${g ? ` and ${nameOf(g.card)} comes back` : ''}.`
     }
+    case 'cancel-listing': {
+      const l = s.me?.listings?.find(x => x.id === target)
+      return `${l ? nameOf(l.card) : 'The card'} comes off the market and back to you.`
+    }
     case 'delete-account': return s.account.world === 'online'
       ? `Your account, cards and handle on ${s.account.host} are gone for good.`
       : 'Your offline collection on this machine is gone for good.'
-    case 'reset-access': return 'Other machines will need to sign in again.'
+    case 'reset-access': return 'Other machines sign out and saved passkeys are removed.'
     case 'delete-offline': return 'The offline save on this machine is gone for good.'
   }
 }
@@ -177,7 +176,7 @@ export function holdText(action: HoldAction, target: string, s: Pick<GameState, 
 /** The verb a hold's second press does. */
 export const HOLD_VERB: Record<HoldAction, string> = {
   recycle: 'recycle', fuse: 'fuse', gift: 'wrap the gift', 'cancel-offer': 'cancel the offer', 'cancel-gift': 'cancel the gift',
-  'delete-account': 'delete', 'reset-access': 'reset access', 'delete-offline': 'delete the save',
+  'cancel-listing': 'take it off', 'delete-account': 'delete', 'reset-access': 'reset access', 'delete-offline': 'delete the save',
 }
 
 /** Cards that can be fused with `card`: yours, not bound, not held for a trade. */
@@ -236,11 +235,6 @@ export function offerLeft(o: OfferView, now: number): string {
   return o.expiresAt > now ? `${span(o.expiresAt - now)} left` : 'expiring'
 }
 
-/** The fee for an offer: each side pays per card it receives (SPEC 8). */
-export function tradeFee(cards: number): number {
-  return cards * ECONOMY.trade.fee
-}
-
 /**
  * The cards the Trader would take for a deal: free to trade, not on the team, plain ones first (no shiny, foil,
  * first find, Mythic or fusion), the lowest value first. Null when there are not enough.
@@ -263,6 +257,132 @@ export function dealLine(deal: TraderDeal): string {
     ? plural(deal.get.count, `${FAMILY_INFO[deal.get.family].name} pack`)
     : `${deal.get.count} ${deal.get.rarity} ${FAMILY_INFO[deal.get.family].name} ${deal.get.count === 1 ? 'card' : 'cards'}`
   return `${give} → ${get}`
+}
+
+// ---------- the market (SPEC 8) ----------
+
+/** The price stepper's rungs: whole sparks, fine steps where prices are small, up to the market's ceiling. */
+export const PRICE_LADDER: readonly number[] = [
+  1, 2, 3, 5, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 750, 1000, 1250,
+  1500, 2000, 2500, 3000, 4000, 5000, 6000, 7500, 10_000, 15_000, 20_000, 30_000, 50_000, 75_000, 100_000, 250_000, 500_000,
+  1_000_000,
+]
+
+/** The next rung above (`by` 1) or below (-1) a price; 0 below the lowest, which is a card-only listing. */
+export function stepPrice(price: number, by: 1 | -1): number {
+  if (by > 0) return PRICE_LADDER.find(p => p > price) ?? PRICE_LADDER[PRICE_LADDER.length - 1]!
+  const below = PRICE_LADDER.filter(p => p < price)
+  return below.length > 0 ? below[below.length - 1]! : 0
+}
+
+export type PriceHint = { price: number; label: string }
+
+/**
+ * Prices to start from (SPEC 21.7 smart defaults): what this species last sold for, the typical sale of its kind
+ * (rarity and finish), and what crafting one costs. Whole sparks, no repeats, at most three.
+ */
+export function priceHints(c: Pick<Card, 'rarity' | 'shiny' | 'foil'>, sales: readonly SaleView[] | undefined): PriceHint[] {
+  const out: PriceHint[] = []
+  const add = (price: number, label: string) => {
+    const p = Math.max(1, Math.min(ECONOMY.market.maxPrice, Math.round(price)))
+    if (!out.some(h => h.price === p)) out.push({ price: p, label })
+  }
+  const all = sales ?? []
+  const alike = all.filter(s => s.rarity === c.rarity && s.shiny === c.shiny && s.foil === !!c.foil)
+  if (alike.length > 0) add(alike[0]!.price, 'last sale')
+  const pool = alike.length >= 2 ? alike : all
+  if (pool.length >= 2) {
+    const sorted = pool.map(s => s.price).sort((a, b) => a - b)
+    add(sorted[Math.floor(sorted.length / 2)]!, 'typical')
+  }
+  add(craftCost(c.rarity) * (c.foil ? 2 : 1) * (c.shiny ? 1.5 : 1), 'craft cost')
+  return out.slice(0, 3)
+}
+
+/** The stepper's starting price: the first hint (a recent sale where there is one). */
+export function startPrice(c: Pick<Card, 'rarity' | 'shiny' | 'foil'>, sales: readonly SaleView[] | undefined): number {
+  return priceHints(c, sales)[0]?.price ?? craftCost(c.rarity)
+}
+
+/** The species a want names, for its mini sprite; null for a family or rarity want. */
+export function wantSpecies(w: MarketWant | undefined | null): Species | null {
+  if (!w?.species) return null
+  try {
+    return getSpecies(w.species) ?? null
+  } catch {
+    return null
+  }
+}
+
+/** A want in a few plain words: `Fogmaw`, `any Haiku · Rare+`, `any shiny`. */
+export function wantWords(w: MarketWant): string {
+  const s = wantSpecies(w)
+  const finish = dots(w.shiny ? 'shiny' : '', w.foil ? 'foil' : '')
+  if (s) return dots(safe(s.names[s.legendary ? 2 : 0], 24), finish)
+  return dots(`any${w.family ? ' ' + FAMILY_INFO[w.family].name : ''}`, w.rarity ? `${title(w.rarity)}+` : '', finish)
+}
+
+/** Your cards that answer a listing's want: free to trade, never your last team card; the plainest first. */
+export function wantFits(w: MarketWant, cards: readonly Card[], team: readonly string[], now: number): Card[] {
+  const onTeam = team.filter(id => cards.some(c => c.id === id))
+  return cards
+    .filter(c => tradeable(c, now) && wantMatches(w, c) && !(onTeam.length === 1 && onTeam[0] === c.id))
+    .sort((a, b) => rarityRank(a.rarity) - rarityRank(b.rarity) || Number(a.shiny) - Number(b.shiny) || cardPower(a) - cardPower(b))
+}
+
+/** Why a card cannot be listed, or '' when it can: your last team card defends you (SPEC 8). */
+export function sellProblem(c: Card, team: readonly string[], cards: readonly Card[]): string {
+  const onTeam = team.filter(id => cards.some(x => x.id === id))
+  return onTeam.length === 1 && onTeam[0] === c.id ? 'Your last team card stays to defend you. Set another in your team first.' : ''
+}
+
+/** What a want can ask for, from the card being sold: nothing, a species on your wishlist, or its family at its rarity or better. */
+export function wantChoices(c: Pick<Card, 'family' | 'rarity'>, wishlist: readonly string[]): MarketWant[] {
+  const species = wishlist.slice(0, ECONOMY.wishlistMax).map(id => ({ species: id }))
+  return [...species, { family: c.family, rarity: c.rarity }]
+}
+
+export const sameWant = (a: MarketWant | null, b: MarketWant | null): boolean =>
+  (a === null && b === null) || (a !== null && b !== null && a.species === b.species && a.family === b.family && a.rarity === b.rarity
+    && !!a.shiny === !!b.shiny && !!a.foil === !!b.foil)
+
+/** Recent sales of a species from the market's last answers, newest first. */
+export function salesOf(prices: readonly { species: string; sales: SaleView[] }[] | undefined, species: string): SaleView[] {
+  return prices?.find(p => p.species === species)?.sales ?? []
+}
+
+// ---------- stats and boards (SPEC 8) ----------
+
+export type StatKey = 'duelWins' | 'beaten' | 'catches' | 'species' | 'firsts' | 'mythics' | 'sales'
+export type StatTile = { key: StatKey; value: number; label: string }
+
+/** A player's numbers as tiles, one glyph and one word each; a zero first find, Mythic or sale stays out. */
+export function statTiles(s: PlayerStats): StatTile[] {
+  const tiles: StatTile[] = [
+    { key: 'duelWins', value: s.duelWins, label: 'wins' },
+    { key: 'beaten', value: s.playersBeaten, label: 'beaten' },
+    { key: 'catches', value: s.catches, label: 'caught' },
+    { key: 'species', value: s.speciesCollected, label: 'species' },
+    { key: 'firsts', value: s.firstFinds, label: s.firstFinds === 1 ? 'first' : 'firsts' },
+    { key: 'mythics', value: s.mythicsFound, label: s.mythicsFound === 1 ? 'Mythic' : 'Mythics' },
+    { key: 'sales', value: s.marketSales, label: 'sold' },
+  ]
+  return tiles.filter(t => t.value > 0 || t.key === 'duelWins' || t.key === 'catches' || t.key === 'species')
+}
+
+/** The boards, in the switcher's order: what each counts, in one word, and its stat glyph. */
+export const BOARDS: readonly { board: BoardName; label: string; stat: StatKey | 'rating' }[] = [
+  { board: 'rating', label: 'Rating', stat: 'rating' },
+  { board: 'beaten', label: 'Beaten', stat: 'beaten' },
+  { board: 'duelWins', label: 'Wins', stat: 'duelWins' },
+  { board: 'species', label: 'Species', stat: 'species' },
+  { board: 'mythics', label: 'Mythics', stat: 'mythics' },
+  { board: 'sales', label: 'Sales', stat: 'sales' },
+]
+
+/** `1,312`: a number grouped for reading at a glance. */
+export function grouped(n: number): string {
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
 // ---------- the daily hello (SPEC 13.11) ----------

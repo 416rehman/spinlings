@@ -11,12 +11,14 @@ import { hasFeature, nameOf } from '../client/game.ts'
 import { linkHref } from '../client/net.ts'
 import { dots, plural, safe, span } from '../client/text.ts'
 import {
-  TRADE_SECTIONS, byNewest, dealLine, offerLeft, perRow, tradeFee, tradeSection, tradeable, traderPicks, withTop,
+  TRADE_SECTIONS, byNewest, dealLine, offerLeft, perRow, tradeSection, tradeable, traderPicks, withTop,
 } from '../client/viewmodels.ts'
 import type { TradeSection } from '../client/viewmodels.ts'
 import type { Ctx, Shown } from './pane-kit.tsx'
-import { CHIP, actions, btn, chip, column, grid, heading, holdLine, line, para, tile } from './pane-kit.tsx'
-import { SPACE } from './tokens.ts'
+import {
+  CHIP, actions, btn, chip, column, grid, heading, holdLine, leagueBadge, line, para, statRow, tabsHint, tile,
+} from './pane-kit.tsx'
+import { MARK, SPACE, STAT } from './tokens.ts'
 
 const SHOWN = 4
 
@@ -58,7 +60,7 @@ function offerBlock(c: Ctx, o: OfferView, incoming: boolean, first: boolean): Re
   const counter = () => c.actions.push({ kind: 'profile', handle: o.from, give: o.get.map(x => x.id), get: o.give.map(x => x.id), counterOf: o.id })
   const buttons = incoming
     ? actions(c, [
-      btn(c, { key: `accept-${o.id}`, label: `Accept · ${tradeFee(o.give.length)} sparks`, hotkey: first ? 'a' : undefined, on: () => c.actions.respond(o.id, 'accept') }),
+      btn(c, { key: `accept-${o.id}`, label: 'Accept', hotkey: first ? 'a' : undefined, on: () => c.actions.respond(o.id, 'accept') }),
       btn(c, { key: `decline-${o.id}`, label: 'Decline', hotkey: first ? 'n' : undefined, on: () => c.actions.respond(o.id, 'decline') }),
       btn(c, { key: `counter-${o.id}`, label: 'Counter', hotkey: first ? 'c' : undefined, on: async () => { await counter(); await c.actions.profile(o.from) } }),
     ])
@@ -77,15 +79,12 @@ function inbox(c: Ctx): { body: RenderElement; hints: string[] } {
   const outgoing = me.offers.outgoing.filter(o => o.state === 'open')
   if (incoming.length + outgoing.length === 0) {
     const trader = hasFeature(c.state.account, 'trader')
-    // a new account's first look at trading: what opens when, and the Trader, who deals today (SPEC 19, 30)
-    const text = me.player.canTrade
-      ? 'No offers yet. Mark cards for trade in Cards so others find them, or make an offer from the Board.'
-      : `No offers yet. Trading with other players opens once your account is 3 days old with 10 battles.${trader ? ' The Wandering Trader deals with you today: w.' : ''}`
+    const text = `No offers yet. Mark cards for trade in Cards so others find them, or make an offer from the Board.${trader ? ' The Wandering Trader deals with you today: w.' : ''}`
     return { body: para(c, text, { dim: true }), hints: ['b Board', trader ? 'w Trader' : '', 'g Gifts'] }
   }
   return {
     body: column(c, [
-      incoming.length > 0 ? heading(c, `Offers for you (${incoming.length})`, `each side pays ${ECONOMY.trade.fee} sparks per card it gets`) : null,
+      incoming.length > 0 ? heading(c, `Offers for you (${incoming.length})`) : null,
       ...incoming.slice(0, SHOWN).map((o, i) => offerBlock(c, o, true, i === 0)),
       incoming.length > SHOWN ? line(c, `and ${incoming.length - SHOWN} more waiting`, { dim: true }) : null,
       outgoing.length > 0 ? heading(c, `Your offers (${outgoing.length})`) : null,
@@ -116,12 +115,12 @@ function board(c: Ctx): { body: RenderElement; hints: string[] } {
       matches.length === 0
         ? line(c, wish === 0 ? 'Add species to your wishlist from the Album to find matches.' : 'No matches today.', { dim: true })
         : column(c, matches.map((m, i) => (
-          <c.el.Box flexDirection="row" columnGap={SPACE.loose} width={c.columns}>
+          <c.el.Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
             {chip(c, m.theirs, { key: `match-${i}-t` })}
             {chip(c, m.mine, { key: `match-${i}-m` })}
             <c.el.Box flexDirection="column" flexShrink={1}>
-              <c.el.Text wrap="truncate-end">{`${safe(m.handle, 40)} has ${nameOf(m.theirs)}`}</c.el.Text>
-              <c.el.Text dimColor wrap="truncate-end">{`and would like your ${nameOf(m.mine)}`}</c.el.Text>
+              <c.el.Text wrap="wrap">{`${safe(m.handle, 40)} has ${nameOf(m.theirs)}`}</c.el.Text>
+              <c.el.Text dimColor wrap="wrap">{`and would like your ${nameOf(m.mine)}`}</c.el.Text>
               {btn(c, { key: `match-${i}-offer`, label: 'Make an offer', on: openProfile(c, m.handle, [m.mine.id], [m.theirs.id]) })}
             </c.el.Box>
           </c.el.Box>
@@ -194,16 +193,14 @@ function gifts(c: Ctx): { body: RenderElement; hints: string[] } {
       }} /> : null,
       heading(c, `Your gifts (${me.gifts.length})`, `up to ${ECONOMY.gift.open} at once`),
       open.length === 0
-        ? para(c, me.player.canTrade
-          ? 'Wrap a card from its page in Cards (g). The link brings a friend in, and the card waits for them.'
-          : 'Gifting opens with trading, once your account is 3 days old with 10 battles. You can claim a friend\'s gift any time.', { dim: true })
+        ? para(c, 'Wrap a card from its page in Cards (g). The link brings a friend in, and the card waits for them.', { dim: true })
         : column(c, open.map((g, i) => (
           <c.el.Box flexDirection="column" width={c.columns}>
             <c.el.Box flexDirection="row" columnGap={SPACE.loose}>
               {chip(c, g.card, { key: `gift-${g.code}` })}
               <c.el.Box flexDirection="column" flexShrink={1}>
-                <c.el.Text wrap="truncate-end">{safe(g.code, 48)}</c.el.Text>
-                <c.el.Text dimColor wrap="truncate-end">{g.claimedBy ? `claimed by ${safe(g.claimedBy, 40)}` : g.expiresAt > c.now ? `waiting · ${span(g.expiresAt - c.now)} left` : 'expired · it comes back to you'}</c.el.Text>
+                <c.el.Text wrap="wrap">{safe(g.code, 48)}</c.el.Text>
+                <c.el.Text dimColor wrap="wrap">{g.claimedBy ? `claimed by ${safe(g.claimedBy, 40)}` : g.expiresAt > c.now ? `waiting · ${span(g.expiresAt - c.now)} left` : 'expired · it comes back to you'}</c.el.Text>
                 {g.claimedBy ? null : btn(c, { key: `cancel-gift-${g.code}`, label: 'Cancel', hotkey: i === 0 ? 'x' : undefined, on: () => c.actions.hold('cancel-gift', g.code) })}
               </c.el.Box>
             </c.el.Box>
@@ -225,13 +222,13 @@ export function tradeScreen(c: Ctx): Shown {
         actions(c, [btn(c, { key: 'join-online', label: 'Join online', hotkey: 'j', on: () => c.actions.world('online') })]),
         t.body,
       ]),
-      hints: ['1-4 Tabs', 'j Join online', ...t.hints, 'esc Close'],
+      hints: [tabsHint(c.state), 'j Join online', ...t.hints, 'esc Close'],
     }
   }
   const shown = section === 'inbox' ? inbox(c) : section === 'board' ? board(c) : section === 'trader' ? trader(c) : gifts(c)
   return {
     body: column(c, [sections(c, section), shown.body]),
-    hints: ['1-4 Tabs', 'i b w g Sections', ...shown.hints, 'esc Close'],
+    hints: [tabsHint(c.state), 'i b w g Sections', ...shown.hints, 'esc Close'],
   }
 }
 
@@ -254,12 +251,19 @@ export function profileScreen(c: Ctx, v: { handle: string; give: string[]; get: 
   const per = perRow(c.columns, CHIP)
   const pick = (which: 'give' | 'get', id: string) => c.actions.pane(p => withTop(p, x => (x.kind === 'profile' ? { ...x, [which]: toggle(x[which], id, 3) } : x)))
   const shownMine = [...mine.filter(x => v.give.includes(x.id)), ...mine.filter(x => !v.give.includes(x.id))].slice(0, per * 2)
-  const canTrade = me?.player.canTrade ?? false
-  const ready = canTrade && v.give.length >= 1
+  const ready = v.give.length >= 1
+  const duel = canChallenge(c, prof.handle)
+  const { Box, Text } = c.el
   return {
     body: column(c, [
       crumb,
-      heading(c, safe(prof.handle, 40), dots(prof.league, `album ${prof.seenCount}`)),
+      <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
+        <Text bold wrap="wrap">{safe(prof.handle, 40)}</Text>
+        {leagueBadge(c, prof.league)}
+        <Text><Text color={STAT.species.color}>{MARK.species}</Text><Text>{` ${prof.seenCount}`}</Text><Text dimColor> album</Text></Text>
+        {duel ? btn(c, { key: 'challenge', label: 'Challenge', hotkey: 'c', on: () => c.actions.challenge(prof.handle) }) : null}
+      </Box>,
+      statRow(c, prof.stats, 'their-stats'),
       line(c, 'Their team', { dim: true }),
       prof.team.length === 0 ? line(c, 'No team saved', { dim: true }) : grid(c, prof.team.map((x, k) => chip(c, x, { key: `their-team-${k}` })), per),
       line(c, `For trade · pick up to 3 (${v.get.length})`, { dim: true }),
@@ -268,18 +272,23 @@ export function profileScreen(c: Ctx, v: { handle: string; give: string[]; get: 
         : grid(c, theirs.map((x, k) => chip(c, x, { key: `their-${k}`, selected: v.get.includes(x.id), on: () => pick('get', x.id) })), per),
       line(c, `Your cards · pick 1 to 3 (${v.give.length})`, { dim: true }),
       mine.length === 0
-        ? line(c, 'None free to trade yet: starters stay with you, and new cards wait a day.', { dim: true })
+        ? line(c, 'None free to trade yet: starters stay with you.', { dim: true })
         : grid(c, shownMine.map(x => chip(c, x, { key: `mine-${x.id}`, selected: v.give.includes(x.id), on: () => pick('give', x.id) })), per),
-      canTrade
-        ? line(c, `You give ${v.give.length} · you get ${v.get.length} · you pay ${tradeFee(v.get.length)} sparks, they pay ${tradeFee(v.give.length)}`)
-        : para(c, 'Trading opens once your account is 3 days old with 10 battles. Gifts can be claimed any time.', { dim: true }),
+      line(c, `You give ${v.give.length} · you get ${v.get.length}`),
       actions(c, [ready ? btn(c, {
         key: 'send-offer', label: v.counterOf ? 'Send counter' : 'Send offer', hotkey: '1', primary: true,
         on: () => (v.counterOf ? c.actions.counter(v.counterOf, v.give, v.get) : c.actions.offer(prof.handle, v.give, v.get)),
       }) : null]),
     ]),
-    hints: ['Tab Pick cards', ready ? `1 ${v.counterOf ? 'Send counter' : 'Send offer'}` : '', 'esc Back'],
+    hints: ['Tab Pick cards', ready ? `1 ${v.counterOf ? 'Send counter' : 'Send offer'}` : '', duel ? 'c Challenge' : '', 'esc Back'],
   }
+}
+
+/** A Challenge button goes wherever another player shows, on a server with challenges, never for yourself. */
+export function canChallenge(c: Ctx, handle: string): boolean {
+  const a = c.state.account
+  return a.world === 'online' && !a.readOnly && hasFeature(a, 'challenge') && !!c.state.me
+    && c.state.me.player.handle.toLowerCase() !== handle.toLowerCase()
 }
 
 // ---------- a gift just wrapped ----------

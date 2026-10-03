@@ -2,18 +2,23 @@
 // fields, a card's public face, an open gift's card, a public drop's counts and the Mythics list
 // as handle plus name. Each returns null where the page should say "not here", whether the thing
 // never existed, belongs to nobody any more or simply is not open.
-import type { ProfileResponse } from '../../plugin/hooks/core/api.ts'
+import type { BoardName, BoardPeriod, ListingView, MarketRequest, MarketResponse, ProfileResponse, RankingsResponse } from '../../plugin/hooks/core/api.ts'
 import type { BattleCard, DropReward } from '../../plugin/hooks/core/types.ts'
 import { normalizeDropCode } from '../../plugin/hooks/core/drops.ts'
 import { DROP_CODE_RE, GIFT_CODE_RE, HANDLE_RE, ID_RE, parseDropReward } from '../../plugin/hooks/core/schemas.ts'
 import { utcDay } from '../../plugin/hooks/core/world.ts'
+import type { PlayerCtx } from './app.ts'
 import type { Db } from './db.ts'
+import { teamOf } from './game/ctx.ts'
+import { browse, listingExpiry, listingsOf } from './game/market.ts'
 import { cardsByIds, publicCard, queryCards } from './game/mint.ts'
 import { profileOf } from './game/social-board.ts'
-import type { DropRow, GiftRow } from './schema.ts'
+import { rankings } from './game/stats.ts'
+import type { DropRow, GiftRow, PlayerRow } from './schema.ts'
 
 export const MYTHICS_SHOWN = 12
 export const FOR_TRADE_SHOWN = 24
+export const LISTINGS_SHOWN = 12
 
 /** The Mythics found, newest first: name and the finder's handle while it is still theirs, nothing else (SPEC 18, 20.8). */
 export type MythicsShown = {
@@ -84,4 +89,56 @@ export async function publicDrop(db: Db, code: string, now: number): Promise<Dro
   }
   const gone = d.supply !== null && d.redeemed >= d.supply
   return { code: norm, reward, redeemed: d.redeemed, supply: d.supply, bound: d.bound === 1, ended: now >= d.ends_at || gone }
+}
+
+// ---- the boards and the market -------------------------------------------------------------------
+
+/** Nobody: the boards as a visitor sees them, with no row of their own (no player has an empty id). */
+const VISITOR = { id: '', handle: '' } as PlayerRow
+
+/** One board, top 50, by the numbers of the last UTC midnight; hidden players are never on it (SPEC 8, 20). */
+export const board = (db: Db, name: BoardName, period: BoardPeriod, now: number): Promise<RankingsResponse> =>
+  rankings(db, VISITOR, name, period, now)
+
+/** The lead creature of each handle's saved team (public on their profile already), for the podium. */
+export async function leadsOf(db: Db, handles: readonly string[]): Promise<Map<string, BattleCard>> {
+  const out = new Map<string, BattleCard>()
+  if (!handles.length) return out
+  const rows = await db.all<Pick<PlayerRow, 'id' | 'handle' | 'team'>>(
+    `SELECT id, handle, team FROM players WHERE handle IN (${handles.map(() => '?').join(', ')})`, ...handles,
+  )
+  const lead = new Map(rows.flatMap(r => {
+    const id = teamOf(r)[0]
+    return id ? [[id, r] as const] : []
+  }))
+  const cards = await cardsByIds(db, [...lead.keys()])
+  for (const [id, r] of lead) {
+    const c = cards.get(id)
+    if (c && c.owner === r.id) out.set(r.handle, publicCard(c.card))
+  }
+  return out
+}
+
+const NEWEST_CURSOR = /^\d{4}-\d{2}-\d{2}\.[a-z2-7]{26}$/
+const PRICE_CURSOR = /^(0|[1-9]\d{0,6})\.[a-z2-7]{26}$/
+
+/**
+ * One page of the open market, exactly as GET /v1/market answers anyone: public cards, the seller's handle as
+ * listed, the terms and the day. A cursor that does not fit the sort starts from the top instead of failing.
+ */
+export function marketPage(db: Db, now: number, q: MarketRequest): Promise<MarketResponse> {
+  const fits = q.after !== undefined && ((q.sort ?? 'newest') === 'newest' ? NEWEST_CURSOR : PRICE_CURSOR).test(q.after)
+  const { after: _, ...rest } = q
+  // browse reads only the database and the clock
+  return browse({ db, now } as unknown as PlayerCtx, fits ? q : rest)
+}
+
+/** A player's open listings by their current handle, newest first; the market shows them to anyone already. */
+export async function listingsByHandle(db: Db, handle: string, now: number): Promise<ListingView[]> {
+  if (!HANDLE_RE.test(handle)) return []
+  const p = await db.get<{ id: string }>('SELECT id FROM players WHERE handle = ?', handle)
+  if (!p) return []
+  // one past its lapse day waits only for the sweep to send it home: it is not for sale
+  const today = utcDay(now)
+  return (await listingsOf(db, p.id)).filter(l => listingExpiry(Date.parse(`${l.day}T00:00:00Z`)) > today).slice(0, LISTINGS_SHOWN)
 }

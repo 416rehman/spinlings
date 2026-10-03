@@ -9,6 +9,8 @@ import type { World } from './types.ts'
 export type SpinCommand =
   | { kind: 'open' }
   | { kind: 'battle' }
+  | { kind: 'challenge'; handle: string }
+  | { kind: 'market' }
   | { kind: 'pack' }
   | { kind: 'team'; refs: string[] }
   | { kind: 'trade'; handle: string }
@@ -31,7 +33,9 @@ export type SpinCommand =
 
 export const USAGE = [
   '/spin                   your team, cards, album and trades',
-  '/spin battle            challenge a duel',
+  '/spin battle            start a duel',
+  '/spin duel <handle>     challenge one player\'s team (friendly)',
+  '/spin market            buy and sell cards',
   '/spin pack              open a waiting pack',
   '/spin team a b c        set your team (card names or ids)',
   '/spin trade <handle>    see a player\'s cards for trade',
@@ -45,7 +49,7 @@ export const USAGE = [
   '/spin motion on|off     animations',
   '/spin sound on|off      little chimes',
   '/spin privacy           what Spinlings sends, and your data',
-  '/spin leaderboard [on|off]   the top players; join or leave it',
+  '/spin leaderboard [on|off]   the boards; show or hide yourself on them',
   '/spin handle [new]      your handle; draw a new one once a week',
   '/spin server [url|default]   play on a community server',
   '/spin version           this mod\'s version, and whether an update is out',
@@ -61,7 +65,12 @@ export function parseCommand(args: string): SpinCommand {
   const arg = (rest[0] ?? '').toLowerCase()
   switch ((sub ?? '').toLowerCase()) {
     case '': return { kind: 'open' }
-    case 'battle': case 'duel': return { kind: 'battle' }
+    case 'battle': return { kind: 'battle' }
+    case 'duel':
+      if (rest.length === 0) return { kind: 'battle' }
+      if (rest.length !== 1 || !HANDLE_RE.test(rest[0]!)) return help('Name one player to challenge, like quiet-otter-42.')
+      return { kind: 'challenge', handle: rest[0]! }
+    case 'market': return { kind: 'market' }
     case 'pack': case 'packs': return { kind: 'pack' }
     case 'team':
       if (rest.length < 1 || rest.length > 3) return help('Name one to three cards.')

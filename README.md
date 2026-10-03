@@ -137,12 +137,14 @@ Hitting a rate limit is neither rewarded nor punished: packs keep charging as us
 
 ### Commands
 
-There is one command, `/spin`. On its own it opens the pane, with four tabs (Team, Cards, Album, Trade) on hotkeys 1 to 4.
+There is one command, `/spin`. On its own it opens the pane, with five tabs (Team, Cards, Album, Market, Trade) on hotkeys 1 to 5; offline there is no Market, so Trade is 4. Every card, pack and board row in it is a button: press it (or Tab to it) to open it.
 
 | Command | What it does |
 |---|---|
 | `/spin` | Open the pane |
-| `/spin battle` | Challenge a duel now (at most one every 2 minutes) |
+| `/spin battle` | Start a duel now (at most one every 2 minutes) |
+| `/spin duel <handle>` | Challenge one player's saved team: a friendly duel that moves no rating |
+| `/spin market` | Open the Market: buy cards for sparks or a card, and see your own listings |
 | `/spin pack` | Open the pack view |
 | `/spin team <a> <b> <c>` | Set your team from one to three cards, by name or id; slot order is play order |
 | `/spin trade <handle>` | Open a player's profile to make an offer |
@@ -151,7 +153,7 @@ There is one command, `/spin`. On its own it opens the pane, with four tabs (Tea
 | `/spin redeem <code>` | Redeem a drop code, such as `FOUNDERS` |
 | `/spin world online\|offline` | Switch worlds; each keeps its own collection |
 | `/spin devices` | Your devices, and saving a passkey to play on another computer |
-| `/spin leaderboard [on\|off]` | See the top players, and leave or rejoin the leaderboards (every player is on them unless they leave) |
+| `/spin leaderboard [on\|off]` | Open the boards (rating, players beaten, duel wins, species, Mythics, sales; all time or this season), or hide or show yourself on them (every player is on them unless they hide) |
 | `/spin handle [new]` | Show your handle, or draw a new one (once a week) |
 | `/spin quiet [on\|off]` | Silence everything |
 | `/spin sound on\|off` | Tiny chimes for big moments (off by default) |

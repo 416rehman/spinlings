@@ -130,7 +130,7 @@ describe('site pages', () => {
     const card = await mythicFor(s, a, 'aa11')
     const code = await gift(s, a, (await looseCard(s, a)).id)
     await drop(s)
-    const scripted = ['/', `/u/${a.me.player.handle}`, `/c/${card.id}`, `/g/${code}`, '/d/founders', '/w/20261002-dusk-abcdefgh']
+    const scripted = ['/', '/boards', '/market', `/u/${a.me.player.handle}`, `/c/${card.id}`, `/g/${code}`, '/d/founders', '/w/20261002-dusk-abcdefgh']
     const quiet = ['/odds', '/privacy']
     for (const path of [...scripted, ...quiet]) {
       const p = await get(s, path)
@@ -187,7 +187,7 @@ describe('site pages', () => {
     const add = ticket((await a.call('passkeyStart', {})).url)
     const signin = ticket((await s.call('authStart', {})).url)
     const pages: [string, number][] = [
-      ['/', 200], ['/odds', 200], ['/privacy', 200], [`/u/${a.me.player.handle}`, 200], [`/c/${card.id}`, 200], [`/g/${code}`, 200],
+      ['/', 200], ['/odds', 200], ['/privacy', 200], ['/boards', 200], ['/market', 200], [`/u/${a.me.player.handle}`, 200], [`/c/${card.id}`, 200], [`/g/${code}`, 200],
       ['/d/founders', 200], ['/w/20261002-dusk-abcdefgh', 200], [`/passkey/add?t=${add}`, 200], [`/passkey/signin?t=${signin}`, 200],
       ['/u/nobody-here-11', 404], ['/w/not-a-seed', 404],
     ]
@@ -240,7 +240,8 @@ describe('site pages', () => {
     const add = ticket((await a.call('passkeyStart', {})).url)
     const signin = ticket((await s.call('authStart', {})).url)
     const paths = [
-      '/', '/odds', '/privacy', `/u/${a.me.player.handle}`, `/c/${card.id}`, `/c/${card.id}.png`, `/g/${code}`, '/d/founders',
+      '/', '/odds', '/privacy', '/boards', '/boards?board=sales&period=season', '/market', '/market?family=haiku&sort=cheapest',
+      `/u/${a.me.player.handle}`, `/c/${card.id}`, `/c/${card.id}.png`, `/g/${code}`, '/d/founders',
       `/passkey/add?t=${add}`, `/passkey/signin?t=${signin}`, '/static/passkey.js', `/static/${SITE_ASSETS.site}`,
       '/w/20261002-night-abcdefgh', '/w/20261002-night-abcdefgh.png', '/og/meadow-20261002.png',
     ]
@@ -256,7 +257,7 @@ describe('site pages', () => {
 
   it('ignore credentials entirely: the same page with or without a session, and never a cookie', async () => {
     const { s, a } = await world()
-    for (const path of ['/', `/u/${a.me.player.handle}`, `/c/${a.me.player.team[0]}`]) {
+    for (const path of ['/', '/boards', '/market', `/u/${a.me.player.handle}`, `/c/${a.me.player.team[0]}`]) {
       const anon = await get(s, path)
       const signed = await get(s, path, { token: a.token })
       assert.equal(signed.html, anon.html, path)

@@ -37,7 +37,43 @@ export const MARK = {
   /** the welcome and other celebrations (SPEC 34.3) */
   sparkle: '✦',
   bullet: '·',
+  /** sparks, the game's coin: a price chip, a balance */
+  spark: '✧',
+  /** a swap: the card a listing wants in return */
+  swap: '⇄',
+  /** a duel won; a player beaten (crossed swords, as on the site) */
+  win: '✓',
+  beaten: '⚔',
+  /** a catch, a species, a sale */
+  caught: '✺',
+  species: '❀',
+  rank: '✶',
+  /** the collection is not backed up yet (no passkey) */
+  unsaved: '◌',
+  /** a small square: the world in play, a league's colour */
+  dot: '▪',
+  away: '▫',
 } as const
+
+/**
+ * The icons of the boards and the stat tiles, each with its colour: one glyph per number, the same on a profile, a
+ * tile and a board, so a number reads at a glance without its word.
+ */
+export const STAT = {
+  rating: { mark: MARK.rank, color: '#f2b33d' },
+  duelWins: { mark: MARK.win, color: '#7cc47f' },
+  beaten: { mark: MARK.beaten, color: '#c9cfe0' },
+  catches: { mark: MARK.caught, color: '#5fbf8f' },
+  species: { mark: MARK.species, color: '#a874e8' },
+  firsts: { mark: MARK.first, color: '#f2b33d' },
+  mythics: { mark: MARK.mythic, color: '#ff7ac6' },
+  sales: { mark: MARK.spark, color: '#5b8def' },
+} as const
+
+/** League colours, Pebble to Star, for the badge on a board row and a profile. */
+export const LEAGUE_COLOR: Record<'Pebble' | 'Brook' | 'Grove' | 'Peak' | 'Star', string> = {
+  Pebble: '#9aa3ad', Brook: '#4f8ff0', Grove: '#5fbf8f', Peak: '#b06ef3', Star: '#f2b33d',
+}
 
 /** Ink for states, muted so rarity and family colours stay the loudest thing on a card. */
 export const INK = {

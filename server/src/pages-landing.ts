@@ -450,7 +450,8 @@ function market(d: LandingData): Raw {
 <div class="edgebox">${raw(marketTopSvg())}</div>
 <div class="wrap">
 <h2 id="trade-h" tabindex="-1">${pixelHeading('Swap, gift and trade.')}</h2>
-<p class="body">Mark cards for trade, make offers, or wrap one up and send the link. When nobody's around, the Wandering Trader keeps a stall.</p>
+<p class="body">Put cards up on the market, make offers, or wrap one up and send the link. When nobody's around, the Wandering Trader keeps a stall.</p>
+<p class="body"><a class="tolink" href="/market">Browse the market</a> <a class="tolink" href="/boards">See the leaderboards</a></p>
 </div>
 <div class="overhead">${raw(LANTERN_SYMBOL)}
 <div class="string">${raw(lanternString(shown.length))}</div>
@@ -632,6 +633,9 @@ main>section,main>div,.foot,.place{overflow-x:clip}
 .dark{color:#f3f1e7}
 .dark .soft{color:#cfdccb}
 .body{margin-top:var(--s3);font-size:1.0625rem}
+.tolink{display:inline-flex;align-items:center;min-height:44px;margin-right:var(--s3);font-weight:700}
+.tolink::after{content:"";width:6px;height:10px;margin-left:8px;background:currentColor;clip-path:polygon(0 0,33% 0,33% 20%,66% 20%,66% 40%,100% 40%,100% 60%,66% 60%,66% 80%,33% 80%,33% 100%,0 100%)}
+.tolink:hover::after{translate:3px 0}
 main section h2{color:inherit}
 .ramp{position:relative}
 

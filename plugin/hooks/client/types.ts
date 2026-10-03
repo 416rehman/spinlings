@@ -5,15 +5,18 @@ import type { Elements, RenderElement } from 'claude-code'
 import type { ApiErrorCode, ApiOp, ApiRequest, ApiResponse, SpinlingsApi } from '../core/api.ts'
 import type { Family } from '../core/types.ts'
 import type {
-  SpinAccount, SpinBattle, SpinBattleLog, SpinHoldAction, SpinMe, SpinMoment, SpinPane, SpinPrefs, SpinPresence,
-  SpinRarity, SpinReveal, SpinSent, SpinSignals, SpinSocial, SpinTab, SpinView, SpinWorld, SpinCard,
+  SpinAccount, SpinBattle, SpinBattleLog, SpinBoardName, SpinBoardPeriod, SpinHoldAction, SpinMarketQuery, SpinMarketWant,
+  SpinMe, SpinMoment, SpinPane, SpinPrefs, SpinPresence, SpinRarity, SpinReveal, SpinSent, SpinSignals, SpinSocial, SpinTab,
+  SpinView, SpinWorld, SpinCard,
 } from '../../types/index.d.ts'
 
 export type {
-  SpinAccount as Account, SpinBattle as Battle, SpinCatch as Catch, SpinHold as Hold,
-  SpinHoldAction as HoldAction, SpinLink as Link, SpinMoment as Moment, SpinOutcome as Outcome, SpinPane as PaneUi,
-  SpinPrefs as Prefs, SpinPresence as Presence, SpinReveal as Reveal, SpinSent as Sent, SpinSignals as Signals,
-  SpinSignIn as SignIn, SpinSocial as Social, SpinTab as Tab, SpinView as View, SpinWorld as World,
+  SpinAccount as Account, SpinBattle as Battle, SpinBoardName as BoardName, SpinBoardPeriod as BoardPeriod,
+  SpinCatch as Catch, SpinHold as Hold, SpinHoldAction as HoldAction, SpinLink as Link, SpinListing as Listing,
+  SpinMarketQuery as MarketQuery, SpinMarketWant as MarketWant, SpinMoment as Moment, SpinOutcome as Outcome,
+  SpinPane as PaneUi, SpinPlayerStats as PlayerStats, SpinPrefs as Prefs, SpinPresence as Presence,
+  SpinRankRow as RankRow, SpinRankings as Rankings, SpinReveal as Reveal, SpinSale as Sale, SpinSent as Sent,
+  SpinSignals as Signals, SpinSignIn as SignIn, SpinSocial as Social, SpinTab as Tab, SpinView as View, SpinWorld as World,
 } from '../../types/index.d.ts'
 
 // ---------- backends ----------
@@ -188,6 +191,22 @@ export type Actions = {
   // battles
   /** a duel now (`/spin battle`), or a revenge on a handle from a defense notice */
   duel(revenge?: string): Promise<void>
+  /** a friendly duel against one player's saved team, picked by handle (`/spin duel <handle>`, Challenge buttons) */
+  challenge(handle: string): Promise<void>
+
+  // the market and the boards (online only)
+  /** reads the market for the pane's filters; `more` appends the next page */
+  market(more?: boolean): Promise<void>
+  /** lists one of your cards: whole sparks (0: a card only) and the card it asks for, if any */
+  list(cardId: string, price: number, want: SpinMarketWant | null): Promise<void>
+  /** buys a listing, handing over `cardId` when the listing wants a card */
+  buy(listingId: string, cardId: string | null): Promise<void>
+  /** reads the recent sale prices of one species (the sell view's hints), leaving the Market tab as it is */
+  prices(species: string): Promise<void>
+  /** reads one leaderboard */
+  rankings(board: SpinBoardName, period: SpinBoardPeriod): Promise<void>
+  /** the market's filter chips: changes them and reads the market again */
+  marketFilter(change: Partial<SpinMarketQuery & { mine: boolean }>): Promise<void>
 
   // trading (online only; offline shows the one-line "needs the online world")
   profile(handle: string): Promise<void>

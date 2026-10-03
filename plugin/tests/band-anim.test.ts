@@ -17,7 +17,7 @@ import {
   fightersAt, foreshadowOf, lookAt, outcomeStage, restLook, roundPlan, spriteOf, streakWords,
 } from '../hooks/client/battleview.ts'
 import { INITIAL } from '../hooks/client/game.ts'
-import { encounterDue, nextCheckIn } from '../hooks/client/session.ts'
+import { encounterDue, nextCheckIn, workedAfter } from '../hooks/client/session.ts'
 import type { Battle, Moment, Outcome } from '../hooks/client/types.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12, 0, 0)
@@ -142,6 +142,8 @@ test('the battle\'s words: the rustle keeps the secret, the reveal names it, the
   const rustle = battleWords({ ...b, phase: 'rustle' }, state)
   expect(rustle.header).not.toMatch(/soft-otter/)
   expect(rustle.banner.map(s => s.text).join('')).toBe('soft-otter-42 wants to battle!')
+  // a challenge you started says so: they never asked
+  expect(battleWords({ ...b, phase: 'rustle', friendly: true }, state).banner.map(s => s.text).join('')).toBe('You challenged soft-otter-42!')
   expect(battleWords({ ...b, phase: 'reveal' }, state).banner.map(s => s.text).join('')).toMatch(/^soft-otter-42 sent out .+!$/)
   const log = simulateBattle(b.setup, [])
   const r = log.rounds.findIndex(x => x.actions.some(a => a.side === 'a' && a.move === 'special')) + 1
@@ -184,18 +186,30 @@ test('ceremony stages wait on their beats, and motion off skips straight to the 
   expect(end.flat().filter(c => c !== T).every(c => c === end.flat().find(x => x !== T))).toBe(true)
 })
 
-test('encounters: beginner\'s luck at 20 s, then a 30% roll every 15 s, never inside the server\'s spacing', () => {
-  const base = { turnStartedAt: NOW, nextWildAt: 0, nextDuelAt: 0, lastDuelAt: 0, duelRoll: 0.9 }
-  expect(nextCheckIn(NOW, NOW)).toBe(20_000)
-  expect(nextCheckIn(NOW, NOW + 25_000)).toBe(10_000)
-  expect(encounterDue({ ...base, now: NOW + 19_999, firstEver: true, roll: 0.99 })).toBeNull()
-  expect(encounterDue({ ...base, now: NOW + 20_000, firstEver: true, roll: 0.99 })).toBe('wild')
-  expect(encounterDue({ ...base, now: NOW + 20_000, firstEver: false, roll: 0.31 })).toBeNull()
-  expect(encounterDue({ ...base, now: NOW + 20_000, firstEver: false, roll: 0.29 })).toBe('wild')
-  expect(encounterDue({ ...base, now: NOW + 20_000, firstEver: false, roll: 0.1, nextWildAt: NOW + 60_000 })).toBeNull()
-  expect(encounterDue({ ...base, now: NOW + 20_000, firstEver: false, roll: 0.1, duelRoll: 0.1 })).toBe('duel')
-  expect(encounterDue({ ...base, now: NOW + 20_000, firstEver: false, roll: 0.1, duelRoll: 0.1, lastDuelAt: NOW })).toBe('wild')
-  expect(encounterDue({ ...base, now: NOW + 20_000, firstEver: true, roll: 0.1, duelRoll: 0.1 })).toBe('wild')
+test('encounters: a beginner meets wild ones from 20 s of work, then a 30% roll every 15 s, never inside the server\'s spacing', () => {
+  const base = { now: NOW, nextWildAt: 0, nextDuelAt: 0, lastDuelAt: 0, duelRoll: 0.9 }
+  expect(nextCheckIn(0)).toBe(20_000)
+  expect(nextCheckIn(25_000)).toBe(10_000)
+  expect(nextCheckIn(35_000)).toBe(0)
+  expect(encounterDue({ ...base, worked: 19_999, beginner: true, roll: 0.99 })).toBeNull()
+  expect(encounterDue({ ...base, worked: 20_000, beginner: true, roll: 0.99 })).toBe('wild')
+  expect(encounterDue({ ...base, worked: 20_000, beginner: false, roll: 0.31 })).toBeNull()
+  expect(encounterDue({ ...base, worked: 20_000, beginner: false, roll: 0.29 })).toBe('wild')
+  expect(encounterDue({ ...base, worked: 20_000, beginner: false, roll: 0.1, nextWildAt: NOW + 60_000 })).toBeNull()
+  expect(encounterDue({ ...base, worked: 20_000, beginner: false, roll: 0.1, duelRoll: 0.1 })).toBe('duel')
+  expect(encounterDue({ ...base, worked: 20_000, beginner: false, roll: 0.1, duelRoll: 0.1, lastDuelAt: NOW })).toBe('wild')
+  // a beginner never duels, and never meets one inside the server's wild spacing
+  expect(encounterDue({ ...base, worked: 20_000, beginner: true, roll: 0.1, duelRoll: 0.1 })).toBe('wild')
+  expect(encounterDue({ ...base, worked: 80_000, beginner: true, roll: 0.99, nextWildAt: NOW + 1 })).toBeNull()
+})
+
+test('working time adds up across turns: three 8-second turns reach the 20-second check', () => {
+  let worked = 0
+  for (let i = 0; i < 3; i++) worked = workedAfter(worked, NOW + i * 60_000, NOW + i * 60_000 + 8_000)
+  expect(worked).toBe(24_000)
+  expect(encounterDue({ now: NOW, worked, beginner: true, roll: 0.99, duelRoll: 0.9, nextWildAt: 0, nextDuelAt: 0, lastDuelAt: 0 })).toBe('wild')
+  expect(workedAfter(5_000, null, NOW)).toBe(5_000)
+  expect(workedAfter(0, NOW + 10, NOW)).toBe(0)
 })
 
 test('easing: reveals ease out, exits ease in', () => {

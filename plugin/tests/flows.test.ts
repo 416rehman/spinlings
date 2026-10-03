@@ -5,7 +5,7 @@
 // under way stops polling once play moves to another world or server (28, 29, 33), and on the desktop, where a copy
 // cannot reach the clipboard yet, the text to copy shows instead (35).
 import { expect, mock, test } from 'claude-code/testing'
-import { NOW, ORIGIN, OTHER_TOKEN, TOKEN, fakeServer } from './fixtures.ts'
+import { NEXT, NOW, ORIGIN, OTHER_TOKEN, TOKEN, fakeServer } from './fixtures.ts'
 import { BAND, PANE, RUN, SESSION, engine, settle, textOf, walk } from './engine.ts'
 import type { Engine } from './engine.ts'
 
@@ -47,10 +47,10 @@ test('every /spin subcommand answers {} and does what it says', LONG, async ($, 
   expect(sent(w)).toContain('GET /v1/me/devices')
   await run('privacy')
   await run('leaderboard')
-  expect(sent(w)).toContain('GET /v1/leaderboard')
+  expect(w.requests.some(r => r.method === 'GET' && r.url === `${ORIGIN}/v1/leaderboards?board=rating&period=all`)).toBe(true)
   await run('leaderboard on')
   expect(bodyOf(w, 'PUT /v1/me/leaderboard')).toEqual({ optIn: true })
-  expect(w.logs.at(-1)).toMatch(/on the leaderboard: handle, league and rating only/)
+  expect(w.logs.at(-1)).toMatch(/You are on the boards/)
   await run('handle')
   expect(w.logs.at(-1)).toMatch(/^You are brave-wren-41/)
   await run('handle new')
@@ -89,13 +89,13 @@ test('adding a passkey: the page shows on the server\'s own origin, then the pol
   await ui.redraw()
   const link = walk(await ui.drawn()).find(n => n.type === 'Link')
   expect(link?.props?.href).toBe(`${ORIGIN}/passkey/add?t=ticket-1`)
-  expect(textOf(await ui.drawn())).toMatch(/Waiting for the passkey page/)
+  expect(textOf(await ui.drawn())).toMatch(/The page works for 10 min more/)
   w.server.poll = 'added'
   await clock.advance(2000)
   await settle(clock)
   expect(sent(w)).toContain('GET /v1/auth/poll/poll-add')
   await ui.redraw()
-  expect(textOf(await ui.drawn())).toMatch(/Passkey saved ✓/)
+  expect(textOf(await ui.drawn())).toMatch(/✓ Saved: your collection is backed up/)
   expect((w.store.get(`server:${ORIGIN}:meta`) as { passkeyDay: string }).passkeyDay).toBe('saved')
   await ui.unmount()
 })
@@ -156,16 +156,16 @@ test('chimes play only with sound on, for rare and better, and never while quiet
 
 test('a newer mod is announced in the band once, and stays gone once acknowledged', LONG, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
-  engine(on, fakeServer({ latestClient: '0.2.0' }))
+  engine(on, fakeServer({ latestClient: NEXT }))
   await $.session.start(SESSION)
   await settle(clock)
   let band = await $.ui.mount(BAND(80))
   await band.press({ key: 'dismiss-welcome' })
   await settle(clock)
   await band.redraw()
-  expect(textOf(await band.drawn())).toMatch(/Spinlings 0\.2\.0 is out/)
+  expect(textOf(await band.drawn())).toContain(`Spinlings ${NEXT} is out`)
   expect(textOf(await band.drawn())).toMatch(/claude plugin update spinlings@spinlings/)
-  await band.press({ key: 'act-update:0.2.0' })
+  await band.press({ key: `act-update:${NEXT}` })
   await settle(clock)
   await band.unmount()
   await $.session.start(SESSION)
@@ -309,7 +309,7 @@ test('a passkey sign-in under way stops when play moves: no poll goes out offlin
   expect(polls().length).toBe(1)
   expect(w.store.get(`server:${ORIGIN}:session`)).toBe(TOKEN)
   let pane = await $.ui.mount(PANE(80))
-  expect(textOf(await pane.drawn())).not.toMatch(/Waiting for the passkey page|Signed in ✓/)
+  expect(textOf(await pane.drawn())).not.toMatch(/The page works for|Signed in: this computer/)
   await pane.unmount()
 
   // online again, a new sign-in, then /spin server: its poll id goes to no other origin
@@ -326,7 +326,7 @@ test('a passkey sign-in under way stops when play moves: no poll goes out offlin
   expect(polls().length).toBe(before)
   expect(w.requests.some(r => r.url.startsWith(COMMUNITY) && r.url.includes('/auth/poll/'))).toBe(false)
   pane = await $.ui.mount(PANE(80))
-  expect(textOf(await pane.drawn())).not.toMatch(/Waiting for the passkey page/)
+  expect(textOf(await pane.drawn())).not.toMatch(/The page works for/)
   await pane.unmount()
 })
 

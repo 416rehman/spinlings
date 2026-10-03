@@ -10,7 +10,7 @@ import { albumCount, albumEntries, craftChoices, cycle, fusionLog, parentsLine, 
 import type { AlbumEntry } from '../client/viewmodels.ts'
 import { formArt } from './card.tsx'
 import type { Ctx, Shown } from './pane-kit.tsx'
-import { CHIP, TILE, actions, btn, cardRow, column, formMini, grid, heading, line, para } from './pane-kit.tsx'
+import { CHIP, TILE, actions, btn, cardRow, column, formMini, grid, heading, line, para, tabsHint } from './pane-kit.tsx'
 import { ECONOMY } from '../core/economy.ts'
 import { FAMILY_COLOR, FAMILY_MARK, RARITY_COLOR, SPACE } from './tokens.ts'
 
@@ -24,7 +24,7 @@ function entryChip(c: Ctx, e: AlbumEntry): RenderElement {
   return (
     <Box key={`album-${s.id}`} flexDirection="column" width={CHIP} flexShrink={0}>
       {formMini(c, `album-${s.id}`, s, e.seen)}
-      {btn(c, { key: `album-${s.id}-pick`, label: fit(name, CHIP), dim: !e.seen, on: () => c.actions.push({ kind: 'species', speciesId: s.id }) })}
+      {btn(c, { key: `album-${s.id}-pick`, label: fit(name, CHIP), dim: !e.seen, lit: true, on: () => c.actions.push({ kind: 'species', speciesId: s.id }) })}
       <Text dimColor wrap="truncate-end" {...(s.legendary && e.seen ? { color: RARITY_COLOR.legendary } : {})}>{fit(note || ' ', CHIP)}</Text>
     </Box>
   )
@@ -56,7 +56,7 @@ export function albumScreen(c: Ctx): Shown {
           : column(c, shown.map(x => cardRow(c, x, { key: `log-${x.id}`, note: parentsLine(x), on: () => c.actions.push({ kind: 'card', cardId: x.id }) })), SPACE.none),
         log.length > shown.length ? line(c, `and ${log.length - shown.length} more in Cards`, { dim: true }) : null,
       ]),
-      hints: ['1-4 Tabs', 'n Next family', 'p Previous', log.length > 0 ? 'Tab Pick a hybrid' : '', 'esc Close'],
+      hints: [tabsHint(c.state), 'n Next family', 'p Previous', log.length > 0 ? 'Tab Pick a hybrid' : '', 'esc Close'],
     }
   }
   const entries = albumEntries(season, page, seen, c.state.cards, me?.player.wishlist ?? [])
@@ -72,7 +72,7 @@ export function albumScreen(c: Ctx): Shown {
       grid(c, entries.map(e => entryChip(c, e)), perRow(c.columns, CHIP)),
       inFamily === 0 ? para(c, 'Silhouettes are species you have not met yet. Packs and wild encounters fill them in.', { dim: true }) : null,
     ]),
-    hints: ['1-4 Tabs', 'n Next family', 'l Fusion Log', 'Tab Pick a species', 'esc Close'],
+    hints: [tabsHint(c.state), 'n Next family', 'l Fusion Log', 'Tab Pick a species', 'esc Close'],
   }
 }
 
@@ -107,9 +107,9 @@ export function speciesScreen(c: Ctx, speciesId: string): Shown {
       line(c, `Album › ${s.legendary || seen ? safe(s.names[s.legendary ? 2 : 0], 24) : '???'}`, { dim: true }),
       stages(c, s, seen),
       line(c, names, { bold: true, ...(s.legendary ? { color: RARITY_COLOR.legendary } : {}) }),
-      <c.el.Text wrap="truncate-end">
+      <c.el.Text wrap="wrap">
         <c.el.Text color={FAMILY_COLOR[s.family]}>{FAMILY_MARK[s.family]}</c.el.Text>
-        <c.el.Text dimColor>{fit(` ${dots(FAMILY_INFO[s.family].name, s.legendary && 'Legendary · Final form', seen ? 'seen' : 'not met yet', owned > 0 && `you have ${owned}`)}`, c.columns - 1)}</c.el.Text>
+        <c.el.Text dimColor>{` ${dots(FAMILY_INFO[s.family].name, s.legendary && 'Legendary · Final form', seen ? 'seen' : 'not met yet', owned > 0 && `you have ${owned}`)}`}</c.el.Text>
       </c.el.Text>,
       choices.length === 0
         ? line(c, 'Crafting covers the current season only.', { dim: true })

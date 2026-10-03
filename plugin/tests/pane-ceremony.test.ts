@@ -13,6 +13,7 @@ import {
   backOf, eggPixels, flipStage, packagePixels, presentPixels, singleMs, svgFace, svgPackage, svgSingle, svgTurn,
 } from '../hooks/ui/ceremony-art.tsx'
 import { pane } from '../hooks/ui/pane.tsx'
+import { cardArt } from './engine.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12, 0, 0)
 const SURFACES = ['terminal', 'desktop'] as const
@@ -68,24 +69,24 @@ test('the pack: o opens, f flips, the strip glows, a summary with Set team and D
       const ui = await $.ui.mount(MOUNT(columns, surface))
       expect((await ui.find({ key: 'flip' }))?.props).toMatchObject({ label: 'Open', hotkey: 'o', variant: 'primary' })
       expect(await ui.find({ text: /Opus pack/ })).toBeDefined()
-      expect((await ui.findAll({ type: art })).length).toBe(1)
+      expect(cardArt(await ui.findAll({ type: art })).length).toBe(1)
       // once the tear has played the five backs are out, glowing before the first one turns
       p.state = { ...p.state, reveal: { ...p.state.reveal!, torn: true } }
       await ui.redraw()
-      expect((await ui.findAll({ type: art })).length).toBe(6)
+      expect(cardArt(await ui.findAll({ type: art })).length).toBe(6)
       expect((await ui.find({ key: 'flip' }))?.props).toMatchObject({ label: 'Flip next', hotkey: 'f' })
       await press(ui, 'flip')
       expect((await ui.find({ key: 'flip' }))?.props).toMatchObject({ label: 'Flip next', hotkey: 'f' })
       expect((await ui.find({ key: 'flip' }))?.props.variant).toBeUndefined()
       // five slots and the stage; the desktop's gene bar is one more Svg
-      expect((await ui.findAll({ type: art })).length).toBe(surface === 'terminal' ? 6 : 7)
+      expect(cardArt(await ui.findAll({ type: art })).length).toBe(surface === 'terminal' ? 6 : 7)
       expect(await ui.find({ text: /1 of 5/ })).toBeDefined()
       for (let i = 1; i < 4; i++) await press(ui, 'flip')
       expect(await ui.find({ text: /^LEGENDARY!$/ })).toBeDefined()
       expect(await ui.find({ text: /FIRST IN THE WORLD|NEW/ })).toBeDefined()
       await press(ui, 'flip')
       expect(await ui.find({ text: /^5 cards · 2 new species · Album 14\/36 \(\+2\)$/ })).toBeDefined()
-      expect((await ui.findAll({ type: art })).length).toBe(5)
+      expect(cardArt(await ui.findAll({ type: art })).length).toBe(5)
       expect(await ui.find({ key: 'done' })).toBeDefined()
       await press(ui, 'set-team')
       const set = p.calls.find(c => c[0] === 'setTeam')!
@@ -119,7 +120,7 @@ test('an egg hatches into the full card: nobody has ever seen it', { timeoutMs: 
     expect(await ui.find({ text: /Two creatures become one/ })).toBeDefined()
     await press(ui, 'flip')
     expect(await ui.find({ text: /^Nobody has ever seen this creature\.$/ })).toBeDefined()
-    expect((await ui.findAll({ type: surface === 'terminal' ? 'Raster' : 'Svg' })).length).toBe(1)
+    expect(cardArt(await ui.findAll({ type: surface === 'terminal' ? 'Raster' : 'Svg' })).length).toBe(1)
     if (surface === 'terminal') expect(await ui.find({ key: 'cer-card-art' })).toBeDefined()
     await press(ui, 'share')
     expect(p.calls.at(-1)?.[0]).toBe('share')

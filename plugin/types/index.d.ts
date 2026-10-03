@@ -136,12 +136,27 @@ export type SpinPlayer = {
   nextWildAt: number
   nextDuelAt: number
   nextChargeAt: number
+  /** the player's own stats, all time (servers listing the `stats` feature) */
+  stats?: SpinPlayerStats
+}
+/** Public game numbers: counts only, never who or when (SPEC 8). */
+export type SpinPlayerStats = {
+  duelWins: number
+  duelLosses: number
+  playersBeaten: number
+  wildWins: number
+  catches: number
+  speciesCollected: number
+  firstFinds: number
+  mythicsFound: number
+  marketSales: number
 }
 export type SpinPackSource = 'welcome' | 'charge' | 'bought' | 'daily' | 'bonus' | 'streak' | 'season' | 'trader' | 'promo'
 export type SpinPack = { id: string; family: SpinFamily; source: SpinPackSource; day: string }
 export type SpinNoticeKind =
   | 'defense-win' | 'defense-loss' | 'evolved' | 'gift-claimed' | 'gift-returned' | 'offer-received' | 'offer-accepted'
-  | 'offer-declined' | 'offer-expired' | 'bonus-pack' | 'daily-pack' | 'streak-pack' | 'season-end' | 'new-device' | 'notice'
+  | 'offer-declined' | 'offer-expired' | 'bonus-pack' | 'daily-pack' | 'streak-pack' | 'season-end' | 'new-device'
+  | 'market-sold' | 'market-expired' | 'notice'
 export type SpinNotice = { id: string; day: string; kind: SpinNoticeKind; text: string; handle?: string }
 export type SpinOffer = {
   id: string
@@ -154,12 +169,28 @@ export type SpinOffer = {
   expiresAt: number
 }
 export type SpinGift = { code: string; card: SpinCard; createdAt: number; expiresAt: number; claimedBy?: string }
+/** The card a listing asks for besides (or instead of) sparks. */
+export type SpinMarketWant = { species?: string; family?: SpinFamily; rarity?: SpinRarity; shiny?: true; foil?: true }
+/** A market listing as anyone sees it: the public card, the seller's handle, the terms and the day only. */
+export type SpinListing = {
+  id: string
+  seller: string
+  card: SpinBattleCard
+  price: number
+  want?: SpinMarketWant
+  day: string
+  state: 'open' | 'sold' | 'cancelled' | 'expired'
+}
+/** One recent sale of a species: the day, the sparks and the card's kind; never who. */
+export type SpinSale = { day: string; price: number; rarity: SpinRarity; shiny: boolean; foil: boolean }
 export type SpinMe = {
   player: SpinPlayer
   packs: SpinPack[]
   notices: SpinNotice[]
   offers: { incoming: SpinOffer[]; outgoing: SpinOffer[] }
   gifts: SpinGift[]
+  /** the player's own open listings, newest first (servers listing the `market` feature) */
+  listings?: SpinListing[]
   now: number
 }
 export type SpinOpponent =
@@ -171,7 +202,9 @@ export type SpinBoard = {
   recent: { handle: string; card: SpinBattleCard }[]
   trader: SpinTraderDeal[]
 }
-export type SpinProfile = { handle: string; league: SpinLeague; team: SpinBattleCard[]; forTrade: SpinBattleCard[]; seenCount: number }
+export type SpinProfile = {
+  handle: string; league: SpinLeague; team: SpinBattleCard[]; forTrade: SpinBattleCard[]; seenCount: number; stats?: SpinPlayerStats
+}
 export type SpinTraderDeal = {
   id: string
   name: string
@@ -180,6 +213,20 @@ export type SpinTraderDeal = {
   used: boolean
 }
 export type SpinLeaderRow = { handle: string; league: SpinLeague; rating: number }
+export type SpinBoardName = 'rating' | 'beaten' | 'duelWins' | 'species' | 'mythics' | 'sales'
+export type SpinBoardPeriod = 'all' | 'season'
+export type SpinRankRow = { rank: number; handle: string; league: SpinLeague; value: number }
+export type SpinRankings = { board: SpinBoardName; period: SpinBoardPeriod; season: number; top: SpinRankRow[]; me?: SpinRankRow }
+export type SpinMarketSort = 'newest' | 'cheapest' | 'priciest'
+/** What the Market tab asks for: its filter chips, as GET /v1/market takes them. */
+export type SpinMarketQuery = {
+  family: SpinFamily | 'all'
+  rarity: SpinRarity | 'all'
+  kind: 'all' | 'sparks' | 'swap' | 'both'
+  sort: SpinMarketSort
+  shiny: boolean
+  foil: boolean
+}
 
 // ---------- game state ----------
 
@@ -218,6 +265,11 @@ export type SpinAccount = {
   signIn: SpinSignIn | null
   /** signed-in devices and saved passkeys, once asked */
   devices: { sessions: number; passkeys: number } | null
+  /**
+   * this online account has a passkey saved (this machine's record, or the devices count): the pane header's "not
+   * backed up" marker and the passkey offers stop for good. Absent reads as not known yet (no marker).
+   */
+  backedUp?: boolean
 }
 
 /** The shape of the session, never its content (SPEC 10). */
@@ -227,6 +279,11 @@ export type SpinSignals = {
   /** Claude's main turn is running */
   working: boolean
   turnStartedAt: number | null
+  /**
+   * Claude's working time (ms) toward the next encounter check, carried across turns so short turns add up; the
+   * running turn's own time counts on top, from turnStartedAt. Starts over when an encounter begins. Absent reads 0.
+   */
+  worked?: number
   /** subagents running now, counted only */
   cheering: number
   /** a rate-limit window is full: when it resets (ms), for the comfort line; else null */
@@ -254,6 +311,8 @@ export type SpinBattle = {
   inputs: number[]
   /** the server's log, when not live, once finished */
   log: SpinBattleLog | null
+  /** a challenge picked by handle: friendly, it moves no rating */
+  friendly?: true
 }
 
 export type SpinCatch =
@@ -287,6 +346,8 @@ export type SpinOutcome = {
   dailyWinPack: boolean
   streak: number
   streakPack: boolean
+  /** a challenge picked by handle: friendly, it moved no rating */
+  friendly?: true
 }
 
 /**
@@ -303,7 +364,13 @@ export type SpinMoment =
   | { kind: 'present'; id: string; from: string; cardIds: string[]; until: null }
   /** a newer mod is out: once per version, dismissible */
   | { kind: 'update'; id: string; version: string; until: null }
-  | { kind: 'passkey'; id: string; until: null }
+  /**
+   * The passkey offer, at a moment that made the collection worth keeping (a first rare catch, a legendary, a foil or
+   * shiny, a first sale or trade): `card` is what made it, shown in the band; absent, a plain offer.
+   */
+  | { kind: 'passkey'; id: string; until: null; card?: SpinBattleCard }
+  /** a market listing sold (`handle` the buyer) or lapsed and came home: the creature, once */
+  | { kind: 'market'; id: string; outcome: 'sold' | 'expired'; card: SpinBattleCard | null; handle: string | null; price: number; until: number | null }
   /** an online-only action tried in the offline world */
   | { kind: 'needs-online'; id: string; until: number | null }
   /** /spin server named someone else's server: the one-time consent */
@@ -332,13 +399,19 @@ export type SpinSocial = {
   profile: SpinProfile | null
   trader: { day: string; deals: SpinTraderDeal[] } | null
   leaderboard: SpinLeaderRow[] | null
+  /** the board on show, as last read */
+  rankings: SpinRankings | null
+  /** the market as last read: its listings (pages appended), the next page's cursor, recent prices, and the query */
+  market: { listings: SpinListing[]; next: string | null; prices: { species: string; sales: SpinSale[] }[]; query: SpinMarketQuery } | null
+  /** every species' recent sales the market has answered with lately: the sell view's price hints */
+  prices?: { species: string; sales: SpinSale[] }[]
   /** the gift just made: its code and share link, and whether the link and the claim command reached a clipboard */
   gift: { code: string; link: string; cardId: string; copied: boolean } | null
   /** what is being fetched now */
-  loading: ('board' | 'profile' | 'trader' | 'leaderboard' | 'devices')[]
+  loading: ('board' | 'profile' | 'trader' | 'leaderboard' | 'devices' | 'market' | 'rankings')[]
 }
 
-export type SpinTab = 'team' | 'cards' | 'album' | 'trade'
+export type SpinTab = 'team' | 'cards' | 'album' | 'market' | 'trade'
 /** Views stacked over the tabs; esc pops one. */
 export type SpinView =
   | { kind: 'card'; cardId: string }
@@ -350,9 +423,16 @@ export type SpinView =
   | { kind: 'privacy' }
   | { kind: 'devices' }
   | { kind: 'demo'; step: number }
+  /** the leaderboards: one board at a time, all time or this season */
+  | { kind: 'boards'; board: SpinBoardName; period: SpinBoardPeriod }
+  /** one listing: what you give and what you get, then Buy; `cardId` the card of yours picked for a listing that wants one */
+  | { kind: 'listing'; listingId: string; cardId: string | null }
+  /** listing one of your cards: the price on the stepper (0: a card only) and the card it asks for, if any */
+  | { kind: 'sell'; cardId: string; price: number; want: SpinMarketWant | null }
 
 export type SpinHoldAction =
-  | 'recycle' | 'fuse' | 'gift' | 'cancel-offer' | 'cancel-gift' | 'delete-account' | 'reset-access' | 'delete-offline'
+  | 'recycle' | 'fuse' | 'gift' | 'cancel-offer' | 'cancel-gift' | 'cancel-listing' | 'delete-account' | 'reset-access'
+  | 'delete-offline'
 /** A 2-second hold on a destructive action: armed on the first press, done by a press once it has run. */
 export type SpinHold = { action: SpinHoldAction; target: string; startedAt: number }
 
@@ -376,6 +456,8 @@ export type SpinPane = {
   tone: 'warn' | 'good'
   /** what a clipboard did not take (a share where the surface has none), shown to select and copy by hand; '' when none */
   toCopy: string
+  /** the Market tab's filter chips, and `mine`: your own listings in place of everyone's. Absent reads as the defaults. */
+  market?: SpinMarketQuery & { mine: boolean }
   /** a request in flight: its label (a dim placeholder shows after 300 ms) */
   busy: string | null
   busySince: number

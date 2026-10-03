@@ -40,12 +40,18 @@ export function reactionLine(kind: 'aborted' | 'compact', name: string): string 
 
 // ---------- waiting battles: the encounter timing of SPEC 13 ----------
 
+/** A player with fewer finished battles than this is new: every check meets a wild creature, as the server's spacing allows. */
+export const BEGINNER_BATTLES = 3
+
 export type EncounterInput = {
   now: number
-  /** when the running main turn started */
-  turnStartedAt: number
-  /** no battle ever: the first encounter is guaranteed at 20 s */
-  firstEver: boolean
+  /**
+   * Claude's working time so far toward this check: what earlier turns left over plus the running turn's own, so
+   * short turns add up (the clock starts over only when an encounter begins)
+   */
+  worked: number
+  /** fewer than BEGINNER_BATTLES battles: the first encounters are guaranteed, wild ones, one as soon as the server's spacing allows */
+  beginner: boolean
   /** a die in [0, 1) for the 30% roll, another for the 40% duel pick */
   roll: number
   duelRoll: number
@@ -54,22 +60,30 @@ export type EncounterInput = {
   lastDuelAt: number
 }
 
-/** When the next encounter check is due, measured from turn start: 20 s, then every 15 s. */
-export function nextCheckIn(turnStartedAt: number, now: number): number {
-  const ran = now - turnStartedAt
+/** Working time until the next encounter check, from the time worked so far: 20 s, then every 15 s. */
+export function nextCheckIn(worked: number): number {
+  const ran = Math.max(0, worked)
   if (ran < B.encounterAfterMs) return B.encounterAfterMs - ran
   const since = (ran - B.encounterAfterMs) % B.encounterEveryMs
   return since === 0 ? 0 : B.encounterEveryMs - since
 }
 
+/** The working time a turn adds when it ends, carried to the next turn: never negative, never more than a day. */
+export function workedAfter(worked: number, turnStartedAt: number | null, now: number): number {
+  const turn = turnStartedAt === null ? 0 : Math.max(0, now - turnStartedAt)
+  return Math.min(86_400_000, Math.max(0, worked) + turn)
+}
+
 /**
  * One check: a waiting battle to start now, or null. A roll that lands picks a duel 40% of the time when no duel ran
- * in the last 20 minutes, else wild. Server spacing is never pushed: a kind whose spacing has not passed is skipped.
+ * in the last 20 minutes, else wild. A beginner's check always meets a wild creature. Server spacing is never pushed:
+ * a kind whose spacing has not passed is skipped.
  */
 export function encounterDue(i: EncounterInput): 'wild' | 'duel' | null {
-  if (i.now - i.turnStartedAt < B.encounterAfterMs) return null
-  if (!i.firstEver && i.roll >= B.encounterChance) return null
-  const duelOk = !i.firstEver && i.now - i.lastDuelAt >= B.duelCooldownMs && i.now >= i.nextDuelAt
+  if (i.worked < B.encounterAfterMs) return null
+  if (i.beginner) return i.now >= i.nextWildAt ? 'wild' : null
+  if (i.roll >= B.encounterChance) return null
+  const duelOk = i.now - i.lastDuelAt >= B.duelCooldownMs && i.now >= i.nextDuelAt
   if (duelOk && i.duelRoll < B.duelChance) return 'duel'
   return i.now >= i.nextWildAt ? 'wild' : null
 }

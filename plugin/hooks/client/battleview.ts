@@ -531,11 +531,12 @@ export function battleWords(b: Battle, state: Pick<BandState, 'me' | 'signals' |
   const streak = streakWords(state.me?.player.streak ?? 0)
   if (b.phase === 'rustle') {
     const fore = foreshadowOf(lead)
-    const banner: Line = b.setup.kind === 'duel' ? [{ text: `${label} wants to battle!`, bold: true }]
+    const banner: Line = b.setup.kind === 'duel' ? [{ text: b.friendly ? `You challenged ${label}!` : `${label} wants to battle!`, bold: true }]
       : fore.gold ? [{ text: 'The air feels different…', color: INK.accent, bold: true }]
       : fore.mythic ? [{ text: 'Something strange stirs…', color: MYTHIC_COLOR, bold: true }]
       : [{ text: 'Something is rustling…', bold: true }]
-    const extra: Line = b.setup.kind === 'duel' && b.opponent.kind !== 'wild' ? [{ text: `${b.opponent.league} league`, dim: true }] : [{ text: 'while Claude works', dim: true }]
+    const extra: Line = b.friendly ? [{ text: 'A friendly challenge', dim: true }]
+      : b.setup.kind === 'duel' && b.opponent.kind !== 'wild' ? [{ text: `${b.opponent.league} league`, dim: true }] : [{ text: 'while Claude works', dim: true }]
     return { header: battleHeader(b, null), banner, extra, now: false, round: null }
   }
   if (b.phase === 'reveal' || !lead) {
@@ -787,6 +788,8 @@ export function outcomeSummary(o: Outcome): string {
 /** The badges a result carries, each its own small beat: streak pack, league, Perfects, the daily pack, a bounty. */
 export function outcomeBadges(o: Outcome): Line {
   const out: Line = []
+  // a challenge picked by handle is friendly: it says so, since no rating moved
+  if (o.friendly) out.push({ text: 'Friendly · no rating moves', dim: true })
   if (o.streakPack) out.push({ text: `Hot streak! x${o.streak} · +1 pack`, color: INK.accent, bold: true })
   if (o.league) {
     const up = ECONOMY.leagues.findIndex(l => l.name === o.league!.to) > ECONOMY.leagues.findIndex(l => l.name === o.league!.from)

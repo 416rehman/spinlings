@@ -4,13 +4,14 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Actions, El, GameState, View } from '../hooks/client/types.ts'
-import { INITIAL } from '../hooks/client/game.ts'
+import { INITIAL, MARKET_DEFAULT, nameOf } from '../hooks/client/game.ts'
 import { demoSteps } from '../hooks/client/demo.ts'
 import {
-  bestTeam, cardCan, collection, holdText, paged, revealSummary, teamPlace, tradeSection, traderPicks,
+  bestTeam, cardCan, collection, holdText, paged, revealSummary, statTiles, teamPlace, tradeSection, traderPicks,
 } from '../hooks/client/viewmodels.ts'
 import { traderDeals } from '../hooks/core/trader.ts'
 import { pane } from '../hooks/ui/pane.tsx'
+import { cardArt } from './engine.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12, 0, 0)
 const WIDTHS = [50, 80, 120] as const
@@ -39,7 +40,10 @@ function fakeActions(p: Probe, redraw: () => void): Actions {
     flip: rec('flip', () => { const r = p.state.reveal; if (r) setPane(x => ({ ...x, flipped: Math.min(r.cards.length, x.flipped + 1) })) }),
     doneReveal: rec('doneReveal', () => { p.state = { ...p.state, reveal: null }; setPane(x => ({ ...x, flipped: 0, stack: x.stack.filter(v => v.kind !== 'reveal') })) }),
     setTeam: rec('setTeam'), setForTrade: rec('setForTrade'), craft: rec('craft'), buyPack: rec('buyPack'), share: rec('share'), copyUpdate: rec('copyUpdate'),
-    duel: rec('duel'), profile: rec('profile'), load: rec('load'), offer: rec('offer'), respond: rec('respond'), counter: rec('counter'),
+    duel: rec('duel'), challenge: rec('challenge'), market: rec('market'), list: rec('list'), buy: rec('buy'), prices: rec('prices'),
+    rankings: rec('rankings', (board: never, period: never) => setPane(x => ({ ...x, page: 0, stack: x.stack.map(v => (v.kind === 'boards' ? { ...v, board, period } : v)) }))),
+    marketFilter: rec('marketFilter', (change: object) => setPane(x => ({ ...x, page: 0, market: { ...(x.market ?? MARKET_DEFAULT), ...change } }))),
+    profile: rec('profile'), load: rec('load'), offer: rec('offer'), respond: rec('respond'), counter: rec('counter'),
     claim: rec('claim'), redeem: rec('redeem'), wishlist: rec('wishlist'), trade: rec('trade'), world: rec('world'), connect: rec('connect'),
     passkey: rec('passkey'), rerollHandle: rec('rerollHandle'), leaderboard: rec('leaderboard'), prefs: rec('prefs'),
   }
@@ -151,6 +155,43 @@ test('every screen of /spin demo draws at 50, 80 and 120 columns on the terminal
   }
 })
 
+/** Every creature name a state can show: your cards, listings, offers, a profile's cards. */
+function namesIn(s: GameState): string[] {
+  const faces = [
+    ...s.cards, ...(s.me?.listings ?? []).map(l => l.card), ...(s.social.market?.listings ?? []).map(l => l.card),
+    ...(s.me?.offers.incoming ?? []).flatMap(o => [...o.give, ...o.get]), ...(s.social.profile?.team ?? []), ...(s.social.profile?.forTrade ?? []),
+  ]
+  return [...new Set(faces.map(nameOf))].filter(n => n.length >= 5)
+}
+
+test('names are never cut, and every card tile with art is one control: its art over a button that opens it', { timeoutMs: 300_000 }, async ($, on) => {
+  draws(on, p)
+  for (const step of demoSteps(NOW).filter(s => !s.band)) {
+    const names = namesIn(step.state)
+    for (const surface of SURFACES) {
+      for (const columns of WIDTHS) {
+        p.state = step.state
+        const where = `${step.title} @${columns} ${surface}`
+        const ui = await $.ui.mount(MOUNT(columns, surface))
+        const tree = await ui.drawn()
+        const shown: string[] = []
+        walk(tree, n => { if (n.type === 'Text' || n.type === 'Button') shown.push(textOf(n)) })
+        const cut = names.filter(name => shown.some(s => [...Array(name.length - 3).keys()].some(k => s.includes(`${name.slice(0, k + 3)}…`))))
+        expect({ where, cut }).toEqual({ where, cut: [] })
+        if (surface === 'terminal') {
+          const buttons = new Set(all(tree, 'Button').map(b => String(b.props?.key ?? '')))
+          // a profile's team is shown, not picked; a listing's wanted creature is part of its tile
+          const tiles = all(tree, 'Raster').map(r => String(r.props?.key ?? ''))
+            .filter(k => /^(card|listing|team|mine|their|partner|fit)-.+-art$/.test(k) && !/-want-|^their-team-|^listing-card-art$/.test(k))
+          const unpressable = tiles.filter(k => !buttons.has(k.replace(/-art$/, '-pick')))
+          expect({ where, unpressable }).toEqual({ where, unpressable: [] })
+        }
+        await ui.unmount()
+      }
+    }
+  }
+})
+
 test('empty states carry guidance on both surfaces', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
   const steps = demoSteps(NOW)
@@ -161,12 +202,15 @@ test('empty states carry guidance on both surfaces', { timeoutMs: 60_000 }, asyn
     ['Cards · a filter with nothing in it', /Press m or y to change the filters/],
     ['First run · hatching', /Hatching your first Spinling/],
     ['Album · Fable, mostly unseen', /Silhouettes are species you have not met yet|Fable/],
+    ['Boards · hidden, and nobody yet', /Nobody on this board yet\. The first name here could be yours\./],
   ]
   for (const [title, text] of guidance) {
     p.state = steps.find(s => s.title === title)!.state
     for (const surface of SURFACES) {
       const ui = await $.ui.mount(MOUNT(50, surface))
       expect({ title, found: !!(await ui.find({ text })) }).toEqual({ title, found: true })
+      // a hidden player has no row of their own on a board (the server sends none)
+      if (title.startsWith('Boards')) expect(await ui.find({ text: /^You · / })).toBeUndefined()
       await ui.unmount()
     }
   }
@@ -204,15 +248,15 @@ test('cards show as art wherever they appear: the grid, the team, the album', { 
     let ui = await $.ui.mount(MOUNT(120, surface))
     const tiles = (await ui.findAll({ type: 'Button' })).filter(b => String(b.key).startsWith('card-'))
     expect(tiles.length).toBeGreaterThan(0)
-    expect((await ui.findAll({ type: kind })).length).toBe(tiles.length)
+    expect(cardArt(await ui.findAll({ type: kind })).length).toBe(tiles.length)
     await ui.unmount()
     p.state = art('Album · Opus')
     ui = await $.ui.mount(MOUNT(80, surface))
-    expect((await ui.findAll({ type: kind })).length).toBe(9)
+    expect(cardArt(await ui.findAll({ type: kind })).length).toBe(9)
     await ui.unmount()
     p.state = art('Team · slots, resting, notices with Revenge')
     ui = await $.ui.mount(MOUNT(80, surface))
-    expect((await ui.findAll({ type: kind })).length).toBe(3)
+    expect(cardArt(await ui.findAll({ type: kind })).length).toBe(3)
     expect(await ui.find({ text: /Resting · 12 min/ })).toBeDefined()
     await ui.unmount()
   }
@@ -422,6 +466,9 @@ test('devices: a passkey page shows only on the server\'s own origin', { timeout
   let ui = await $.ui.mount(MOUNT(80, 'terminal'))
   expect(await ui.find({ type: 'Link' })).toBeDefined()
   expect(await ui.find({ text: /Signed in on 2 devices · no passkey yet/ })).toBeDefined()
+  // reset access removes saved passkeys too (SPEC 30): the copy never promises they stay
+  expect(await ui.find({ text: /removes saved passkeys/ })).toBeDefined()
+  expect(await ui.find({ text: /Passkeys stay/ })).toBeUndefined()
   await ui.unmount()
   p.state = { ...s, account: { ...s.account, signIn: { ...s.account.signIn!, url: 'https://evil.example/passkey/add' } } }
   ui = await $.ui.mount(MOUNT(80, 'terminal'))
@@ -479,9 +526,11 @@ test('view models: team places, trader picks, filters, pages, reveal words', () 
   expect(bestTeam(s.cards)).toHaveLength(3)
   expect(bestTeam(s.cards)).toContain(outsider.id)
   const starter = s.cards.find(c => c.bound)!
-  expect(cardCan(starter, { offline: false, canTrade: true, now: NOW })).toMatchObject({ trade: false, gift: false, recycle: false, fuse: false })
-  expect(cardCan(outsider, { offline: true, canTrade: true, now: NOW })).toMatchObject({ trade: false, gift: false, recycle: true })
-  expect(cardCan(outsider, { offline: false, canTrade: false, now: NOW }).tradeNote).toMatch(/3 days old with 10 battles/)
+  expect(cardCan(starter, { offline: false, now: NOW, market: true })).toMatchObject({ trade: false, gift: false, sell: false, recycle: false, fuse: false })
+  expect(cardCan(outsider, { offline: true, now: NOW, market: true })).toMatchObject({ trade: false, gift: false, sell: false, recycle: true })
+  // no account limits: any online card free to trade trades, gifts and sells from the first day, with nothing to wait on
+  expect(cardCan(outsider, { offline: false, now: NOW, market: true })).toMatchObject({ trade: true, gift: true, sell: true, tradeNote: '' })
+  expect(cardCan(outsider, { offline: false, now: NOW })).toMatchObject({ sell: false })
   for (const deal of traderDeals(NOW)) {
     const picks = traderPicks(deal, s.cards, me.player.team, NOW)
     if (!picks) continue
@@ -499,5 +548,9 @@ test('view models: team places, trader picks, filters, pages, reveal words', () 
   const pack = steps.find(x => x.title === 'Pack · the summary')!.state.reveal!
   expect(revealSummary(pack)).toBe('5 cards · 2 new species · Album 14/36 (+2)')
   expect(holdText('recycle', outsider.id, s, NOW)).toMatch(/will be gone\. You get \d+ sparks\./)
-  expect(holdText('reset-access', 'me', s, NOW)).toBe('Other machines will need to sign in again.')
+  expect(holdText('reset-access', 'me', s, NOW)).toBe('Other machines sign out and saved passkeys are removed.')
+  // one of a thing reads as one: "1 first", "1 Mythic"
+  const stats = { duelWins: 0, duelLosses: 0, playersBeaten: 0, wildWins: 0, catches: 0, speciesCollected: 0, firstFinds: 1, mythicsFound: 1, marketSales: 0 }
+  expect(statTiles(stats).filter(t => t.key === 'firsts' || t.key === 'mythics').map(t => `${t.value} ${t.label}`)).toEqual(['1 first', '1 Mythic'])
+  expect(statTiles({ ...stats, firstFinds: 2, mythicsFound: 3 }).filter(t => t.key === 'firsts' || t.key === 'mythics').map(t => `${t.value} ${t.label}`)).toEqual(['2 firsts', '3 Mythics'])
 })

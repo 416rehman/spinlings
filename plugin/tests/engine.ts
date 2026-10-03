@@ -156,3 +156,11 @@ export function measure(n: unknown, avail: number, problems: string[]): { w: num
     default: return { w: textOf(n).length, h: 1 }
   }
 }
+
+/**
+ * The card art among drawn Rasters or Svgs: what a card, a reveal or a creature draws, leaving out the header's pack
+ * meter and the packs waiting on the Team tab, which are art too.
+ */
+export function cardArt<T extends { key?: string | undefined; props: Record<string, unknown> }>(found: readonly T[]): T[] {
+  return found.filter(n => !/^pack-.+-art$/.test(String(n.key ?? n.props.key ?? '')) && !/^(next pack|Open some packs)|waiting to open$/.test(String(n.props.alt ?? '')))
+}

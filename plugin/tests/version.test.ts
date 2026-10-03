@@ -17,14 +17,14 @@ import type { El, GameState } from '../hooks/client/types.ts'
 import { pane } from '../hooks/ui/pane.tsx'
 import { CHIP_HIDE, fitHints } from '../hooks/ui/pane-kit.tsx'
 import { INK } from '../hooks/ui/tokens.ts'
-import { NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
+import { NEXT, NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
 import { PANE, RUN, SESSION, engine, measure, settle, textOf, walk } from './engine.ts'
 import type { Engine, Node } from './engine.ts'
 
 const LONG = { timeoutMs: 120_000 }
 const WIDTHS = [40, 80, 120] as const
 const SURFACES = ['terminal', 'desktop'] as const
-const NEWER = '0.2.0'
+const NEWER = NEXT
 const CHIP_FULL = `Update to ${NEWER}`
 const CHIP_NARROW = `Update ${NEWER}`
 const chipLabel = (columns: number) => (columns >= 60 ? CHIP_FULL : CHIP_NARROW)
@@ -99,7 +99,7 @@ test('the update target: latestClient when newer, minClient when a lagging serve
 })
 
 test('a pre-release is never offered: its tag is a server\'s free text, and the marketplace carries releases', () => {
-  const tagged = '0.2.0-security-fix-reinstall-now'
+  const tagged = `${NEXT}-security-fix-reinstall-now`
   expect(versionStatus({ ...VERSION, latestClient: tagged }, '0.1.0')).toMatchObject({ target: null, update: null, readOnly: false })
   // read-only still holds below a tagged minClient, but the tag is named nowhere
   expect(versionStatus({ ...VERSION, minClient: tagged, latestClient: '0.1.0' }, '0.1.0')).toMatchObject({ target: null, update: null, readOnly: true })

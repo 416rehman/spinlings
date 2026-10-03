@@ -8,12 +8,15 @@ import { dailyRule, fusionCost } from '../core/world.ts'
 import { nameOf } from '../client/game.ts'
 import { dots } from '../client/text.ts'
 import {
-  FILTER_FAMILIES, FILTER_RARITIES, cardCan, collection, cycle, filterLabel, fusePartners, paged, perRow, teamPlace, withTop,
+  FILTER_FAMILIES, FILTER_RARITIES, cardCan, collection, cycle, filterLabel, fusePartners, paged, perRow, sellProblem, teamPlace,
+  withTop,
 } from '../client/viewmodels.ts'
 import { card } from './card.tsx'
 import type { Ctx, Shown } from './pane-kit.tsx'
-import { CHIP, TILE, actions, btn, chip, column, grid, heading, holdLine, line, para, tile } from './pane-kit.tsx'
-import { SPACE } from './tokens.ts'
+import {
+  CHIP, TILE, actions, btn, chip, column, grid, heading, holdLine, line, marketOpen, para, priceChip, tabsHint, tile,
+} from './pane-kit.tsx'
+import { MARK, SPACE } from './tokens.ts'
 
 const TILE_ROWS = 12
 const CHIP_ROWS = 6
@@ -53,7 +56,7 @@ export function cardsScreen(c: Ctx): Shown {
   ])
   return {
     body,
-    hints: ['1-4 Tabs', (c.state.me?.packs.length ?? 0) > 0 ? 'o Open pack' : '', all.length > 0 ? 'm Family · y Rarity' : '', pages ? 'n Next page' : '', all.length > 0 ? 'Tab Pick a card' : '', 'esc Close'],
+    hints: [tabsHint(c.state), (c.state.me?.packs.length ?? 0) > 0 ? 'o Open pack' : '', all.length > 0 ? 'm Family · y Rarity' : '', pages ? 'n Next page' : '', all.length > 0 ? 'Tab Pick a card' : '', 'esc Close'],
   }
 }
 
@@ -65,7 +68,8 @@ export function cardScreen(c: Ctx, cardId: string): Shown {
   const x = c.state.cards.find(k => k.id === cardId)
   if (!x) return missing(c, 'Cards')
   const me = c.state.me
-  const can = cardCan(x, { offline: c.offline, canTrade: me?.player.canTrade ?? false, now: c.now })
+  const can = cardCan(x, { offline: c.offline, now: c.now, market: marketOpen(c.state) })
+  const listing = me?.listings?.find(l => l.card.id === x.id) ?? null
   const place = me && x.state === 'owned' ? teamPlace(me.player.team, x, c.state.cards) : null
   const name = nameOf(x)
   const team = place === null || place.kind === 'leads' ? null
@@ -74,8 +78,9 @@ export function cardScreen(c: Ctx, cardId: string): Shown {
       label: place.kind === 'lead' ? 'Lead the team' : place.kind === 'replace' ? `Set in team, for ${nameOf(place.replaced)}` : 'Set in team',
     })
   const value = recycleValue(x)
+  const sellNote = can.sell && me ? sellProblem(x, me.player.team, c.state.cards) : ''
   const rows = column(c, [
-    line(c, `Cards › ${name}`, { dim: true }),
+    para(c, `Cards › ${name}`, { dim: true }),
     card(c.el, c.surface, x, 'full', { key: 'detail', width: c.columns, motion: c.motion, offline: c.offline, now: c.now }),
     place?.kind === 'leads' ? line(c, 'Leads your team', { dim: true }) : null,
     actions(c, [
@@ -84,17 +89,27 @@ export function cardScreen(c: Ctx, cardId: string): Shown {
       can.fuse ? btn(c, { key: 'fuse', label: 'Fuse', hotkey: '3', on: () => c.actions.push({ kind: 'fuse', cardId: x.id, otherId: null }) }) : null,
     ]),
     actions(c, [
+      can.sell && !sellNote ? btn(c, { key: 'sell', label: `${MARK.spark} Sell`, hotkey: 'l', on: async () => {
+        await c.actions.push({ kind: 'sell', cardId: x.id, price: 0, want: null })
+        await c.actions.prices(x.species)
+      } }) : null,
       can.gift ? btn(c, { key: 'gift', label: 'Gift', hotkey: 'g', on: () => c.actions.hold('gift', x.id) }) : null,
       can.recycle ? btn(c, { key: 'recycle', label: `Recycle (+${value} sparks)`, hotkey: 'x', on: () => c.actions.hold('recycle', x.id) }) : null,
       btn(c, { key: 'share', label: 'Share', hotkey: 's', on: () => c.actions.share(x.id) }),
     ]),
     holdLine(c, 'gift', x.id, 'g'),
     holdLine(c, 'recycle', x.id, 'x'),
-    can.tradeNote ? line(c, can.tradeNote, { dim: true }) : null,
+    can.sell && sellNote ? para(c, sellNote, { dim: true }) : null,
+    listing ? actions(c, [
+      <c.el.Text dimColor>On the market for</c.el.Text>,
+      priceChip(c, listing.price),
+      btn(c, { key: 'see-listing', label: 'See the listing', on: () => c.actions.push({ kind: 'listing', listingId: listing.id, cardId: null }) }),
+    ]) : null,
+    can.tradeNote && !listing ? line(c, can.tradeNote, { dim: true }) : null,
   ])
   return {
     body: rows,
-    hints: [team ? '1 Set in team' : '', can.trade ? '2 Trade' : '', can.fuse ? '3 Fuse' : '', can.gift ? 'g Gift' : '', can.recycle ? 'x Recycle' : '', 's Share', 'esc Back'],
+    hints: [team ? '1 Set in team' : '', can.trade ? '2 Trade' : '', can.fuse ? '3 Fuse' : '', can.sell && !sellNote ? 'l Sell' : '', can.gift ? 'g Gift' : '', can.recycle ? 'x Recycle' : '', 's Share', 'esc Back'],
   }
 }
 
@@ -105,7 +120,7 @@ export function fuseScreen(c: Ctx, cardId: string, otherId: string | null): Show
   const cost = fusionCost(dailyRule(c.now))
   const sparks = c.state.me?.player.sparks ?? 0
   const choose = (id: string | null) => c.actions.pane(p => withTop(p, v => (v.kind === 'fuse' ? { ...v, otherId: id } : v)))
-  const crumb = line(c, `Cards › ${nameOf(x)} › Fuse`, { dim: true })
+  const crumb = para(c, `Cards › ${nameOf(x)} › Fuse`, { dim: true })
   const price = dots(`${cost} sparks`, `you have ${sparks}`)
   if (!other) {
     const partners = fusePartners(x, c.state.cards)

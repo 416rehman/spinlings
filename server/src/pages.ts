@@ -1,14 +1,15 @@
-// The site (SPEC 9 Shares, 12 Pages, 25, 29, 30, 31, 36): the landing meadow, postcards, /odds and
-// /privacy, a player's camp, card pages with their og:image, gift and drop pages, the two passkey
-// pages, and the first-party scripts under /static. Every page is read-only, carries no token,
+// The site (SPEC 8, 9 Shares, 12 Pages, 25, 29, 30, 31, 36): the landing meadow, postcards, /odds and
+// /privacy, the leaderboards and the market, a player's camp, card pages with their og:image, gift and
+// drop pages, the two passkey pages, and the first-party scripts under /static. Every page is read-only, carries no token,
 // escapes every value (pages-html.ts) and shows only what SPEC 20 lets anyone see. Anything that is
 // not there, not open or not public answers the same plain "not here" page.
 import { cardName, geneScore } from '../../plugin/hooks/core/cards.ts'
 import { promoForm } from '../../plugin/hooks/core/drops.ts'
-import { FAMILY_INFO } from '../../plugin/hooks/core/families.ts'
+import { FAMILIES, FAMILY_INFO } from '../../plugin/hooks/core/families.ts'
 import { spriteFor } from '../../plugin/hooks/core/sprite.ts'
 import { traderDeals } from '../../plugin/hooks/core/trader.ts'
 import { TRAITS } from '../../plugin/hooks/core/traits.ts'
+import type { BoardName, BoardPeriod, MarketSort } from '../../plugin/hooks/core/api.ts'
 import type { BattleCard, DailyRule, DropRewardItem, Family, PromoEgg } from '../../plugin/hooks/core/types.ts'
 import { DAILY_RULES, EPOCH_MS, RULE_INFO, dailyRule, seasonOf, utcDay } from '../../plugin/hooks/core/world.ts'
 import { FAMILY_COLOR } from '../../plugin/hooks/ui/tokens.ts'
@@ -17,7 +18,10 @@ import { passkeyPage } from './game/auth.ts'
 import { rpIdOf } from './game/passkeys.ts'
 import { fail, png } from './http.ts'
 import { cardPng } from './pages-art.ts'
-import { mythicsShown, openGift, profile, publicCardById, publicDrop } from './pages-data.ts'
+import {
+  BOARD_IDS, BOARDS, BOARDS_CSS, LOTS_CSS, MARKET_CSS, RANKS_CSS, SORTS, STATS_CSS, boardsBody, lots, marketBody, statTiles,
+} from './pages-boards.ts'
+import { board, leadsOf, listingsByHandle, marketPage, mythicsShown, openGift, profile, publicCardById, publicDrop } from './pages-data.ts'
 import type { Drop } from './pages-data.ts'
 import {
   cardFace, cardTiles, FULL_CSS, fullCard, heading, html, installBlock, layout, notice, pixelHeading, PLACE, PLACE_CSS, promptLine, raw, rarityWord, text,
@@ -157,14 +161,50 @@ export function pages(api: Api): void {
     path: '/privacy', origin: ctx.origin, cache: HOUR_CACHE, now: ctx.now, css: PROSE_CSS, body: privacyBody(),
   }))
 
+  // The boards: one board and period per address, so each is a plain link (no script needed). Every number is
+  // as of the last UTC midnight, so the page can be cached for a while.
+  page('/boards', async ctx => {
+    const q = ctx.url.searchParams
+    const name = (BOARD_IDS as readonly string[]).includes(q.get('board') ?? '') ? q.get('board') as BoardName : 'rating'
+    const period: BoardPeriod = q.get('period') === 'season' ? 'season' : 'all'
+    const res = await board(ctx.db, name, period, ctx.now)
+    const leads = await leadsOf(ctx.db, res.top.slice(0, 3).map(r => r.handle))
+    const tab = BOARDS.find(b => b.id === name)!.tab
+    return layout({
+      kind: 'site', title: 'Leaderboards: Spinlings', description: 'The top Spinlings trainers by rating, players beaten, duel wins, species, Mythics and market sales.',
+      path: '/boards', origin: ctx.origin, cache: 'public, max-age=300', now: ctx.now, css: SITE_CSS + BOARDS_CSS + RANKS_CSS,
+      og: { title: `Spinlings leaderboards: ${tab}`, description: 'The top trainers of every board, all time and this season.' },
+      body: boardsBody({ res, leads }),
+    })
+  }, 'browse')
+
+  page('/leaderboards', ctx => new Response(null, { status: 301, headers: { Location: `/boards${ctx.url.search}`, 'Cache-Control': DAY_CACHE } }))
+
+  // The market, read-only: buying happens inside Claude Code.
+  page('/market', async ctx => {
+    const q = ctx.url.searchParams
+    const family = (FAMILIES as readonly string[]).includes(q.get('family') ?? '') ? q.get('family') as Family : undefined
+    const sort = (SORTS as readonly string[]).includes(q.get('sort') ?? '') ? q.get('sort') as MarketSort : 'newest'
+    const after = q.get('after') ?? undefined
+    const res = await marketPage(ctx.db, ctx.now, { ...(family ? { family } : {}), sort, ...(after ? { after } : {}) })
+    return layout({
+      kind: 'site', title: 'The market: Spinlings', description: 'One-of-a-kind Spinlings cards up for sparks or a swap. Buy them inside Claude Code.',
+      path: '/market', origin: ctx.origin, cache: MINUTE_CACHE, now: ctx.now, css: SITE_CSS + MARKET_CSS + LOTS_CSS + RANKS_CSS,
+      og: { title: 'The Spinlings market', description: 'One-of-a-kind cards up for sparks or a swap.' },
+      body: marketBody(res, { ...(family ? { family } : {}), sort }, after !== undefined),
+    })
+  }, 'browse')
+
   page('/u/:handle', async ctx => {
     const p = await profile(ctx.db, ctx.params.handle!, ctx.now)
     if (!p) return missing(ctx, 'No trainer by that name', 'Handles are random and can change once a week, so an old link may point nowhere.')
     const handle = text(p.handle, 40)
     const lead = p.team[0]
+    const selling = await listingsByHandle(ctx.db, p.handle, ctx.now)
     return layout({
       kind: 'site', title: `${handle}'s camp: Spinlings`, description: `${handle}'s team and cards marked for trade.`,
-      path: `/u/${p.handle}`, origin: ctx.origin, noindex: true, cache: MINUTE_CACHE, css: SITE_CSS + CAMP_CSS + PROFILE_CSS, now: ctx.now,
+      path: `/u/${p.handle}`, origin: ctx.origin, noindex: true, cache: MINUTE_CACHE, now: ctx.now,
+      css: SITE_CSS + CAMP_CSS + PROFILE_CSS + (p.stats ? STATS_CSS : '') + (selling.length ? LOTS_CSS : ''),
       body: html`${placeStrip(lead?.family ?? 'fable')}
 <section class="wrap profile">
 <p class="pennant">${p.league} league</p>
@@ -173,12 +213,16 @@ export function pages(api: Api): void {
 </section>
 ${p.team.length ? teamCamp(p.team) : html`<div class="wrap"><p class="empty doze">${raw(spriteSvg(spriteFor({ form: regulars()[2]!, stage: 1 }), { cls: 'shut' }))}<span>No team saved right now. Everyone's off in the grass.</span></p></div>`}
 <section class="wrap profile">
+${p.stats ? html`<h2>${heading('Stats')}</h2>${statTiles(p.stats)}` : ''}
+${selling.length ? html`<h2>${heading('On the market')}</h2><div class="stall">${lots(selling, [], { seller: false })}</div><p class="more"><a href="/market">See the whole market</a></p>` : ''}
 <h2>${heading('Pinned for trade')}</h2>
 ${p.forTrade.length ? html`<div class="board">${cardTiles(p.forTrade, { link: true })}</div>` : html`<p class="empty doze">${raw(spriteSvg(spriteFor(lead ?? { form: regulars()[2]!, stage: 1 }), { cls: 'shut' }))}<span>Nothing pinned for trade yet. Check back soon.</span></p>`}
 <div class="cta">
 <h2>${heading(`Trade with ${handle}`)}</h2>
 <p>Type this inside Claude Code to see their cards and make an offer.</p>
 ${promptLine(`/spin trade ${handle}`, 'The trade command')}
+<p class="duelask">Or try your team against theirs, just for fun.</p>
+${promptLine(`/spin duel ${handle}`, 'The challenge command')}
 <div class="newhere"><h3>New here?</h3>${installBlock('install', 'Install Spinlings first. Your own starter team hatches right away.')}</div>
 </div>
 </section>`,
@@ -482,6 +526,8 @@ main{background:#0f1626}
 .empty.doze{display:flex;align-items:center;gap:var(--s3);max-width:none;padding:var(--s3) var(--s4);background:#1c2333;color:#c9c3d6}
 .empty.doze .spr{width:64px;height:64px;flex:none}
 .cta .prompt{margin-top:var(--s3);max-width:760px}
+.profile .more{margin-top:var(--s3)}
+.duelask{margin-top:var(--s4)}
 .newhere{margin-top:var(--s5);padding-top:var(--s4);border-top:2px dashed #2e3446}
 .newhere h3{margin-top:0}
 `

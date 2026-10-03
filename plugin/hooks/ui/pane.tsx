@@ -12,9 +12,11 @@ import { hello, screenOf, withTop } from '../client/viewmodels.ts'
 import { ceremonyScreen } from './ceremony.tsx'
 import { privacyScreen, devicesScreen } from './pane-account.tsx'
 import { albumScreen, speciesScreen } from './pane-album.tsx'
+import { boardsScreen } from './pane-boards.tsx'
 import { cardScreen, cardsScreen, fuseScreen } from './pane-cards.tsx'
 import type { Ctx, Shown } from './pane-kit.tsx'
-import { actions, btn, column, formMini, frame, line, para, playable } from './pane-kit.tsx'
+import { actions, btn, column, formMini, frame, line, marketOpen, para, playable } from './pane-kit.tsx'
+import { listingScreen, marketScreen, sellScreen } from './pane-market.tsx'
 import { teamScreen } from './pane-team.tsx'
 import { giftScreen, profileScreen, tradeScreen } from './pane-trade.tsx'
 import { INK, SPACE } from './tokens.ts'
@@ -103,8 +105,21 @@ function helloBanner(c: Ctx): RenderElement | null {
 
 function tabScreen(c: Ctx): Shown {
   const tab = c.state.pane.tab
-  const shown = tab === 'team' ? teamScreen(c) : tab === 'cards' ? cardsScreen(c) : tab === 'album' ? albumScreen(c) : tradeScreen(c)
+  // the Market tab is only there online on a server with a market; a world switched to without one shows the Team
+  const shown = tab === 'cards' ? cardsScreen(c) : tab === 'album' ? albumScreen(c) : tab === 'trade' ? tradeScreen(c)
+    : tab === 'market' && marketOpen(c.state) ? marketScreen(c) : teamScreen(c)
   return { ...shown, banner: helloBanner(c) }
+}
+
+/** An online-only view in the offline world: one line and the way back (SPEC 28); nothing is asked of a server. */
+function onlineOnly(c: Ctx): Shown {
+  return {
+    body: column(c, [
+      para(c, 'This needs the online world, a collection of its own.', { dim: true }),
+      actions(c, [btn(c, { key: 'join-online', label: 'Join online', hotkey: '1', primary: true, on: () => c.actions.world('online') })]),
+    ]),
+    hints: ['1 Join online', 'esc Back'],
+  }
 }
 
 function route(c: Ctx): Shown {
@@ -122,6 +137,9 @@ function route(c: Ctx): Shown {
     case 'privacy': return privacyScreen(c)
     case 'devices': return devicesScreen(c)
     case 'demo': return tabScreen({ ...c, root: true })
+    case 'boards': return c.offline ? onlineOnly(c) : boardsScreen(c, top)
+    case 'listing': return c.offline ? onlineOnly(c) : listingScreen(c, top)
+    case 'sell': return c.offline ? onlineOnly(c) : sellScreen(c, top)
   }
 }
 

@@ -1,14 +1,19 @@
-// The Team tab (SPEC 9, 14): the three slots in play order with resting timers, league, rating and streak, and the
-// notices (defense results with Revenge, evolutions, gifts, season ends). Other players show by handle and day only.
+// The Team tab (SPEC 8, 9, 14): the three slots in play order with resting timers, the packs waiting as art to open,
+// league, rating and streak, your stats as tiles, the way to the leaderboards, and the notices (defense results with
+// Revenge, evolutions, gifts, sales, season ends). Other players show by handle and day only.
 import type { RenderElement } from 'claude-code'
+import { FAMILY_INFO } from '../core/families.ts'
+import { hasFeature } from '../client/game.ts'
 import { dayLabel, dots, safe, span } from '../client/text.ts'
 import { teamSlots, today } from '../client/viewmodels.ts'
 import type { Slot } from '../client/viewmodels.ts'
 import type { Ctx, Shown } from './pane-kit.tsx'
-import { TILE, actions, btn, cardRow, column, heading, line, para, tile } from './pane-kit.tsx'
-import { ART, SPACE } from './tokens.ts'
+import { TILE, actions, btn, cardRow, column, heading, leagueBadge, line, packArt, para, statRow, tabsHint, tile } from './pane-kit.tsx'
+import { ART, INK, MARK, SPACE } from './tokens.ts'
 
 const NOTICES = 4
+/** Packs drawn as art on the Team tab; more show as a count. */
+const PACKS_SHOWN = 3
 
 function slotNote(s: Slot): string {
   if (!s.card) return ''
@@ -16,16 +21,44 @@ function slotNote(s: Slot): string {
   return s.slot === 0 ? 'Leads' : `Slot ${s.slot + 1}`
 }
 
+/** An empty slot is a button too: pressing it goes to Cards to pick one. */
 function emptySlot(c: Ctx, s: Slot, wide: boolean): RenderElement {
   const { Box, Text } = c.el
-  if (!wide) return line(c, `Slot ${s.slot + 1} · empty · open a card in Cards and choose Set in team`, { dim: true })
+  const pick = () => c.actions.tab('cards')
+  if (!wide) {
+    return (
+      <Box key={`team-${s.slot}`} flexDirection="row" columnGap={SPACE.loose} width={c.columns}>
+        <Text dimColor>{`Slot ${s.slot + 1} · empty`}</Text>
+        {btn(c, { key: `team-${s.slot}-pick`, label: 'Pick a card', on: pick })}
+      </Box>
+    )
+  }
   return (
     <Box key={`team-${s.slot}`} flexDirection="column" width={TILE} flexShrink={0}>
       <Box width={TILE} height={ART.rows} borderStyle="round" borderDimColor justifyContent="center" alignItems="center">
-        <Text dimColor>Empty</Text>
+        <Text dimColor>+</Text>
       </Box>
+      {btn(c, { key: `team-${s.slot}-pick`, label: 'Pick a card', on: pick })}
       <Text dimColor>{`Slot ${s.slot + 1}`}</Text>
-      <Text dimColor wrap="truncate-end">Pick one in Cards</Text>
+    </Box>
+  )
+}
+
+/** The packs waiting, as the packages themselves: each is pressed to open. */
+function packStrip(c: Ctx): RenderElement | null {
+  const packs = c.state.me?.packs ?? []
+  if (packs.length === 0) return null
+  const { Box, Text } = c.el
+  const shown = packs.slice(0, PACKS_SHOWN)
+  return (
+    <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
+      {...shown.map(p => (
+        <Box key={`pack-${p.id}`} flexDirection="column" flexShrink={0} width={12}>
+          {packArt(c, p.family, `pack-${p.id}-art`)}
+          {btn(c, { key: `pack-${p.id}`, label: `Open ${FAMILY_INFO[p.family].name}`, lit: true, on: () => c.actions.openPack(p.id) })}
+        </Box>
+      ))}
+      {packs.length > shown.length ? <Text dimColor>{`+${packs.length - shown.length}`}</Text> : null}
     </Box>
   )
 }
@@ -45,12 +78,14 @@ export function teamScreen(c: Ctx): Shown {
   const todayDay = today(c.now)
   const notices = me.notices.slice(0, NOTICES)
   let revenge = false
+  const online = c.state.account.world === 'online'
   const rows = notices.map(n => {
     const when = dayLabel(n.day, todayDay)
     const can = n.kind === 'defense-loss' && !!n.handle && (when === 'today' || when === 'yesterday') && !c.state.account.readOnly
     const hotkey = can && !revenge ? 'r' : undefined
     if (hotkey) revenge = true
-    const text = line(c, dots(when, safe(n.text, 100)), { dim: n.kind !== 'defense-loss' && n.kind !== 'season-end' && n.kind !== 'new-device' })
+    const loud = n.kind === 'defense-loss' || n.kind === 'season-end' || n.kind === 'new-device' || n.kind === 'market-sold'
+    const text = para(c, dots(when, safe(n.text, 100)), loud ? {} : { dim: true })
     if (!can) return text
     return (
       <c.el.Box flexDirection="column" width={c.columns}>
@@ -61,19 +96,36 @@ export function teamScreen(c: Ctx): Shown {
   })
   const streak = p.streak > 0 ? `streak ${p.streak}` : ''
   const duel = !c.state.account.readOnly && filled.length > 0
+  const boards = online && (hasFeature(c.state.account, 'stats') || hasFeature(c.state.account, 'leaderboard'))
+  const { Box, Text } = c.el
+  const standing = (
+    <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
+      <Text>Your team</Text>
+      {leagueBadge(c, p.league)}
+      <Text><Text color={INK.accent}>{MARK.rank}</Text><Text bold>{` ${p.rating}`}</Text></Text>
+      {streak ? <Text color={INK.good}>{streak}</Text> : null}
+    </Box>
+  )
   const body = column(c, [
-    heading(c, 'Your team', dots(p.league, `rating ${p.rating}`, streak)),
+    standing,
     filled.length === 0
       ? para(c, 'Your team forms as your first cards arrive. Open a pack with o, then set your favourites from Cards.', { dim: true })
-      : wide ? <c.el.Box flexDirection="row" columnGap={SPACE.tight}>{...shown}</c.el.Box> : column(c, shown, SPACE.none),
-    actions(c, [duel ? btn(c, { key: 'duel', label: 'Duel', hotkey: 'b', on: () => c.actions.duel() }) : null]),
+      : wide ? <Box flexDirection="row" columnGap={SPACE.tight}>{...shown}</Box> : column(c, shown, SPACE.none),
+    actions(c, [
+      duel ? btn(c, { key: 'duel', label: 'Duel', hotkey: 'b', on: () => c.actions.duel() }) : null,
+      boards ? btn(c, { key: 'boards', label: `${MARK.rank} Leaderboards`, hotkey: 'l', on: async () => {
+        await c.actions.push({ kind: 'boards', board: 'rating', period: 'all' })
+        await c.actions.rankings('rating', 'all')
+      } }) : null,
+    ]),
+    online && hasFeature(c.state.account, 'stats') ? statRow(c, p.stats, 'my-stats') : null,
+    packStrip(c),
     heading(c, 'Notices'),
     rows.length > 0 ? column(c, rows, SPACE.none) : line(c, 'Nothing yet. When someone duels your team, you will see it here.', { dim: true }),
     me.notices.length > NOTICES ? line(c, `and ${me.notices.length - NOTICES} older`, { dim: true }) : null,
   ])
   return {
     body,
-    hints: ['1-4 Tabs', me.packs.length > 0 ? 'o Open pack' : '', duel ? 'b Duel' : '', revenge ? 'r Revenge' : '', filled.length > 0 ? 'Tab Pick a card' : '', 'esc Close'],
+    hints: [tabsHint(c.state), me.packs.length > 0 ? 'o Open pack' : '', duel ? 'b Duel' : '', boards ? 'l Boards' : '', revenge ? 'r Revenge' : '', filled.length > 0 ? 'Tab Pick a card' : '', 'esc Close'],
   }
 }
-

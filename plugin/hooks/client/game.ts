@@ -2,18 +2,18 @@
 // handshake (32), presence and pack charging (6), waiting battles on the encounter timing (13), the content-blind
 // signal handlers (10), and every action the band and the pane can take. Pure in the sense the mod needs: it touches
 // the world only through the injected Fx, so it never reads a clock, rolls a die or sends a request on its own.
-import type { ApiOp, ApiRequest, ApiResponse, CardsResponse, MeResponse, VersionResponse } from '../core/api.ts'
+import type { ApiOp, ApiRequest, ApiResponse, CardsResponse, ListingView, MeResponse, Notice, VersionResponse } from '../core/api.ts'
 import { API_ROUTES } from '../core/api.ts'
-import type { BattleLog, Card, Family, Rarity } from '../core/types.ts'
+import type { BattleCard, BattleLog, Card, Family, Rarity } from '../core/types.ts'
 import { RULES_VERSION, perfectRounds, simulateBattle } from '../core/battle.ts'
-import { cardName, rarityRank } from '../core/cards.ts'
+import { cardName, rarityRank, toBattleCard } from '../core/cards.ts'
 import { ECONOMY, finishAfter, leagueOf } from '../core/economy.ts'
 import { FAMILY_INFO, familyOfModel } from '../core/families.ts'
 import { parseSeasonResponse } from '../core/schemas.ts'
 import { DEFAULT_SERVER } from '../core/servers.ts'
 import { GENERATOR_VERSION, installSeason } from '../core/species.ts'
 import { emojiMosaic, miniSprite, spriteFor } from '../core/sprite.ts'
-import { seasonOf, utcDay } from '../core/world.ts'
+import { DAY_MS, seasonOf, utcDay } from '../core/world.ts'
 import { findCard, parseCommand } from './commands.ts'
 import { hostOf, pageUrl, parseSent, pushSent, serverOrigin } from './net.ts'
 import {
@@ -21,14 +21,14 @@ import {
 } from './remote.ts'
 import type { RemoteDeps } from './remote.ts'
 import {
-  HEARTBEAT_MS, REACTION_MS, afterCharge, chargeDue, comfortLine, encounterDue, leaseFor, mayHold, nextCheckIn, reactionLine,
-  restingUntil, tickPresence,
+  BEGINNER_BATTLES, HEARTBEAT_MS, REACTION_MS, afterCharge, chargeDue, comfortLine, encounterDue, leaseFor, mayHold, nextCheckIn,
+  reactionLine, restingUntil, tickPresence, workedAfter,
 } from './session.ts'
 import type { ServerMeta, StoredPrefs, StoredPresence } from './store.ts'
 import { KEYS, cacheRecord, readCache, readMeta, readOfflineMeta, readPrefs, readPresence, serverKeys } from './store.ts'
 import type {
-  Account, Actions, Backend, Battle, BattleControl, Catch, Chime, Fx, GameState, HoldAction, Moment, Outcome, Reveal,
-  RevealControl, Sent, SignIn, Slots, StateKey, Tab, Timer, View, World,
+  Account, Actions, Backend, Battle, BattleControl, BoardName, BoardPeriod, Catch, Chime, Fx, GameState, HoldAction, MarketQuery,
+  MarketWant, Moment, Outcome, PaneUi, Reveal, RevealControl, Sent, SignIn, Slots, StateKey, Tab, Timer, View, World,
 } from './types.ts'
 import { BackendError, isBackendError, isUnreachable } from './types.ts'
 import { dayLabel, dots, plural, safe, title } from './text.ts'
@@ -58,6 +58,16 @@ export const ROUND_MS = ECONOMY.battle.roundMs
 export const ONLINE_FEATURES_UNKNOWN = '*'
 export const OFFLINE_FEATURES = ['rivals', 'trader', 'mythics', 'seasons']
 
+/** The Market tab's chips before any is pressed: everything, newest first. */
+export const MARKET_DEFAULT: MarketQuery & { mine: boolean } = {
+  family: 'all', rarity: 'all', kind: 'all', sort: 'newest', shiny: false, foil: false, mine: false,
+}
+
+/** The pane's market chips, the defaults for a $.state value from before they existed. */
+export function marketChips(p: Pick<PaneUi, 'market'>): MarketQuery & { mine: boolean } {
+  return p.market ?? MARKET_DEFAULT
+}
+
 export const INITIAL: GameState = {
   account: {
     world: 'online', server: DEFAULT_SERVER, host: hostOf(DEFAULT_SERVER), community: false, link: 'starting', note: '',
@@ -65,14 +75,14 @@ export const INITIAL: GameState = {
   },
   me: null,
   cards: [],
-  signals: { family: 'sonnet', working: false, turnStartedAt: null, cheering: 0, restingUntil: null },
+  signals: { family: 'sonnet', working: false, turnStartedAt: null, worked: 0, cheering: 0, restingUntil: null },
   battle: null,
   moments: [],
   reveal: null,
-  social: { board: null, profile: null, trader: null, leaderboard: null, gift: null, loading: [] },
+  social: { board: null, profile: null, trader: null, leaderboard: null, rankings: null, market: null, gift: null, loading: [] },
   pane: {
     tab: 'team', stack: [], family: 'all', rarity: 'all', album: 'haiku', page: 0, flipped: 0, hold: null, hello: false,
-    showUpdate: false, message: '', tone: 'warn', toCopy: '', busy: null, busySince: 0,
+    showUpdate: false, message: '', tone: 'warn', toCopy: '', market: MARKET_DEFAULT, busy: null, busySince: 0,
   },
   prefs: { quiet: false, motion: true, sound: false },
   presence: { minutes: 0, need: ECONOMY.packs.presenceMinutes, blocked: null },
@@ -156,7 +166,83 @@ export function rarestIndex(options: readonly Pick<Card, 'rarity' | 'shiny' | 'l
 
 /** Lower shows first; a catch waiting on a choice or an answer goes before everything (headMoment). */
 const MOMENT_RANK: Record<Moment['kind'], number> = {
-  outcome: 1, evolve: 2, 'pack-ready': 3, present: 4, 'needs-online': 5, server: 5, welcome: 5.5, line: 6, passkey: 8, update: 9,
+  outcome: 1, evolve: 2, 'pack-ready': 3, market: 3.5, present: 4, 'needs-online': 5, server: 5, welcome: 5.5, line: 6, passkey: 8,
+  update: 9,
+}
+
+/**
+ * A card that makes a collection worth keeping safe (SPEC 30): a legendary or a Mythic, a foil or a shiny, and, when
+ * caught, anything rare or better. Its arrival is when the passkey is offered.
+ */
+export function worthKeeping(c: Pick<Card, 'rarity' | 'species' | 'shiny' | 'foil'>, caught = false): boolean {
+  return c.rarity === 'legendary' || c.species === 'mythic' || c.foil === true || c.shiny || (caught && rarityRank(c.rarity) >= rarityRank('rare'))
+}
+
+/** GET /v1/market's query for the Market tab's chips: only the fields that narrow, `after` for the next page. */
+export function marketRequest(q: MarketQuery, after?: string): ApiRequest<'market'> {
+  return {
+    ...(q.family !== 'all' ? { family: q.family } : {}),
+    ...(q.rarity !== 'all' ? { rarity: q.rarity } : {}),
+    ...(q.kind !== 'all' ? { kind: q.kind } : {}),
+    ...(q.shiny ? { shiny: true } : {}),
+    ...(q.foil ? { foil: true } : {}),
+    sort: q.sort,
+    ...(after ? { after } : {}),
+  }
+}
+
+/** Recent sales by species: what came last first, at most 200 species kept. */
+export function mergePrices<T extends { species: string }>(kept: readonly T[] | undefined, fresh: readonly T[]): T[] {
+  return [...fresh, ...(kept ?? []).filter(p => !fresh.some(r => r.species === p.species))].slice(0, 200)
+}
+
+const sameQuery = (a: MarketQuery, b: MarketQuery) =>
+  a.family === b.family && a.rarity === b.rarity && a.kind === b.kind && a.sort === b.sort && a.shiny === b.shiny && a.foil === b.foil
+
+/** The listings `before` held that `after` no longer does: what sold or lapsed since. */
+export function goneListings(before: readonly ListingView[] | undefined, after: readonly ListingView[] | undefined): ListingView[] {
+  const still = new Set((after ?? []).map(l => l.id))
+  return (before ?? []).filter(l => !still.has(l.id))
+}
+
+/** The sparks a sale notice states ("sold for 75 sparks", "sold for a card in return": 0); null when it says neither. */
+export function soldPrice(text: string): number | null {
+  const n = /sold for ([\d,]+) sparks/.exec(text)
+  if (n) return Number(n[1]!.replace(/,/g, ''))
+  return /for a card in return/.test(text) ? 0 : null
+}
+
+/**
+ * Which gone listing each new sale or lapse notice is about, by evidence rather than order (notices name no listing):
+ * a sale takes the one listing at the price it states, a lapse the one listing past its 14 days. With no single match
+ * the notice gets no card, so the band says "Your card" rather than name the wrong creature; a sale keeps its stated
+ * price either way. `notices` oldest first.
+ */
+export function pairMarketNotices(notices: readonly Notice[], gone: readonly ListingView[], now: number): Map<string, { card: BattleCard | null; price: number }> {
+  const pool = [...gone]
+  const out = new Map<string, { card: BattleCard | null; price: number }>()
+  const take = (match: (l: ListingView) => boolean): ListingView | null => {
+    const hits = pool.filter(match)
+    if (hits.length !== 1) return null
+    pool.splice(pool.indexOf(hits[0]!), 1)
+    return hits[0]!
+  }
+  const today = utcDay(now)
+  const lapsed = (l: ListingView) => today >= utcDay(Date.parse(`${l.day}T00:00:00Z`) + ECONOMY.market.ttlMs + DAY_MS)
+  // sales first: a price is the stronger evidence, and a listing sold leaves the lapses fewer to choose from
+  for (const n of notices) {
+    if (n.kind !== 'market-sold') continue
+    const price = soldPrice(n.text)
+    // a line in words this client cannot read: only a listing alone in the pool is sure
+    const l = take(x => price === null || x.price === price)
+    out.set(n.id, { card: l ? toBattleCard(l.card) : null, price: price ?? l?.price ?? 0 })
+  }
+  for (const n of notices) {
+    if (n.kind !== 'market-expired') continue
+    const l = take(lapsed)
+    out.set(n.id, { card: l ? toBattleCard(l.card) : null, price: 0 })
+  }
+  return out
 }
 
 /**
@@ -347,6 +433,10 @@ export function createGame(o: GameOptions): Game {
     agents: new Map<string, number>(),
     /** battles whose catch request is in flight in this load of the module */
     catching: new Set<string>(),
+    /** a buy or a listing in flight: a second press of 1 while it runs sends nothing */
+    trading: false,
+    /** when the Market tab's listings were last read in this load of the module (0: never) */
+    marketAt: 0,
     status: null as string | undefined | null,
     /** server clock minus local clock, from the last me() */
     skew: 0,
@@ -587,15 +677,57 @@ export function createGame(o: GameOptions): Game {
       const cache = readCache(await fx.store.get(KEYS.cache(origin)))
       await fx.store.set(KEYS.cache(origin), cacheRecord(me, cache?.cards ?? null))
     }
-    // a trade accepted while away arrives as a wrapped present (SPEC 13.9)
+    // a welcome whose pack is gone (opened in another session) has nothing left to open
+    const w = (await get(fx, 'moments')).find(m => m.kind === 'welcome')
+    if (w?.kind === 'welcome' && w.packId && !me.packs.some(p => p.id === w.packId)) await welcomeDone(fx, false)
+    // a trade accepted while away arrives as a wrapped present (SPEC 13.9); a sale or a lapse shows the creature itself
     if (before) {
       const seen = new Set(before.notices.map(n => n.id))
-      for (const n of me.notices) {
-        if (!seen.has(n.id) && n.kind === 'offer-accepted' && n.handle) {
+      const fresh = me.notices.filter(n => !seen.has(n.id)).reverse()
+      // notices come newest first; each sale or lapse is paired with its listing by price and age, not by position
+      const paired = pairMarketNotices(fresh, goneListings(before.listings, me.listings), me.now)
+      for (const n of fresh) {
+        if (n.kind === 'offer-accepted' && n.handle) {
           await pushMoment(fx, { kind: 'present', id: `present:${n.id}`, from: n.handle, cardIds: [], until: null })
+          await valueMoment(fx, null)
+        } else if (n.kind === 'market-sold' || n.kind === 'market-expired') {
+          const { card, price } = paired.get(n.id) ?? { card: null, price: 0 }
+          const sold = n.kind === 'market-sold'
+          await pushMoment(fx, {
+            kind: 'market', id: `market:${n.id}`, outcome: sold ? 'sold' : 'expired', card,
+            handle: sold ? n.handle ?? null : null, price, until: null,
+          })
+          if (sold) await valueMoment(fx, card)
         }
       }
     }
+  }
+
+  // ---------- the passkey offer at a moment worth keeping (SPEC 30) ----------
+
+  /**
+   * The passkey offer when something just made the collection worth keeping: online on a server with passkeys, not
+   * yet backed up, at most once a UTC day (a "Later" waits for the next such moment), never once a passkey is saved.
+   */
+  async function valueMoment(fx: Fx, card: BattleCard | null): Promise<void> {
+    const [account, me] = await Promise.all([get(fx, 'account'), get(fx, 'me')])
+    if (account.world !== 'online' || !me || account.link !== 'ready' || account.readOnly || !hasFeature(account, 'passkey')) return
+    if (account.backedUp || (account.devices?.passkeys ?? 0) > 0) return
+    const meta = await metaOf(fx, account.server)
+    const today = utcDay(await fx.now())
+    if (meta.passkeyDay === 'saved' || meta.passkeyDay === today) return
+    if ((await get(fx, 'moments')).some(m => m.kind === 'passkey')) return
+    await saveMeta(fx, account.server, { passkeyDay: today })
+    await pushMoment(fx, { kind: 'passkey', id: 'passkey', until: null, ...(card ? { card: toBattleCard(card) } : {}) })
+  }
+
+  /** This account's passkey is saved, or known to be gone: the header's marker and the offers follow. */
+  async function setBackedUp(fx: Fx, origin: string, saved: boolean): Promise<void> {
+    const meta = await metaOf(fx, origin)
+    if (saved && meta.passkeyDay !== 'saved') await saveMeta(fx, origin, { passkeyDay: 'saved' })
+    if (!saved && meta.passkeyDay === 'saved') await saveMeta(fx, origin, { passkeyDay: '' })
+    await upd(fx, 'account', a => (a.world === 'online' && a.server === origin ? { ...a, backedUp: saved } : a))
+    if (saved) await dropMoment(fx, 'passkey')
   }
 
   /** The collection from `backend`, the world `origin` names (null: offline), unless `ok` says play has moved on. */
@@ -825,6 +957,9 @@ export function createGame(o: GameOptions): Game {
       }
     }
     if (!ok()) return
+    // whether this account is backed up, as this machine last heard: the header's marker until a passkey is saved
+    const saved = (await metaOf(fx, origin)).passkeyDay === 'saved'
+    await upd(fx, 'account', a => (ok() ? { ...a, backedUp: saved } : a))
     if (!(await metaOf(fx, origin)).version) await handshake(fx, origin)
     if (ok()) await welcome(fx)
     await publish(fx)
@@ -929,18 +1064,25 @@ export function createGame(o: GameOptions): Game {
     await put(fx, 'social', INITIAL.social)
     await upd(fx, 'moments', list => list.filter(m => m.kind === 'update'))
     await upd(fx, 'pane', p => ({ ...p, stack: [], hold: null, busy: null, message: '', toCopy: '' }))
-    await upd(fx, 'account', a => ({ ...a, signIn: null, devices: null }))
+    await upd(fx, 'account', a => {
+      const { backedUp: _, ...rest } = a
+      return { ...rest, signIn: null, devices: null }
+    })
   }
 
   // ---------- signals (SPEC 10) ----------
 
+  /**
+   * A turn starts: the encounter clock picks up from the working time earlier turns left (SPEC 13), so short turns add
+   * up to an encounter instead of each starting over at 0.
+   */
   async function turnStarted(fx: Fx): Promise<void> {
     enter(fx)
     const now = await fx.now()
     const seq = ++rt.turnSeq
-    await upd(fx, 'signals', s => ({ ...s, working: true, turnStartedAt: now }))
+    const s = await upd(fx, 'signals', x => ({ ...x, working: true, turnStartedAt: now, worked: x.worked ?? 0 }))
     rt.encounter?.cancel()
-    rt.encounter = fx.after(nextCheckIn(now, now), () => { void encounterCheck(cur(fx), seq) })
+    rt.encounter = fx.after(nextCheckIn(s.worked ?? 0), () => { void encounterCheck(cur(fx), seq) })
   }
 
   async function encounterCheck(fx: Fx, seq: number): Promise<void> {
@@ -948,15 +1090,16 @@ export function createGame(o: GameOptions): Game {
     const signals = await get(fx, 'signals')
     if (!signals.working || signals.turnStartedAt === null) return
     const now = await fx.now()
-    const kind = await encounterNow(fx, now, signals.turnStartedAt)
+    const worked = workedAfter(signals.worked ?? 0, signals.turnStartedAt, now)
+    const kind = await encounterNow(fx, now, worked)
     if (kind) {
       await startBattle(fx, kind)
-      return
+      if (await get(fx, 'battle')) return
     }
-    if (seq === rt.turnSeq) rt.encounter = fx.after(B.encounterEveryMs, () => { void encounterCheck(cur(fx), seq) })
+    if (seq === rt.turnSeq) rt.encounter = fx.after(nextCheckIn(worked) || B.encounterEveryMs, () => { void encounterCheck(cur(fx), seq) })
   }
 
-  async function encounterNow(fx: Fx, now: number, turnStartedAt: number): Promise<'wild' | 'duel' | null> {
+  async function encounterNow(fx: Fx, now: number, worked: number): Promise<'wild' | 'duel' | null> {
     const [prefs, account, me, battle, moments, cards] = await Promise.all([
       get(fx, 'prefs'), get(fx, 'account'), get(fx, 'me'), get(fx, 'battle'), get(fx, 'moments'), get(fx, 'cards'),
     ])
@@ -968,7 +1111,7 @@ export function createGame(o: GameOptions): Game {
       ? readOfflineMeta(await fx.store.get(KEYS.offlineMeta)).lastDuelAt
       : (await metaOf(fx, account.server)).lastDuelAt
     return encounterDue({
-      now: server, turnStartedAt: turnStartedAt + rt.skew, firstEver: me.player.battles === 0, roll: fx.random(), duelRoll: fx.random(),
+      now: server, worked, beginner: me.player.battles < BEGINNER_BATTLES, roll: fx.random(), duelRoll: fx.random(),
       nextWildAt: me.player.nextWildAt, nextDuelAt: me.player.nextDuelAt, lastDuelAt,
     })
   }
@@ -985,7 +1128,9 @@ export function createGame(o: GameOptions): Game {
     rt.turnSeq++
     rt.encounter?.cancel()
     rt.encounter = null
-    await upd(fx, 'signals', s => ({ ...s, working: false, turnStartedAt: null }))
+    const now = await fx.now()
+    // the turn's working time carries over to the next turn's encounter clock
+    await upd(fx, 'signals', s => ({ ...s, working: false, turnStartedAt: null, worked: workedAfter(s.worked ?? 0, s.turnStartedAt, now) }))
     if (reason === 'aborted') await react(fx, 'aborted')
   }
 
@@ -1032,12 +1177,9 @@ export function createGame(o: GameOptions): Game {
     const account = await get(fx, 'account')
     if (account.link === 'ready' && now - rt.lastRefresh >= PANE_REFRESH_MS) {
       await refresh(fx)
-      // the refresh waited on the network: the handshake and the offer go to the server in play after it, if still this one
+      // the refresh waited on the network: the handshake goes to the server in play after it, if still this one
       const after = await get(fx, 'account')
-      if (account.world === 'online' && after.world === 'online' && after.server === account.server) {
-        await handshake(fx, account.server)
-        await passkeyOffer(fx, now)
-      }
+      if (account.world === 'online' && after.world === 'online' && after.server === account.server) await handshake(fx, account.server)
     } else if (account.link === 'unreachable' && account.world === 'online' && now - rt.lastRefresh >= PANE_REFRESH_MS) {
       rt.lastRefresh = now
       await connect(fx, { firstRun: false, explicit: false, fallback: false })
@@ -1104,21 +1246,13 @@ export function createGame(o: GameOptions): Game {
     if (p.lease?.holder === rt.holder) await fx.store.set(KEYS.presence, { ...p, lease: null })
   }
 
-  async function passkeyOffer(fx: Fx, now: number): Promise<void> {
-    const [account, me] = await Promise.all([get(fx, 'account'), get(fx, 'me')])
-    if (!me || !hasFeature(account, 'passkey')) return
-    const meta = await metaOf(fx, account.server)
-    const today = utcDay(now)
-    const third = Date.parse(me.player.joinedDay + 'T00:00:00Z') + 3 * 86_400_000 <= now
-    const weekAgo = meta.passkeyDay === '' || Date.parse(meta.passkeyDay + 'T00:00:00Z') + 7 * 86_400_000 <= now
-    if (!third || !weekAgo || meta.passkeyDay === 'saved') return
-    await saveMeta(fx, account.server, { passkeyDay: today })
-    await pushMoment(fx, { kind: 'passkey', id: 'passkey', until: null })
-  }
-
   // ---------- battles ----------
 
-  async function startBattle(fx: Fx, kind: 'wild' | 'duel', revenge?: string): Promise<void> {
+  /**
+   * Starts a battle: a waiting wild one or duel, a revenge on `foe.revenge`, or a challenge of `foe.handle`'s saved
+   * team (friendly: it moves no rating). Any battle starting starts the encounter clock over.
+   */
+  async function startBattle(fx: Fx, kind: 'wild' | 'duel', foe: { revenge?: string; handle?: string } = {}): Promise<void> {
     if (await get(fx, 'battle')) return
     const { backend, account, ok } = await backendOf(fx)
     if (account.link !== 'ready') return
@@ -1126,18 +1260,24 @@ export function createGame(o: GameOptions): Game {
       if (kind === 'duel') await line(fx, failureText(new BackendError('upgrade_required', 'refused', 426, ''), account.host), 'notice', HINT_MS)
       return
     }
-    const req: ApiRequest<'startBattle'> = revenge ? { kind, family: rt.family, revenge } : { kind, family: rt.family }
+    const req: ApiRequest<'startBattle'> = foe.revenge ? { kind, family: rt.family, revenge: foe.revenge }
+      : foe.handle ? { kind: 'duel', family: rt.family, handle: foe.handle }
+      : { kind, family: rt.family }
     let res
     try {
       res = await backend.startBattle(req)
     } catch (err) {
-      if (kind === 'duel' && ok()) await line(fx, failureText(err, account.host), 'notice', HINT_MS)
+      if (kind === 'duel' && ok()) {
+        const text = foe.handle && isBackendError(err) && err.code === 'not_found' ? `There is no ${safe(foe.handle, 40)} to challenge.` : failureText(err, account.host)
+        await line(fx, text, 'notice', HINT_MS)
+      }
       await noteFailure(fx, err, ok)
       return
     }
     // begun in a world play has since left: never shown or finished here; left open, it settles on its own where it began
     if (!ok()) return
     const now = await fx.now()
+    await upd(fx, 'signals', s => ({ ...s, worked: 0, turnStartedAt: s.working ? now : null }))
     if (kind === 'duel') {
       if (account.world === 'offline') await fx.store.set(KEYS.offlineMeta, { ...readOfflineMeta(await fx.store.get(KEYS.offlineMeta)), lastDuelAt: now })
       else await saveMeta(fx, account.server, { lastDuelAt: now })
@@ -1146,6 +1286,7 @@ export function createGame(o: GameOptions): Game {
       id: res.id, setup: res.setup, opponent: res.opponent, subs: res.subs, firstPossible: res.firstPossible,
       startedAt: res.startedAt - rt.skew, finishAfter: res.finishAfter - rt.skew,
       live: res.setup.rules === RULES_VERSION, phase: 'rustle', shown: 0, inputs: [], log: null,
+      ...(foe.handle ? { friendly: true as const } : {}),
     }
     await put(fx, 'battle', battle)
     await publish(fx)
@@ -1263,6 +1404,7 @@ export function createGame(o: GameOptions): Game {
       ratingDelta: res.ratingDelta, league: b.setup.kind === 'duel' && before && before !== after ? { from: before, to: after } : null,
       perfect: (res.log.rounds ?? []).reduce((n, r) => n + r.actions.filter(a => a.perfect).length, 0),
       xp: res.xp, catch: c, bounty: res.bounty, dailyWinPack: res.dailyWinPack, streak: res.streak, streakPack: res.streakPack,
+      ...(b.friendly ? { friendly: true as const } : {}),
     }
     await put(fx, 'battle', null)
     const until = c.status === 'choose' ? c.deadline : c.status === 'catching' ? now + CATCH_WAIT_MS : now + B.resultBandMs
@@ -1298,6 +1440,7 @@ export function createGame(o: GameOptions): Game {
         const { card } = await backend.catchCreature({ battleId, index })
         await setCatch(fx, battleId, { status: 'caught', card }, now + B.resultBandMs)
         await refresh(fx)
+        if (worthKeeping(card, true)) await valueMoment(fx, card)
       } catch (err) {
         const card = resumed && isBackendError(err) && err.code === 'conflict' ? await caughtBefore(fx, battleId, index) : null
         await setCatch(fx, battleId, card ? { status: 'caught', card } : { status: 'slipped' }, now + B.resultBandMs)
@@ -1343,6 +1486,8 @@ export function createGame(o: GameOptions): Game {
     }
     const res = await run(fx, 'openPack', { packId: pack.id }, 'Opening the pack')
     if (!res) return
+    // the welcome pack is open: the band's "open your welcome pack" has done its job, whichever door opened it
+    if (pack.source === 'welcome') await welcomeDone(fx, false)
     await showReveal(fx, 'pack', pack.family, res.cards, [], me.player.seen)
     await upd(fx, 'me', m => (m ? { ...m, packs: m.packs.filter(p => p.id !== pack.id) } : m))
     await refresh(fx)
@@ -1397,13 +1542,28 @@ export function createGame(o: GameOptions): Game {
 
   async function doneReveal(fx: Fx): Promise<void> {
     const r = await get(fx, 'reveal')
+    // the passkey offer waits until every card is face up, so it never names a creature still hidden
+    const best = r ? [...r.cards].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity)).find(c => worthKeeping(c)) : undefined
+    if (best) await valueMoment(fx, best)
     await put(fx, 'reveal', null)
     await upd(fx, 'pane', p => ({ ...p, flipped: 0, stack: p.stack.filter(v => v.kind !== 'reveal') }))
-    const moments = await get(fx, 'moments')
-    if (r && moments.some(m => m.kind === 'welcome')) {
+    if (r && r.kind === 'pack') await welcomeDone(fx, true)
+  }
+
+  /**
+   * The welcome pack has been opened (or is gone, opened elsewhere): the welcome leaves the band for good, and once the
+   * reveal is over (`hint`) the one-time hint says where creatures come from (SPEC 34.3).
+   */
+  async function welcomeDone(fx: Fx, hint: boolean): Promise<void> {
+    const had = (await get(fx, 'moments')).some(m => m.kind === 'welcome')
+    if (had) {
       await dropMoment(fx, 'welcome')
       await markWelcomed(fx)
-      await hintOnce(fx, 'first-run', 'Creatures find you while Claude works · /spin to open your collection')
+    }
+    if (hint && (had || !(await prefsRecord(fx)).hints.includes('first-run'))) {
+      const me = await get(fx, 'me')
+      // only after a welcome: a pack opened later by a player who never saw one says nothing
+      if (had || (me && me.player.battles === 0)) await hintOnce(fx, 'first-run', 'Creatures find you while Claude works · /spin to open your collection')
     }
   }
 
@@ -1420,6 +1580,7 @@ export function createGame(o: GameOptions): Game {
       stack: to?.view ? [...p.stack.filter(v => v.kind !== to.view!.kind), to.view] : p.stack,
     }))
     await fx.ui.openPane()
+    if (to?.tab === 'market' && !to.view && await marketStale(fx)) await loadMarket(fx, false)
   }
 
   /** esc: the update row first (while it shows), then the view on top, then the pane itself. */
@@ -1493,11 +1654,25 @@ export function createGame(o: GameOptions): Game {
         if (await run(fx, 'cancelGift', { code: target }, 'Cancelling')) await refresh(fx)
         return
       }
+      case 'cancel-listing': {
+        const res = await run(fx, 'cancelListing', { listingId: target }, 'Taking it off the market')
+        if (!res) return
+        await upd(fx, 'social', s => (s.market ? { ...s, market: { ...s.market, listings: s.market.listings.filter(l => l.id !== target) } } : s))
+        await upd(fx, 'pane', p => ({ ...p, stack: p.stack.filter(v => !(v.kind === 'listing' && v.listingId === target)) }))
+        await message(fx, `${nameOf(res.listing.card)} came home.`, 'good')
+        // taken off by hand, so the next read never takes it for a sale or a lapse
+        await upd(fx, 'me', m => (m ? { ...m, listings: (m.listings ?? []).filter(l => l.id !== target) } : m))
+        await refresh(fx)
+        return
+      }
       case 'reset-access': {
         const res = await run(fx, 'resetToken', {}, 'Resetting access')
         if (res) {
           await saveToken(fx.store, account.server, res.token)
-          await message(fx, 'Done. Other machines will need to sign in again.')
+          // resetting removes every saved passkey too (SPEC 30): the collection is not backed up any more
+          await setBackedUp(fx, account.server, false)
+          await upd(fx, 'account', a => (a.devices ? { ...a, devices: { ...a.devices, passkeys: 0 } } : a))
+          await message(fx, 'Done. Other machines are signed out · save a passkey again to back up')
         }
         return
       }
@@ -1682,7 +1857,7 @@ export function createGame(o: GameOptions): Game {
       try {
         const poll = await remote(origin).authPoll({ pollId: res.pollId })
         if (poll.status === 'added') {
-          await saveMeta(f, origin, { passkeyDay: 'saved' })
+          await setBackedUp(f, origin, true)
           await upd(f, 'account', mark('added'))
           if (ok()) await loadDevices(f)
           return
@@ -1695,7 +1870,7 @@ export function createGame(o: GameOptions): Game {
           if (!ok()) return
           await clearWorldState(f)
           await setMe(f, poll.me, origin, ok)
-          await upd(f, 'account', x => (ok() ? { ...x, link: 'ready', note: '', signIn: { ...signIn, status: 'done' } } : x))
+          await upd(f, 'account', x => (ok() ? { ...x, link: 'ready', note: '', backedUp: true, signIn: { ...signIn, status: 'done' } } : x))
           await loadCards(f, remote(origin), origin, ok, true)
           await publish(f)
           return
@@ -1725,6 +1900,16 @@ export function createGame(o: GameOptions): Game {
         if (await get(fx, 'battle')) { fx.ui.log('A battle is already under way.'); return }
         if (account.link !== 'ready') { fx.ui.log(account.note || 'Still getting ready…'); return }
         return startBattle(fx, 'duel')
+      }
+      case 'challenge': return challengeCommand(fx, cmd.handle)
+      case 'market': {
+        if (account.world === 'offline') return needsOnlineWorld(fx)
+        if (!hasFeature(account, 'market')) { fx.ui.log(`${account.host} has no market.`); return }
+        const stale = await marketStale(fx)
+        await openPane(fx, { tab: 'market' })
+        // a market already on show is read again; a stale one was read as the tab opened
+        if (!stale) await loadMarket(fx, false)
+        return
       }
       case 'pack': {
         await openPane(fx)
@@ -1789,22 +1974,185 @@ export function createGame(o: GameOptions): Game {
     }
   }
 
-  /** `/spin leaderboard`: the top players in the privacy view, where joining lives; `on`/`off` joins or leaves (SPEC 19, 20). */
+  /**
+   * `/spin leaderboard`: the boards view; `on`/`off` shows or hides this player on every board and their stats on their
+   * profile (SPEC 8: shown by default).
+   */
   async function leaderboardCommand(fx: Fx, on: boolean | null): Promise<void> {
     const account = await get(fx, 'account')
-    if (account.world === 'online' && !hasFeature(account, 'leaderboard')) { fx.ui.log(`${account.host} has no leaderboard.`); return }
+    if (account.world === 'offline') return needsOnlineWorld(fx)
+    if (!hasFeature(account, 'leaderboard') && !hasFeature(account, 'stats')) { fx.ui.log(`${account.host} has no leaderboards.`); return }
     if (on === null) {
-      await openPane(fx, { view: { kind: 'privacy' } })
-      await loading(fx, 'leaderboard', true)
-      const res = await run(fx, 'leaderboard', {}, 'Reading the leaderboard')
-      await loading(fx, 'leaderboard', false)
-      if (res) await upd(fx, 'social', s => ({ ...s, leaderboard: res.top }))
-      return
+      await openPane(fx, { view: { kind: 'boards', board: 'rating', period: 'all' } })
+      return loadRankings(fx, 'rating', 'all')
     }
-    const res = await run(fx, 'setLeaderboard', { optIn: on }, on ? 'Joining the leaderboard' : 'Leaving the leaderboard')
+    const res = await run(fx, 'setLeaderboard', { optIn: on }, on ? 'Showing you on the boards' : 'Hiding you from the boards')
     if (!res) { fx.ui.log((await get(fx, 'pane')).message); return }
     await upd(fx, 'me', m => (m ? { ...m, player: { ...m.player, leaderboard: res.leaderboard } } : m))
-    fx.ui.log(res.leaderboard ? 'You are on the leaderboard: handle, league and rating only.' : 'You are off the leaderboard.')
+    fx.ui.log(res.leaderboard
+      ? 'You are on the boards, and your stats show on your profile.'
+      : 'You are off the boards, and your stats are off your profile. /spin leaderboard on brings them back.')
+  }
+
+  /** An online-only command in the offline world: the band's one line, nothing sent (SPEC 28). */
+  async function needsOnlineWorld(fx: Fx): Promise<void> {
+    await pushMoment(fx, { kind: 'needs-online', id: 'needs-online', until: (await fx.now()) + HINT_MS })
+    fx.ui.log('That needs the online world · /spin world online')
+  }
+
+  /** `/spin duel <handle>`: a friendly duel against that player's saved team (SPEC 8). */
+  async function challengeCommand(fx: Fx, handle: string): Promise<void> {
+    const account = await get(fx, 'account')
+    if (account.world === 'offline') return needsOnlineWorld(fx)
+    if (!hasFeature(account, 'challenge')) { fx.ui.log(`${account.host} has no challenges yet.`); return }
+    const me = await get(fx, 'me')
+    if (me && me.player.handle.toLowerCase() === handle.toLowerCase()) { fx.ui.log('That is you. Pick someone else to challenge.'); return }
+    if (await get(fx, 'battle')) { fx.ui.log('A battle is already under way.'); return }
+    if (account.link !== 'ready') { fx.ui.log(account.note || 'Still getting ready…'); return }
+    fx.ui.log(`Challenging ${safe(handle, 40)} · friendly, no rating moves`)
+    return startBattle(fx, 'duel', { handle })
+  }
+
+  /** A Challenge button (a profile, a board row, a market seller): the duel plays above the prompt, the pane says so. */
+  async function challenge(fx: Fx, handle: string): Promise<void> {
+    const account = await get(fx, 'account')
+    if (account.world === 'offline') return needsOnlineWorld(fx)
+    if (await get(fx, 'battle')) { await message(fx, 'A battle is already under way.'); return }
+    const me = await get(fx, 'me')
+    if (me && me.player.handle.toLowerCase() === handle.toLowerCase()) return
+    if (account.link !== 'ready') { await message(fx, account.note || 'Still getting ready…'); return }
+    await startBattle(fx, 'duel', { handle })
+    // said only once the duel is under way: a link not ready, or no such player, leaves its own words instead
+    if (await get(fx, 'battle')) await message(fx, `Challenging ${safe(handle, 40)} above the prompt · friendly, no rating moves`, 'good')
+  }
+
+  // ---------- the market and the boards (SPEC 8) ----------
+
+  /** The Market tab's listings are missing, or old enough that some have likely sold: worth reading again. */
+  async function marketStale(fx: Fx): Promise<boolean> {
+    return !(await get(fx, 'social')).market || (await fx.now()) - rt.marketAt >= PANE_REFRESH_MS
+  }
+
+  /** The Market tab reads the market for its chips; `more` adds the next page to what is shown. */
+  async function loadMarket(fx: Fx, more: boolean): Promise<void> {
+    const account = await get(fx, 'account')
+    if (account.world !== 'online' || !hasFeature(account, 'market')) return
+    const chips = marketChips(await get(fx, 'pane'))
+    const query: MarketQuery = { family: chips.family, rarity: chips.rarity, kind: chips.kind, sort: chips.sort, shiny: chips.shiny, foil: chips.foil }
+    const shown = (await get(fx, 'social')).market
+    const after = more && shown && shown.next && sameQuery(shown.query, query) ? shown.next : undefined
+    if (more && !after) return
+    await loading(fx, 'market', true)
+    const res = await run(fx, 'market', marketRequest(query, after), 'Reading the market')
+    await loading(fx, 'market', false)
+    if (!res) return
+    if (!after) rt.marketAt = await fx.now()
+    await upd(fx, 'social', s => {
+      const kept = after && s.market && sameQuery(s.market.query, query) ? s.market : null
+      const listings = kept ? [...kept.listings, ...res.listings.filter(l => !kept.listings.some(k => k.id === l.id))].slice(0, 300) : res.listings
+      const prices = mergePrices(kept?.prices, res.prices)
+      return { ...s, market: { listings, next: res.next ?? null, prices, query }, prices: mergePrices(s.prices, res.prices) }
+    })
+  }
+
+  /** The recent prices of one species, for the sell view's hints: the Market tab's own listings stay as they are. */
+  async function loadPrices(fx: Fx, species: string): Promise<void> {
+    const account = await get(fx, 'account')
+    if (account.world !== 'online' || !hasFeature(account, 'market') || !/^s\d/.test(species)) return
+    const { backend, ok } = await backendOf(fx)
+    try {
+      const res = await backend.market({ species, sort: 'newest' })
+      if (ok()) await upd(fx, 'social', s => ({ ...s, prices: mergePrices(s.prices, res.prices) }))
+    } catch (err) {
+      // hints fall back to what crafting one costs
+      await noteFailure(fx, err, ok)
+    }
+  }
+
+  /** One board, all time or this season; on a server with only 0.1.0's rating board, that board. */
+  async function loadRankings(fx: Fx, board: BoardName, period: BoardPeriod): Promise<void> {
+    const account = await get(fx, 'account')
+    if (account.world !== 'online') return
+    await loading(fx, 'rankings', true)
+    if (hasFeature(account, 'stats')) {
+      const res = await run(fx, 'rankings', { board, period }, 'Reading the board')
+      if (res) await upd(fx, 'social', s => ({ ...s, rankings: res }))
+    } else if (hasFeature(account, 'leaderboard')) {
+      const res = await run(fx, 'leaderboard', {}, 'Reading the board')
+      const me = await get(fx, 'me')
+      const season = seasonOf(await fx.now())
+      if (res) {
+        const top = res.top.map((r, i) => ({ rank: i + 1, handle: r.handle, league: r.league, value: r.rating }))
+        const mine = top.find(r => r.handle === me?.player.handle)
+        await upd(fx, 'social', s => ({
+          ...s, leaderboard: res.top, rankings: { board: 'rating', period: 'all', season, top, ...(mine ? { me: mine } : {}) },
+        }))
+      }
+    }
+    await loading(fx, 'rankings', false)
+  }
+
+  /** Lists one of your cards (SPEC 8): it waits on the market, and the Market tab opens on your listings. */
+  async function listCard(fx: Fx, cardId: string, price: number, want: MarketWant | null): Promise<void> {
+    return oneTrade(fx, v => v?.kind === 'sell' && v.cardId === cardId, () => listCardNow(fx, cardId, price, want))
+  }
+
+  /**
+   * Runs one buy or listing at a time, and only from the view that offers it (`from`, the top of the pane): a second
+   * press while one runs, or one that lands after it closed that view, is the same press again and sends nothing.
+   */
+  async function oneTrade(fx: Fx, from: (v: View | undefined) => boolean, f: () => Promise<void>): Promise<void> {
+    if (rt.trading) return
+    rt.trading = true
+    try {
+      if (!from((await get(fx, 'pane')).stack.at(-1))) return
+      await f()
+    } finally {
+      rt.trading = false
+    }
+  }
+
+  async function listCardNow(fx: Fx, cardId: string, price: number, want: MarketWant | null): Promise<void> {
+    const card = (await get(fx, 'cards')).find(c => c.id === cardId)
+    const req: ApiRequest<'listCard'> = { cardId, ...(price > 0 ? { price: Math.round(price) } : {}), ...(want ? { want } : {}) }
+    const res = await run(fx, 'listCard', req, 'Putting it on the market')
+    if (!res) return
+    await upd(fx, 'me', m => (m ? { ...m, listings: [res.listing, ...(m.listings ?? []).filter(l => l.id !== res.listing.id)] } : m))
+    await upd(fx, 'pane', p => ({ ...p, tab: 'market', stack: [], page: 0, market: { ...marketChips(p), mine: true } }))
+    await message(fx, `${card ? nameOf(card) : 'Your card'} is on the market.`, 'good')
+    await refresh(fx)
+  }
+
+  /** Buys a listing, with your card when it wants one: the card arrives as a present to unwrap. */
+  async function buyListing(fx: Fx, listingId: string, cardId: string | null): Promise<void> {
+    return oneTrade(fx, v => v?.kind === 'listing' && v.listingId === listingId, () => buyListingNow(fx, listingId, cardId))
+  }
+
+  async function buyListingNow(fx: Fx, listingId: string, cardId: string | null): Promise<void> {
+    const me = await get(fx, 'me')
+    const account = await get(fx, 'account')
+    const { backend, ok } = await backendOf(fx)
+    if (account.world !== 'online') return needsOnlineWorld(fx)
+    if (account.readOnly) { await message(fx, failureText(new BackendError('upgrade_required', 'refused', 426, ''), account.host)); return }
+    const now = await fx.now()
+    await upd(fx, 'pane', p => ({ ...p, busy: 'Buying', busySince: now, message: '', toCopy: '' }))
+    let res: ApiResponse<'buyListing'>
+    try {
+      res = await backend.buyListing({ listingId, ...(cardId ? { cardId } : {}) })
+    } catch (err) {
+      if (!ok()) return
+      const gone = isBackendError(err) && (err.code === 'conflict' || err.code === 'not_found')
+      await message(fx, gone ? 'Someone else got it first.' : failureText(err, account.host))
+      if (gone) await upd(fx, 'social', s => (s.market ? { ...s, market: { ...s.market, listings: s.market.listings.filter(l => l.id !== listingId) } } : s))
+      await noteFailure(fx, err, ok)
+      return
+    }
+    if (!ok()) return
+    await upd(fx, 'pane', p => ({ ...p, busy: null, stack: p.stack.filter(v => v.kind !== 'listing') }))
+    await upd(fx, 'social', s => (s.market ? { ...s, market: { ...s.market, listings: s.market.listings.filter(l => l.id !== listingId) } } : s))
+    await upd(fx, 'me', m => (m ? { ...m, player: { ...m.player, sparks: res.sparks } } : m))
+    await showReveal(fx, 'present', null, [res.card], [], me?.player.seen ?? [])
+    await refresh(fx)
   }
 
   /** `/spin handle`: the generated handle; `new` draws another, once a week (SPEC 20.1). */
@@ -1854,7 +2202,7 @@ export function createGame(o: GameOptions): Game {
     if (res) {
       await upd(fx, 'account', a => ({ ...a, devices: res }))
       const account = await get(fx, 'account')
-      if (res.passkeys > 0) await saveMeta(fx, account.server, { passkeyDay: 'saved' })
+      if (account.world === 'online') await setBackedUp(fx, account.server, res.passkeys > 0)
     }
   }
 
@@ -1919,7 +2267,11 @@ export function createGame(o: GameOptions): Game {
       dismiss: id => after(dismiss(fx, id)),
       open: to => after(openPane(fx, to)),
       close: () => after(fx.ui.closePane()),
-      tab: tab => after(upd(fx, 'pane', p => ({ ...p, tab, stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false, showUpdate: false }))),
+      tab: tab => after((async () => {
+        await upd(fx, 'pane', p => ({ ...p, tab, stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false, showUpdate: false }))
+        // the market is read when its tab opens, unless what shows was read in the last few minutes
+        if (tab === 'market' && await marketStale(fx)) await loadMarket(fx, false)
+      })()),
       push: view => after(upd(fx, 'pane', p => ({ ...p, stack: [...p.stack, view].slice(-8), hold: null, message: '', toCopy: '', showUpdate: false }))),
       back: () => after(paneClosing(fx, true)),
       pane: fn => after(upd(fx, 'pane', fn)),
@@ -1950,14 +2302,28 @@ export function createGame(o: GameOptions): Game {
         if (copied) await message(fx, 'Copied. Run it in a terminal.', 'good')
         else await message(fx, 'Select the command below to copy it, then run it in a terminal.')
       })()),
-      duel: revenge => after(startBattle(fx, 'duel', revenge)),
+      duel: revenge => after(startBattle(fx, 'duel', revenge ? { revenge } : {})),
+      challenge: handle => after(challenge(fx, handle)),
+      market: more => after(loadMarket(fx, !!more)),
+      prices: species => after(loadPrices(fx, species)),
+      list: (cardId, price, want) => after(listCard(fx, cardId, price, want)),
+      buy: (listingId, cardId) => after(buyListing(fx, listingId, cardId)),
+      rankings: (board, period) => after((async () => {
+        await upd(fx, 'pane', p => ({ ...p, page: 0, stack: p.stack.map(v => (v.kind === 'boards' ? { ...v, board, period } : v)) }))
+        await loadRankings(fx, board, period)
+      })()),
+      marketFilter: change => after((async () => {
+        await upd(fx, 'pane', p => ({ ...p, page: 0, market: { ...marketChips(p), ...change } }))
+        if (marketChips(await get(fx, 'pane')).mine) await refresh(fx)
+        else await loadMarket(fx, false)
+      })()),
       profile: handle => after(loadProfile(fx, handle)),
       load: what => after((async () => {
         if (what === 'devices') return loadDevices(fx)
+        if (what === 'leaderboard') return loadRankings(fx, 'rating', 'all')
         await loading(fx, what, true)
         if (what === 'board') { const r = await run(fx, 'board', {}, 'Reading the board'); if (r) await upd(fx, 'social', s => ({ ...s, board: r })) }
         if (what === 'trader') { const r = await run(fx, 'trader', {}, 'Finding the Trader'); if (r) await upd(fx, 'social', s => ({ ...s, trader: r })) }
-        if (what === 'leaderboard') { const r = await run(fx, 'leaderboard', {}, 'Reading the leaderboard'); if (r) await upd(fx, 'social', s => ({ ...s, leaderboard: r.top })) }
         await loading(fx, what, false)
       })()),
       offer: (to, give, get_) => after((async () => {
@@ -2001,7 +2367,7 @@ export function createGame(o: GameOptions): Game {
         if (res) await upd(fx, 'me', m => (m ? { ...m, player: { ...m.player, handle: res.handle, handleRerollFrom: res.handleRerollFrom } } : m))
       })()),
       leaderboard: optIn => after((async () => {
-        const res = await run(fx, 'setLeaderboard', { optIn }, optIn ? 'Joining the leaderboard' : 'Leaving the leaderboard')
+        const res = await run(fx, 'setLeaderboard', { optIn }, optIn ? 'Showing you on the boards' : 'Hiding you from the boards')
         if (res) await upd(fx, 'me', m => (m ? { ...m, player: { ...m.player, leaderboard: res.leaderboard } } : m))
       })()),
       prefs: change => after(setPrefs(fx, change)),
@@ -2039,6 +2405,13 @@ export function createGame(o: GameOptions): Game {
         return
       }
       case 'passkey': return passkey(fx, 'add')
+      case 'market':
+        await dropMoment(fx, id)
+        if (m.outcome === 'expired' && m.card && (await get(fx, 'cards')).some(c => c.id === m.card!.id)) {
+          return openPane(fx, { tab: 'cards', view: { kind: 'card', cardId: m.card.id } })
+        }
+        await upd(fx, 'pane', p => ({ ...p, market: { ...marketChips(p), mine: true } }))
+        return openPane(fx, { tab: 'market' })
       case 'needs-online':
         await dropMoment(fx, id)
         return switchWorld(fx, 'online')

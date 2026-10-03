@@ -2,6 +2,18 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.0 (2026-10-03)
+
+- **The market.** Sell a card for sparks, for a card you want, or both, from its card page; buy from the new Market tab. A listing waits up to 14 days. A sale or a listing that comes home shows the creature in the band. The site has a read-only market at `/market`.
+- **Leaderboards and stats.** Six boards (rating, players beaten, duel wins, species, Mythics, sales), all time or this season, with your own rank pinned. Profiles show stat tiles. Every number is as it stood at the last UTC midnight. The site shows the same boards at `/boards`.
+- **Challenges.** `/spin duel <handle>`, or Challenge on a board row, a profile or a listing, plays a friendly duel against that player's saved team. No rating moves.
+- **Trading has no waiting.** Welcome cards and traded cards can trade again straight away.
+- **Passkey offer.** When something worth keeping arrives (a legendary, a Mythic, a foil or shiny, a sale), the band offers a passkey once that day, after the cards are face up. The pane header marks a collection that is not backed up yet.
+- **What others can see:** every player is now on the leaderboards, with stats on their profile, unless they hide with `/spin leaderboard off`. Players who joined while the boards were opt-in get one notice saying so. Open market listings show your handle, the card, the price, what you want and the day listed.
+- **What the server stores:** stat counts (no dates or times), market listings (deleted 30 days after they end), sale prices without either handle (deleted after 90 days), and which players you beat or sold to, only so each counts once. PRIVACY.md has the full list.
+- **What the mod sends:** listing, buying and taking off a listing; the market filters and the board you pick; a handle for a challenge.
+- **Compatibility:** API `/v1`, additive only (features `market`, `challenge`, `stats`). Rules 1, generator 2. `minClient` stays 0.1.0, so 0.1.x keeps working. The database change is expand-only.
+
 ## 0.1.1 (2026-10-03)
 
 - **Installing asks nothing.** The plugin no longer declares options, so Claude Code goes straight from install to play. `/spin world` and `/spin server` still switch the world and the server.

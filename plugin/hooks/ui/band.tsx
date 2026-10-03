@@ -4,7 +4,7 @@
 // itself. Every band button uses a digit, the only keys an empty prompt hands to the band: 1 is the one primary
 // action, 2 the secondary, 1 to 3 a catch choice. Returns null when nothing is live, so the engine's band shows.
 import type { RenderElement } from 'claude-code'
-import type { Card } from '../core/types.ts'
+import type { BattleCard, Card } from '../core/types.ts'
 import { FAMILY_INFO } from '../core/families.ts'
 import type { Pixels } from '../core/sprite.ts'
 import { TIMING, blank, pixelCells, silhouette, sparkles } from '../client/anim.ts'
@@ -20,6 +20,7 @@ import { ROUND_MS, catchOrder, headMoment, nameOf } from '../client/game.ts'
 import { hostOf } from '../client/net.ts'
 import { UPDATE_COMMAND } from '../client/remote.ts'
 import { fit, plural, safe } from '../client/text.ts'
+import { grouped } from '../client/viewmodels.ts'
 import type { Actions, Battle, BandView, El, Moment, Surface } from '../client/types.ts'
 import {
   ART_K, HUD, artSide, catchSvg, creatureSvg, evolveSvg, fledSvg, hatchSvg, hudSize, hudSvg, optionSvg, packSvg, presentSvg,
@@ -96,13 +97,15 @@ function compact(c: Ctx, rows: (RenderElement | null)[]): RenderElement {
 }
 
 /**
- * A row of the moment's actions: 1 the primary, 2 the secondary. In a short window the row may not wrap onto a second
- * line, so a long primary takes its `short` label when both would not fit across.
+ * A row of the moment's actions: 1 the primary, 2 the secondary. The row may not wrap onto a line the band does not
+ * have, so a long primary takes its `short` label when both would not fit across the column they sit in (beside the
+ * moment's `art` in a full band, the whole width in a short window).
  */
-function actionsRow(c: Ctx, m: Moment, primary: string | null, secondary: string | null, short?: string): RenderElement {
+function actionsRow(c: Ctx, m: Moment, primary: string | null, secondary: string | null, short?: string, art = false): RenderElement {
   const { Box, Button } = c.el
   const across = (primary ? 3 + primary.length : 0) + (secondary ? SPACE.loose + 3 + secondary.length : 0)
-  const label = primary && short && c.rows < 4 && across > c.columns ? short : primary
+  const room = c.rows < 4 ? c.columns : textWidth(c, art)
+  const label = primary && short && across > room ? short : primary
   return (
     <Box flexDirection="row" columnGap={SPACE.loose} flexWrap="wrap">
       {label ? <Button key={`act-${m.id}`} label={label} hotkey="1" plain variant="primary" onPress={() => { void c.actions.act(m.id) }} /> : null}
@@ -300,10 +303,34 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
       <Text wrap="truncate-end">{`Spinlings ${safe(m.version, 20)} is out`}</Text>,
       <Text dimColor wrap="truncate-end">{UPDATE_COMMAND}</Text>,
     ], { act: actionsRow(c, m, 'Got it', null) })
-    case 'passkey': return beside(c, null, [
-      <Text bold wrap="truncate-end">Save your collection with a passkey · no email, no password</Text>,
-      <Text dimColor wrap={wraps(c)}>Without one, losing this computer loses your online cards.</Text>,
-    ], { act: actionsRow(c, m, 'Save', 'Later') })
+    case 'passkey': {
+      // the card that made the collection worth keeping, shown with the plain truth about where it lives (SPEC 30)
+      const x = m.card ?? null
+      const art = x ? creatureArt(c, x, true) : null
+      return beside(c, art, [
+        x
+          ? <Text wrap="truncate-end"><Text bold color={rarityTint(x)}>{nameOf(x)}</Text><Text bold> lives only on this computer</Text></Text>
+          : <Text bold wrap="truncate-end">Your cards live only on this computer</Text>,
+        <Text dimColor wrap={wraps(c)}>A passkey keeps your collection safe · no email, no password</Text>,
+      ], { act: actionsRow(c, m, 'Save with a passkey', 'Later', 'Save', art !== null) })
+    }
+    case 'market': {
+      const x = m.card
+      const art = x ? creatureArt(c, x, m.outcome === 'sold') : null
+      const name = x ? nameOf(x) : 'Your card'
+      const sold = m.outcome === 'sold'
+      return beside(c, art, [
+        sold
+          ? <Text wrap="truncate-end"><Text bold color={INK.good}>Sold! </Text><Text bold>{name}</Text><Text>{m.handle ? ` went to ${safe(m.handle, 40)}` : ''}</Text></Text>
+          : <Text wrap="truncate-end"><Text bold>{name}</Text><Text> came home from the market</Text></Text>,
+        sold && m.price > 0
+          ? <Text><Text color={INK.accent}>{`+${MARK.spark} ${grouped(m.price)}`}</Text><Text dimColor> sparks</Text></Text>
+          : <Text dimColor wrap="truncate-end">{sold ? 'The card they gave is in your collection' : 'Nobody took it in 14 days. List it again any time.'}</Text>,
+      ], {
+        // 1 goes where the card is now: a card home again opens its page, anything else your listings
+        act: actionsRow(c, m, !sold && x && env.state.cards.some(k => k.id === x.id) ? 'Look' : 'Your listings', 'Got it'),
+      })
+    }
     case 'needs-online': return beside(c, null, [
       <Text wrap="truncate-end">This needs the online world</Text>,
     ], { act: actionsRow(c, m, 'Join online (fresh collection)', 'Stay offline', 'Join online') })
@@ -327,6 +354,18 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
       return <el.Box width={c.columns}><Text {...props} wrap="truncate-end">{safe(m.text, 200)}</Text></el.Box>
     }
   }
+}
+
+const rarityTint = (x: Pick<Card, 'species' | 'rarity'>) => (x.species === 'mythic' ? MYTHIC_COLOR : RARITY_COLOR[x.rarity])
+
+/** A creature on the band's plate: its mini Raster on the terminal, its framed art on the desktop, sparkling when good news. */
+function creatureArt(c: Ctx, x: BattleCard, sparkle: boolean): RenderElement {
+  const { el } = c
+  if (c.surface === 'terminal') {
+    const px = spriteOf(x, 'mini')
+    return raster(el, KEYS.art, sparkle ? sparkles(px, 0.4, x.id, { count: 2, color: 0xfff0a8, reach: 1 }) : px)
+  }
+  return svg(el, creatureSvg(spriteOf(x, 'full'), rarityTint(x), ART_K, { sparkle: sparkle && c.motion }), nameOf(x), plateSize(), c.motion)
 }
 
 function hatching(c: Ctx, env: Env): RenderElement {

@@ -3,14 +3,18 @@
 // drawing without a refusal at 40, 80 and 120 columns on the terminal and the desktop (21).
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import type { MeResponse, Notice, OfferView, PlayerView } from '../hooks/core/api.ts'
+import type {
+  ListingView, MarketWant, MeResponse, Notice, OfferView, PlayerStats, PlayerView, ProfileResponse, RankingsResponse, SaleView,
+} from '../hooks/core/api.ts'
 import type { BattleCard, BattleLog, BattleSetup, Card, CardForm } from '../hooks/core/types.ts'
 import type {
-  SpinBattleCard, SpinBattleLog, SpinBattleSetup, SpinCard, SpinCardForm, SpinMe, SpinNotice, SpinOffer, SpinPlayer,
+  SpinBattleCard, SpinBattleLog, SpinBattleSetup, SpinCard, SpinCardForm, SpinListing, SpinMarketWant, SpinMe, SpinNotice, SpinOffer,
+  SpinPlayer, SpinPlayerStats, SpinProfile, SpinRankings, SpinSale,
 } from '../types/index.d.ts'
 import { CLIENT_VERSION } from '../hooks/client/remote.ts'
-import { NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
+import { AFTER_NEXT, NEXT, NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
 import type { FakeServer } from './fixtures.ts'
+import { cardArt } from './engine.ts'
 
 // The contract restates core's shapes (a contract may not import); these fail to compile when the copies drift.
 type Same<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false
@@ -19,6 +23,8 @@ export type ContractMatchesCore = [
   Holds<Same<SpinCard, Card>>, Holds<Same<SpinBattleCard, BattleCard>>, Holds<Same<SpinCardForm, CardForm>>,
   Holds<Same<SpinBattleSetup, BattleSetup>>, Holds<Same<SpinBattleLog, BattleLog>>, Holds<Same<SpinPlayer, PlayerView>>,
   Holds<Same<SpinNotice, Notice>>, Holds<Same<SpinOffer, OfferView>>, Holds<Same<SpinMe, MeResponse>>,
+  Holds<Same<SpinPlayerStats, PlayerStats>>, Holds<Same<SpinListing, ListingView>>, Holds<Same<SpinMarketWant, MarketWant>>,
+  Holds<Same<SpinSale, SaleView>>, Holds<Same<SpinRankings, RankingsResponse>>, Holds<Same<SpinProfile, ProfileResponse>>,
 ]
 
 const PLUGIN = 'spinlings'
@@ -112,7 +118,7 @@ test('first run: joins silently, keeps the session per origin, and welcomes with
   }
   const pane = await $.ui.mount({ ...PANE(80), surface: 'terminal' })
   for (let i = 0; i < 5; i++) await pane.press({ key: 'flip' })
-  expect((await pane.findAll({ type: 'Raster' })).length).toBe(5)
+  expect(cardArt(await pane.findAll({ type: 'Raster' })).length).toBe(5)
   await pane.press({ key: 'done' })
   await settle(clock)
   await pane.unmount()
@@ -260,17 +266,17 @@ test('the card shows at full size and as tiles on both surfaces: starters, shiny
       for (const columns of [50, 80, 120]) {
         const pane = await $.ui.mount({ ...PANE(columns), surface })
         for (const text of texts) expect(await pane.find({ text })).toBeDefined()
-        expect((await pane.findAll({ type: surface === 'terminal' ? 'Raster' : 'Svg' })).length).toBe(1)
+        expect(cardArt(await pane.findAll({ type: surface === 'terminal' ? 'Raster' : 'Svg' })).length).toBe(1)
         await pane.unmount()
       }
     }
   }
   const pane = await $.ui.mount({ ...PANE(120), surface: 'terminal' })
   await pane.press({ key: 'tab-cards' })
-  expect((await pane.findAll({ type: 'Raster' })).length).toBe(5)
+  expect(cardArt(await pane.findAll({ type: 'Raster' })).length).toBe(5)
   await pane.unmount()
   const desk = await $.ui.mount({ ...PANE(120), surface: 'desktop' })
-  expect((await desk.findAll({ type: 'Svg' })).length).toBe(5)
+  expect(cardArt(await desk.findAll({ type: 'Svg' })).length).toBe(5)
   await desk.unmount()
 })
 
@@ -337,10 +343,10 @@ test('each world keeps its own collection: switching sends nothing offline and r
 
 test('a newer mod is announced once per version', { timeoutMs: 60_000 }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
-  const w = engine(on, fakeServer({ latestClient: '0.2.0' }))
+  const w = engine(on, fakeServer({ latestClient: NEXT }))
   await $.session.start(SESSION)
   await settle(clock)
-  expect((w.store.get('prefs') as { updateSeen: string }).updateSeen).toBe('0.2.0')
+  expect((w.store.get('prefs') as { updateSeen: string }).updateSeen).toBe(NEXT)
   await $.command.run(RUN('battle'))
   await settle(clock)
   expect(w.server.calls.some(c => c.path === '/v1/battles')).toBe(true)
@@ -348,7 +354,7 @@ test('a newer mod is announced once per version', { timeoutMs: 60_000 }, async (
 
 test('below minClient: no join on a first run (offline instead), and an existing account is read-only', { timeoutMs: 60_000 }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
-  const w = engine(on, fakeServer({ latestClient: '0.3.0', minClient: '0.2.0' }))
+  const w = engine(on, fakeServer({ latestClient: AFTER_NEXT, minClient: NEXT }))
   await $.session.start(SESSION)
   await settle(clock)
   expect(w.server.calls.some(c => c.path === '/v1/join')).toBe(false)

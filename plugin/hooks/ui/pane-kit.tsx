@@ -5,17 +5,21 @@
 // Keys: on a tab's own screen 1-4 switch tabs and `o` opens a pack; a pushed view or a ceremony keeps 1-3 for its own
 // choices and the tabs stay pressable without keys, so a key never means two things on one screen.
 import type { RenderElement } from 'claude-code'
-import type { Form } from '../core/types.ts'
+import type { Family, Form } from '../core/types.ts'
+import { FAMILY_INFO } from '../core/families.ts'
 import { RULE_INFO, dailyRule } from '../core/world.ts'
-import type { Actions, El, GameState, HoldAction, Presence, Surface, Tab } from '../client/types.ts'
-import { newerMod } from '../client/game.ts'
+import { pixelCells } from '../client/anim.ts'
+import { packArt as packPixels } from '../client/battleview.ts'
+import type { Actions, El, GameState, HoldAction, PlayerStats, Presence, Surface, Tab } from '../client/types.ts'
+import { hasFeature, newerMod } from '../client/game.ts'
 import { CLIENT_VERSION, UPDATE_COMMAND } from '../client/remote.ts'
 import { bar, cells, dots, fit, safe, span } from '../client/text.ts'
-import { HOLD_VERB, holdText } from '../client/viewmodels.ts'
+import { HOLD_VERB, grouped, holdText, statTiles } from '../client/viewmodels.ts'
+import type { StatTile } from '../client/viewmodels.ts'
 import { CARD_WIDTH, card, formArt } from './card.tsx'
 import type { CardFace, CardOptions } from './card.tsx'
 import { svgHold } from './ceremony-art.tsx'
-import { INK, MARK, SPACE } from './tokens.ts'
+import { FAMILY_COLOR, INK, LEAGUE_COLOR, MARK, SPACE, STAT, pixelRects } from './tokens.ts'
 
 /** Everything a pane screen draws from. */
 export type Ctx = {
@@ -42,14 +46,26 @@ export const CHIP = CARD_WIDTH.mini
 /** A tile: the framed 16x16 art in an 18-cell column (team, collection, summaries). */
 export const TILE = CARD_WIDTH.tile
 
-export const TABS: readonly { tab: Tab; label: string; hotkey: string }[] = [
-  { tab: 'team', label: 'Team', hotkey: '1' },
-  { tab: 'cards', label: 'Cards', hotkey: '2' },
-  { tab: 'album', label: 'Album', hotkey: '3' },
-  { tab: 'trade', label: 'Trade', hotkey: '4' },
+const ALL_TABS: readonly { tab: Tab; label: string }[] = [
+  { tab: 'team', label: 'Team' },
+  { tab: 'cards', label: 'Cards' },
+  { tab: 'album', label: 'Album' },
+  { tab: 'market', label: 'Market' },
+  { tab: 'trade', label: 'Trade' },
 ]
 
-/** `next pack ███░░ 18 min`, or why it waits (SPEC 13.8). */
+/** The Market tab shows where it can be used: online, on a server with a market. */
+export const marketOpen = (s: GameState) => s.account.world === 'online' && hasFeature(s.account, 'market')
+
+/** The tabs on show, hotkeys 1 to 5 in order (SPEC 21): offline, the Market tab is not there and Trade is 4. */
+export function tabsOf(s: GameState): { tab: Tab; label: string; hotkey: string }[] {
+  return ALL_TABS.filter(t => t.tab !== 'market' || marketOpen(s)).map((t, i) => ({ ...t, hotkey: String(i + 1) }))
+}
+
+/** The hint for the tab keys: `1-4 Tabs`, or `1-5 Tabs` with the Market. */
+export const tabsHint = (s: GameState) => `1-${tabsOf(s).length} Tabs`
+
+/** `next pack ███░░ 18 min`, or why it waits (SPEC 13.8): the words a meter's tooltip and the demo read. */
 export function packMeter(p: Presence, width = 5): string {
   if (p.blocked === 'bank') return 'Open some packs to make room'
   const left = Math.max(0, p.need - p.minutes)
@@ -57,9 +73,22 @@ export function packMeter(p: Presence, width = 5): string {
   return `next pack ${bar(p.minutes / p.need, width)} ${span(left * 60_000)}`
 }
 
+/** The meter's short time: `18m`, `1h`, `now`, or `full` while the bank of packs waits to be opened. */
+export function meterTime(p: Presence): string {
+  if (p.blocked === 'bank') return 'full'
+  const left = Math.max(0, p.need - p.minutes)
+  if (left === 0) return 'now'
+  return left >= 60 ? `${Math.round(left / 60)}h` : `${left}m`
+}
+
 // ---------- buttons and text ----------
 
-export type Btn = { key: string; label: string; hotkey?: string | undefined; primary?: boolean; dim?: boolean; on: () => unknown }
+export type Btn = {
+  key: string; label: string; hotkey?: string | undefined; primary?: boolean; dim?: boolean
+  /** the button names a picture above it (a tile, a pack, a row): it lights while the pointer is anywhere over its keyed Box */
+  lit?: boolean
+  on: () => unknown
+}
 
 /** The one button: always plain (the hotkey shows in the accent colour); primary only with 1 or o (SPEC 21.1). */
 export function btn(c: Ctx, b: Btn): RenderElement {
@@ -68,6 +97,7 @@ export function btn(c: Ctx, b: Btn): RenderElement {
     ...(b.hotkey ? { hotkey: b.hotkey } : {}),
     ...(b.primary ? { variant: 'primary' as const } : {}),
     ...(b.dim ? { dimColor: true } : {}),
+    ...(b.lit ? { hover: { bold: true, underline: true } } : {}),
   }
   return <Button key={b.key} label={b.label} plain {...extra} onPress={() => { void b.on() }} />
 }
@@ -79,9 +109,13 @@ export function actions(c: Ctx, items: (RenderElement | null | false)[]): Render
   return <c.el.Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>{...list}</c.el.Box>
 }
 
+/**
+ * One line of text that wraps onto the next row rather than lose its end: nothing in the pane is cut where it could
+ * be read whole (a name, a handle, a sentence); only the hint row gives way, a whole hint at a time.
+ */
 export function line(c: Ctx, text: string, o: { dim?: boolean; color?: string; bold?: boolean; italic?: boolean } = {}): RenderElement {
   const props = { ...(o.dim ? { dimColor: true } : {}), ...(o.color ? { color: o.color } : {}), ...(o.bold ? { bold: true } : {}), ...(o.italic ? { italic: true } : {}) }
-  return <c.el.Text wrap="truncate-end" {...props}>{fit(text, c.columns)}</c.el.Text>
+  return <c.el.Box width={c.columns}><c.el.Text wrap="wrap" {...props}>{text}</c.el.Text></c.el.Box>
 }
 
 /** A paragraph that wraps (guidance, consequences). */
@@ -93,11 +127,11 @@ export function para(c: Ctx, text: string, o: { dim?: boolean; color?: string } 
 /** A section heading with an optional dim note on the right. */
 export function heading(c: Ctx, text: string, note = ''): RenderElement {
   const { Box, Text } = c.el
-  const room = Math.max(0, c.columns - text.length - SPACE.loose)
+  // the note goes on the next row where the heading leaves no room, never cut
   return (
-    <Box flexDirection="row" columnGap={SPACE.loose} width={c.columns}>
-      <Text>{text}</Text>
-      {note && room > 3 ? <Text dimColor wrap="truncate-end">{fit(note, room)}</Text> : null}
+    <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
+      <Text wrap="wrap">{text}</Text>
+      {note ? <Text dimColor wrap="wrap">{note}</Text> : null}
     </Box>
   )
 }
@@ -116,7 +150,7 @@ export function grid(c: Ctx, items: RenderElement[], per: number): RenderElement
 
 // ---------- the one card, at the pane's sizes (ui/card.tsx) ----------
 
-type Press = Pick<CardOptions, 'key' | 'on' | 'hotkey' | 'selected' | 'note' | 'dimmed'>
+type Press = Pick<CardOptions, 'key' | 'on' | 'hotkey' | 'selected' | 'note' | 'dimmed' | 'extra'>
 
 /** The mini card: art, name (pressable), family mark, rarity initial, level and finish; the same order everywhere. */
 export const chip = (c: Ctx, x: CardFace, o: Press) => card(c.el, c.surface, x, 'mini', { ...o, motion: c.motion })
@@ -144,47 +178,141 @@ export function worldBadge(s: GameState): string {
   return dots(a.community ? 'Community' : 'Online', a.host)
 }
 
-/** The header row on every screen (SPEC 21): tabs on the left; the daily rule, the pack meter and the world right. */
+/** The pack meter's art on the desktop: a pack in the family's colour, filling from the bottom as presence adds up. */
+export function meterSvg(p: Presence, color: string, title: string): string {
+  const f = p.blocked === 'bank' ? 1 : Math.min(1, Math.max(0, p.minutes / Math.max(1, p.need)))
+  const h = Math.round(12 * f)
+  const esc = title.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 16" width="12" height="16" shape-rendering="crispEdges">'
+    + `<title>${esc}</title>`
+    + `<rect x="0.5" y="2.5" width="11" height="13" rx="1.5" fill="none" stroke="${color}" stroke-opacity="0.9"/>`
+    + `<rect x="3" y="0.5" width="6" height="2" fill="${color}"/>`
+    + `<rect x="2" y="${14 - h}" width="8" height="${h}" fill="${color}"/>`
+    + '</svg>'
+}
+
+/**
+ * The pack meter (SPEC 13.8) as a picture, never cut: a small pack in the family's colour that fills as presence adds
+ * up (cells on the terminal, art on the desktop), then the time left (`18m`, `now`, or `full` while the bank waits).
+ */
+export function meter(c: Ctx): RenderElement {
+  const { Box, Text, Svg } = c.el
+  const p = c.state.presence
+  const color = FAMILY_COLOR[c.state.signals.family]
+  const time = meterTime(p)
+  const tone = p.blocked === 'bank' ? INK.warn : time === 'now' ? INK.good : undefined
+  const filled = p.blocked === 'bank' ? 5 : Math.round(5 * Math.min(1, p.minutes / Math.max(1, p.need)))
+  const art = c.surface === 'terminal'
+    ? <Text><Text color={color}>{'▮'.repeat(filled)}</Text><Text dimColor>{'▯'.repeat(5 - filled)}</Text></Text>
+    : <Svg source={meterSvg(p, color, packMeter(p))} alt={packMeter(p)} width={12} height={16} />
+  return (
+    <Box key="pack-meter" flexDirection="row" columnGap={SPACE.tight} flexShrink={0}>
+      {art}
+      <Text {...(tone ? { color: tone } : { dimColor: true })}>{time}</Text>
+    </Box>
+  )
+}
+
+/** The world as a dot and the host: green online, hollow offline, amber when the server is out of reach. */
+function worldDot(c: Ctx): RenderElement {
+  const { Text } = c.el
+  const a = c.state.account
+  const out = a.link === 'unreachable' || a.link === 'signed-out'
+  const dot = a.world === 'offline' ? MARK.away : MARK.dot
+  const color = out ? INK.warn : a.world === 'offline' ? INK.muted : INK.good
+  const words = a.world === 'offline' ? 'Offline' : out ? `${a.host} · not connected` : a.community ? `${a.host} · community` : a.host
+  return <Text wrap="wrap"><Text color={color}>{dot}</Text><Text dimColor>{` ${words}`}</Text></Text>
+}
+
+/**
+ * The passkey marker (SPEC 30): while an online collection lives only on this computer, a small "Not backed up" sits in
+ * the header; pressing it opens the passkey steps. Gone for good once a passkey is saved.
+ */
+export function unsavedMarker(c: Ctx): RenderElement | null {
+  const a = c.state.account
+  if (a.world !== 'online' || a.link !== 'ready' || a.backedUp !== false || !hasFeature(a, 'passkey') || !c.state.me) return null
+  if ((a.devices?.passkeys ?? 0) > 0) return null
+  const { Box, Text } = c.el
+  return (
+    <Box key="unsaved" flexDirection="row" columnGap={SPACE.tight} flexShrink={0}>
+      <Text color={INK.warn}>{MARK.unsaved}</Text>
+      {btn(c, { key: 'not-backed-up', label: 'Not backed up', dim: true, on: () => c.actions.push({ kind: 'devices' }) })}
+    </Box>
+  )
+}
+
+/**
+ * The header on every screen (SPEC 21): the tabs; then Open pack, the pack meter, the daily rule, the world and, until
+ * a passkey is saved, the "Not backed up" marker. Every piece is whole and the row wraps rather than cut one.
+ */
 export function header(c: Ctx): RenderElement {
   const { Box, Text } = c.el
   const s = c.state
   const packs = playable(s) ? s.me!.packs.length : 0
   const rule = RULE_INFO[dailyRule(c.now)].name
-  const meter = packMeter(s.presence)
-  const link = s.account.link === 'unreachable' || s.account.link === 'signed-out'
-  const world = link ? `${worldBadge(s)} ${MARK.bullet} not connected` : worldBadge(s)
   const tabs = (
-    <Box flexDirection="row" columnGap={SPACE.tight} flexShrink={0}>
-      {TABS.map(t => btn(c, { key: `tab-${t.tab}`, label: t.label, hotkey: c.root ? t.hotkey : undefined, dim: t.tab !== s.pane.tab, on: () => c.actions.tab(t.tab) }))}
+    <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.tight} flexShrink={0}>
+      {tabsOf(s).map(t => btn(c, { key: `tab-${t.tab}`, label: t.label, hotkey: c.root ? t.hotkey : undefined, dim: t.tab !== s.pane.tab, on: () => c.actions.tab(t.tab) }))}
     </Box>
   )
   const open = packs > 0 ? btn(c, { key: 'open-pack', label: `Open pack (${packs})`, hotkey: c.root ? 'o' : undefined, primary: c.root, on: () => c.actions.openPack() }) : null
-  const tabsWidth = TABS.reduce((n, t) => n + t.label.length + (c.root ? 3 : 0), 0) + TABS.length - 1
-  if (c.columns >= 110) {
-    const room = c.columns - tabsWidth - (open ? `Open pack (${packs})`.length + 3 + SPACE.loose : 0) - SPACE.loose
-    return (
-      <Box flexDirection="row" columnGap={SPACE.loose} width={c.columns}>
-        {tabs}
-        {open}
-        <Box flexGrow={1} justifyContent="flex-end"><Text dimColor wrap="truncate-end">{fit(dots(rule, meter, world), Math.max(4, room))}</Text></Box>
-      </Box>
-    )
-  }
-  const short = c.columns < 80 ? (link ? 'Not connected' : s.account.world === 'offline' ? 'Offline' : s.account.community ? 'Community' : 'Online') : world
-  const second = c.columns < 80 ? dots(s.account.world === 'online' ? s.account.host : '', rule, meter) : dots(rule, meter)
-  const room = c.columns - (open ? `Open pack (${packs})`.length + 3 + SPACE.loose : 0)
   return (
     <Box flexDirection="column" width={c.columns}>
-      <Box flexDirection="row" justifyContent="space-between" columnGap={SPACE.loose} width={c.columns}>
-        {tabs}
-        <Text dimColor wrap="truncate-end">{fit(short, Math.max(4, c.columns - tabsWidth - SPACE.loose))}</Text>
-      </Box>
-      <Box flexDirection="row" columnGap={SPACE.loose} width={c.columns}>
+      {tabs}
+      <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
         {open}
-        <Text dimColor wrap="truncate-end">{fit(second, Math.max(4, room))}</Text>
+        {meter(c)}
+        <Text dimColor wrap="wrap">{rule}</Text>
+        {worldDot(c)}
+        {unsavedMarker(c)}
       </Box>
     </Box>
   )
+}
+
+/** A price in sparks: the spark mark in its colour and the whole number, grouped (`✧ 1,250`); `swap` for a card only. */
+export function priceChip(c: Ctx, price: number, key?: string): RenderElement {
+  const { Text } = c.el
+  if (price <= 0) return <Text key={key} color={INK.muted}>{`${MARK.swap} swap`}</Text>
+  return <Text key={key}><Text color={STAT.sales.color}>{MARK.spark}</Text><Text bold>{` ${grouped(price)}`}</Text></Text>
+}
+
+/** One stat as a tile: its glyph in its colour, the number, and one dim word (SPEC 8: counts only). */
+export function statTile(c: Ctx, t: StatTile, key: string): RenderElement {
+  const { Box, Text } = c.el
+  const look = STAT[t.key]
+  return (
+    <Box key={key} flexDirection="row" columnGap={SPACE.tight} flexShrink={0}>
+      <Text color={look.color}>{look.mark}</Text>
+      <Text bold>{grouped(t.value)}</Text>
+      <Text dimColor>{t.label}</Text>
+    </Box>
+  )
+}
+
+/** A player's stats as a wrapping row of tiles. */
+export function statRow(c: Ctx, stats: PlayerStats | undefined, key: string): RenderElement | null {
+  if (!stats) return null
+  const tiles = statTiles(stats)
+  return <c.el.Box key={key} flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>{...tiles.map((t, i) => statTile(c, t, `${key}-${i}`))}</c.el.Box>
+}
+
+/** A pack as a small package in its family's colour: 8 x 4 cells on the terminal, crisp art on the desktop. */
+export function packArt(c: Ctx, family: Family, key: string): RenderElement {
+  const px = packPixels(family)
+  if (c.surface === 'terminal') {
+    const r = pixelCells(px)
+    return <c.el.Raster key={key} columns={r.columns} rows={r.rows} cells={r.cells} />
+  }
+  const name = `${FAMILY_INFO[family].name} pack`
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" width="32" height="32" shape-rendering="crispEdges">'
+    + `<title>${name}</title>${pixelRects(px)}</svg>`
+  return <c.el.Svg source={svg} alt={`${name} waiting to open`} width={32} height={32} />
+}
+
+/** A league as a badge: its colour and its name. */
+export function leagueBadge(c: Ctx, league: keyof typeof LEAGUE_COLOR): RenderElement {
+  return <c.el.Text color={LEAGUE_COLOR[league] ?? INK.muted}>{`${MARK.dot} ${league}`}</c.el.Text>
 }
 
 /** The hold's consequence line, shown once armed (SPEC 21.8); on the desktop a bar fills over the 2 seconds. */

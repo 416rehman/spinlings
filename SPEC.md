@@ -392,14 +392,19 @@ Everything here works while the other player is away. **No account limits:** any
 | Welcome | 2 rows, once ever | See "First run" in section 6 |
 
 ### Pane (`/spin`)
-Four tabs, hotkeys 1–4. A header shows the daily rule and `[p] Open pack (n)`.
+Five tabs, hotkeys 1–5; offline there is no Market tab, so the four left take 1–4. A header shows the tabs, then `[o] Open pack (n)`, the pack meter as a small pack filling in the family's colour with the time left (`18m`), the daily rule, the world as a dot and the host, and, until a passkey is saved, a `Not backed up` marker that opens the passkey steps. Every piece shows whole; the header wraps rather than cut one.
 
 | Tab | Shows |
 |---|---|
-| Team | 3 slots with tired timers, rating, last 5 battles, defense notices |
-| Cards | Collection grid with family and rarity filters; card detail (stats, genes, traits, origin) with set in team, for trade, fuse, recycle and gift |
+| Team | 3 slots with tired timers (an empty slot is a button to pick one), league badge, rating and streak, `Leaderboards`, your stats as tiles (a glyph and a number each), the packs waiting as art to open, defense notices |
+| Cards | Collection grid with family and rarity filters; card detail (stats, genes, traits, origin) with set in team, for trade, fuse, sell, recycle and gift |
 | Album | The season's 4 families × 9 species with silhouettes for unseen ones, plus craft; also the Fusion Log |
-| Trade | Inbox (incoming and outgoing offers), the trade board, the wishlist, gifts and claim |
+| Market | Everyone's listings as a grid of card tiles (art, rarity gem, family mark, finish, a price chip in sparks and the creature it wants in return), filter chips (family, rarity, kind, sort, shiny, foil), pages; your own listings with `l`. A listing's page is the confirm: the card in full, the seller with Challenge, recent prices, what you give and what you get, then `1` Buy. Selling starts from a card's page (`l`): a price stepper that starts from recent sales (or what crafting one costs), up to three suggested prices, and an optional card asked in return (a wishlist species, or the card's family at its rarity or better) |
+| Trade | Inbox (incoming and outgoing offers), the trade board, the Wandering Trader, gifts and claim |
+
+Pushed over the tabs: the leaderboards (a switcher of six boards with `n`/`p`, all time or this season with `a`, the top rows with a league badge and the value, your own rank pinned, and from each row the player's profile or Challenge), and a player's profile (league, album count, stats as tiles, Challenge, their team and the offer builder).
+
+**Visuals are the controls.** Every card tile, team slot, pack, listing and board row is pressable: its button sits under its art, lights up while the pointer is anywhere over the tile, takes Tab focus and, where it matters, a hotkey. A name is never cut: what does not fit a tile's column goes on a line below, and the card's page shows everything whole. On the desktop the art carries the full name as its tooltip.
 
 ### Sprites
 - **Terminal:** a `Raster` of half-blocks. Cards are 16×16 pixels (16 columns × 8 rows). Minis are 8×8 (8 × 4).
@@ -410,8 +415,10 @@ Four tabs, hotkeys 1–4. A header shows the daily rule and `[p] Open pack (n)`.
 ### Commands
 - There is one command, `/spin`, with these subcommands:
   - `battle`, `pack` (opens the pack view; never creates a pack)
+  - `duel <handle>` (a challenge, section 8), `market` (opens the Market tab)
   - `team <a> <b> <c>`
   - `trade <handle>`
+  - `leaderboard [on|off]` (opens the boards; hides or shows you on them), `handle [new]`
   - `gift <card>`, `claim <code>`
   - `share [card]`
   - `redeem <code>`
@@ -559,10 +566,10 @@ Section 20 is the full privacy rule set and overrides this summary.
 `/spin wild` does not exist. Wild creatures only ever find you.
 
 ### Encounter timing (variable, so it is never predictable)
-- **Turn threshold:** once Claude's main turn has run 20 s, every further 15 s of that turn rolls a 30% chance of an encounter.
+- **Working time adds up:** the clock counts Claude's main-turn working time across turns, so short turns add up; it starts over only when a battle begins. Once 20 s of work have built up, every further 15 s of work rolls a 30% chance of an encounter.
 - **Spacing:** at most one wild encounter every 8 minutes, enforced by the server. There are no daily caps (section 24).
 - **Beginner's luck:**
-  - the first encounter ever is guaranteed at 20 s;
+  - for a player with fewer than 3 finished battles, every check is a guaranteed wild encounter as soon as the server's spacing allows, so a first session meets its first creatures close together;
   - the first wild win ever always catches.
 - **Manual battles:** `/spin battle` challenges a duel only.
 
@@ -616,7 +623,7 @@ Section 20 is the full privacy rule set and overrides this summary.
    - **Global:** the first player in the world to obtain a species in a season gets a permanent `First Discovered` stamp on that card. The album shows "first found by {handle}" to everyone. The moment is a gold banner: "You are the first trainer in the world to find Gloamkin!".
    - Stored server-side (`firsts`: season, species, player, card, at). The card carries `firstFind: true`.
 8. **Pack charge meter.**
-   - The pane header always shows progress toward the next pack, e.g. `next pack ███░░ 18 min`, filling with presence.
+   - The pane header always shows progress toward the next pack as a small pack filling in the family's colour, then the time left (`18m`, `now`, or `full` while the bank waits); on the desktop the pack is art with `next pack ███░░ 18 min` as its tooltip.
    - When a pack charges, the band shows for 6 s: "A pack is ready! [o] Open". It never nags after that.
 9. **Gifts and received trades.** The band shows a wrapped present once: "quiet-otter-42 sent you a gift! [o] Open". Opening it is a 1-card version of the pack ceremony.
 10. **Fusion hatch (pane).** The two parents' sprites interleave into an egg. The egg wobbles for 3 beats and cracks, then the hybrid is revealed with "Nobody has ever seen this creature."
@@ -627,7 +634,7 @@ Section 20 is the full privacy rule set and overrides this summary.
 | When | What happens |
 |---|---|
 | Minute 0 | The welcome pack ceremony, opened from the welcome band |
-| First 20+ s Claude turn | A guaranteed encounter |
+| The first 20 s of Claude's work (short turns add up) | A guaranteed encounter, and more close together while the server's spacing allows (the first 3 battles) |
 | First win | A guaranteed catch |
 | Every 50 presence minutes | A pack |
 | Through the day | Variable encounters |
@@ -907,7 +914,7 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 1. **One primary action per surface.** It is a `variant="primary"` Button and always hotkey `1` (or `o` in ceremonies). At most 2 secondary actions; everything else lives in the card detail.
 2. **The screen answers "what can I do now?"** Every tab has a one-line hint row at the bottom, e.g. `1 Open pack · 2 Team · esc Close`. Every empty state says what will fill it ("Creatures show up while Claude works. Your first one is on its way.").
 3. **Teach by doing, never by tutorial.** The first session is the onboarding: welcome pack → first encounter → first catch. A hint appears once, at the moment it matters, and never again.
-4. **Chunking.** At most 4 items per group, 4 tabs, 3 choices in any picker.
+4. **Chunking.** At most 4 items per group, 5 tabs, 3 choices in any picker.
 5. **Plain words.** Buttons are verbs: "Open pack", "Set team", "Send offer", "Claim". No jargon in the UI: "held for this trade", not "escrow"; "resting", not "tired_until".
 6. **Instant feedback.** Every press changes something visible within 100 ms (optimistic state, then reconcile with the server). Every wait over 300 ms shows a dim placeholder, never a frozen screen.
 7. **Smart defaults.** The handle is pre-filled, the best pick is pre-selected in pickers, and the album opens at the count you already have, never at 0.
@@ -918,7 +925,7 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 | Size | Used in | Contents |
 |---|---|---|
 | Full | Card detail, reveals | 16×16 sprite, name, rarity word and color, family mark, level and XP bar, gene score bar, traits (name and one-line effect), stamps (foil, shiny, first, mythic, raised under), origin |
-| Tile | Collection grid, offers | Sprite, name (truncated with an ellipsis), rarity initial in its color, level |
+| Tile | Collection grid, offers, the market | Sprite, name (never cut: words that do not fit go on a line below), rarity initial in its color, level; a listing adds its price chip and the card it wants |
 | Mini | Band, battle | 8×8 sprite, name, HP bar |
 
 The same card always looks the same everywhere: same colors, same marks, same order.
@@ -963,7 +970,7 @@ The same card always looks the same everywhere: same colors, same marks, same or
 ### Keys (identical everywhere)
 | Key | Action |
 |---|---|
-| `1`–`4` | Switch tabs, or choose within a picker of up to 3 |
+| `1`–`5` | Switch tabs (1–4 offline), or choose within a picker of up to 3 |
 | `o` | Open |
 | `f` | Flip next |
 | `d` | Done |
@@ -1199,7 +1206,7 @@ Section 30 removed link codes and recovery codes; a passkey is the only way to b
 
 ### Reset
 - `POST /v1/me/token` revokes **all** sessions and returns one new token for the caller.
-- The mod shows this as "Reset access" in `/spin privacy`, behind a 2-second hold. The prompt says: "Other machines will need to sign in again."
+- The mod shows this as "Reset access" in `/spin privacy`, behind a 2-second hold. The prompt says: "Other machines sign out and saved passkeys are removed."
 
 ### Deletion
 `DELETE /v1/me` deletes the player's sessions and passkeys along with everything else (section 20).
@@ -1263,12 +1270,13 @@ GitHub sign-in was withdrawn (section 30): the game never asks who you are, and 
 - The join proof of work and the join limits per IP hash are back (sections 11 and 15).
 
 ### 2. Optional passkey: keep your collection, use another computer
-- **When it is offered,** once, never repeated more than once a week, and always dismissible:
-  - after the player's 3rd day with an online account;
-  - the first time they open `/spin privacy`;
-  - when they run `/spin devices`.
+- **When it is offered,** always dismissible, at most once a UTC day and never again once a passkey is saved:
+  - at a moment that makes the collection worth keeping: a rare or better catch, a legendary or a Mythic, a foil or a shiny, a sale or an accepted trade. The band shows that card with `{name} lives only on this computer` and one press to start; `Later` waits for the next such moment;
+  - in `/spin privacy` and `/spin devices`, where the passkey steps live.
+- **Not backed up:** until a passkey is saved, the pane header carries a small `Not backed up` marker that opens the passkey steps.
+- **The steps** are shown one per row, the link to the page first and prominent with its whole address beside it: open the page, save the passkey the browser offers, saved.
 
-  The offer reads `Save your collection with a passkey · no email, no password · [1] Save · esc Later`.
+  The offer reads `{name} lives only on this computer · A passkey keeps your collection safe · no email, no password · [1] Save with a passkey · [2] Later`.
 - **Add a passkey** (authenticated):
   1. `POST /v1/me/passkey/start` returns `{ url, pollId }`. The URL is `{server}/passkey/add?t={ticket}`, where the ticket is single-use, lives 10 minutes, is bound to this player and stored hashed.
   2. The page calls `navigator.credentials.create` with:
@@ -1409,7 +1417,8 @@ A `Dockerfile` is provided, built from a `node:22-alpine` image pinned by digest
    - On the first session start after install, the mod joins silently and the band shows `✦ A Spinling hatched! [1] Open your welcome pack`.
    - The pack ceremony plays, and the starter team is already set.
    - A one-line hint follows: `Creatures find you while Claude works · /spin to open your collection`.
-   - The first wild encounter is guaranteed on Claude's first turn longer than 20 seconds.
+   - The first wild encounter is guaranteed once Claude has worked 20 seconds, however many turns that takes.
+   - The welcome leaves the band once the welcome pack is opened, from the band or the pane, or is gone.
 4. **If joining fails** (no network or server down), the mod starts the welcome in the offline world instead. The band shows `Playing offline · /spin world online when you're connected`.
 5. **No command needed to start playing.** `/spin` is optional.
 

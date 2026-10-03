@@ -15,7 +15,7 @@ import { miniSprite, silhouette, spriteFor } from '../core/sprite.ts'
 import type { Pixels, SpriteSource } from '../core/sprite.ts'
 import { DEFAULT_COLOR, T, encodeGrid, grid, putPixels } from '../client/anim.ts'
 import type { El, Surface } from '../client/types.ts'
-import { bar, dots, fit, safe, span } from '../client/text.ts'
+import { bar, cells, dots, fit, safe, span } from '../client/text.ts'
 import {
   ART, FAMILY_COLOR, FAMILY_MARK, FOIL_STEP, INK, MARK, MYTHIC_COLOR, RAINBOW_STOPS, RARITY_COLOR, RARITY_INITIAL, RARITY_WORD,
   SPACE, SPRITE, SVG_SCALE, hex6, hexInt, hslInt, pixelRects,
@@ -23,8 +23,14 @@ import {
 
 export type CardSize = 'full' | 'tile' | 'mini' | 'row'
 
-/** Cells across a tile and a mini; a row and a full card take what they are given. */
-export const CARD_WIDTH = { tile: ART.columns, mini: 10 } as const
+/**
+ * Cells across a tile and a mini; a row and a full card take what they are given. A mini is wide enough for `1: ` and
+ * any one-word name, so a picker's hotkey never cuts a name.
+ */
+export const CARD_WIDTH = { tile: ART.columns, mini: 14 } as const
+
+/** How a pressable card answers the pointer anywhere over it: its name lights up, so the whole card reads as one control. */
+const LIT = { bold: true, underline: true } as const
 
 /** The mark a picked card's name carries. */
 const CHECK = '✓'
@@ -56,6 +62,8 @@ export type CardOptions = {
   dimmed?: boolean
   /** one dim line under the marks (a slot, a handle, NEW) */
   note?: string
+  /** a row of the caller's under the marks: a listing's price chip and the card it wants */
+  extra?: RenderElement | null
 }
 
 // ---------- words ----------
@@ -116,13 +124,29 @@ export function originLine(c: CardFace): string {
   return c.origin ? ORIGIN[c.origin] ?? '' : ''
 }
 
-/** Plain-word state of one of your cards: resting, held for a trade, trade-locked, bound (SPEC 21.5). */
+/** Plain-word state of one of your cards: resting, held (a trade, a gift or the market), bound (SPEC 21.5). */
 export function stateLine(c: CardFace, now: number | undefined): string {
-  if (c.state === 'escrow') return 'Held for a trade'
+  if (c.state === 'escrow') return 'Held for a trade or sale'
   if (now !== undefined && c.tiredUntil !== undefined && c.tiredUntil > now) return `Resting · ${span(c.tiredUntil - now)}`
   if (c.bound) return 'Stays with you'
-  if (now !== undefined && c.lockedUntil !== undefined && c.lockedUntil > now) return `Can trade in ${span(c.lockedUntil - now)}`
   return c.forTrade ? 'Marked for trade' : ''
+}
+
+/**
+ * A name split to fit `room` cells without cutting it: the words that fit on the first line, and the rest for a
+ * wrapping line below. Only a single word longer than the room is cut, and then the whole name follows below.
+ */
+export function splitName(text: string, room: number): [string, string] {
+  if (cells(text) <= room) return [text, '']
+  const words = text.split(' ')
+  let first = ''
+  for (const w of words) {
+    const next = first ? `${first} ${w}` : w
+    if (cells(next) > room) break
+    first = next
+  }
+  if (!first) return [fit(text, room), text]
+  return [first, text.slice(first.length).trim()]
 }
 
 // ---------- art ----------
@@ -200,8 +224,13 @@ export function artCells(px: Pixels, frame: Frame | null, t = 0): { columns: num
   return { columns: g.columns, rows: g.rows, cells: encodeGrid(g) }
 }
 
-/** The desktop art: the same frame as the terminal's, a rainbow gradient for foil, and the sheen while motion is on. */
-export function artSvg(px: Pixels, frame: Frame | null, scale: number, motion: boolean): string {
+const xml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+/**
+ * The desktop art: the same frame as the terminal's, a rainbow gradient for foil, and the sheen while motion is on.
+ * `title` (the card's full name and rarity) is the art's tooltip wherever the surface draws it live.
+ */
+export function artSvg(px: Pixels, frame: Frame | null, scale: number, motion: boolean, title = ''): string {
   const n = px.length
   const pad = frame ? 1 : 0
   const size = n + pad * 2
@@ -225,7 +254,7 @@ export function artSvg(px: Pixels, frame: Frame | null, scale: number, motion: b
     if (frame.sparkle) border += `<path d="M${size - 1.5} 0.2 L${size - 1.1} 1.1 L${size - 0.2} 1.5 L${size - 1.1} 1.9 L${size - 1.5} 2.8 L${size - 1.9} 1.9 L${size - 2.8} 1.5 L${size - 1.9} 1.1 Z" fill="#fff4c2"/>`
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size * scale}" height="${size * scale}" shape-rendering="crispEdges">`
-    + (defs ? `<defs>${defs}</defs>` : '') + body + sheen + border + '</svg>'
+    + (title ? `<title>${xml(title)}</title>` : '') + (defs ? `<defs>${defs}</defs>` : '') + body + sheen + border + '</svg>'
 }
 
 const svgCache = new Map<string, string>()
@@ -239,7 +268,7 @@ function artElement(el: El, surface: Surface, key: string, cacheKey: string, px:
   const k = `${cacheKey}|${scale}|${animate ? 1 : 0}|${frame ? frame.color + (frame.rainbow ? 'r' : '') + (frame.sparkle ? 's' : '') : '-'}`
   let svg = svgCache.get(k)
   if (!svg) {
-    svg = artSvg(px, frame, scale, animate)
+    svg = artSvg(px, frame, scale, animate, alt)
     if (svgCache.size >= 400) svgCache.clear()
     svgCache.set(k, svg)
   }
@@ -292,10 +321,13 @@ export function card(el: El, surface: Surface, c: CardFace, size: CardSize, o: C
   const { Box, Text } = el
   const width = size === 'tile' ? CARD_WIDTH.tile : size === 'mini' ? CARD_WIDTH.mini : Math.max(10, (o.width ?? 40) - SPRITE.mini.columns - SPACE.loose)
   const words = [
-    name(el, c, width, o),
+    ...name(el, c, width, o),
     meta(el, c, width, size === 'mini'),
-    (size === 'tile' ? o.note !== undefined : !!o.note) ? <Text dimColor wrap="truncate-end">{fit(o.note ?? '', width)}</Text> : null,
-  ].filter((x): x is RenderElement => x !== null)
+    o.extra ?? null,
+    // a note (a slot, a handle) wraps rather than cut: it may be the only place a seller's handle shows
+    (size === 'tile' ? o.note !== undefined : !!o.note) ? <Text dimColor wrap="wrap">{o.note || ' '}</Text> : null,
+  ].filter((x): x is RenderElement => !!x)
+  // a pressable card is one hover scope (its keyed Box): the pointer anywhere over its art or words lights its name
   if (size === 'row') {
     return (
       <Box key={o.key} flexDirection="row" columnGap={SPACE.loose} width={o.width ?? 40}>
@@ -312,15 +344,20 @@ export function card(el: El, surface: Surface, c: CardFace, size: CardSize, o: C
   )
 }
 
-/** The name: plain, or a button that opens or picks the card (a tick when picked), cut to the column. */
-function name(el: El, c: CardFace, width: number, o: CardOptions): RenderElement {
-  const text = o.ghost ? '???' : displayName(c, 24)
-  if (!o.on) return <el.Text wrap="truncate-end">{fit(text, width)}</el.Text>
-  const room = width - (o.hotkey ? 3 : 0) - (o.selected ? 2 : 0)
-  const label = (o.selected ? `${CHECK} ` : '') + fit(text, Math.max(3, room))
+/**
+ * The name: plain, or the button that opens or picks the card (a tick when picked), lit while the pointer is anywhere
+ * over the card. Never cut: what does not fit the column goes on a line of its own below.
+ */
+function name(el: El, c: CardFace, width: number, o: CardOptions): RenderElement[] {
+  const text = o.ghost ? '???' : displayName(c, 32)
+  const room = Math.max(3, width - (o.on && o.hotkey ? 3 : 0) - (o.selected ? 2 : 0))
+  const [first, rest] = splitName(text, room)
+  const more = rest ? <el.Text wrap="wrap" {...(o.dimmed ? { dimColor: true } : {})}>{rest}</el.Text> : null
+  if (!o.on) return [<el.Text wrap="truncate-end">{first}</el.Text>, ...(more ? [more] : [])]
+  const label = (o.selected ? `${CHECK} ` : '') + first
   const on = o.on
   const extra = { ...(o.hotkey ? { hotkey: o.hotkey } : {}), ...(o.dimmed ? { dimColor: true } : {}) }
-  return <el.Button key={`${o.key}-pick`} label={label} plain {...extra} onPress={() => { void on() }} />
+  return [<el.Button key={`${o.key}-pick`} label={label} plain {...extra} hover={LIT} onPress={() => { void on() }} />, ...(more ? [more] : [])]
 }
 
 /**
@@ -352,7 +389,7 @@ function full(el: El, surface: Surface, c: CardFace, o: CardOptions): RenderElem
   const genes = geneScore(c.genes)
   const s = c.stats
   const lines: RenderElement[] = [
-    <Text bold wrap="truncate-end">{fit(o.ghost ? '???' : displayName(c, 32), w)}</Text>,
+    <Text bold wrap="wrap">{o.ghost ? '???' : displayName(c, 32)}</Text>,
     <Text wrap="truncate-end" color={rarityColor(c)}>{fit(rarityLabel(c), w)}</Text>,
     <Text wrap="truncate-end">
       {familyMark(el, c.family)}
@@ -368,18 +405,19 @@ function full(el: El, surface: Surface, c: CardFace, o: CardOptions): RenderElem
   ]
   for (const t of c.traits) {
     const info = (TRAITS as Record<string, { name: string; text: string } | undefined>)[t]
+    // the card page is where every word shows whole: traits and stamps wrap rather than cut
     lines.push(
-      <Text wrap="truncate-end">
+      <Text wrap="wrap">
         <Text>{info ? info.name : safe(t, 24)}</Text>
-        {info ? <Text dimColor>{fit(`  ${info.text}`, Math.max(0, w - info.name.length))}</Text> : ''}
+        {info ? <Text dimColor>{`  ${info.text}`}</Text> : ''}
       </Text>,
     )
   }
   const marks = stamps(c, o)
-  if (marks.length > 0) lines.push(<Text wrap="truncate-end" color={INK.accent}>{fit(marks.join(' · '), w)}</Text>)
+  if (marks.length > 0) lines.push(<Text wrap="wrap" color={INK.accent}>{marks.join(' · ')}</Text>)
   const origin = originLine(c)
   const state = stateLine(c, o.now)
-  if (origin || state) lines.push(<Text wrap="truncate-end" dimColor>{fit(dots(origin, state), w)}</Text>)
+  if (origin || state) lines.push(<Text wrap="wrap" dimColor>{dots(origin, state)}</Text>)
   return (
     <Box key={o.key} flexDirection={beside ? 'row' : 'column'} columnGap={SPACE.loose} rowGap={beside ? SPACE.none : SPACE.tight}>
       <Box flexShrink={0}>{art(el, surface, c, 'full', o)}</Box>
