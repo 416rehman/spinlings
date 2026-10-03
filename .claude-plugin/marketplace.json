@@ -1,0 +1,22 @@
+{
+  "name": "spinlings",
+  "owner": {
+    "name": "416rehman",
+    "url": "https://github.com/416rehman"
+  },
+  "description": "Spinlings, a creature card game mod for Claude Code.",
+  "plugins": [
+    {
+      "name": "spinlings",
+      "description": "A creature card game above your prompt. Content-blind, no account, no telemetry, zero tokens.",
+      "homepage": "https://github.com/416rehman/spinlings",
+      "license": "MIT",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/416rehman/spinlings.git",
+        "path": "plugin",
+        "ref": "v0.1.0"
+      }
+    }
+  ]
+}

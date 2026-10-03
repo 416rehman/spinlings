@@ -1,0 +1,350 @@
+# Spinlings
+
+**Tiny pixel creatures that battle above your prompt while Claude works.**
+
+[![ci](https://github.com/416rehman/spinlings/actions/workflows/ci.yml/badge.svg)](https://github.com/416rehman/spinlings/actions/workflows/ci.yml)
+
+Spinlings is a creature card game that lives inside Claude Code. While Claude works, wild creatures rustle into a slim band above the prompt and your team of three battles them. Win, and you might catch one. Every card is one of a kind, with its own look, genes and traits. You can fuse two cards into a hybrid nobody has seen before, and trade or gift cards with other players.
+
+Spinlings never knows what you are working on. It reads only the shape of the session (which model, the effort setting, whether Claude is busy). It never reads your files, prompts or output, and it costs zero tokens.
+
+<!-- Hero: rendered from the mod's own views by `node scripts/media/build.ts`. Once the real capture from the
+     desktop app exists (docs/launch.md, shot 1), swap the srcset/src for docs/media/hero.gif. -->
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/encounter-dark.svg">
+    <img src="docs/media/encounter-light.svg" width="864" alt="In the Code tab of the desktop app, while Claude works, something rustles in the band above the prompt. A wild Snowelkie appears, Sootwolf's special lands a Perfect hit on 1, and the catch wobbles three times before Gotcha!">
+  </picture>
+</p>
+
+- **No account.** The server gives you a random handle like `soft-otter-42`. It has nothing to do with your Claude account, email, organization or machine. There is no signup and no email.
+- **No telemetry.** No analytics and no third-party requests. The mod talks to one server, and you can run your own.
+- **Stays out of Claude's way.** It makes no model calls, adds nothing to Claude's context, and never blocks or slows Claude.
+- **Playable alone.** Generated Rivals and a Wandering Trader fill in whenever no other player is around, so the game works on day one.
+- **No money.** No purchases, no paid currency and no crypto. Cards have no cash value.
+- **Open source** (MIT), mod and server, with zero npm runtime dependencies.
+
+## Install
+
+Inside Claude Code:
+
+```
+/plugin install spinlings --marketplace 416rehman/spinlings
+```
+
+Or just ask Claude: *install the Spinlings mod from 416rehman/spinlings*. From a shell, the same is:
+
+```sh
+claude plugin marketplace add 416rehman/spinlings
+claude plugin install spinlings@spinlings
+```
+
+Spinlings is a Claude Code mod, so it needs Claude Code 2.1.287 or later (`claude update`). Start a new session after installing.
+
+Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
+
+```sh
+git clone https://github.com/416rehman/spinlings
+claude plugin validate spinlings/plugin
+```
+
+**First run.** Instead of a signup, the mod solves a small proof of work and joins on its own. You get a starter team of three, two welcome packs and 100 sparks. The band says it once: `✦ A Spinling hatched!`, with `[1] Open your welcome pack`.
+
+**Online or offline.** You start in the online world: anonymous, with no sign-up and nothing personal. To play entirely offline, where nothing ever leaves your machine, set **World** to `offline` for Spinlings in `/config` before your first session, or run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
+
+`/spin quiet` silences everything. To leave for good, delete your account from `/spin privacy`, then run `claude plugin uninstall spinlings@spinlings`.
+
+## See it
+
+**A pack opening.** Five backs wait face down, and the rare ones glow before they flip. This one glows gold.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/pack-dark.svg">
+    <img src="docs/media/pack-light.svg" width="864" alt="The Spinlings pane in the desktop app: an Opus pack tears open, five cards flip one by one, the fourth glows gold and turns out legendary with a rainbow foil border, then the summary and the legendary's card with its foil sheen.">
+  </picture>
+</p>
+
+**Three stages.** Each creature evolves at level 4 and again at level 8, and keeps its own look as it grows.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/evolve-dark.svg">
+    <img src="docs/media/evolve-light.svg" width="864" alt="In the band, Sootwolf flickers with a white silhouette of its next stage and becomes Sootaptor, then Sootinotaur, then the album page shows all three side by side.">
+  </picture>
+</p>
+
+**Season 1.** 36 species, eight per family plus a legendary. Every card you find hatches with its own colours, genes and traits.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/gallery-dark.svg">
+    <img src="docs/media/gallery-light.svg" width="848" alt="A poster of the 36 species of season 1 in four rows by family: Haiku, Sonnet, Opus and Fable, each growing through its three stages, with the four legendaries framed in foil.">
+  </picture>
+</p>
+
+These are drawn by the mod's own code (`node scripts/media/build.ts`); only the window around them is a drawing.
+
+## How it plays
+
+### Cards only arrive as moments
+
+No command ever hands you a card. Commands open views, and every new card arrives through an event that builds up and then pays off.
+
+| Where cards come from | The moment |
+|---|---|
+| A wild encounter while Claude works | Something rustles, a silhouette appears, you battle, then the catch |
+| Packs, charged by time with Claude Code open | The charge meter fills, then the pack opening |
+| Your first win of the day, and every 3rd win in a row | A bonus pack |
+| Duels | Sometimes a card spins out of the beaten team's corner |
+| Gifts and trades | A wrapped present in the band |
+| Fusion | Two cards merge into an egg, which wobbles and hatches |
+| Crafting | The only deliberate source, with a short reveal |
+
+Rarer results get longer build-ups. A rare silhouette has one bright twinkling pixel, an epic outline shimmers, and a legendary card glows gold before it flips.
+
+### While Claude works
+
+Once Claude's main turn has run for 20 seconds, each further 15 seconds has a 30% chance that something rustles in the band, at most once every 8 minutes. Your first encounter comes at 20 seconds, and your first wild win always catches. Sometimes it is a duel against another player's saved team, or a Rival's, instead.
+
+Battles and Claude never wait for each other. If Claude finishes first, the battle plays on in the band until it ends. The pace follows your effort setting, from 1.8 seconds a round on low to 3.5 on max. That only changes the animation.
+
+Your team fights on its own. When your special fires, the band shows `[1] Now!`. Press 1 during that round for a Perfect special at 1.3x power. Looking away costs nothing.
+
+You never lose a card in battle. A card that faints is tired for 15 minutes, and your strongest rested card steps in for it. Every finished battle pays sparks and XP, and every wild win rolls a catch. There are no daily limits: the server only spaces battles out, with at least 8 minutes between wild encounters and 2 minutes between duels.
+
+About 1 wild encounter in 40 is led by a **Mythic**: a creature generated on the spot that has never existed before and never will again. If it gets away, it is gone forever.
+
+### When Claude is idle
+
+| Activity | Needs Claude working? |
+|---|---|
+| Wild encounters and catches | Yes. Creatures only show up while Claude's main turn runs. |
+| Packs charging | No. Idle time counts, and so does time spent at a rate limit. You can hold 12 unopened packs. |
+| Opening packs, team, fusion, album, recycling, crafting | No |
+| Trading, gifts, claims | No |
+| Duels (`/spin battle`, revenge) | No. Duels start at least 2 minutes apart. |
+
+Hitting a rate limit earns nothing and costs nothing. The status line just says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a Claude turn, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
+
+### When nobody else is around
+
+| Social feature | What happens when no real player fits |
+|---|---|
+| Duels | **Rivals**: generated opponents, always labelled `Rival` (for example `Rival Thistlewick`), sized to your rating and team. Real players in your rating window come first. |
+| Trading | **The Wandering Trader** offers 3 deals a day, such as 2 cards of one family for 1 rare of another. Each deal works once a day per player. |
+| Trade board | Shows the Trader's deals next to any real listings |
+| First discoveries | The first player in the world to find a species each season gets a permanent `First Discovered` stamp, so early players get more of them |
+| Gifts | A gift link is how you bring a friend in |
+
+### Commands
+
+There is one command, `/spin`. On its own it opens the pane, with four tabs (Team, Cards, Album, Trade) on hotkeys 1 to 4.
+
+| Command | What it does |
+|---|---|
+| `/spin` | Open the pane |
+| `/spin battle` | Challenge a duel now (at most one every 2 minutes) |
+| `/spin pack` | Open the pack view |
+| `/spin team <a> <b> <c>` | Set your team; slot order is play order |
+| `/spin trade <handle>` | Open a player's profile to make an offer |
+| `/spin gift <card>` / `/spin claim <code>` | Make a gift code, or claim one |
+| `/spin share [card]` | Copy a short text with an emoji mosaic of the card and a link |
+| `/spin redeem <code>` | Redeem a drop code, such as `FOUNDERS` |
+| `/spin world online\|offline` | Switch worlds; each keeps its own collection |
+| `/spin devices` | Your devices, and saving a passkey to play on another computer |
+| `/spin leaderboard [on\|off]` | See the top players, and join or leave the board (you are off it unless you join) |
+| `/spin handle [new]` | Show your handle, or draw a new one (once a week) |
+| `/spin quiet [on\|off]` | Silence everything |
+| `/spin sound on\|off` | Tiny chimes for big moments (off by default) |
+| `/spin motion on\|off` | Make every animation instant, or bring them back |
+| `/spin privacy` | See exactly what the mod has sent, and delete your account |
+| `/spin server [url\|default]` | Show or change the server |
+| `/spin demo` | Step through every screen of the game |
+
+There is no `/spin wild`. Wild creatures only ever find you.
+
+The full rules are in [docs/how-to-play.md](docs/how-to-play.md): families, traits, foil, Mythics, raised forms, packs, fusion, trading, sparks, streaks, leagues and the daily rules. Every number is in [SPEC.md](SPEC.md).
+
+## What Spinlings can't read
+
+The game runs on the rhythm of your session, never its content. This is everything the mod listens to:
+
+| Hook | What it uses | What for |
+|---|---|---|
+| `session.start`, `session.end`, and a once-a-minute clock tick | that a session is open | Presence minutes for packs |
+| `classic.SessionStart` (only `clear`, `resume` and `fork`) | that the session started over | Picking the game back up |
+| `turn.start`, `turn.complete` (main thread only) | that Claude started or stopped, and how the turn ended (`reason`) | Encounters; a one-line reaction when you press Esc |
+| `turn.step` | `model`, `effort` | The arena and pack family; battle pace |
+| `agent.spawn` | that a subagent started (a count) | A `+2 cheering` line in the band |
+| `session.measure` | rate-limit percentages only | One status note when you hit a limit |
+| `session.compact` | `trigger` | A one-line reaction |
+| `ui.render` | the spinner's `mode`; the band's and pane's size | A spinner suffix during a battle, and drawing the band and pane |
+| `ui.close` | that you pressed esc in the pane | Going back one view |
+| `command.run` | `/spin` and its arguments | The game's one command |
+
+**Never hooked:** `tool.call`, `prompt.submit`, `classic.PermissionRequest`. The mod never sees a tool name, a shell command, a file or a path.
+
+Some of those events carry content the mod does not need. It never reads these fields:
+
+| Event | Fields never read |
+|---|---|
+| `turn.start` | `text` (your prompt) |
+| `turn.step` result | `answer`, `toolUses`, `usage` |
+| `turn.complete` | `answer`, `usage` |
+| `session.measure` | `cost`, context fill |
+| `session.start` | `cwd` |
+| `agent.spawn` | `prompt`, `description`, `cwd` |
+| `session.compact` | `messages`, `instructions` |
+
+**What it calls.** Only the `ui`, `state`, `store`, `clock`, `command`, `http` and `session` parts of the mod API, plus `audio` if you turn sound on. From `session` it calls only `model`, and only the model's family ever reaches the server. It never uses `$.fs`, `$.process`, `$.model`, `$.prompt`, `$.tool`, `$.agent`, `$.mcp` or `$.env`. CI fails if any of those, or any hook outside this table, shows up in the source or in `claude plugin validate --json`.
+
+**It costs zero tokens.** No model calls, nothing added to Claude's context, and no tools Claude can call. Every `/spin` command returns an empty result, and anything it prints goes to a dim log line the model never reads.
+
+**It never rewards usage.** Nothing scales with tokens, turns, tool calls, prompts, cost or context. Every battle pays the same, and the server spaces battles out. Packs charge from time with Claude Code open, idle time included. Burning through your plan earns nothing.
+
+## Privacy
+
+Privacy outranks every other rule in the game. In short:
+
+- **No identity.** You are a random token and a random handle (`adjective-noun-NN`) chosen by the server. The mod never sends your Claude account, email, organization, machine name, OS user, session id or model id. You can reroll your handle once a week.
+- **No work or usage data leaves your machine**, except the model *family* (haiku, sonnet, opus or fable) when you join, a pack charges or a battle starts. Nobody else ever sees it. It is kept no longer than that pack or battle, and battles are deleted 7 days after they end.
+- **Other players see only** your handle, your team, the cards you mark for trade, your album count and your league, plus your handle on things you do with them, such as offers, gifts and duels. They never see wins, losses, battle counts, when you joined or were last seen, your activity, or which model you used. The leaderboard is opt-in.
+- **The server keeps the minimum**: dates instead of times wherever a rule allows, no IP addresses, no request logs, no telemetry. Old notices, offers and gifts are deleted after 30 days.
+- **Delete everything** from `/spin privacy`, behind a 2-second hold. Cards you already traded away stay with their new owners.
+- **Check it yourself.** `/spin privacy` shows the last 20 requests the mod sent, with your token hidden.
+
+The full version, including retention times and exactly what each request contains, is in [PRIVACY.md](PRIVACY.md).
+
+## Cheating
+
+The server is the only authority, and the mod is an untrusted renderer. A modified client can automate what an honest, attentive, heavy player does, at the same pace, and nothing more. Here is exactly where the lines are.
+
+**Only the server decides.** Every card is minted on the server with `crypto.getRandomValues`: packs, catches, bounties, streak and season rewards, crafting and Mythics, along with their DNA, genes, traits, shiny and foil. The server picks the opponent and the battle seed, and replays the battle from your button presses to decide the result. Sparks, XP, rating, streaks, leagues, spacing and pair limits are computed inside the same atomic write as the change they guard. Trades and gifts check ownership, escrow and locks in that write too.
+
+**What a modified client can fake, and what that gets it:**
+
+| It claims | So it gets | The limit |
+|---|---|---|
+| Presence | Packs without you being there | At least 45 minutes apart (90 beyond 16 in any 24 hours) and at most 12 unopened: never more than an honest all-day user gets |
+| That Claude is working | Wild encounters while Claude is idle | The server cannot tell whether Claude is busy. It enforces the pace: a wild battle starts at least 8 minutes after the last, one battle is open at a time, and none finishes faster than 1.5 seconds a round. |
+| A model family | Its choice of pack family and arena | The odds are identical for every family, and the arena bonus helps both sides |
+| Button presses | A Perfect special every time | Exactly what an attentive player gets. Presses in rounds where no special fires are ignored. |
+| An early look at the result | Knowing how a battle ends before the animation does | It cannot change the result. Quitting does not help either: an unfinished battle is settled after 10 minutes as if you never pressed. |
+
+**Multiple accounts.**
+- Joining takes a proof of work, and there are at most 5 joins an hour and 20 a day per network. Networks are counted by a keyed hash of the address that changes every day; the address itself is never stored.
+- Starter cards are bound forever, and welcome-pack cards are trade-locked for 7 days.
+- Trading and sending gifts need an account at least 3 days old with 10 finished battles. Claiming a gift is always allowed.
+- Every trade burns 10 sparks per card received.
+
+**Rating.**
+- Matchmaking is random within your rating window, so you cannot pick an opponent.
+- Revenge works only against a player who beat your team in the last 24 hours, once per loss.
+- Only the first 3 finished duels between the same two players in any 24 hours move rating or pay defense sparks.
+- The leaderboard lists real players only.
+
+**What this does not stop.** Someone patient on many networks can run several accounts and funnel cards between them, slowly, paying the fees and waiting out the locks. A script can play every battle the pacing allows, around the clock, which is more than any person plays. We accept that: the pace is the same ceiling for everyone, and nothing a script earns is out of reach of a person playing at that pace.
+
+**Self-hosted servers are separate worlds.** Anything goes on a server you run, and nothing from it reaches any other server.
+
+If you find a way past these limits, that is a security bug. Please report it through [SECURITY.md](SECURITY.md).
+
+## Run your own server
+
+The default server is `https://spinlings.dev`. The same server code runs on Cloudflare (a Worker with a D1 database) or on plain Node. Each server is its own world: cards, ratings and trades do not move between servers.
+
+**Cloudflare:**
+
+```sh
+git clone https://github.com/416rehman/spinlings && cd spinlings
+npm ci --ignore-scripts
+npx wrangler login
+npx wrangler d1 create spinlings      # in wrangler.jsonc: this database_id, your account_id, your domain in ORIGIN and routes
+node -e "console.log(crypto.randomBytes(32).toString('base64url'))" | npx wrangler secret put SECRET
+npx wrangler d1 migrations apply spinlings --remote
+npx wrangler deploy
+```
+
+**Node** (22.18 or later; it runs the TypeScript directly on `node:http` and the built-in `node:sqlite`, and applies the migrations at start):
+
+```sh
+SECRET="$(node -e "console.log(crypto.randomBytes(32).toString('base64url'))")" npm run dev:server
+```
+
+For other people, also set `ORIGIN` to the https address players reach it at (it is the passkey domain, and every link is built from it). A `Dockerfile` runs the same Node server as a non-root user with its data in `/data`.
+
+Then point the mod at it with `/spin server https://your.host`, or set **Server URL** for Spinlings in `/config`. The mod allows plain http only for `localhost` and `127.0.0.1`, so a server for other people needs https.
+
+The details, including reverse proxies, updates and what you owe your players' privacy, are in [docs/self-hosting.md](docs/self-hosting.md).
+
+## How it works
+
+```
+spinlings/
+  .claude-plugin/marketplace.json   this repo is a plugin marketplace
+  plugin/                           the Claude Code mod
+    hooks/register.tsx              every hook and every $ call lives here
+    hooks/core/                     pure game logic, shared with the server
+    hooks/client/                   pure client logic (presence, scheduling, view models)
+    hooks/client/local/             the offline world, built from the same core rules
+    hooks/ui/                       pure view builders for the band and pane
+    tests/                          claude plugin test plugin
+  server/
+    src/worker.ts                   the Cloudflare Worker (D1 binding DB)
+    src/app.ts                      request handlers over an async Db
+    src/db.ts                       guarded atomic batches, with D1 and node:sqlite adapters
+    src/node.ts                     the self-hosting entry (node:http + node:sqlite)
+    src/pages.ts, src/png.ts        card, profile and gift pages, and their preview images
+    migrations/                     SQL migrations for D1 and Node
+  test/                             node:test suites: core, client, server, end to end, docs and release
+  scripts/                          the two-player end-to-end run, the drop tool, media and chimes
+  docs/                             how to play, self-hosting, releasing and launch
+  Dockerfile                        the Node server as a non-root container
+```
+
+- **The server decides everything scarce:** rolls, card DNA, ownership, battle results, sparks, ratings and trades. The mod only animates. It sends just the rounds on which you pressed 1, and the server replays the battle from its seed.
+- **Every state change is atomic.** The server is one stateless Worker over D1, which has no interactive transactions. Each handler reads what it needs, decides in plain code, then writes one batch. The batch starts with guards that re-check everything it read: row versions, owners, escrow and locks. If any guard fails, D1 rolls back the whole batch and the handler starts over, up to 3 times, then answers `409 conflict`. On Node the same batches run inside `BEGIN IMMEDIATE`.
+- **Server data is untrusted on the client.** Every response is checked against its expected shape, every string is stripped of control characters and escape sequences and cut to length, and responses over 256 KB are rejected.
+- **Pages run no scripts,** except the two passkey pages, which load one small first-party script. Card, profile and gift pages are plain server-rendered HTML, with every value escaped and a strict Content-Security-Policy.
+- **Supply chain.** There are no runtime npm dependencies anywhere; SHA-256 and the PNG encoder are written here. The only dev dependency is `wrangler`, pinned exactly, with a committed lockfile installed by `npm ci --ignore-scripts`. CI actions are pinned by commit SHA and run with read-only permissions, and every pull request runs the strict `claude plugin validate` and the mod's own tests too. The marketplace installs a tagged release pinned to its commit, not `main`.
+
+More in [SPEC.md](SPEC.md), sections 11, 12, 15, 16 and 20.
+
+## FAQ
+
+**Does it slow Claude down?** No. Every hook passes straight through, battles never wait for Claude, and Claude never waits for a battle.
+
+**Does it use my plan or my tokens?** No. It makes no model calls and puts nothing in Claude's context.
+
+**Does using Claude more get me more cards?** No. Rewards are per battle and per 50 minutes of presence, and the server paces both. Long turns, big contexts and heavy usage earn nothing extra, and a break of 4 hours or more earns a better encounter.
+
+**Can it see my code?** No. It never hooks tool calls or prompts, and never reads files, paths, answers or cost. The hook table above is the whole list, and `claude plugin validate` shows it.
+
+**Does the game know who I am?** No. Your handle is random and chosen by the server. The mod never sends your Claude account, email, organization or anything about your machine.
+
+**What if nobody else is playing?** You can still do everything. Rivals take duels when no real player fits, the Wandering Trader trades when nobody else does, and wild creatures and packs never needed anyone else.
+
+**Can other people see when or how much I use Claude?** No. Other players never see timestamps, activity, battle counts or which model you used. Cards do belong to families, and packs follow the model you use most, so the cards you choose to show can hint at your favourite family, and your three starters, while they are on your team, show which family you joined with; [PRIVACY.md](PRIVACY.md) explains. Your requests reach the server as ordinary HTTPS traffic, so whoever runs your network can see that Spinlings talks to its server, but not what it says.
+
+**Why is there a server at all?** So that duels, trades and gifts work between people, and so that nobody can mint cards on their own machine. The server rolls every card.
+
+**Can I play on another computer?** Yes, with a passkey: `/spin devices` saves one (no email, no password), and the other computer signs in with it. Without a passkey, losing every device loses the online account, so save one if your collection matters to you.
+
+**What happens if the server is down?** Claude Code works as usual. The game just has nothing to show until the server is back.
+
+**Is there anything to buy?** No. There are no purchases, no paid currency and no crypto of any kind: no coins, tokens or NFTs. Sparks are earned in the game and cannot be bought or cashed out. Anything claiming otherwise is not this project.
+
+**Can someone message me?** No. There is no chat and no free text anywhere; handles are generated.
+
+**Does it work in the desktop app?** Yes. Sprites are drawn with half-block characters in the terminal and as SVG in the desktop app.
+
+**Is this made by Anthropic?** No. Spinlings is an independent open-source project and is not affiliated with or endorsed by Anthropic.
+
+## Contributing
+
+Issues and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). The short version: the mod stays content-blind, privacy comes first, the code stays free of runtime dependencies, and game text stays in the creature world. Security problems go through [SECURITY.md](SECURITY.md), not public issues.
+
+## License
+
+[MIT](LICENSE)

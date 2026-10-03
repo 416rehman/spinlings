@@ -1,0 +1,118 @@
+name: deploy
+
+# Deploys the server when a release tag is pushed. `verify` holds no secrets and needs no approval, so the reviewer
+# approves `deploy` only after everything has passed. Only `deploy` uses the `production` environment, which must have
+# a required reviewer, a deployment rule that only allows `v*` tags, and the environment secrets CLOUDFLARE_API_TOKEN
+# and CLOUDFLARE_ACCOUNT_ID (see docs/releasing.md).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  WRANGLER_SEND_METRICS: "false"
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+  ORIGIN: https://spinlings.dev
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Tag is on main
+        run: git merge-base --is-ancestor HEAD origin/main
+
+      - name: Tag matches plugin version
+        run: |
+          version=$(node -p 'JSON.parse(require("fs").readFileSync("plugin/.claude-plugin/plugin.json", "utf8")).version')
+          test "$GITHUB_REF_NAME" = "v$version" || { echo "tag $GITHUB_REF_NAME does not match plugin.json version $version"; exit 1; }
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install (lockfile only, no install scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Verify registry signatures
+        run: npm audit signatures
+
+      - name: Claude Code (pinned and hash-checked)
+        run: sh .github/install-claude-code.sh
+
+      - name: Test, with nothing skipped
+        run: |
+          mkdir -p .dev
+          node --test --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=tap --test-reporter-destination=.dev/test.tap "test/**/*.test.ts"
+          if ! grep -qx '# skipped 0' .dev/test.tap; then
+            grep '# SKIP' .dev/test.tap || true
+            echo "::error::a test was skipped"
+            exit 1
+          fi
+
+      - name: The mod validates and passes its own tests
+        run: |
+          claude plugin validate --strict .
+          claude plugin validate --strict plugin
+          claude plugin test plugin
+
+      - name: Worker builds
+        run: npx --no -- wrangler deploy --dry-run
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install (lockfile only, no install scripts)
+        run: npm ci --ignore-scripts
+
+      # Migrations go first and must keep working with the Worker that is still live.
+      - name: Apply D1 migrations
+        run: npx --no -- wrangler d1 migrations apply spinlings --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy
+        run: npx --no -- wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # A missing SECRET answers 503 everywhere, and a broken domain answers nothing: neither is a green deploy.
+      - name: The live server answers as this release
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "$ORIGIN/v1/health" > /dev/null
+          for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            got=$(curl -fsS "$ORIGIN/v1/version" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).server') || got=
+            test "$got" = "$want" && exit 0
+            sleep 5
+          done
+          echo "::error::$ORIGIN serves server ${got:-nothing}, not $want"
+          echo "The deploy went out but the server is not answering as $want. Roll back with \`npx wrangler rollback\` (docs/releasing.md)." >> "$GITHUB_STEP_SUMMARY"
+          exit 1

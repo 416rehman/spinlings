@@ -1,0 +1,16 @@
+.git
+.github
+.claude
+.dev
+.wrangler
+.dev.vars*
+.env
+.env.*
+node_modules
+server/data
+*.db
+*.db-shm
+*.db-wal
+docs
+test
+scripts

@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "spinlings",
+  "main": "server/src/worker.ts",
+  "compatibility_date": "2026-09-15",
+  "account_id": "b35867e2aad6ff67cb095fb27fb31f85",
+  // Single origin (SPEC 31): spinlings.dev as a custom domain and nothing else, so no *.workers.dev
+  // host and no preview URL ever serves the API or the pages. ORIGIN below pins the passkey rp.id
+  // and every link to it.
+  "routes": [{ "pattern": "spinlings.dev", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "spinlings",
+      "database_id": "f18c0687-804c-44ab-9ae3-27e9b5b4786c",
+      "migrations_dir": "server/migrations"
+    }
+  ],
+  "vars": { "POW_DIFFICULTY": "18", "ORIGIN": "https://spinlings.dev" },
+  // Hourly retention sweep (SPEC 20.4).
+  "triggers": { "crons": ["17 * * * *"] },
+  // No request logging (SPEC 20.6): invocation logs would record URLs (gift codes live in /g/ links)
+  // and client addresses. SECRET is set with `wrangler secret put SECRET`.
+  "observability": { "enabled": false },
+  "logpush": false
+}

@@ -1,0 +1,83 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only token, and this workflow uses no secrets, so pull requests from forks get nothing.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WRANGLER_SEND_METRICS: "false"
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+
+jobs:
+  # The core, the server, the real-D1 suites and the release checks. Nothing may skip here.
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # every tag, for the marketplace pin check (test/release/marketplace.test.ts)
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install (lockfile only, no install scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Verify registry signatures
+        run: npm audit signatures
+
+      - name: Claude Code (pinned and hash-checked, for the validator check)
+        run: sh .github/install-claude-code.sh
+
+      - name: Test, with nothing skipped (includes the privacy assertions, SPEC 20)
+        run: |
+          mkdir -p .dev
+          node --test --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=tap --test-reporter-destination=.dev/test.tap "test/**/*.test.ts"
+          if ! grep -qx '# skipped 0' .dev/test.tap; then
+            grep '# SKIP' .dev/test.tap || true
+            echo "::error::a test was skipped; CI runs every suite, including local D1 and the validator"
+            exit 1
+          fi
+
+      - name: Worker builds
+        run: npx --no -- wrangler deploy --dry-run
+
+  # The shipped mod: the strict validator and its own suite. Its hook and $ lists are checked in `test`.
+  plugin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Claude Code (pinned and hash-checked)
+        run: sh .github/install-claude-code.sh
+
+      - name: Validate the marketplace and the mod
+        run: |
+          claude plugin validate --strict .
+          claude plugin validate --strict plugin
+
+      - name: The mod's own tests
+        run: claude plugin test plugin

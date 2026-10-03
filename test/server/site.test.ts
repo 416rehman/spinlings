@@ -1,0 +1,580 @@
+// The website (SPEC 9 Shares, 12 Pages, 20, 25, 26, 29-31): every page renders, every value is
+// escaped, the headers are strict, nothing loads from elsewhere, and nothing about a player shows
+// beyond what SPEC 20 allows. Pages run on the real app over node:sqlite.
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
+import { generateMythic } from '../../plugin/hooks/core/mythics.ts'
+import { sha256Hex } from '../../plugin/hooks/core/sha256.ts'
+import { seasonSpecies } from '../../plugin/hooks/core/species.ts'
+import { mintFor } from '../../plugin/hooks/core/trader.ts'
+import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
+import { RULE_INFO, utcDay, worldOf } from '../../plugin/hooks/core/world.ts'
+import { stmt } from '../../server/src/db.ts'
+import { mintCards } from '../../server/src/game/mint.ts'
+import { INSTALL, PAGE_CSP, REPO, SCRIPT_CSP } from '../../server/src/pages-html.ts'
+import { counts, DAY, MINUTE, server } from './scaffold-helpers.ts'
+import type { Player, Server } from './scaffold-helpers.ts'
+
+const ORIGIN = 'http://localhost:8787'
+
+type Page = { status: number; headers: Headers; html: string }
+
+async function get(s: Server, path: string, o: { ip?: string; token?: string } = {}): Promise<Page> {
+  const res = await s.request('GET', path, { ...o, client: null })
+  return { status: res.status, headers: res.headers, html: await res.text() }
+}
+
+const env = (s: Server) => ({ db: s.db, now: s.now(), randomBytes: (n: number) => crypto.getRandomValues(new Uint8Array(n)) })
+
+/** The strict page headers (SPEC 12), and nothing that could carry state. */
+function assertHeaders(p: Page, csp = PAGE_CSP) {
+  assert.match(p.headers.get('content-type') ?? '', /^text\/html; charset=utf-8$/)
+  assert.equal(p.headers.get('content-security-policy'), csp)
+  assert.equal(p.headers.get('x-content-type-options'), 'nosniff')
+  assert.equal(p.headers.get('referrer-policy'), 'no-referrer')
+  assert.equal(p.headers.get('x-frame-options'), 'DENY')
+  assert.equal(p.headers.get('set-cookie'), null)
+  for (const k of p.headers.keys()) assert.ok(!k.startsWith('access-control-'), `no CORS header (${k})`)
+}
+
+/** Nothing loads from another origin, nothing runs inline, and only our repo is linked from outside. */
+function assertSelfContained(html: string, origin = ORIGIN) {
+  assert.doesNotMatch(html, /<(iframe|object|embed|form|base|meta http-equiv)\b/i)
+  assert.doesNotMatch(html, /\son[a-z]+\s*=/i, 'no inline event handlers')
+  assert.doesNotMatch(html, /javascript:/i)
+  assert.doesNotMatch(html, /@import/i)
+  for (const [, tag] of html.matchAll(/<script\b([^>]*)>/gi)) assert.equal(tag, ' src="/static/passkey.js" defer', 'only the first-party passkey script')
+  assert.doesNotMatch(html, /<script\b[^>]*>[^<]+<\/script>/i, 'no inline script')
+  for (const [, url] of html.matchAll(/\ssrc="([^"]*)"/gi)) assert.match(url!, /^\//, `src ${url} is same-origin`)
+  for (const [, tag] of html.matchAll(/<link\b([^>]*)>/gi)) assert.match(tag!, /href="data:/, 'links are inline data only')
+  for (const [, url] of html.matchAll(/url\(\s*["']?([^"')]*)/gi)) assert.match(url!, /^data:/, `css url ${url} is inline`)
+  for (const [url] of html.matchAll(/https?:\/\/[^\s"'<>)]+/gi)) {
+    assert.ok(url.startsWith(REPO) || url.startsWith(origin + '/'), `${url} is our repo or this origin`)
+  }
+  for (const [, href] of html.matchAll(/<a\b[^>]*href="([^"]*)"/gi)) assert.ok(href!.startsWith('/') || href!.startsWith(REPO), `link ${href}`)
+}
+
+const textOf = (html: string) => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
+
+async function world(o: { origin?: string } = {}) {
+  const s = server(o)
+  const a = await s.join('haiku')
+  const b = await s.join('opus')
+  return { s, a, b }
+}
+
+/** A tradeable (unbound) card for `p`, minted the way the server mints everything. */
+async function looseCard(s: Server, p: Player, seed = 'loose') {
+  const fresh = mintFor('sonnet', 'rare', rngFromSeed(seed), s.now(), 'trader', false)
+  const { cards, stmts } = await mintCards(env(s), p.id, [fresh])
+  await s.db.batch(stmts)
+  return cards[0]!
+}
+
+/** A Mythic as a catch makes it: stamped with its finder's handle, unless `stamped` is false. */
+async function mythicFor(s: Server, p: Player, seed: string, stamped = true) {
+  const mythic = generateMythic({ seed, dna: 7, now: s.now(), origin: 'catch' })
+  const form = stamped ? { ...mythic.form!, discoveredBy: p.me.player.handle } : mythic.form!
+  const { cards, stmts } = await mintCards(env(s), p.id, [{ ...mythic, form }])
+  await s.db.batch(stmts)
+  return cards[0]!
+}
+
+async function gift(s: Server, p: Player, cardId: string, code = 'quiet-otter-lamp-4821', o: { expires?: string } = {}) {
+  await s.db.batch([
+    stmt(`INSERT INTO gifts (code, giver_id, card_id, state, created, expires) VALUES (?, ?, ?, 'open', ?, ?)`,
+      code, p.id, cardId, utcDay(s.now()), o.expires ?? utcDay(s.now() + 14 * DAY)),
+    stmt(`UPDATE cards SET state = 'escrow', escrow_ref = ? WHERE id = ?`, code, cardId),
+  ])
+  return code
+}
+
+const EGG = { type: 'egg', promo: { seed: 'founders-1', name: 'Founderling', family: 'fable', rarity: 'rare', foil: true, stamp: 'Founder, Oct 2026' } }
+
+async function drop(s: Server, o: { plain?: string | null; reward?: unknown; supply?: number | null; redeemed?: number; startsIn?: number; endsIn?: number } = {}) {
+  const plain = o.plain === undefined ? 'FOUNDERS' : o.plain
+  await s.db.batch([stmt(
+    `INSERT INTO drops (id, code_hash, code_plain, kind, reward_json, supply, redeemed, bound, starts_at, ends_at, created_at)
+     VALUES (?, ?, ?, 'public', ?, ?, ?, 1, ?, ?, 0)`,
+    `d-${plain ?? 'unique'}`, sha256Hex(plain ?? 'GOLDEN7Q2MK9XD'), plain, JSON.stringify(o.reward ?? [EGG, { type: 'pack', count: 1 }]),
+    o.supply === undefined ? 1500 : o.supply, o.redeemed ?? 204, s.now() + (o.startsIn ?? -DAY), s.now() + (o.endsIn ?? 7 * DAY),
+  )])
+}
+
+// ---- every page --------------------------------------------------------------------------------
+
+describe('site pages', () => {
+  it('render as strict, script-free pages that load nothing from anywhere else', async () => {
+    const { s, a } = await world()
+    const card = await mythicFor(s, a, 'aa11')
+    const code = await gift(s, a, (await looseCard(s, a)).id)
+    await drop(s)
+    const ok = ['/', '/odds', '/privacy', `/u/${a.me.player.handle}`, `/c/${card.id}`, `/g/${code}`, '/d/founders']
+    for (const path of ok) {
+      const p = await get(s, path)
+      assert.equal(p.status, 200, path)
+      assertHeaders(p)
+      assertSelfContained(p.html)
+      assert.doesNotMatch(p.html, /<script/i, `${path} has no script`)
+      assert.match(p.html, /^<!doctype html>\n<html lang="en">/)
+      assert.match(p.html, /<meta name="viewport" content="width=device-width, initial-scale=1">/)
+      assert.match(p.html, /<meta name="color-scheme" content="light dark">/)
+      assert.match(p.html, /<title>[^<]+<\/title>/)
+    }
+    for (const path of ['/u/nobody-here-11', '/c/zzzzzzzzzzzzzzzzzzzzzzzzzz', '/g/no-such-gift-0000', '/d/nothing']) {
+      const p = await get(s, path)
+      assert.equal(p.status, 404, path)
+      assertHeaders(p)
+      assertSelfContained(p.html)
+      assert.match(p.html, /<meta name="robots" content="noindex">/)
+    }
+  })
+
+  it('carry the one-line install, privacy promise and open-source links on the landing page', async () => {
+    const { s } = await world()
+    const p = await get(s, '/')
+    const text = textOf(p.html)
+    assert.ok(text.includes(INSTALL), 'the SPEC 34 install line')
+    assert.match(p.html, /class="w">--marketplace<\/span>/, 'the command never breaks inside a word')
+    assert.match(text, /0 lines of your work we read/)
+    assert.ok(p.html.includes(`href="${REPO}"`))
+    assert.ok(p.html.includes('href="/privacy"') && p.html.includes('href="/odds"'))
+    assert.equal(p.headers.get('cache-control'), 'public, max-age=60')
+    assert.match(p.html, /@media \(prefers-color-scheme:dark\)/)
+    assert.match(p.html, /@media \(prefers-reduced-motion:reduce\)/)
+  })
+
+  it('answer HEAD like GET without a body, and refuse other methods', async () => {
+    const { s } = await world()
+    const head = await s.request('HEAD', '/')
+    assert.equal(head.status, 200)
+    assert.equal(await head.text(), '')
+    assert.equal(head.headers.get('content-security-policy'), PAGE_CSP)
+    const post = await s.request('POST', '/', { body: {} })
+    assert.equal(post.status, 405)
+    assert.equal((await s.request('DELETE', '/u/someone-11')).status, 405)
+  })
+
+  it('change nothing, whoever asks: every page leaves every table exactly as it was', async () => {
+    const { s, a, b } = await world()
+    const card = await mythicFor(s, a, 'ee55')
+    const code = await gift(s, a, (await looseCard(s, a)).id)
+    await drop(s)
+    const ticket = (url: string) => new URL(url).searchParams.get('t')!
+    const add = ticket((await a.call('passkeyStart', {})).url)
+    const signin = ticket((await s.call('authStart', {})).url)
+    const paths = [
+      '/', '/odds', '/privacy', `/u/${a.me.player.handle}`, `/c/${card.id}`, `/c/${card.id}.png`, `/g/${code}`, '/d/founders',
+      `/passkey/add?t=${add}`, `/passkey/signin?t=${signin}`, '/static/passkey.js',
+    ]
+    for (const path of paths) await get(s, path) // the first visit may freeze the season
+    const tables = (await s.db.all<{ name: string }>(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)).map(r => r.name)
+    const dump = async () => JSON.stringify(await Promise.all(tables.map(t => s.db.all(`SELECT * FROM ${t} ORDER BY 1`))))
+    const before = await dump()
+    for (const token of [undefined, a.token, b.token]) {
+      for (const path of paths) assert.ok([200, 410].includes((await get(s, path, token ? { token } : {})).status), path)
+    }
+    assert.equal(await dump(), before)
+  })
+
+  it('ignore credentials entirely: the same page with or without a session, and never a cookie', async () => {
+    const { s, a } = await world()
+    for (const path of ['/', `/u/${a.me.player.handle}`, `/c/${a.me.player.team[0]}`]) {
+      const anon = await get(s, path)
+      const signed = await get(s, path, { token: a.token })
+      assert.equal(signed.html, anon.html, path)
+      assert.equal(signed.headers.get('set-cookie'), null)
+    }
+  })
+})
+
+// ---- escaping ----------------------------------------------------------------------------------
+
+describe('site escaping', () => {
+  const EVIL = `<script>alert(1)</script>"'&<img src=x>`
+
+  it('escapes every value that comes from the database', async () => {
+    const { s, a } = await world()
+    const card = await mythicFor(s, a, 'bb22')
+    await s.db.batch([stmt('UPDATE mythics SET name = ?, handle = ? WHERE card_id = ?', EVIL, `x"><b>${'y'}`, card.id)])
+    const landing = await get(s, '/')
+    assert.ok(landing.html.includes('&lt;script&gt;alert(1)&lt;/script&gt;&quot;&#39;&amp;&lt;img src=x&gt;'))
+    assert.ok(landing.html.includes('x&quot;&gt;&lt;b&gt;y'))
+    assert.doesNotMatch(landing.html, /<script>alert|<img src=x|"><b>/)
+    assertSelfContained(landing.html)
+
+    // a card whose embedded form carries markup in its names
+    const fusion = await looseCard(s, a, 'fz')
+    const form = { kind: 'fusion', family: 'opus', body: 'blob', hue: 10, pattern: 'none', accessory: 'horns', base: { hp: 30, atk: 10, def: 10, spd: 10 },
+      names: [EVIL, EVIL, EVIL], legendary: false, parents: ['s1-haiku-0', 's1-opus-1'] }
+    await s.db.batch([stmt(`UPDATE cards SET species = 'fusion', form = ?, stage = 1 WHERE id = ?`, JSON.stringify(form), fusion.id)])
+    const page = await get(s, `/c/${fusion.id}`)
+    assert.equal(page.status, 200)
+    assert.doesNotMatch(page.html, /<script>alert|<img src=x/)
+    assert.ok(page.html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'))
+    assertSelfContained(page.html)
+  })
+
+  it('escapes a drop stamp, and never reflects a code or ticket it does not know', async () => {
+    const { s } = await world()
+    await drop(s, { reward: { type: 'egg', promo: { ...EGG.promo, stamp: `Founder <i>"&'</i>` } } })
+    const p = await get(s, '/d/FOUNDERS')
+    assert.equal(p.status, 200)
+    assert.ok(p.html.includes('Founder &lt;i&gt;&quot;&amp;&#39;&lt;/i&gt;'))
+    assert.doesNotMatch(p.html, /<i>"/)
+    for (const path of ['/passkey/add?t=%3Cscript%3Ealert(1)%3C%2Fscript%3E', '/u/%3Cscript%3E', '/g/%3Cb%3E-x-y-1234', '/c/%22onload%3D']) {
+      const page = await get(s, path)
+      assert.ok(page.status === 404 || page.status === 410, path)
+      assert.doesNotMatch(page.html, /<script>alert|<b>|"onload=/i, path)
+    }
+  })
+})
+
+// ---- the landing page --------------------------------------------------------------------------
+
+describe('landing page', () => {
+  it("shows today's rule and featured species, and the season with silhouettes for the unfound", async () => {
+    const { s, a } = await world()
+    const w = worldOf(s.now())
+    const p = await get(s, '/')
+    const text = textOf(p.html)
+    assert.ok(text.includes(RULE_INFO[w.rule].name))
+    const species = seasonSpecies(w.season)
+    const featured = species.find(x => x.id === w.featured)!
+    assert.ok(text.includes(`A wild ${featured.names[0]} appeared!`))
+    const found = new Set((await s.db.all<{ species: string }>('SELECT species FROM firsts')).map(r => r.species))
+    assert.ok(found.size >= 3, 'the starters were first finds')
+    for (const sp of species) {
+      const shown = text.includes(` ${sp.names[0]} `)
+      if (found.has(sp.id) || sp.id === w.featured) assert.ok(shown, `${sp.id} found or featured: named`)
+      else assert.ok(!shown, `${sp.id} unfound: no name, only its shadow`)
+    }
+    assert.ok(text.includes(`${found.size} of 36 found`))
+    assert.equal((p.html.match(/<li class="sp dark/g) ?? []).length, 36 - found.size)
+    assert.equal((p.html.match(/<span aria-hidden="true">\?\?\?<\/span>/g) ?? []).length, 36 - found.size)
+    assert.ok(text.includes(`Season ${w.season}`))
+    assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b/, 'no dates anywhere')
+    void a
+  })
+
+  it('lists Mythics found as handle and name only, and forgets a finder who rerolls or leaves', async () => {
+    const { s, a, b } = await world()
+    const m = await mythicFor(s, a, 'cc33')
+    const name = m.form!.names[2]
+    let text = textOf((await get(s, '/')).html)
+    assert.ok(text.includes(`${name} found by ${a.me.player.handle}`))
+    assert.ok(text.includes('1 so far'))
+    assert.ok(!text.includes(m.id) && !(await get(s, '/')).html.includes(m.id), 'no card id')
+    // a new handle never shows beside the old one: the list and the card stop naming the finder
+    const { handle } = await a.call('rerollHandle', {})
+    for (const html of [(await get(s, '/')).html, (await get(s, `/c/${m.id}`)).html]) {
+      assert.ok(!html.includes(a.me.player.handle) && !html.includes(handle))
+    }
+    assert.ok(textOf((await get(s, '/')).html).includes(`${name} found by a keeper`))
+    const b2 = await mythicFor(s, b, 'dd44')
+    await b.call('deleteMe', {})
+    text = textOf((await get(s, '/')).html)
+    assert.ok(text.includes(`${b2.form!.names[2]} found by a keeper`))
+    assert.ok(!text.includes(b.me.player.handle))
+  })
+
+  it('says what will fill an empty Mythics list', async () => {
+    const { s } = await world()
+    const text = textOf((await get(s, '/')).html)
+    assert.ok(text.includes('0 so far'))
+    assert.match(text, /No Mythic has been caught yet/)
+  })
+
+  it('freezes the season once when many first visits race, and every visit agrees', async () => {
+    const s = server()
+    const pages = await Promise.all(Array.from({ length: 6 }, (_, i) => get(s, '/', { ip: `203.0.113.${i}` })))
+    for (const p of pages) assert.equal(p.status, 200)
+    const gallery = (h: string) => h.slice(h.indexOf('id="season"'), h.indexOf('id="mythics"'))
+    for (const p of pages) assert.equal(gallery(p.html), gallery(pages[0]!.html))
+    assert.deepEqual(await counts(s.db, ['seasons']), { seasons: 1 })
+  })
+})
+
+// ---- profiles ----------------------------------------------------------------------------------
+
+describe('profile pages', () => {
+  it('show exactly the public profile: handle, league, team, for-trade cards and album count', async () => {
+    const { s, a } = await world()
+    const loose = await looseCard(s, a)
+    await s.db.batch([
+      stmt('UPDATE players SET rating = 1555, sparks = 98765, battles = 4321, streak = 17 WHERE id = ?', a.id),
+      stmt('UPDATE cards SET for_trade = 1 WHERE id = ?', loose.id),
+      // a bound card is never on offer, whatever its flag says
+      stmt('UPDATE cards SET for_trade = 1 WHERE id = ?', a.me.player.team[0]!),
+    ])
+    const p = await get(s, `/u/${a.me.player.handle}`)
+    assert.equal(p.status, 200)
+    assertHeaders(p)
+    assert.match(p.html, /<meta name="robots" content="noindex">/)
+    const text = textOf(p.html)
+    assert.ok(text.includes(a.me.player.handle))
+    assert.ok(text.includes('Peak league'))
+    const album = (await s.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM album WHERE player_id = ?', a.id))!.n
+    assert.ok(text.includes(`${album} species in their album`))
+    for (const secret of ['1555', '98765', '4321', ' 17 ', a.me.player.joinedDay]) assert.ok(!text.includes(secret), `never shows ${secret}`)
+    assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b|\b(sparks|rating|battles|won|joined|last seen)\b/i)
+    const team = (p.html.match(/<li class="card/g) ?? []).length
+    assert.equal(team, 3 + 1, 'three team cards and the one free card for trade')
+    assert.ok(p.html.includes(`href="/c/${loose.id}"`))
+  })
+
+  it('treat unknown, malformed and retired handles the same', async () => {
+    const { s, a } = await world()
+    const old = a.me.player.handle
+    await s.db.batch([stmt('UPDATE players SET handle = ? WHERE id = ?', 'brand-new-handle-77', a.id), stmt('INSERT INTO retired_handles (handle, until) VALUES (?, ?)', old, '2099-01-01')])
+    const bodies = new Set<string>()
+    for (const h of [old, 'never-was-here-12', 'Bad%20Handle', 'a'.repeat(41)]) {
+      const p = await get(s, `/u/${h}`)
+      assert.equal(p.status, 404, h)
+      bodies.add(p.html)
+    }
+    assert.equal(bodies.size, 1, 'one indistinguishable "not here" page')
+    assert.equal((await get(s, '/u/brand-new-handle-77')).status, 200)
+  })
+
+  it('are rate limited per address, like profile lookups', async () => {
+    const { s, a } = await world()
+    const path = `/u/${a.me.player.handle}`
+    for (let i = 0; i < 60; i++) assert.equal((await get(s, path, { ip: '198.18.0.9' })).status, 200)
+    const limited = await s.request('GET', path, { ip: '198.18.0.9', client: null })
+    assert.equal(limited.status, 429)
+    assert.ok(Number(limited.headers.get('retry-after')) > 0)
+    assert.equal((await get(s, path, { ip: '198.18.0.10' })).status, 200, 'another address is unaffected')
+    s.tick(MINUTE)
+    assert.equal((await get(s, path, { ip: '198.18.0.9' })).status, 200, 'and it refills')
+  })
+})
+
+// ---- cards -------------------------------------------------------------------------------------
+
+describe('card pages', () => {
+  it('show the public card, unfurl with og tags, and never name the owner', async () => {
+    const { s, a } = await world({ origin: 'https://spinlings.dev' })
+    const m = await mythicFor(s, a, 'dd44', false)
+    const p = await get(s, `/c/${m.id}`)
+    assert.equal(p.status, 200)
+    assertHeaders(p)
+    assertSelfContained(p.html, 'https://spinlings.dev')
+    assert.ok(p.html.includes(`<meta property="og:image" content="https://spinlings.dev/c/${m.id}.png">`))
+    assert.ok(p.html.includes(`<meta property="og:url" content="https://spinlings.dev/c/${m.id}">`))
+    assert.ok(p.html.includes('<meta name="twitter:card" content="summary_large_image">'))
+    assert.ok(p.html.includes(`<meta property="og:title" content="${m.form!.names[2]}, a mythic`))
+    const text = textOf(p.html)
+    assert.ok(text.includes(m.form!.names[2]!) && text.includes('Final form') && text.includes('Mythic, 1 of 1') && text.includes('Foil'))
+    assert.ok(!text.includes(a.me.player.handle), 'no owner')
+    assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b|Raised under|minted|locked|tired/i)
+    assert.doesNotMatch(p.html, /undefined|null/, 'every stamp is words')
+  })
+
+  it('draw a 1200 x 630 og:image PNG', async () => {
+    const { s, a } = await world()
+    const res = await s.request('GET', `/c/${a.me.player.team[0]}.png`, { client: null })
+    assert.equal(res.status, 200)
+    assert.equal(res.headers.get('content-type'), 'image/png')
+    assert.equal(res.headers.get('cache-control'), 'public, max-age=3600')
+    const png = new Uint8Array(await res.arrayBuffer())
+    assert.deepEqual([...png.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
+    const view = new DataView(png.buffer, png.byteOffset)
+    assert.deepEqual([view.getUint32(16), view.getUint32(20)], [1200, 630])
+    assert.equal((await s.request('GET', '/c/nope.png', { client: null })).status, 404)
+    assert.equal((await s.request('GET', `/c/${a.me.player.team[0]}.png.png`, { client: null })).status, 404)
+  })
+
+  it('treat recycled, unknown and malformed cards the same', async () => {
+    const { s, a } = await world()
+    const loose = await looseCard(s, a)
+    await s.db.batch([stmt('DELETE FROM cards WHERE id = ?', loose.id)])
+    const bodies = new Set<string>()
+    for (const id of [loose.id, 'abcdefghijklmnopqrstuvwxyz', 'not*an*id']) {
+      const p = await get(s, `/c/${id}`)
+      assert.equal(p.status, 404)
+      bodies.add(p.html)
+    }
+    assert.equal(bodies.size, 1)
+  })
+})
+
+// ---- gifts -------------------------------------------------------------------------------------
+
+describe('gift pages', () => {
+  it("show an open gift's card and how to claim it, never who sent it", async () => {
+    const { s, a } = await world()
+    const card = await looseCard(s, a)
+    const code = await gift(s, a, card.id)
+    const p = await get(s, `/g/${code}`)
+    assert.equal(p.status, 200)
+    assertHeaders(p)
+    assert.equal(p.headers.get('cache-control'), 'no-store', 'the URL is the secret')
+    assert.match(p.html, /<meta name="robots" content="noindex">/)
+    const text = textOf(p.html)
+    assert.ok(text.includes(`/spin claim ${code}`))
+    assert.ok(text.includes(INSTALL))
+    assert.ok(!text.includes(a.me.player.handle), 'never the giver')
+    assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b/, 'no dates')
+    assert.ok(p.html.includes(`<meta property="og:image" content="${ORIGIN}/c/${card.id}.png">`))
+  })
+
+  it('look the same once claimed, cancelled, expired, moved or never made', async () => {
+    const { s, a, b } = await world()
+    const codes = {
+      claimed: await gift(s, a, (await looseCard(s, a, 'g1')).id, 'one-two-three-0001'),
+      cancelled: await gift(s, a, (await looseCard(s, a, 'g2')).id, 'one-two-three-0002'),
+      expired: await gift(s, a, (await looseCard(s, a, 'g3')).id, 'one-two-three-0003', { expires: utcDay(s.now()) }),
+      moved: await gift(s, a, (await looseCard(s, a, 'g4')).id, 'one-two-three-0004'),
+    }
+    await s.db.batch([
+      stmt(`UPDATE gifts SET state = 'claimed', claimed_by = ? WHERE code = ?`, b.id, codes.claimed),
+      stmt(`UPDATE gifts SET state = 'cancelled' WHERE code = ?`, codes.cancelled),
+      stmt(`UPDATE cards SET owner_id = ?, state = 'owned', escrow_ref = NULL WHERE escrow_ref = ?`, b.id, codes.moved),
+    ])
+    const bodies = new Set<string>()
+    for (const code of [...Object.values(codes), 'never-made-here-9999', 'NOT-A-CODE']) {
+      const p = await get(s, `/g/${code}`)
+      assert.equal(p.status, 404, code)
+      assert.equal(p.headers.get('cache-control'), 'no-store')
+      bodies.add(p.html)
+    }
+    assert.equal(bodies.size, 1, 'one indistinguishable page')
+  })
+})
+
+// ---- drops -------------------------------------------------------------------------------------
+
+describe('drop pages', () => {
+  it('show a public drop: the creature in shadow, live counts and how to redeem, never who redeemed', async () => {
+    const { s, a } = await world()
+    await drop(s)
+    await s.db.batch([stmt('INSERT INTO redemptions (drop_id, player_id, day) VALUES (?, ?, ?)', 'd-FOUNDERS', a.id, utcDay(s.now()))])
+    let p = await get(s, '/d/founders')
+    assert.equal(p.status, 200)
+    assertHeaders(p)
+    let text = textOf(p.html)
+    assert.ok(text.includes('FOUNDERS'))
+    assert.ok(text.includes('204 redeemed so far, 1,296 of 1,500 left'))
+    assert.ok(text.includes('/spin redeem FOUNDERS'))
+    assert.ok(text.includes('Founder, Oct 2026'))
+    assert.ok(!text.includes('Founderling'), 'the creature stays a silhouette until it hatches')
+    assert.ok(!text.includes(a.me.player.handle))
+    assert.match(p.html, /role="img" aria-label="A creature still in its egg"/)
+    assert.equal(p.headers.get('cache-control'), 'public, max-age=30')
+    // the count is live, and codes are read the way the mod normalises them
+    await s.db.batch([stmt('UPDATE drops SET redeemed = 205')])
+    text = textOf((await get(s, '/d/Found-ers')).html)
+    assert.ok(text.includes('205 redeemed so far, 1,295 of 1,500 left'))
+    // supply gone: ended
+    await s.db.batch([stmt('UPDATE drops SET redeemed = 1500')])
+    p = await get(s, '/d/FOUNDERS')
+    assert.equal(p.status, 200)
+    assert.match(textOf(p.html), /This drop has ended/)
+    assert.ok(!textOf(p.html).includes('/spin redeem'))
+  })
+
+  it('end on time, say nothing before they start, and have no page for unique or broken codes', async () => {
+    const s = server()
+    await drop(s, { plain: 'LATER', startsIn: DAY })
+    await drop(s, { plain: 'OVER', endsIn: -1 })
+    await drop(s, { plain: null })
+    await drop(s, { plain: 'BROKEN', reward: { type: 'egg', promo: { seed: 'x' } } })
+    await drop(s, { plain: 'PACKS', reward: { type: 'pack', count: 2, family: 'opus' }, supply: null })
+    const bodies = new Set<string>()
+    for (const code of ['LATER', 'GOLDEN-7Q2M-K9XD', 'BROKEN', 'NOPE', 'bad*code']) {
+      const p = await get(s, `/d/${code}`)
+      assert.equal(p.status, 404, code)
+      bodies.add(p.html)
+    }
+    assert.equal(bodies.size, 1)
+    assert.match(textOf((await get(s, '/d/over')).html), /This drop has ended/)
+    const packs = textOf((await get(s, '/d/packs')).html)
+    assert.ok(packs.includes('Redeem PACKS in Spinlings for 2 Opus packs.'))
+    assert.ok(packs.includes('204 redeemed so far.'), 'no supply, no "left"')
+  })
+})
+
+// ---- passkey pages and the static script ----------------------------------------------------------
+
+describe('passkey pages', () => {
+  const ticketOf = (url: string) => new URL(url).searchParams.get('t')!
+
+  it('carry one first-party script, the phishing warning and the domain, for a live ticket only', async () => {
+    const { s, a } = await world()
+    const { url } = await a.call('passkeyStart', {})
+    const add = await get(s, `/passkey/add?t=${ticketOf(url)}`)
+    assert.equal(add.status, 200)
+    assertHeaders(add, SCRIPT_CSP)
+    assertSelfContained(add.html)
+    assert.equal(add.headers.get('cross-origin-opener-policy'), 'same-origin')
+    assert.equal(add.headers.get('cache-control'), 'no-store')
+    assert.equal((add.html.match(/<script\b/g) ?? []).length, 1)
+    assert.ok(add.html.includes('<script src="/static/passkey.js" defer></script>'))
+    assert.match(textOf(add.html), /You are on localhost:8787/)
+    assert.match(textOf(add.html), /If someone sent you this link, close this page/)
+    const options = JSON.parse(add.html.match(/data-options="([^"]*)"/)![1]!.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&'))
+    assert.equal(options.rp.id, 'localhost')
+    assert.equal(options.user.name, 'Spinlings', 'nothing that names the player')
+    assert.ok(!add.html.includes(a.me.player.handle))
+
+    const { url: signinUrl } = await s.call('authStart', {})
+    const signin = await get(s, `/passkey/signin?t=${ticketOf(signinUrl)}`)
+    assert.equal(signin.status, 200)
+    assertHeaders(signin, SCRIPT_CSP)
+    assert.ok(textOf(signin.html).includes(
+      'You are signing in to Spinlings on your own computer. If someone sent you this link, close this page: continuing would give them your account.',
+    ))
+
+    // the other flow's ticket, no ticket, a made-up one, and an expired one: all "expired", with no script
+    const expired = [
+      `/passkey/signin?t=${ticketOf(url)}`, '/passkey/add', '/passkey/add?t=', `/passkey/add?t=${'a'.repeat(26)}`,
+    ]
+    s.tick(11 * MINUTE)
+    expired.push(`/passkey/add?t=${ticketOf(url)}`, `/passkey/signin?t=${ticketOf(signinUrl)}`)
+    for (const path of expired) {
+      const p = await get(s, path)
+      assert.equal(p.status, 410, path)
+      assertHeaders(p)
+      assert.doesNotMatch(p.html, /<script/)
+      assert.match(textOf(p.html), /This link has expired/)
+    }
+  })
+
+  it('serve the script as a first-party file that talks only to this origin', async () => {
+    const { s } = await world()
+    const res = await s.request('GET', '/static/passkey.js', { client: null })
+    assert.equal(res.status, 200)
+    assert.equal(res.headers.get('content-type'), 'text/javascript; charset=utf-8')
+    assert.equal(res.headers.get('x-content-type-options'), 'nosniff')
+    const js = await res.text()
+    assert.doesNotThrow(() => new Function(js), 'it parses')
+    assert.doesNotMatch(js, /https?:|['"`]\/\//i, 'no URL to anywhere else')
+    assert.doesNotMatch(js, /\beval\b|new Function|innerHTML|outerHTML|insertAdjacentHTML|document\.write|localStorage|sessionStorage|cookie|indexedDB|location/)
+    assert.deepEqual([...js.matchAll(/'(\/[a-z/]+)'/g)].map(m => m[1]), ['/passkey/add/finish', '/passkey/signin/finish'])
+  })
+})
+
+// ---- reference pages ---------------------------------------------------------------------------
+
+describe('reference pages', () => {
+  it('/odds publishes the rates the server rolls with', async () => {
+    const { s } = await world()
+    const text = textOf((await get(s, '/odds')).html)
+    const E = ECONOMY
+    for (const want of [
+      `1 in ${Math.round(1 / E.wild.mythicChance)}`, `1 in ${Math.round(1 / E.shiny.chance)}`, `1 in ${Math.round(1 / E.foil.chance)}`,
+      `${E.battle.catchChance * 100}%`, `${E.packs.odds[0]![1]}%`, `${E.packs.lastSlotOdds[0]![1]}%`, `${E.wild.rarity[0]![1]}%`,
+      `${E.packs.bank} unopened packs`, `${E.battle.bountyChance * 100}%`,
+    ]) assert.ok(text.includes(want), want)
+  })
+
+  it('/privacy states what is kept and what others see', async () => {
+    const { s } = await world()
+    const text = textOf((await get(s, '/privacy')).html)
+    for (const want of ['Never kept: your IP address', 'Never visible to anyone else', '/spin privacy', 'handle, team, cards marked for trade, album count and league']) {
+      assert.ok(text.includes(want), want)
+    }
+  })
+})

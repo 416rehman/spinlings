@@ -1,0 +1,40 @@
+{
+  "name": "spinlings",
+  "displayName": "Spinlings",
+  "version": "0.1.0",
+  "description": "A creature card game above your prompt. Wild creatures, Rivals and other players' teams come to battle while Claude works. Catch, fuse, trade and gift one-of-a-kind cards. Content-blind, no account, no telemetry, zero tokens.",
+  "author": {
+    "name": "416rehman",
+    "url": "https://github.com/416rehman"
+  },
+  "homepage": "https://github.com/416rehman/spinlings",
+  "repository": "https://github.com/416rehman/spinlings",
+  "license": "MIT",
+  "keywords": [
+    "game",
+    "creatures",
+    "cards",
+    "trading",
+    "battles",
+    "mod"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "server_url": {
+      "type": "string",
+      "title": "Server URL",
+      "description": "The Spinlings server this mod talks to, and the only host it ever contacts. Must be https (http is allowed for localhost and 127.0.0.1).",
+      "default": "https://spinlings.dev"
+    },
+    "world": {
+      "type": "string",
+      "title": "World",
+      "description": "Where you play from the first run: online (the default: anonymous, no sign-up, nothing personal) or offline (nothing ever leaves this machine). /spin world switches any time; each world keeps its own collection.",
+      "options": [
+        "online",
+        "offline"
+      ],
+      "default": "online"
+    }
+  }
+}
