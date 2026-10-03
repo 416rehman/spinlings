@@ -1,7 +1,9 @@
 // The wired mod, end to end through the engine: every /spin subcommand answers {} and does what it says (SPEC 9),
 // both passkey flows show the page on the server's own origin and then poll (29, 30), chimes play only when sound is
 // on and never while quiet (13.12), a newer mod is announced once in the band (32), and the spinner names the
-// opponent during a battle (10).
+// opponent during a battle (10). A battle is finished at a moment the effort setting has no say in (20.2), a sign-in
+// under way stops polling once play moves to another world or server (28, 29, 33), and on the desktop, where a copy
+// cannot reach the clipboard yet, the text to copy shows instead (35).
 import { expect, mock, test } from 'claude-code/testing'
 import { NOW, ORIGIN, OTHER_TOKEN, TOKEN, fakeServer } from './fixtures.ts'
 import { BAND, PANE, RUN, SESSION, engine, settle, textOf, walk } from './engine.ts'
@@ -250,6 +252,110 @@ test('a session the server no longer knows: the pane offers a fresh start, and s
   await $.command.run(RUN('world online'))
   await settle(clock)
   expect(sent(w).filter(x => x === 'POST /v1/join').length).toBe(joins + 1)
+})
+
+test('a battle is finished at the same moment whatever the effort setting: the request\'s timing says nothing of it (SPEC 20.2)', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on)
+  await $.session.start(SESSION)
+  await settle(clock)
+  const finishes = () => w.requests.filter(r => r.url.endsWith('/finish')).length
+  const untilFinished = async (effort: string) => {
+    const stream = $.turn.step({ turnId: `t-${effort}`, index: 0, model: 'claude-opus-5-5', effort, messageCount: 1 } as never)
+    while (!(await stream.next()).done) { /* the step runs through */ }
+    const before = finishes()
+    await $.command.run(RUN('battle'))
+    let ms = 0
+    for (; ms < 180_000 && finishes() === before; ms += 250) await clock.advance(250)
+    // the result and its ceremonies, then a quiet band for the next one
+    for (let i = 0; i < 40; i++) await clock.advance(1000)
+    await settle(clock)
+    return ms
+  }
+  const low = await untilFinished('low')
+  const max = await untilFinished('max')
+  expect(low).toBeGreaterThan(0)
+  expect(low).toBeLessThan(180_000)
+  expect(max).toBe(low)
+})
+
+test('a passkey sign-in under way stops when play moves: no poll goes out offline or to another server, and nothing it brings lands', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on)
+  const COMMUNITY = 'https://cards.example.org'
+  // the community server was agreed to before: /spin server moves at once
+  w.store.set('prefs', { communityOk: [COMMUNITY] })
+  await $.session.start(SESSION)
+  await settle(clock)
+  const polls = () => w.requests.filter(r => r.url.includes('/v1/auth/poll/'))
+  const signIn = async () => {
+    await $.command.run(RUN('devices'))
+    await settle(clock)
+    const ui = await $.ui.mount(PANE(80))
+    await ui.press({ key: 'passkey-signin' })
+    await settle(clock)
+    await ui.unmount()
+    await clock.advance(2000)
+    await settle(clock)
+  }
+  await signIn()
+  expect(polls().length).toBe(1)
+  await $.command.run(RUN('world offline'))
+  await settle(clock)
+  // the page is used now, too late: offline nothing is asked, so the session it would hand over never arrives
+  w.server.poll = 'done'
+  for (let i = 0; i < 10; i++) await clock.advance(2000)
+  await settle(clock)
+  expect(polls().length).toBe(1)
+  expect(w.store.get(`server:${ORIGIN}:session`)).toBe(TOKEN)
+  let pane = await $.ui.mount(PANE(80))
+  expect(textOf(await pane.drawn())).not.toMatch(/Waiting for the passkey page|Signed in ✓/)
+  await pane.unmount()
+
+  // online again, a new sign-in, then /spin server: its poll id goes to no other origin
+  w.server.poll = 'pending'
+  await $.command.run(RUN('world online'))
+  await settle(clock)
+  await signIn()
+  const before = polls().length
+  expect(polls().at(-1)?.url.startsWith(`${ORIGIN}/`)).toBe(true)
+  await $.command.run(RUN(`server ${COMMUNITY}`))
+  await settle(clock)
+  for (let i = 0; i < 10; i++) await clock.advance(2000)
+  await settle(clock)
+  expect(polls().length).toBe(before)
+  expect(w.requests.some(r => r.url.startsWith(COMMUNITY) && r.url.includes('/auth/poll/'))).toBe(false)
+  pane = await $.ui.mount(PANE(80))
+  expect(textOf(await pane.drawn())).not.toMatch(/Waiting for the passkey page/)
+  await pane.unmount()
+})
+
+test('on the desktop, where a copy cannot reach the clipboard yet, a share shows its text to copy and never claims a copy', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on)
+  await $.session.start(SESSION)
+  await settle(clock)
+  await $.command.run(RUN('gift shiny-foil'))
+  await settle(clock)
+  const desk = await $.ui.mount(PANE(80, 'desktop'))
+  await desk.press({ key: 'share' })
+  await settle(clock)
+  await desk.redraw()
+  let text = textOf(await desk.drawn())
+  expect(w.copies.at(-1)?.surface).toBe('desktop')
+  expect(w.copied).toEqual([])
+  expect({ lead: /To share it, copy this:/.test(text), claims: /Copied/.test(text) }).toEqual({ lead: true, claims: false })
+  expect(text).toContain(`${ORIGIN}/c/shiny-foil`)
+  await desk.unmount()
+  // the terminal's copy lands and says so, and the text to copy goes
+  const term = await $.ui.mount(PANE(80))
+  await term.press({ key: 'share' })
+  await settle(clock)
+  await term.redraw()
+  text = textOf(await term.drawn())
+  expect(w.copied.at(-1)).toContain(`${ORIGIN}/c/shiny-foil`)
+  expect({ said: /Copied .+ to share\./.test(text), lead: /To share it, copy this:/.test(text) }).toEqual({ said: true, lead: false })
+  await term.unmount()
 })
 
 test('a full pack bank is one world\'s word: it lifts once the world in play has room, and charging goes on', LONG, async ($, on) => {

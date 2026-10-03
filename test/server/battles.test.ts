@@ -358,6 +358,31 @@ describe('POST /v1/battles/:id/finish', () => {
     assert.ok(await p.call('finishBattle', { battleId: start.id, inputs: [] }))
   })
 
+  it('waits for the rounds the presses play, even when they make the battle longer than the start promised', async () => {
+    const s = server()
+    const p = await s.join()
+    const start = await p.call('startBattle', { kind: 'wild', family: 'haiku' })
+    // even opus against haiku: a Perfect special often draws a battle out (SPEC 15 counts the replay with the presses)
+    const base = JSON.parse((await battleRow(s, start.id)).setup) as BattleSetup
+    const even: Stats = { hp: 60, atk: 20, def: 15, spd: 20 }
+    const attacker = base.attacker.map(c => ({ ...c, species: 's1-opus-0', family: 'opus' as const, traits: ['swift' as const], stats: even }))
+    const defender = [0, 1, 2].map(i => ({ ...attacker[0]!, id: `wild-${i}`, species: 's1-haiku-0', family: 'haiku' as const }))
+    const inputs = Array.from({ length: 30 }, (_, i) => i + 1)
+    const setup = Array.from({ length: 50 }, (_, i) => ({ ...base, attacker, defender, seed: `longer-${i}` }))
+      .find(x => simulateBattle(x, inputs).rounds.length > simulateBattle(x, []).rounds.length)!
+    const promised = readyAt({ startedAt: start.startedAt, setup })
+    const ready = readyAt({ startedAt: start.startedAt, setup }, inputs)
+    await s.db.batch([stmt('UPDATE battles SET setup = ?, finish_after = ? WHERE id = ?', JSON.stringify(setup), promised, start.id)])
+    s.set(promised)
+    const early = await p.fails('finishBattle', { battleId: start.id, inputs })
+    assert.deepEqual([early.status, early.code, early.headers.get('retry-after')], [409, 'conflict', String(Math.ceil((ready - promised) / 1000))])
+    s.set(ready - 1)
+    assert.equal((await p.fails('finishBattle', { battleId: start.id, inputs })).code, 'conflict')
+    assert.equal((await battleRow(s, start.id)).state, 'open')
+    s.set(ready)
+    assert.deepEqual((await p.call('finishBattle', { battleId: start.id, inputs })).log, simulateBattle(setup, inputs))
+  })
+
   it('pays once, answers a repeated finish with the same result, and refuses an abandoned or unreadable one', async () => {
     const s = server()
     const p = await s.join()
@@ -413,7 +438,9 @@ describe('POST /v1/battles/:id/finish', () => {
     assert.equal((await s.request('POST', `/v1/battles/${start.id}/finish`, { token: p.token, body: { inputs: [], more: 1 } })).status, 400)
     assert.equal((await s.request('POST', '/v1/battles/no*such/finish', { token: p.token, body: { inputs: [] } })).status, 400)
     assert.equal((await battleRow(s, start.id)).state, 'open')
-    assert.ok(await p.call('finishBattle', { battleId: start.id, inputs: Array.from({ length: 30 }, (_, i) => i + 1) }))
+    const every = Array.from({ length: 30 }, (_, i) => i + 1)
+    s.set(Math.max(s.now(), readyAt(start, every)))
+    assert.ok(await p.call('finishBattle', { battleId: start.id, inputs: every }))
   })
 
   it('pays a loss, tires the creatures that fainted for 15 minutes and resets the streak', async () => {

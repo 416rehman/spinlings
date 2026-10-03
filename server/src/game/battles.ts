@@ -251,10 +251,20 @@ export async function prepareStart(env: Env, p: PlayerRow, req: StartBattleReque
 
 // ---- settling ----------------------------------------------------------------------------------
 
+/**
+ * Settled, a battle keeps its day, not its times (SPEC 20.4): no rule reads a wild or Rival start or
+ * any earliest finish again. A duel keeps its start for the pair limit's 24 hours, which the sweep
+ * clears once they pass, as it does a catch window's end (retention.ts).
+ */
+const SETTLED_TIMES = `started_at = CASE WHEN kind = 'duel' THEN started_at ELSE 0 END, finish_after = 0`
+
 /** Closes a battle that cannot be replayed (an unreadable row): settled, nothing paid. */
 export const closeBattle = (b: Pick<BattleRow, 'id' | 'version'>, now: number): Stmt[] => [
   battleGuard(b),
-  stmt(`UPDATE battles SET state = 'settled', settled = ?, setup = '{}', opponent = '{}', version = version + 1 WHERE id = ?`, utcDay(now), b.id),
+  stmt(
+    `UPDATE battles SET state = 'settled', settled = ?, setup = '{}', opponent = '{}', ${SETTLED_TIMES}, version = version + 1 WHERE id = ?`,
+    utcDay(now), b.id,
+  ),
 ]
 
 /**
@@ -343,10 +353,10 @@ export async function settleBattle(
   const response: FinishBattleResponse = { ...answer, bounty }
   const { catchOptions } = answer
   // the row keeps the result, any catch and a finish's answer for a retry (finishedAgain); the arena,
-  // both teams and the seed go now (SPEC 20.2)
+  // both teams, the seed and the times no rule reads any more go now (SPEC 20.2, 20.4)
   writes.push(stmt(
     `UPDATE battles SET state = 'settled', settled = ?, result = ?, setup = '{}', opponent = '{}', outcome = ?,
-       catch_options = ?, catch_until = ?, version = version + 1
+       catch_options = ?, catch_until = ?, ${SETTLED_TIMES}, version = version + 1
      WHERE id = ?`,
     utcDay(now), result, mode === 'finish' ? JSON.stringify(response) : null,
     catchOptions.length ? JSON.stringify(catchOptions) : null, catchOptions.length ? now + B.catchWindowMs : 0, b.id,

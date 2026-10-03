@@ -1,10 +1,11 @@
-// Every figure the docs quote, checked against the numbers the game plays by: ECONOMY, the season length, the join
-// limits and the retention sweep. A tuning change that leaves a doc behind fails here, and so does a claim whose
-// wording moved: find the new sentence and point its phrase at it. `#` in a phrase stands for one number.
+// Every figure the docs quote, checked against the numbers the game plays by: ECONOMY, the round pace, the season
+// length, the join limits and the retention sweep. A tuning change that leaves a doc behind fails here, and so does a
+// claim whose wording moved: find the new sentence and point its phrase at it. `#` in a phrase stands for one number.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { ROUND_MS } from '../../plugin/hooks/client/game.ts'
 import { chargeSpacingMs, ECONOMY as E } from '../../plugin/hooks/core/economy.ts'
 import { SEASON_MS } from '../../plugin/hooks/core/world.ts'
 import type { Rarity } from '../../plugin/hooks/core/types.ts'
@@ -26,7 +27,6 @@ const gain = (x: number) => Math.round(Math.abs(x - 1) * 100)
 const oneIn = (p: number) => Math.round(1 / p)
 const weights = (xs: readonly (readonly [unknown, number])[]) => xs.map(([, w]) => w)
 const byRarity = (r: Record<Rarity, number>) => [r.common, r.rare, r.epic, r.legendary]
-const pace = (k: string) => sec(B.paceMs[k]!)
 
 type Claim = [phrase: string, ...expected: number[]]
 
@@ -43,7 +43,7 @@ const CLAIMS: Record<string, Claim[]> = {
     ['An encounter is a duel #% of the time when an opponent is available and you have not dueled in the last # minutes', pct(B.duelChance), min(B.duelCooldownMs)],
     ['challenges a duel any time, at most once every # minutes', min(B.duelSpacingMs)],
     ['After # or more hours without a battle', hours(W.restedMs)],
-    ['| low | # |\n| medium | # |\n| high | # |\n| xhigh | # |\n| max | # |', pace('low'), pace('medium'), pace('high'), pace('xhigh'), pace('max')],
+    ['Every round plays at # seconds', sec(ROUND_MS)],
     ['Your team has # slots', E.teamSize],
     ['# charges make the special ready', B.chargeNeed],
     ['**Perfect** special at #x power', B.perfect],
@@ -111,7 +111,7 @@ const CLAIMS: Record<string, Claim[]> = {
     ['Offer 1 to # of your cards for 0 to # of theirs', Tr.maxGive, Tr.maxGet],
     ['the offer expires after # hours', hours(Tr.expiryMs)],
     ['each side pays # sparks per card received', Tr.fee],
-    ['received cards cannot be traded again for # hours', hours(Tr.lockMs)],
+    ['received cards cannot be traded again until the first UTC midnight at least # hours later', hours(Tr.lockMs)],
     ['accounts at least # days old that have finished # battles', days(Tr.minAgeMs), Tr.minBattles],
     ['up to # offers waiting at once', Tr.openOutgoing],
     ['locked until your account is # days old', days(E.welcomeLockMs)],
@@ -119,7 +119,7 @@ const CLAIMS: Record<string, Claim[]> = {
     ['A non-player trader with # deals each UTC day', E.trader.deals],
     ['valid for # days', days(G.ttlMs)],
     ['the same # days and # battles as trading', days(Tr.minAgeMs), Tr.minBattles],
-    ['is trade-locked for # hours. You cannot claim your own gift', hours(Tr.lockMs)],
+    ['is trade-locked until the first UTC midnight at least # hours later. You cannot claim your own gift', hours(Tr.lockMs)],
     ['Unclaimed gifts come back to you after # days', days(G.ttlMs)],
     ['finished # battles on # different days', G.bonusBattles, G.bonusDays],
     ['You can have # gifts waiting at once, and a player can try # claim codes an hour', G.open, G.claimsPerHour],
@@ -153,7 +153,7 @@ const CLAIMS: Record<string, Claim[]> = {
     ["Once Claude's main turn has run for # seconds, each further # seconds has a #% chance that something rustles in the band, at most once every # minutes",
       sec(B.encounterAfterMs), sec(B.encounterEveryMs), pct(B.encounterChance), min(B.wildSpacingMs)],
     ['Your first encounter comes at # seconds', sec(B.encounterAfterMs)],
-    ['from # seconds a round on low to # on max', pace('low'), pace('max')],
+    ['Every round takes # seconds', sec(ROUND_MS)],
     ['Perfect special at #x power', B.perfect],
     ['A card that faints is tired for # minutes', min(B.tiredMs)],
     ['at least # minutes between wild encounters and # minutes between duels', min(B.wildSpacingMs), min(B.duelSpacingMs)],
@@ -170,7 +170,7 @@ const CLAIMS: Record<string, Claim[]> = {
     ['none finishes faster than # seconds a round', sec(B.minRoundMs)],
     ['an unfinished battle is settled after # minutes', min(B.abandonMs)],
     ['at most # joins an hour and # a day per network', JOIN_LIMITS.joins.hour, JOIN_LIMITS.joins.day],
-    ['welcome-pack cards are trade-locked for # days', days(E.welcomeLockMs)],
+    ['welcome-pack cards are trade-locked until midnight UTC # days after the join day', days(E.welcomeLockMs)],
     ['an account at least # days old with # finished battles', days(Tr.minAgeMs), Tr.minBattles],
     ['Every trade burns # sparks per card received', Tr.fee],
     ['Only the first # finished duels between the same two players in any # hours', B.pairLimit, hours(B.pairWindowMs)],

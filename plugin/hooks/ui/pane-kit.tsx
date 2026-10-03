@@ -201,12 +201,19 @@ export function holdLine(c: Ctx, action: HoldAction, target: string, hotkey: str
   )
 }
 
-/** The pane's own feedback: a request under way (dim) and the last plain-words message, a success in the good ink. */
+/**
+ * The pane's own feedback: a request under way (dim), the last plain-words message, a success in the good ink, and
+ * what a clipboard did not take, line for line, to select and copy by hand.
+ */
 export function feedback(c: Ctx): RenderElement | null {
   const p = c.state.pane
   const items: RenderElement[] = []
   if (p.busy) items.push(line(c, `${safe(p.busy, 60)}…`, { dim: true }))
   if (p.message) items.push(para(c, safe(p.message, 160), { color: p.tone === 'good' ? INK.good : INK.warn }))
+  if (p.toCopy) {
+    items.push(line(c, 'To share it, copy this:', { dim: true }))
+    items.push(<c.el.Box flexDirection="column" width={c.columns}>{...p.toCopy.split('\n').slice(0, 16).map(l => <c.el.Text wrap="wrap">{safe(l, 200)}</c.el.Text>)}</c.el.Box>)
+  }
   return items.length > 0 ? column(c, items, SPACE.none) : null
 }
 

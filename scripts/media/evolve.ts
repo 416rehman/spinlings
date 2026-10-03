@@ -4,7 +4,8 @@
 // whole line side by side.
 import type { Card } from '../../plugin/hooks/core/types.ts'
 import { cardName } from '../../plugin/hooks/core/cards.ts'
-import { EVOLVE_SHOW, TIMING } from '../../plugin/hooks/client/battleview.ts'
+import { TIMING } from '../../plugin/hooks/client/anim.ts'
+import { EVOLVE_SHOW } from '../../plugin/hooks/client/battleview.ts'
 import type { GameState } from '../../plugin/hooks/client/types.ts'
 import { camera, recording } from './scenes.ts'
 import type { Shot } from './scenes.ts'

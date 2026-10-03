@@ -14,7 +14,8 @@ import type { Canvas } from '../../server/src/png.ts'
 import { createCanvas, encodePng, textWidth } from '../../server/src/png.ts'
 import { dayWith, mediaWorld } from './world.ts'
 
-const { backPixels, eggPixels } = await import('../../plugin/hooks/ui/ceremony-art.tsx')
+const { eggPixels } = await import('../../plugin/hooks/ui/ceremony-art.tsx')
+const { cardBack } = await import('../../plugin/hooks/client/anim.ts')
 
 const BG = '#141a26', PANEL = '#1d2534', PLATE = '#1b1824', LINE = '#2c3547', TEXT = '#eceaf3', SOFT = '#a6a4b8', GOLD = INK.accent
 const T = -1
@@ -178,7 +179,7 @@ function pack(W: number, H: number): Canvas {
   faces.forEach((card, i) => {
     const x = x0 + i * (side + gap)
     if (!card) {
-      const back = backPixels(16, glow[i]!, 1)
+      const back = cardBack(16, 16, i === 4 ? 'legendary' : i === 2 ? 'epic' : 'common', 1)
       const halo = only(glowOutline(back, glow[i]!, 1), back)
       sprite(c, halo, x + s, y + s, s)
       sprite(c, back, x + s, y + s, s)

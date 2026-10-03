@@ -65,10 +65,11 @@ export const retireHandle = (handle: string, now: number): Stmt => stmt(
 /**
  * POST /v1/join: checks the proof of work and the join limits, then in one batch creates the player
  * (100 sparks, rating 1000), its first session, the bound starter team (saved as the team) and two
- * welcome packs (the joining family and one other), whose cards open trade-locked for 7 days. The
- * starters come from a family the server picks, in a shuffled order: the team is public, and the
- * joining family is the model in use (SPEC 20.2). The first wild battle is allowed at once; the
- * first pack charge 45 minutes on, as for any charge.
+ * welcome packs (the joining family and one other), whose cards open trade-locked until the midnight
+ * 7 days after the join day, which keeps no hour of joining (SPEC 15, 20.4). The starters come from
+ * a family the server picks, in a shuffled order: the team is public, and the joining family is the
+ * model in use (SPEC 20.2). The first wild battle is allowed at once; the first pack charge 45
+ * minutes on, as for any charge.
  */
 export async function joinPlayer(ctx: Ctx, req: JoinRequest): Promise<{ token: string; playerId: string }> {
   const ticket = await prepareJoin(ctx.db, {
@@ -81,7 +82,7 @@ export async function joinPlayer(ctx: Ctx, req: JoinRequest): Promise<{ token: s
   await ensureSeason(ctx.db, season)
   const rng = rngOf(ctx)
   const starters = await mintCards(ctx, id, shuffle(rng, starterTeam(pick(rng, FAMILIES), rng, ctx.now)), { bound: true })
-  const lockUntil = ctx.now + ECONOMY.welcomeLockMs
+  const lockUntil = dayStart(day) + ECONOMY.welcomeLockMs
   const packs = [req.family, otherFamily(req.family, rng)].map(f => grantPack(ctx, id, f, 'welcome', { lockUntil }))
   const team = starters.cards.map(c => c.id)
   await ctx.db.batch([

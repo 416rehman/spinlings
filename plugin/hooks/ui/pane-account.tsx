@@ -11,7 +11,7 @@ import type { Ctx, Shown } from './pane-kit.tsx'
 import { actions, btn, column, heading, holdLine, line, para, worldBadge } from './pane-kit.tsx'
 import { INK, SPACE } from './tokens.ts'
 
-const GUARANTEE = 'Spinlings reads only the shape of a session: the model\'s family, the effort setting, whether Claude is working, '
+const GUARANTEE = 'Spinlings reads only the shape of a session: the model\'s family, whether Claude is working, '
   + 'how many helpers run and when a usage limit is full. Never your prompts, Claude\'s answers, files, commands, paths or cost.'
 
 function sent(c: Ctx): RenderElement {

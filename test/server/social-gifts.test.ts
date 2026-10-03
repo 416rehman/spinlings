@@ -61,7 +61,8 @@ describe('claiming', () => {
     assert.equal((await a.fails('claim', { code: gift.code })).code, 'not_allowed', 'not your own')
     const c = await s.join()
     const { card } = await c.call('claim', { code: gift.code })
-    assert.deepEqual([card.id, card.state, card.forTrade, card.lockedUntil, card.bound], [x.id, 'owned', false, T0 + DAY, false])
+    assert.deepEqual([card.id, card.state, card.forTrade, card.lockedUntil, card.bound], [x.id, 'owned', false, Date.UTC(2026, 9, 4), false])
+    assert.ok(midnight(card.lockedUntil) && card.lockedUntil - T0 >= DAY, 'until the first midnight at least 24 hours on')
     // it arrives as a gift today: nothing says when or how the giver got it
     assert.deepEqual([card.origin, card.mintedAt, card.raisedIn], ['gift', Date.UTC(2026, 9, 2), undefined])
     assert.deepEqual(await cardIn(c, x.id), card)

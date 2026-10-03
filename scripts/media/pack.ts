@@ -8,7 +8,7 @@ import type { Shot } from './scenes.ts'
 import type { Theme } from './view.ts'
 import { dayWith, mediaWorld } from './world.ts'
 
-const { TIMING } = await import('../../plugin/hooks/ui/ceremony-art.tsx')
+const { TIMING } = await import('../../plugin/hooks/client/anim.ts')
 const { layers } = await import('../../plugin/hooks/ui/ceremony.tsx')
 
 export function packWorld() {

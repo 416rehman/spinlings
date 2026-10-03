@@ -2,6 +2,7 @@
 // duel), then the online world, then offline and online again. Offline sends nothing and never reads a server's keys;
 // online never reads the offline save; and nothing RemoteBackend sends, in any URL, header or body, carries a value
 // from the offline save: no card id, no DNA, no name, no count. Every body is one the strict request schemas accept.
+// Naming a community server offline asks it nothing either: it is first asked once play goes online.
 import { expect, mock, test } from 'claude-code/testing'
 import type { ApiOp } from '../hooks/core/api.ts'
 import { API_ROUTES } from '../hooks/core/api.ts'
@@ -9,7 +10,7 @@ import { cardName } from '../hooks/core/cards.ts'
 import { parseRequest } from '../hooks/core/schemas.ts'
 import { openSave } from '../hooks/client/local/save.ts'
 import { NOW, ORIGIN } from './fixtures.ts'
-import { RUN, SESSION, engine, settle } from './engine.ts'
+import { BAND, RUN, SESSION, engine, settle } from './engine.ts'
 import type { Engine, Request } from './engine.ts'
 
 /** The operation a request is, from its method and path. */
@@ -35,6 +36,31 @@ function offlineValues(w: Engine): { strings: string[]; numbers: number[]; spark
   for (const p of s.packs) strings.add(p.id)
   return { strings: [...strings], numbers: s.cards.map(c => c.dna).filter(d => d >= 1000), sparks: s.sparks }
 }
+
+test('offline, /spin server for a community server sends nothing; the server is first asked once play goes online', { options: { world: 'offline' }, timeoutMs: 120_000 }, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on)
+  const COMMUNITY = 'https://cards.example.org'
+  await $.session.start(SESSION)
+  await settle(clock)
+  await $.command.run(RUN(`server ${COMMUNITY}`))
+  await settle(clock)
+  expect(w.requests).toEqual([])
+  expect(w.logs.at(-1)).toBe('cards.example.org is a community server run by someone else. See the band to use it when you play online.')
+  const band = await $.ui.mount(BAND(80))
+  expect((await band.find({ key: `act-server:${COMMUNITY}` }))?.props.label).toBe('Use it online')
+  await band.press({ key: `act-server:${COMMUNITY}` })
+  await settle(clock)
+  await band.unmount()
+  for (let i = 0; i < 10; i++) await clock.advance(60_000)
+  await settle(clock)
+  expect(w.requests).toEqual([])
+  await $.command.run(RUN('world online'))
+  await settle(clock)
+  expect(w.requests.length).toBeGreaterThan(0)
+  expect(w.requests.every(r => r.url.startsWith(`${COMMUNITY}/v1/`))).toBe(true)
+  expect(new URL(w.requests[0]!.url).pathname).toBe('/v1/version')
+})
 
 test('an offline session, then online: nothing from the offline save reaches the server, and neither world reads the other\'s keys', { options: { world: 'offline' }, timeoutMs: 300_000 }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })

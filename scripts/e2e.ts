@@ -262,7 +262,8 @@ export async function battle(boot: Boot, c: Client, kind: 'wild' | 'duel', o: { 
     // the minimum duration (SPEC 15): finishing at once is refused, and the client simply waits
     await c.fails('finishBattle', { battleId: start.id, inputs }, 'conflict')
   }
-  boot.clock.until(start.finishAfter)
+  // never sooner than the server's replay of these inputs, which presses can make longer (SPEC 15)
+  boot.clock.until(Math.max(start.finishAfter, finishAfter(start.startedAt, local.rounds.length)))
   const fin = await c.call('finishBattle', { battleId: start.id, inputs })
   assert.deepEqual(fin.log, local, 'the server\'s replay is the client\'s simulation')
   assert.equal(fin.result, local.result)
@@ -271,6 +272,9 @@ export async function battle(boot: Boot, c: Client, kind: 'wild' | 'duel', o: { 
   }
   return { start, fin, inputs }
 }
+
+/** The first UTC midnight at or after `t`: trade locks end on one, so they never tell the hour of a trade (SPEC 20.3). */
+const firstMidnight = (t: number): number => Math.ceil(t / DAY) * DAY
 
 /** Waits (on the server's clock) until the next battle of this kind is allowed, as the mod reads it from /v1/me. */
 export async function whenAllowed(boot: Boot, c: Client, kind: 'wild' | 'duel'): Promise<void> {
@@ -408,7 +412,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       await p1.fails('openPack', { packId: me1.packs[0]!.id }, 'not_found')
       for (const c of opened) {
         assert.equal(c.origin, 'pack')
-        assert.equal(c.lockedUntil, T0 + ECONOMY.welcomeLockMs, 'welcome-pack cards are trade-locked for 7 days')
+        assert.equal(c.lockedUntil, Date.parse(`${utcDay(T0)}T00:00:00Z`) + ECONOMY.welcomeLockMs, 'welcome-pack cards are trade-locked 7 days from the join day')
         assert.equal(c.firstFind === true, !before.has(c.species), `${c.species}: firstFind exactly on the first of its species`)
         before.add(c.species)
         if (c.rarity === 'legendary') assert.equal(c.foil, true, 'every legendary is foil')
@@ -704,7 +708,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       const got2 = (await cardsOf(p2)).find(c => c.id === mine.id)!
       assert.ok(got1 && got2, 'the cards swapped owners')
       for (const c of [got1, got2]) {
-        assert.equal(c.lockedUntil, clock.now() + ECONOMY.trade.lockMs, 'received cards are trade-locked for 24 hours')
+        assert.equal(c.lockedUntil, firstMidnight(clock.now() + ECONOMY.trade.lockMs), 'received cards are trade-locked for 24 hours, to a midnight')
         assert.deepEqual([c.forTrade, c.state], [false, 'owned'])
       }
       assert.ok((await p1.me()).notices.some(n => n.kind === 'offer-accepted'))
@@ -724,7 +728,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       await p3.fails('claim', { code: 'quiet-otter-lamp-0000' }, 'not_found')
       const { card } = await p3.call('claim', { code: gift.code })
       assert.equal(card.id, giftCard.id)
-      assert.equal(card.lockedUntil, clock.now() + ECONOMY.trade.lockMs)
+      assert.equal(card.lockedUntil, firstMidnight(clock.now() + ECONOMY.trade.lockMs))
       await p1.fails('claim', { code: gift.code }, 'not_found')
       assert.ok((await p1.me()).notices.some(n => n.kind === 'gift-claimed'))
       // the claimant really plays: 5 battles on 2 different days

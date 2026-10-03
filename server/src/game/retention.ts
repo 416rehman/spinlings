@@ -40,6 +40,18 @@ const clearMarks = (now: number) => stmt(
   now - DAY, Math.floor((now - DAY) / HOUR),
 )
 
+/**
+ * The same for times on battles and on cards, each once the one rule that reads it is past: a catch
+ * window (10 minutes), a settled duel's start once the pair limit's 24 hours are over (wild and Rival
+ * starts go at settling), a trade lock and tiredness. 0 reads as "none" everywhere (SPEC 20.4). Each
+ * has a partial index (0002) that keeps its scan to the rows with one set.
+ */
+const clearTime = (table: 'battles' | 'cards', column: string, upTo: number, where = '') => stmt(
+  `UPDATE ${table} SET ${column} = 0, version = version + 1
+   WHERE id IN (SELECT id FROM ${table} WHERE ${where}${column} > 0 AND ${column} <= ? LIMIT ${4 * SWEEP_BATCH})`,
+  upTo,
+)
+
 export async function sweepGame(db: Db, now: number): Promise<void> {
   const daysAgo = (n: number) => utcDay(now - n * DAY)
   await db.batch([
@@ -56,6 +68,12 @@ export async function sweepGame(db: Db, now: number): Promise<void> {
     // a finish's stored answer only serves a retry within minutes (finishedAgain), so not past its day
     stmt(`UPDATE battles SET outcome = NULL WHERE state = 'settled' AND settled < ? AND outcome IS NOT NULL`, utcDay(now)),
     clearMarks(now),
+    clearTime('battles', 'catch_until', now),
+    clearTime('battles', 'started_at', now - ECONOMY.battle.pairWindowMs, `state = 'settled' AND `),
+    clearTime('cards', 'locked_until', now),
+    clearTime('cards', 'tired_until', now),
+    // a passed revenge window, the attacker's exact finish a day on, goes too (its own partial index)
+    stmt(`UPDATE notices SET revenge_until = NULL WHERE id IN (SELECT id FROM notices WHERE revenge_until <= ? LIMIT ${4 * SWEEP_BATCH})`, now),
   ])
   await forgetUnreachable(db, now)
 }

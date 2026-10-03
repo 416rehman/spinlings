@@ -4,7 +4,7 @@ The single source of truth for the game's rules, numbers and code layout. When c
 
 ## 1. The game in one paragraph
 
-Spinlings is a creature card game that lives inside Claude Code. While Claude works, wild creatures show up and other players' teams come to duel. Your team of three battles them in the band above the prompt. Wins catch creatures, earn sparks and level your team up through three evolution stages, and every card is a one-of-a-kind creature with its own look, genes and traits. Now and then a Mythic turns up that has never existed before. You fuse cards into brand-new hybrids, and you trade and gift them with other Claude Code users, or play entirely offline. The game never knows what you are working on. It reads only the shape of the session: which model, the effort setting, whether Claude is working, idle time, agents, context fill and rate limits. It never reads files, commands, prompts or output.
+Spinlings is a creature card game that lives inside Claude Code. While Claude works, wild creatures show up and other players' teams come to duel. Your team of three battles them in the band above the prompt. Wins catch creatures, earn sparks and level your team up through three evolution stages, and every card is a one-of-a-kind creature with its own look, genes and traits. Now and then a Mythic turns up that has never existed before. You fuse cards into brand-new hybrids, and you trade and gift them with other Claude Code users, or play entirely offline. The game never knows what you are working on. It reads only the shape of the session: which model, whether Claude is working, idle time, agents, context fill and rate limits. It never reads files, commands, prompts or output.
 
 ## 2. Hard rules
 
@@ -176,15 +176,7 @@ Fuse any two of your cards (not bound, not in escrow) into one brand-new hybrid 
 - **Manual battle:** `/spin battle` or a revenge, any time; the server spaces duel starts at least 2 minutes apart.
 - **Server pacing** (section 24): a wild start at least 8 minutes after the previous wild start, a duel start at least 2 minutes after the previous duel start, one open battle at a time, and a minimum duration of 1.5 s per round.
 - **Never coupled to Claude.** Battles never wait for Claude, and Claude never waits for a battle. If Claude finishes first, the battle keeps playing in the band until it ends.
-- **Pace is cosmetic, set by effort:**
-
-  | Effort | Seconds per round |
-  |---|---|
-  | low | 1.8 |
-  | medium | 2.2 |
-  | high | 2.5 |
-  | xhigh | 3.0 |
-  | max | 3.5 ("dramatic slow motion") |
+- **One pace:** every round plays at 2.2 s. The pace never follows the effort setting: the finish request leaves once the rounds have played, so its timing would tell the server that setting (section 20.2).
 
 ### Format
 - Teams have 3 slots. Slot order is play order, and the active creature is the first one not fainted.
@@ -302,7 +294,7 @@ New players start with 100 sparks.
 ### First run
 1. **Join.** The client joins silently: `GET /v1/challenge`, a proof of work, then `POST /v1/join` with the current family (sections 30 and 34).
 2. **Starter team.** The player gets 3 bound common cards at level 3, 20 xp short of level 4 so one won battle evolves them, saved as the team: one from a family the server picks at random, one from the family it beats, and one from the family that beats it, in a shuffled order. The team is public, so it never follows the joining family (section 20.3). They have DNA like any other card.
-3. **Welcome gifts.** 2 welcome packs (the current family and one random other family), trade-locked for 7 days, and 100 sparks.
+3. **Welcome gifts.** 2 welcome packs (the current family and one random other family), trade-locked until midnight UTC 7 days after the join day, and 100 sparks.
 4. **Band.** See section 34.
 
 ## 7. The living world (all driven by the date, no server work)
@@ -332,7 +324,7 @@ New players start with 100 sparks.
 - **Escrow.** Your offered cards go into escrow until the offer resolves.
 - **Responding.** The receiver can **accept**, **decline** or **counter**. A counter declines the offer and sends a new one with the roles swapped.
 - **Expiry.** Offers expire after 72 hours, and expired offers return escrowed cards.
-- **Accepting.** On accept, the server checks that every requested card is still owned by the receiver and still tradeable. It then swaps atomically and charges each side 10 sparks per card received. If a side cannot pay, the accept is refused and nothing moves. Traded cards leave teams. Received cards are trade-locked for 24 hours.
+- **Accepting.** On accept, the server checks that every requested card is still owned by the receiver and still tradeable. It then swaps atomically and charges each side 10 sparks per card received. If a side cannot pay, the accept is refused and nothing moves. Traded cards leave teams. Received cards are trade-locked until the first UTC midnight at least 24 hours later.
 - **Who can trade:** online accounts at least 3 days old with 10 finished battles (section 30). Claiming a gift is always allowed.
 - **Limits:** at most 20 open outgoing offers at once (storage, not a quota). Bound, escrowed and trade-locked cards can't be offered.
 - **What an offer shows:** the other player's cards appear as public battle cards: no ownership details or timestamps (section 20).
@@ -346,7 +338,7 @@ New players start with 100 sparks.
 
 ### Gifts
 - **Making a gift.** `POST /v1/gift` puts one tradeable card in escrow and returns a code: 3 words plus 4 digits, e.g. `quiet-otter-lamp-4821`. The code is valid for 14 days. The share link is `{server}/g/{code}`, a page that shows the card and how to install and claim.
-- **Claiming.** `POST /v1/claim` gives the card to the claimant and trade-locks it for 24 hours. You cannot claim your own gift.
+- **Claiming.** `POST /v1/claim` gives the card to the claimant and trade-locks it until the first UTC midnight at least 24 hours later. You cannot claim your own gift.
 - **Bonus for the giver.** If the claimant joined after the gift was made, the giver gets a bonus pack once the claimant has finished 5 battles on 2 different days (section 24).
 - **Expiry.** Expired gifts return to the giver the next time the giver touches the server.
 - **Limits:** 10 open gifts at once (storage) and 5 claim attempts per hour (brute-force protection on codes).
@@ -412,7 +404,6 @@ Four tabs, hotkeys 1–4. A header shows the daily rule and `[p] Open pack (n)`.
 | Signal | Hook | Used for |
 |---|---|---|
 | Model id | `$.session.model()`, `turn.step` `e.model` | Pack family, arena |
-| Effort | `turn.step` `e.effort` | Battle pace (cosmetic) |
 | Claude working | `turn.start` and `turn.complete` (main thread, where `agentId` is undefined) | Waiting battles |
 | Turn ending | `turn.complete` `reason` | A one-line reaction only (e.g. the creature flinches on Esc) |
 | Spinner phase | `ui.render` Spinner `e.props.mode` | Spinner suffix during a battle |
@@ -724,7 +715,7 @@ The rule for every moment in section 13: **build up, pause, pay off, celebrate i
   - 5 joins per hour and 20 per day per daily-salted IP hash.
 - **Card restrictions:**
   - Starter cards are bound forever.
-  - Welcome-pack cards are trade-locked for 7 days (`lockedUntil = joinedAt + 7 days`).
+  - Welcome-pack cards are trade-locked until midnight UTC 7 days after the join day (`lockedUntil = dayStart(joinDay) + 7 days`).
 - **Who may trade or send gifts:** online accounts at least 3 days old with 10 finished battles (section 30). Claiming a gift is always allowed (that is the invite loop).
 - **Every trade burns sparks:** 10 per card received.
 
@@ -1073,7 +1064,7 @@ The seam's blocklist (`isBlocked`) has the last word: a blocked species or fusio
 
 ### Rules this keeps
 - The trust gate for trading and gifting: an online account at least 3 days old with 10 finished battles (section 30).
-- Welcome-pack cards trade-locked for 7 days, and starter cards bound forever.
+- Welcome-pack cards trade-locked until midnight UTC 7 days after the join day, and starter cards bound forever.
 - Proof of work and join limits per IP hash.
 - The server re-simulates every battle, makes every roll, and uses guards in every write.
 

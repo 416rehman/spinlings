@@ -52,7 +52,14 @@ function byteLength(text: string): number {
   return new TextEncoder().encode(text).length
 }
 
-const fail = (code: ApiErrorCode, kind: BackendError['kind'], status: number, message: string) => new BackendError(code, kind, status, message)
+const fail = (code: ApiErrorCode, kind: BackendError['kind'], status: number, message: string, retryAfterMs: number | null = null) =>
+  new BackendError(code, kind, status, message, retryAfterMs)
+
+/** A Retry-After of whole seconds (the only form the server sends), in ms; null when absent or unreadable. */
+export function retryAfterMs(header: unknown): number | null {
+  if (typeof header !== 'string' || !/^\s*\d{1,6}\s*$/.test(header)) return null
+  return Number(header) * 1000
+}
 
 /** Reads one answer: redirects refused, bodies over the cap rejected unparsed, everything else validated tolerantly. */
 export function readAnswer<K extends ApiOp>(op: K, res: HttpAnswer): ApiResponse<K> {
@@ -86,7 +93,7 @@ export function readAnswer<K extends ApiOp>(op: K, res: HttpAnswer): ApiResponse
         // an error body we cannot read keeps the generic code and message
       }
     }
-    throw fail(code, status === 401 ? 'unauthorized' : 'refused', status, message)
+    throw fail(code, status === 401 ? 'unauthorized' : 'refused', status, message, retryAfterMs(headers['retry-after']))
   }
   if (!parsed) throw fail('unavailable', 'bad_response', status, 'The server did not answer in JSON')
   try {

@@ -49,7 +49,7 @@ export function mediaWorld(now: number, seed = 'spinlings/media') {
       now,
     },
     cards: starters,
-    signals: { ...INITIAL.signals, family: 'opus', effort: 'medium', working: true, turnStartedAt: now - 40_000 },
+    signals: { ...INITIAL.signals, family: 'opus', working: true, turnStartedAt: now - 40_000 },
     presence: { minutes: 32, need: 50, blocked: null },
     clock: now,
   }

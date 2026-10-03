@@ -214,7 +214,7 @@ export const deleteCard = (id: string): Stmt => stmt('DELETE FROM cards WHERE id
 // ---- minting -----------------------------------------------------------------------------------
 
 export type MintOptions = {
-  /** trade-locked until (welcome packs: join + 7 days) */
+  /** trade-locked until (welcome packs: midnight UTC 7 days after the join day) */
   lockedUntil?: number
   /** bound forever (starters, bound drops) */
   bound?: boolean

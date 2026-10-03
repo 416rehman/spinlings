@@ -12,7 +12,7 @@ import { seasonOf, utcDay } from '../../plugin/hooks/core/world.ts'
 import { stmt } from '../../server/src/db.ts'
 import { base32 } from '../../server/src/game/ctx.ts'
 import { mintCards } from '../../server/src/game/mint.ts'
-import { DAY, MINUTE, server } from './scaffold-helpers.ts'
+import { MINUTE, server } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
 import { envOf, snapshot, trust } from './social-helpers.ts'
 
@@ -67,8 +67,8 @@ describe('a Mythic names its finder only as it is read (SPEC 18, 20.1)', () => {
     await trust(s, f, o)
     const m = await catchMythic(s, f, 'cc33cc33')
     const { gift } = await f.call('gift', { cardId: m.id })
-    await o.call('claim', { code: gift.code })
-    s.tick(DAY + MINUTE) // past the trade lock, so it can be listed
+    const { card } = await o.call('claim', { code: gift.code })
+    s.set(card.lockedUntil) // past the trade lock, so it can be listed
     await o.call('setForTrade', { cardId: m.id, forTrade: true })
     assert.equal(await finderOf(o, m), handle(f))
     const listed = (await x.call('profile', { handle: handle(o) })).forTrade.find(c => c.id === m.id)

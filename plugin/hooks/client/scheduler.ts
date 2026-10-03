@@ -66,7 +66,7 @@ const one = (key: string, cells: string): Frame => new Map([[key, cells]])
 
 /**
  * The battle driver (register.tsx's BATTLE_DRIVER): the rustle with its foreshadowing, the reveal's flash, every
- * round at the effort's pace with its hits, numbers, drains and knock-outs, then the settle and the ceremonies.
+ * round at its pace with its hits, numbers, drains and knock-outs, then the settle and the ceremonies.
  * A live battle re-simulates on a press; one whose rules differ animates the server's log once it is in.
  */
 export const playBattle: BattleDriver = async (fx, ctl) => {

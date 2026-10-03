@@ -220,14 +220,10 @@ export type SpinAccount = {
   devices: { sessions: number; passkeys: number } | null
 }
 
-export type SpinEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | ''
-
 /** The shape of the session, never its content (SPEC 10). */
 export type SpinSignals = {
   /** the family of the model in use: the pack family and the arena */
   family: SpinFamily
-  /** battle pace only */
-  effort: SpinEffort
   /** Claude's main turn is running */
   working: boolean
   turnStartedAt: number | null
@@ -336,8 +332,8 @@ export type SpinSocial = {
   profile: SpinProfile | null
   trader: { day: string; deals: SpinTraderDeal[] } | null
   leaderboard: SpinLeaderRow[] | null
-  /** the gift just made: its code and share link */
-  gift: { code: string; link: string; cardId: string } | null
+  /** the gift just made: its code and share link, and whether the link and the claim command reached a clipboard */
+  gift: { code: string; link: string; cardId: string; copied: boolean } | null
   /** what is being fetched now */
   loading: ('board' | 'profile' | 'trader' | 'leaderboard' | 'devices')[]
 }
@@ -378,6 +374,8 @@ export type SpinPane = {
   message: string
   /** how that line reads: 'good' for a success (the copied update command), drawn in the good ink; else a warning */
   tone: 'warn' | 'good'
+  /** what a clipboard did not take (a share where the surface has none), shown to select and copy by hand; '' when none */
+  toCopy: string
   /** a request in flight: its label (a dim placeholder shows after 300 ms) */
   busy: string | null
   busySince: number

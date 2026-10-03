@@ -1,13 +1,13 @@
 // Spinlings: every hook and every $ call of the mod lives in this file (SPEC 11). The hooks read only the shape of the
-// session (SPEC 10): the model's family, the effort, whether Claude's main turn runs, subagent counts, rate-limit
-// fullness and compaction. Never tool.call, prompt.submit or a permission request; never prompts, answers, files or
+// session (SPEC 10): the model's family, whether Claude's main turn runs, subagent counts, rate-limit fullness and
+// compaction. Never tool.call, prompt.submit or a permission request; never prompts, answers, files or
 // cost. Every hook passes the event on with next(e) and never waits on the network: the join and every request run
 // on clock callbacks, outside any hook. client/game.ts holds the game; this file only lends it $ through Fx.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 import type {
   BandState, BandView, BattleDriver, Chime, El, Fx, GameState, LocalBackendFactory, MomentDriver, PaneView, RevealDriver,
-  Slots, StateKey,
+  Slots, StateKey, Surface,
 } from './client/types.ts'
 import { INITIAL, createGame, spinnerSuffix } from './client/game.ts'
 import { createLocalBackend } from './client/local/index.ts'
@@ -139,7 +139,8 @@ async function blit($: $, requestId: string | null, key: string, cells: string):
   }
 }
 
-function fxOf($: $): Fx {
+/** The effects over `$`; `surface`, where the band or the pane drew, is where their presses copy. */
+function fxOf($: $, surface?: Surface): Fx {
   return {
     now: () => $.clock.now(),
     random,
@@ -165,7 +166,7 @@ function fxOf($: $): Fx {
       log: text => $.ui.log(text),
       copy: async text => {
         try {
-          return (await $.ui.copy({ text })).isCopied
+          return (await $.ui.copy(surface ? { text, surface } : { text })).isCopied
         } catch {
           return false
         }
@@ -239,7 +240,7 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.step', async function* ($, e, next) {
-    if (e.agentId === undefined) await quietly($, 'step', () => game.turnStep(fxOf($), e.model, e.effort))
+    if (e.agentId === undefined) await quietly($, 'step', () => game.turnStep(fxOf($), e.model))
     return yield* next(e)
   })
 
@@ -288,7 +289,7 @@ export const register: Register = (on, options) => {
     const state = await readBand($)
     const tree = BAND({
       el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns, rows: e.props.maxRows,
-      now: state.clock, actions: game.actions(fxOf($)), isWorking: e.props.isWorking, state,
+      now: state.clock, actions: game.actions(fxOf($, e.surface)), isWorking: e.props.isWorking, state,
     })
     return tree ?? next(e)
   })
@@ -298,7 +299,7 @@ export const register: Register = (on, options) => {
     const state = await readAll($)
     return PANE({
       el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns, rows: e.props.scroll.bodyRows,
-      now: state.clock, actions: game.actions(fxOf($)), focused: e.props.isFocused, placement: e.props.placement, state,
+      now: state.clock, actions: game.actions(fxOf($, e.surface)), focused: e.props.isFocused, placement: e.props.placement, state,
     })
   })
 

@@ -6,7 +6,7 @@
 
 Spinlings is a creature card game that lives inside Claude Code. While Claude works, wild creatures rustle into a slim band above the prompt and your team of three battles them. Win, and you might catch one. Every card is one of a kind, with its own look, genes and traits. You can fuse two cards into a hybrid nobody has seen before, and trade or gift cards with other players.
 
-Spinlings never knows what you are working on. It reads only the shape of the session (which model, the effort setting, whether Claude is busy). It never reads your files, prompts or output, and it costs zero tokens.
+Spinlings never knows what you are working on. It reads only the shape of the session (which model, whether Claude is busy). It never reads your files, prompts or output, and it costs zero tokens.
 
 The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your machine if you play offline.
 
@@ -109,7 +109,7 @@ Rarer results get longer build-ups. A rare silhouette has one bright twinkling p
 
 Once Claude's main turn has run for 20 seconds, each further 15 seconds has a 30% chance that something rustles in the band, at most once every 8 minutes. Your first encounter comes at 20 seconds, and your first wild win always catches. Sometimes it is a duel against another player's saved team, or a Rival's, instead.
 
-Battles and Claude never wait for each other. If Claude finishes first, the battle plays on in the band until it ends. The pace follows your effort setting, from 1.8 seconds a round on low to 3.5 on max. That only changes the animation.
+Battles and Claude never wait for each other. If Claude finishes first, the battle plays on in the band until it ends. Every round takes 2.2 seconds.
 
 Your team fights on its own. When your special fires, the band shows `[1] Now!`. Press 1 during that round for a Perfect special at 1.3x power. Looking away costs nothing.
 
@@ -178,7 +178,7 @@ The game runs on the rhythm of your session, never its content. This is everythi
 | `session.start`, `session.end`, and a once-a-minute clock tick | that a session is open | Presence minutes for packs |
 | `classic.SessionStart` (only `clear`, `resume` and `fork`) | that the session started over | Picking the game back up |
 | `turn.start`, `turn.complete` (main thread only) | that Claude started or stopped, and how the turn ended (`reason`) | Encounters; a one-line reaction when you press Esc |
-| `turn.step` | `model`, `effort` | The arena and pack family; battle pace |
+| `turn.step` | `model` | The arena and pack family |
 | `agent.spawn` | that a subagent started (a count) | A `+2 cheering` line in the band |
 | `session.measure` | rate-limit percentages only | One status note when you hit a limit |
 | `session.compact` | `trigger` | A one-line reaction |
@@ -237,7 +237,7 @@ The server is the only authority, and the mod is an untrusted renderer. A modifi
 
 **Multiple accounts.**
 - Joining takes a proof of work, and there are at most 5 joins an hour and 20 a day per network. Networks are counted by a keyed hash of the address that changes every day; the address itself is never stored.
-- Starter cards are bound forever, and welcome-pack cards are trade-locked for 7 days.
+- Starter cards are bound forever, and welcome-pack cards are trade-locked until midnight UTC 7 days after the join day.
 - Trading and sending gifts need an account at least 3 days old with 10 finished battles. Claiming a gift is always allowed.
 - Every trade burns 10 sparks per card received.
 

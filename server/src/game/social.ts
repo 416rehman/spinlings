@@ -16,7 +16,7 @@ import { fail, HttpError } from '../http.ts'
 import type { ErrorCode } from '../http.ts'
 import type { GiftRow, OfferRow, PlayerRow } from '../schema.ts'
 import { leaveTeam, mustBeTradeable } from './collection.ts'
-import { addDays, addSparks, commit, DAY, dayStart, HOUR, loadPlayer, mustAfford, newGiftCode, newId, notFound, readJson, rngOf, setPlayer } from './ctx.ts'
+import { addDays, addSparks, bumpPlayer, commit, DAY, dayStart, HOUR, loadPlayer, mustAfford, newGiftCode, newId, notFound, readJson, rngOf, setPlayer } from './ctx.ts'
 import type { Env } from './ctx.ts'
 import { bumpCards, cardGuard, cardsByIds, grantPack, offerViews, ownCard, ownCards, publicCard, saveCard } from './mint.ts'
 import type { ArenaCounts, StoredCard } from './mint.ts'
@@ -26,7 +26,10 @@ import { trusted } from './pacing.ts'
 const TRADE = ECONOMY.trade
 const GIFT = ECONOMY.gift
 
-/** Notice lines name nobody: the other player rides along as the notice's handle, always the current one. */
+/**
+ * Notice lines name nobody: the other player rides along as the notice's handle, always the current
+ * one. News of an offer names its receiver only while they still have the handle it was sent to.
+ */
 export const SOCIAL_TEXT = {
   notTrusted: 'Trading opens once your account is 3 days old with 10 battles',
   offerReceived: 'A trade offer arrived',
@@ -52,6 +55,9 @@ export const playerByHandle = (db: Db, handle: string): Promise<PlayerRow | unde
 /** An offer runs until the first UTC midnight at least 72 hours on. */
 export const offerExpiry = (now: number): number => dayStart(utcDay(now + TRADE.expiryMs)) + DAY
 
+/** A card that changes hands is trade-locked until the first UTC midnight at least 24 hours on. */
+export const tradeLock = (now: number): number => Math.ceil((now + TRADE.lockMs) / DAY) * DAY
+
 /** A gift's lapse day: it can be claimed until the first UTC midnight at least 14 days on. */
 export const giftExpiry = (now: number): string => addDays(utcDay(now + GIFT.ttlMs), 1)
 
@@ -70,14 +76,15 @@ const release = (ref: string, owner: string): Stmt =>
 
 /**
  * A card changing hands (SPEC 8): home with its new owner, off the market, rested and trade-locked
- * for 24 hours. It arrives as a gift made today, with its arena counts and raised form gone, so
+ * until the first midnight 24 hours on, so its lock never tells the other side of a trade the hour
+ * it went through. It arrives as a gift made today, with its arena counts and raised form gone, so
  * nothing on it tells the new owner when or how the last one got it, or which arenas (which model)
  * they battled in (SPEC 18, 20.2, 20.3).
  */
 export function handOver(c: StoredCard, to: string, now: number): { card: Card; stmt: Stmt } {
   const { raisedIn: _, ...kept } = c.card
   const card: Card = {
-    ...kept, state: 'owned', forTrade: false, tiredUntil: 0, lockedUntil: Math.max(c.card.lockedUntil, now + TRADE.lockMs),
+    ...kept, state: 'owned', forTrade: false, tiredUntil: 0, lockedUntil: Math.max(c.card.lockedUntil, tradeLock(now)),
     origin: 'gift', mintedAt: dayStart(utcDay(now)),
   }
   return { card, stmt: saveCard(c, card, { owner: to, escrowRef: null, arena: NO_ARENA }) }
@@ -101,7 +108,7 @@ export function expireOffers(env: Env, rows: readonly OfferRow[]): Stmt[] {
     release(o.id, o.from_id),
     settle(o, 'expired', env.now),
     bumpCards(o.from_id),
-    notice(env, o.from_id, 'offer-expired', SOCIAL_TEXT.expired, { other: o.to_id }),
+    notice(env, o.from_id, 'offer-expired', SOCIAL_TEXT.expired, { other: o.to_id, knownAs: o.to_handle }),
   ])
 }
 
@@ -204,11 +211,13 @@ export async function acceptOffer(ctx: PlayerCtx, o: OfferRow): Promise<OfferVie
     ...moves.map(m => m.stmt),
     ...leaveTeam(p, getIds),
     addSparks(p.id, -myFee),
+    // the sender's sparks change, so their version moves: a spend of theirs read before this re-runs
     addSparks(from.id, -theirFee),
+    bumpPlayer(from.id),
     settle(o, 'accepted', ctx.now),
     bumpCards(p.id),
     bumpCards(from.id),
-    notice(ctx, from.id, 'offer-accepted', SOCIAL_TEXT.accepted, { other: p.id }),
+    notice(ctx, from.id, 'offer-accepted', SOCIAL_TEXT.accepted, { other: p.id, knownAs: o.to_handle }),
   ])
   return {
     id: o.id, from: o.from_handle, to: o.to_handle, give: give.map(c => publicCard(c.card)), get: get.map(c => publicCard(c.card)),
@@ -220,7 +229,7 @@ export async function acceptOffer(ctx: PlayerCtx, o: OfferRow): Promise<OfferVie
 export async function declineOffer(ctx: PlayerCtx, o: OfferRow): Promise<OfferView> {
   await ctx.db.batch([
     liveGuard(o, ctx.now), release(o.id, o.from_id), settle(o, 'declined', ctx.now), bumpCards(o.from_id),
-    notice(ctx, o.from_id, 'offer-declined', SOCIAL_TEXT.declined, { other: o.to_id }),
+    notice(ctx, o.from_id, 'offer-declined', SOCIAL_TEXT.declined, { other: o.to_id, knownAs: o.to_handle }),
   ])
   return (await offerViews(ctx.db, [{ ...o, state: 'declined' }]))[0]!
 }
@@ -231,11 +240,14 @@ export async function cancelOffer(ctx: PlayerCtx, o: OfferRow): Promise<OfferVie
   return (await offerViews(ctx.db, [{ ...o, state: 'cancelled' }]))[0]!
 }
 
-/** A counter declines the offer and sends a new one with the roles swapped, in one batch. */
+/**
+ * A counter declines the offer and sends a new one with the roles swapped, in one batch. It goes to
+ * the handle the offer came from, so a sender who has rerolled since is never named by the new one.
+ */
 export async function counterOffer(ctx: PlayerCtx, o: OfferRow, giveIds: readonly string[], getIds: readonly string[]): Promise<OfferView> {
   mustTrade(ctx.player, ctx.now)
   const sender = (await loadPlayer(ctx.db, o.from_id)) ?? notFound('offer')
-  const sent = sendOffer(ctx, await checkOffer(ctx, sender, giveIds, getIds, o), SOCIAL_TEXT.countered)
+  const sent = sendOffer(ctx, await checkOffer(ctx, { ...sender, handle: o.from_handle }, giveIds, getIds, o), SOCIAL_TEXT.countered)
   await commit(ctx, [liveGuard(o, ctx.now), release(o.id, o.from_id), settle(o, 'declined', ctx.now), bumpCards(o.from_id), ...sent.stmts])
   return sent.view
 }

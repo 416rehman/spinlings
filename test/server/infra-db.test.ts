@@ -61,7 +61,7 @@ describe('schema', () => {
       'sessions', 'passkeys', 'auth_polls', 'drops', 'redemptions', 'seasons',
     ]) assert.ok(all.includes(t), `missing table ${t}`)
     const indexes = (await freshDb().all<{ name: string }>(`SELECT name FROM sqlite_master WHERE type = 'index'`)).map(r => r.name)
-    for (const i of ['players_match', 'players_board', 'cards_for_trade', 'cards_market', 'wishes_species', 'gifts_open', 'battles_open', 'join_counters_hour']) {
+    for (const i of ['players_match', 'players_board', 'cards_for_trade', 'cards_market', 'cards_locked', 'cards_tired', 'battles_catch', 'battles_started', 'notices_revenge', 'wishes_species', 'gifts_open', 'battles_open', 'join_counters_hour']) {
       assert.ok(indexes.includes(i), `missing index ${i}`)
     }
   })
@@ -80,6 +80,34 @@ describe('schema', () => {
        ORDER BY c.id LIMIT 80`, 'a', 0, 'me', '2026-09-18',
     )
     assert.match(plan.map(p => p.detail).join(' '), /cards_market/)
+  })
+
+  it('finds passed trade locks and tiredness for the sweep without walking the whole cards table', async () => {
+    for (const [column, index] of [['locked_until', /cards_locked/], ['tired_until', /cards_tired/]] as const) {
+      const plan = await freshDb().all<{ detail: string }>(
+        `EXPLAIN QUERY PLAN SELECT id FROM cards WHERE ${column} > 0 AND ${column} <= ? LIMIT 2000`, Date.UTC(2026, 9, 2),
+      )
+      assert.match(plan.map(p => p.detail).join(' '), index, column)
+    }
+  })
+
+  it('finds passed catch windows, duel starts and revenge windows for the sweep through their own indexes', async () => {
+    const now = Date.UTC(2026, 9, 2)
+    for (const [query, index] of [
+      [`SELECT id FROM battles WHERE catch_until > 0 AND catch_until <= ? LIMIT 2000`, /battles_catch/],
+      [`SELECT id FROM battles WHERE state = 'settled' AND started_at > 0 AND started_at <= ? LIMIT 2000`, /battles_started/],
+      [`SELECT id FROM notices WHERE revenge_until <= ? LIMIT 2000`, /notices_revenge/],
+    ] as const) {
+      const plan = await freshDb().all<{ detail: string }>(`EXPLAIN QUERY PLAN ${query}`, now)
+      assert.match(plan.map(p => p.detail).join(' '), index, query)
+    }
+    // and the pair limit (pairDuels) keeps its own
+    const pair = await freshDb().all<{ detail: string }>(
+      `EXPLAIN QUERY PLAN SELECT COUNT(*) AS n FROM battles WHERE kind = 'duel' AND state = 'settled' AND started_at > ?
+         AND ((attacker_id = ? AND defender_id = ?) OR (attacker_id = ? AND defender_id = ?))`,
+      now, 'a', 'b', 'b', 'a',
+    )
+    assert.match(pair.map(p => p.detail).join(' '), /battles_pair/)
   })
 
   it('stores no address, agent, email or timestamp of activity for a player', async () => {

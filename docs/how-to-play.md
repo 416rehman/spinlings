@@ -24,15 +24,7 @@ There is nothing to set up either. After installing, the game starts on its own 
 - **One at a time.** Starting a battle while another is unfinished settles the old one first, as if you never pressed.
 - **Rested bonus.** After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better.
 
-Battles never wait for Claude, and Claude never waits for a battle. Pace follows your effort setting and changes only the animation:
-
-| Effort | Seconds per round |
-|---|---|
-| low | 1.8 |
-| medium | 2.2 |
-| high | 2.5 |
-| xhigh | 3.0 |
-| max | 3.5 |
+Battles never wait for Claude, and Claude never waits for a battle. Every round plays at 2.2 seconds.
 
 ### How a battle runs
 
@@ -181,7 +173,7 @@ Trading and gifts are online only.
 
 - Open a player's profile (the opponent you just battled, someone on the trade board, or `/spin trade <handle>`) to see their cards marked **for trade**.
 - Offer 1 to 3 of your cards for 0 to 3 of theirs. Your cards are held for the trade until the other player accepts, declines or counters, or the offer expires after 72 hours.
-- On accept, the swap is atomic, and each side pays 10 sparks per card received; those sparks are burned. If either side cannot pay, nothing moves. Traded cards leave teams, and received cards cannot be traded again for 24 hours.
+- On accept, the swap is atomic, and each side pays 10 sparks per card received; those sparks are burned. If either side cannot pay, nothing moves. Traded cards leave teams, and received cards cannot be traded again until the first UTC midnight at least 24 hours later.
 - **Who can trade:** accounts at least 3 days old that have finished 10 battles. You can have up to 20 offers waiting at once.
 - Starter cards are bound forever, welcome-pack cards stay locked until your account is 7 days old, and cards held for another trade or recently traded cannot be offered.
 
@@ -196,7 +188,7 @@ A non-player trader with 3 deals each UTC day, picked by the date. For example: 
 ### Gifts
 
 - `/spin gift <card>` holds the card and gives you a code like `quiet-otter-lamp-4821`, valid for 14 days, plus a link to a page showing the card and how to claim it. Sending gifts needs the same 3 days and 10 battles as trading.
-- Anyone with Spinlings can claim it with `/spin claim <code>`, however new their account. The card arrives as a wrapped present and is trade-locked for 24 hours. You cannot claim your own gift.
+- Anyone with Spinlings can claim it with `/spin claim <code>`, however new their account. The card arrives as a wrapped present and is trade-locked until the first UTC midnight at least 24 hours later. You cannot claim your own gift.
 - Unclaimed gifts come back to you after 14 days.
 - If the person who claims it joined after you made the gift, you get a bonus pack once they have finished 5 battles on 2 different days.
 - You can have 10 gifts waiting at once, and a player can try 5 claim codes an hour.

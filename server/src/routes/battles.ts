@@ -37,9 +37,9 @@ export function battles(api: Api): void {
       await commit(ctx, closeBattle(b, ctx.now))
       fail('conflict', 'That battle is already over')
     }
-    // never sooner than the rounds the server's own replay plays, at 1.5 s each (SPEC 15); presses
-    // that make the battle longer still keep the finishAfter the start promised
-    const ready = Math.min(b.finish_after || Infinity, finishAfter(b.started_at, log.rounds.length))
+    // never sooner than the rounds the server's own replay of these inputs plays, at 1.5 s each (SPEC
+    // 15), even when presses make it longer than the finishAfter the start gave: Retry-After says how long
+    const ready = finishAfter(b.started_at, log.rounds.length)
     if (ctx.now < ready) {
       throw new HttpError('conflict', 'The battle is still playing', 409, { 'Retry-After': String(Math.ceil((ready - ctx.now) / 1000)) })
     }

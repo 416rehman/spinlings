@@ -27,7 +27,6 @@ The mod reads only the shape of your Claude Code session:
 | Signal | Where it comes from | Used for |
 |---|---|---|
 | Which model | `$.session.model()`, `turn.step` `model` | The family of your packs and the battle arena |
-| Effort setting | `turn.step` `effort` | Battle pace (animation only) |
 | Whether Claude is working | `turn.start`, `turn.complete` on the main thread | Wild encounters while Claude works |
 | How a turn ended | `turn.complete` `reason` | A one-line reaction |
 | Spinner phase | the spinner's `mode` in `ui.render` | A spinner suffix during a battle |

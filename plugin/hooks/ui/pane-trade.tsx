@@ -288,8 +288,20 @@ export function giftScreen(c: Ctx, code: string): Shown {
   const g = c.state.social.gift
   const made = g && g.code === code ? g : null
   const x = made ? c.state.cards.find(k => k.id === made.cardId) ?? c.state.me?.gifts.find(k => k.code === code)?.card ?? null : null
-  const { Link } = c.el
+  const { Box, Link, Text } = c.el
   const link = made && isOnServer(made.link, c.state.account.server) ? linkHref(made.link) : null
+  const lasts = 'The code works for 14 days; cancel it from Trade › Gifts.'
+  // the clipboard is named only when the copy took (a surface may have none): otherwise the two lines show, to copy
+  const send = made?.copied === true
+    ? [link ? para(c, link, { dim: true }) : null, para(c, `The link and the claim command are on your clipboard. ${lasts}`, { dim: true })]
+    : [
+      line(c, 'Send your friend these lines:'),
+      <Box flexDirection="column" width={c.columns}>
+        {link ? <Text wrap="wrap">{link}</Text> : null}
+        <Text wrap="wrap">{`/spin claim ${safe(code, 48)}`}</Text>
+      </Box>,
+      para(c, lasts, { dim: true }),
+    ]
   return {
     body: column(c, [
       line(c, 'Cards › Gift', { dim: true }),
@@ -297,8 +309,7 @@ export function giftScreen(c: Ctx, code: string): Shown {
       x ? tile(c, x, { key: 'gift-card' }) : null,
       line(c, `Code  ${safe(code, 48)}`),
       link ? <Link href={link}>Open the gift page</Link> : null,
-      link ? para(c, link, { dim: true }) : null,
-      para(c, 'The link and the claim command are on your clipboard. The code works for 14 days; cancel it from Trade › Gifts.', { dim: true }),
+      ...send,
     ]),
     hints: ['esc Back'],
   }

@@ -5,7 +5,6 @@
 // action, 2 the secondary, 1 to 3 a catch choice. Returns null when nothing is live, so the engine's band shows.
 import type { RenderElement } from 'claude-code'
 import type { Card } from '../core/types.ts'
-import { paceMs } from '../core/battle.ts'
 import { FAMILY_INFO } from '../core/families.ts'
 import type { Pixels } from '../core/sprite.ts'
 import { TIMING, blank, pixelCells, silhouette, sparkles } from '../client/anim.ts'
@@ -17,7 +16,7 @@ import {
   outcomeStage, packFamily, packFrame, presentFrame, rarityWords, restLook, revealFrame, roundOnScreen, roundPlan,
   rustleFrame, SHADOW, spriteOf,
 } from '../client/battleview.ts'
-import { catchOrder, headMoment, nameOf } from '../client/game.ts'
+import { ROUND_MS, catchOrder, headMoment, nameOf } from '../client/game.ts'
 import { hostOf } from '../client/net.ts'
 import { UPDATE_COMMAND } from '../client/remote.ts'
 import { fit, plural, safe } from '../client/text.ts'
@@ -176,7 +175,7 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
   const kind = bandKind(c.columns)
   if (c.surface !== 'terminal') {
     const size = kind === 'wide' ? HUD.wide : HUD.narrow
-    const plan = log && r <= log.rounds.length && b.phase === 'fight' ? roundPlan(b, log, r, paceMs(env.state.signals.effort || 'medium')) : null
+    const plan = log && r <= log.rounds.length && b.phase === 'fight' ? roundPlan(b, log, r, ROUND_MS) : null
     const special = plan?.hits.find(h => h.actor === 'a' && h.action.move === 'special')
     const start = plan && b.inputs.includes(r) && special ? Math.max(0, special.at - 2 * TIMING.windup) : 0
     const hud = (side: Side) => svg(el, hudSvg(f[side], plan, side, size, { start, motion: c.motion }), f[side] ? `${f[side]!.name}, ${Math.ceil(f[side]!.hp)} of ${f[side]!.maxHp} HP` : 'empty', hudSize(size), c.motion)
@@ -310,12 +309,16 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
     ], { act: actionsRow(c, m, 'Join online (fresh collection)', 'Stay offline', 'Join online') })
     case 'server': {
       const host = hostOf(m.origin)
+      const a = env.state.account
+      // already in use (the Server URL option is the player's own OK), it only says so; offline, it is kept for later
+      const act = a.server === m.origin ? actionsRow(c, m, 'Got it', null)
+        : a.world === 'offline' ? actionsRow(c, m, 'Use it online', 'Cancel') : actionsRow(c, m, 'Connect', 'Cancel')
       return beside(c, null, [
         <Text bold wrap="truncate-end">{`${safe(host, 60)} is a community server run by someone else`}</Text>,
         <Text dimColor wrap={wraps(c)}>{c.surface !== 'terminal' || c.columns >= 100
           ? 'It receives the same anonymous game data as spinlings.dev, and never anything about your work.'
           : 'Same anonymous game data as spinlings.dev, never your work.'}</Text>,
-      ], { act: actionsRow(c, m, 'Connect', 'Cancel') })
+      ], { act })
     }
     case 'line': {
       const props: { dimColor?: boolean; italic?: boolean } = {}

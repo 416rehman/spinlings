@@ -14,15 +14,22 @@ export const NOTICES_SHOWN = 30
 export type NoticeOptions = {
   /** the other player (defense, offers, gifts): shown by their current handle, and the revenge target */
   other?: string
+  /**
+   * the handle the player knows `other` by (an offer's): once `other` has rerolled, the notice names
+   * nobody, so it never shows the new handle beside the old one (SPEC 20.1). Checked as the batch writes.
+   */
+  knownAs?: string
   /** defense-loss only: revenge is open until then (ms), and cleared once used */
   revengeUntil?: number
 }
 
 /** A notice for `playerId`. `text` comes from a fixed template; it is cleaned and cut to 200 anyway. */
 export function notice(env: Pick<Env, 'now' | 'randomBytes'>, playerId: string, kind: NoticeKind, text: string, o: NoticeOptions = {}): Stmt {
+  const known = o.knownAs !== undefined
   return stmt(
-    'INSERT INTO notices (id, player_id, day, kind, text, other_id, revenge_until) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    newId(env), playerId, utcDay(env.now), kind, cleanText(text, 200), o.other ?? null, o.revengeUntil ?? null,
+    `INSERT INTO notices (id, player_id, day, kind, text, other_id, revenge_until)
+     VALUES (?, ?, ?, ?, ?, ${known ? '(SELECT id FROM players WHERE id = ? AND handle = ?)' : '?'}, ?)`,
+    newId(env), playerId, utcDay(env.now), kind, cleanText(text, 200), o.other ?? null, ...(known ? [o.knownAs!] : []), o.revengeUntil ?? null,
   )
 }
 

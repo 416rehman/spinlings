@@ -122,13 +122,20 @@ export async function solvePow(challenge: string, difficulty: number, pause: () 
   return null
 }
 
-/** Joins anonymously: no name, no email, only the family of the model in use (SPEC 20.2). */
-export async function joinServer(backend: Backend, family: Family, pause: () => Promise<void>): Promise<JoinResponse> {
+/**
+ * Joins anonymously: no name, no email, only the family of the model in use (SPEC 20.2). `pause` runs between slices
+ * of the proof of work (one that throws stops it); `wanted` is asked before each request, and once it says no the join
+ * stops there, with nothing more sent.
+ */
+export async function joinServer(backend: Backend, family: Family, pause: () => Promise<void>, wanted: () => boolean = () => true): Promise<JoinResponse> {
+  const stop = () => new BackendError('unavailable', 'refused', 0, 'The join was called off')
   for (const mode of ['bits', 'hex'] as const) {
+    if (!wanted()) throw stop()
     const { challenge, difficulty } = await backend.challenge({})
     if (difficulty > POW_MAX_BITS) throw new BackendError('unavailable', 'refused', 0, 'The server asks for more work than it should')
     const nonce = await solvePow(challenge, difficulty, pause, mode)
     if (nonce === null) throw new BackendError('unavailable', 'refused', 0, 'Could not finish the join puzzle')
+    if (!wanted()) throw stop()
     try {
       return await backend.join({ challenge, nonce, family })
     } catch (err) {

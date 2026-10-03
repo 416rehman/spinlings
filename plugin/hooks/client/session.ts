@@ -1,24 +1,16 @@
-// The shape of the session, never its content (SPEC 2.1, 10): which family the model belongs to, the effort setting,
-// whether Claude's main turn runs, rate-limit fullness, and presence minutes for pack charging. Pure: the hooks that
-// feed these live in register.tsx and the orchestration in game.ts.
+// The shape of the session, never its content (SPEC 2.1, 10): which family the model belongs to, whether Claude's
+// main turn runs, rate-limit fullness, and presence minutes for pack charging. Pure: the hooks that feed these live in
+// register.tsx and the orchestration in game.ts.
 import type { Family } from '../core/types.ts'
 import { ECONOMY } from '../core/economy.ts'
 import { FAMILIES, familyOfModel } from '../core/families.ts'
 import type { Lease, StoredPresence } from './store.ts'
 import { emptyTally } from './store.ts'
-import type { Effort } from './types.ts'
 import { clockTime } from './text.ts'
 
 const B = ECONOMY.battle
 
 export { familyOfModel }
-
-const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max']
-
-/** turn.step's effort as the band paces it; numbers and unknown values are '' (medium pace). */
-export function effortOf(v: unknown): Effort {
-  return typeof v === 'string' && (EFFORTS as readonly string[]).includes(v) ? v as Effort : ''
-}
 
 /** The reset time of a rate-limit window at 100%, or null. Only fullness is read, never cost or context (SPEC 10). */
 export function restingUntil(limits: readonly { percentUsed: number; resetsAt?: string }[], now: number): number | null {

@@ -170,7 +170,8 @@ describe('joining', () => {
     assert.deepEqual(p.me.packs.map(k => k.source), ['welcome', 'welcome'])
     assert.ok(p.me.packs.some(k => k.family === 'opus'))
     const locks = await s.db.all<{ lock_until: number }>('SELECT lock_until FROM packs WHERE owner_id = ?', p.id)
-    assert.deepEqual(locks.map(l => l.lock_until), [T0 + 7 * DAY, T0 + 7 * DAY])
+    // 7 days from the join day, to a midnight: no hour of joining is kept (SPEC 20.4)
+    assert.deepEqual(locks.map(l => l.lock_until), [Date.UTC(2026, 9, 9), Date.UTC(2026, 9, 9)])
   })
 
   it('makes the public starter team from a family of its own, never the one the player joined with (SPEC 20.2)', async () => {

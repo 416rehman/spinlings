@@ -14,7 +14,7 @@ import { familySpecies, legendaryOf } from '../core/species.ts'
 import { traderDeals } from '../core/trader.ts'
 import { dailyRule, seasonOf, utcDay } from '../core/world.ts'
 import { EVOLVE_SHOW, catchPreMs } from './battleview.ts'
-import { INITIAL } from './game.ts'
+import { INITIAL, shareText } from './game.ts'
 import { CLIENT_VERSION } from './remote.ts'
 import type { Actions, Battle, GameState, Moment, Outcome, PaneUi, Reveal, View } from './types.ts'
 
@@ -103,7 +103,7 @@ function world(now: number) {
     },
     cards,
     presence: { minutes: 32, need: 50, blocked: null },
-    social: { board, profile, trader: { day, deals: board.trader }, leaderboard: [{ handle: 'misty-lark-18', league: 'Star', rating: 1744 }, { handle: 'brave-wren-41', league: 'Grove', rating: 1312 }], gift: { code: gift.code, link: `https://spinlings.dev/g/${gift.code}`, cardId: gift.card.id }, loading: [] },
+    social: { board, profile, trader: { day, deals: board.trader }, leaderboard: [{ handle: 'misty-lark-18', league: 'Star', rating: 1744 }, { handle: 'brave-wren-41', league: 'Grove', rating: 1312 }], gift: { code: gift.code, link: `https://spinlings.dev/g/${gift.code}`, cardId: gift.card.id, copied: true }, loading: [] },
     privacy: [
       { at: now - 30 * MIN, method: 'POST', path: '/v1/packs/charge', body: '{"family":"opus"}' },
       { at: now - 20 * MIN, method: 'POST', path: '/v1/battles', body: '{"kind":"wild","family":"opus"}' },
@@ -143,6 +143,7 @@ function steps(now: number): DemoStep[] {
     { title: 'Cards · empty collection', state: { ...pane(s, { tab: 'cards' }), cards: [] } },
     { title: 'Card · a legendary shiny foil', state: view(s, { kind: 'card', cardId: w.pack[3]!.id }, { tab: 'cards' }) },
     { title: 'Card · a starter (stays with you)', state: view(s, { kind: 'card', cardId: w.starters[0]!.id }, { tab: 'cards' }) },
+    { title: 'Card · a share to copy by hand (no clipboard here)', state: view(s, { kind: 'card', cardId: w.pack[3]!.id }, { tab: 'cards', toCopy: shareText(w.pack[3]!, 'online', 'https://spinlings.dev') }) },
     { title: 'Card · recycle armed (2-second hold)', state: view(s, { kind: 'card', cardId: w.more[1]!.id }, { tab: 'cards', hold: { action: 'recycle', target: w.more[1]!.id, startedAt: now } }) },
     { title: 'Card · a Mythic', state: view(s, { kind: 'card', cardId: w.mythic.id }, { tab: 'cards' }) },
     { title: 'Card · trade-locked for a day', state: view(s, { kind: 'card', cardId: w.more[4]!.id }, { tab: 'cards' }) },
@@ -162,6 +163,7 @@ function steps(now: number): DemoStep[] {
     { title: 'Trade · gifts, claim and redeem', state: pane(s, { tab: 'trade', page: 3 }) },
     { title: 'Trade · a profile and an offer being built', state: view(s, { kind: 'profile', handle: 'soft-otter-42', give: [w.more[0]!.id], get: [w.profile.forTrade[1]!.id], counterOf: null }, { tab: 'trade' }) },
     { title: 'Trade · a gift just wrapped', state: view(s, { kind: 'gift', code: 'quiet-otter-lamp-4821' }, { tab: 'cards' }) },
+    { title: 'Trade · a gift just wrapped, to copy by hand', state: { ...view(s, { kind: 'gift', code: 'quiet-otter-lamp-4821' }, { tab: 'cards' }), social: { ...s.social, gift: { ...s.social.gift!, copied: false } } } },
     { title: 'Pack · sealed, waiting to tear', state: at(packR, 0) },
     { title: 'Pack · two turned, a gold back waiting', state: at(packR, 2) },
     { title: 'Pack · LEGENDARY!', state: at(packR, 4) },

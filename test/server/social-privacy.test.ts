@@ -7,7 +7,7 @@ import type { ApiOp, ApiRequest } from '../../plugin/hooks/core/api.ts'
 import { DAY_RE } from '../../plugin/hooks/core/schemas.ts'
 import { stmt } from '../../server/src/db.ts'
 import { base32 } from '../../server/src/game/ctx.ts'
-import { server } from './scaffold-helpers.ts'
+import { HOUR, server } from './scaffold-helpers.ts'
 import type { Player } from './scaffold-helpers.ts'
 import { assertNoIds, assertPublic, fresh, list, midnight, snapshot, trust } from './social-helpers.ts'
 
@@ -144,6 +144,39 @@ describe('what never links back to the player (SPEC 20.1-20.3)', () => {
     assert.equal(me.offers.incoming.find(o => o.id === offer.id)!.from, old, 'the open offer keeps the handle it was sent with')
     assert.ok(me.notices.every(n => n.handle === undefined), 'and its notice no longer names anyone')
     assert.equal((await b.call('acceptOffer', { offerId: offer.id })).offer.from, old)
+  })
+
+  it('names a receiver who rerolled on no news of an offer sent to the old handle: accepted, declined or expired', async () => {
+    const { s, a, b, offer, y } = await world()
+    const [w] = await fresh(s, a, 1)
+    const declined = (await a.call('offer', { to: handle(b), give: [y.id], get: [] })).offer
+    const lapsing = (await a.call('offer', { to: handle(b), give: [w!.id], get: [] })).offer
+    const { handle: renamed } = await b.call('rerollHandle', {})
+    await b.call('acceptOffer', { offerId: offer.id })
+    await b.call('declineOffer', { offerId: declined.id })
+    // b does nothing more: the sweep ends the last one
+    s.set(lapsing.expiresAt + HOUR)
+    await s.app.sweep(s.now())
+    const me = await a.call('me')
+    assert.deepEqual(
+      me.notices.filter(n => n.kind.startsWith('offer-')).map(n => [n.kind, n.handle]).sort(),
+      [['offer-accepted', undefined], ['offer-declined', undefined], ['offer-expired', undefined]],
+    )
+    assert.ok(!JSON.stringify(me).includes(renamed), 'a only ever met the old handle')
+  })
+
+  it('sends a counter-offer to the handle the offer came from, and names a sender who rerolled on no news of it', async () => {
+    const { a, b, x, z, offer } = await world()
+    const old = handle(a)
+    const { handle: renamed } = await a.call('rerollHandle', {})
+    const counter = (await b.call('counterOffer', { offerId: offer.id, give: [z.id], get: [x.id] })).offer
+    assert.equal(counter.to, old, 'the counter keeps the handle b knows')
+    assert.ok(!JSON.stringify(await b.call('me')).includes(renamed), 'b only ever met the old handle')
+    // a answers it: b's news of that names nobody
+    await a.call('acceptOffer', { offerId: counter.id })
+    const me = await b.call('me')
+    assert.deepEqual(me.notices.filter(n => n.kind === 'offer-accepted').map(n => n.handle), [undefined])
+    assert.ok(!JSON.stringify(me).includes(renamed), 'b still only met the old handle')
   })
 })
 

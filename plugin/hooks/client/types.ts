@@ -10,7 +10,7 @@ import type {
 } from '../../types/index.d.ts'
 
 export type {
-  SpinAccount as Account, SpinBattle as Battle, SpinCatch as Catch, SpinEffort as Effort, SpinHold as Hold,
+  SpinAccount as Account, SpinBattle as Battle, SpinCatch as Catch, SpinHold as Hold,
   SpinHoldAction as HoldAction, SpinLink as Link, SpinMoment as Moment, SpinOutcome as Outcome, SpinPane as PaneUi,
   SpinPrefs as Prefs, SpinPresence as Presence, SpinReveal as Reveal, SpinSent as Sent, SpinSignals as Signals,
   SpinSignIn as SignIn, SpinSocial as Social, SpinTab as Tab, SpinView as View, SpinWorld as World,
@@ -27,19 +27,22 @@ export type Backend = SpinlingsApi & {
 /**
  * Why a call failed. `code` is the server's error code, or one of the client's own: `unavailable` when the server
  * could not be used (no network, a timeout, a redirect, a body over 256 KB, an answer that is not the documented
- * shape); `kind` says which. Offline, operations the local world lacks answer `not_allowed`.
+ * shape); `kind` says which. Offline, operations the local world lacks answer `not_allowed`. `retryAfterMs`: how long
+ * the server's Retry-After asked to wait before trying again, or null when it named no wait.
  */
 export type FailureKind = 'refused' | 'network' | 'timeout' | 'redirect' | 'too_large' | 'bad_response' | 'unauthorized'
 export class BackendError extends Error {
   readonly code: ApiErrorCode
   readonly kind: FailureKind
   readonly status: number
-  constructor(code: ApiErrorCode, kind: FailureKind, status: number, message: string) {
+  readonly retryAfterMs: number | null
+  constructor(code: ApiErrorCode, kind: FailureKind, status: number, message: string, retryAfterMs: number | null = null) {
     super(message)
     this.name = 'BackendError'
     this.code = code
     this.kind = kind
     this.status = status
+    this.retryAfterMs = retryAfterMs
   }
 }
 
@@ -125,6 +128,10 @@ export type Fx = {
     status(text: string | undefined): void
     /** a dim transcript line the model never reads (command output) */
     log(text: string): void
+    /**
+     * Puts text on the clipboard of the surface the press came from: true only when it got there. A surface may have
+     * no way to it yet (the desktop), so a false shows the text to copy by hand and never claims a copy.
+     */
     copy(text: string): Promise<boolean>
     /** opens the pane with the keyboard; false when the surface could not place it */
     openPane(): Promise<boolean>
@@ -232,7 +239,7 @@ export type BattleControl = {
   phase(phase: SpinBattle['phase']): Promise<void>
   /** a state transition: rounds 1..n are on screen */
   show(rounds: number): Promise<void>
-  /** ms per round from the effort setting (SPEC 5) */
+  /** ms per round: game.ts ROUND_MS, one pace for every battle */
   paceMs(): Promise<number>
   /** finishes on the server once allowed (finishAfter) and hands the outcome to the band; resolves when done */
   settle(): Promise<void>

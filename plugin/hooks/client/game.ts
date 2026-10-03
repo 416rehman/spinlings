@@ -7,7 +7,7 @@ import { API_ROUTES } from '../core/api.ts'
 import type { BattleLog, Card, Family, Rarity } from '../core/types.ts'
 import { RULES_VERSION, paceMs, perfectRounds, simulateBattle } from '../core/battle.ts'
 import { cardName, rarityRank } from '../core/cards.ts'
-import { ECONOMY, leagueOf } from '../core/economy.ts'
+import { ECONOMY, finishAfter, leagueOf } from '../core/economy.ts'
 import { FAMILY_INFO, familyOfModel } from '../core/families.ts'
 import { parseSeasonResponse } from '../core/schemas.ts'
 import { DEFAULT_SERVER } from '../core/servers.ts'
@@ -21,14 +21,14 @@ import {
 } from './remote.ts'
 import type { RemoteDeps } from './remote.ts'
 import {
-  HEARTBEAT_MS, REACTION_MS, afterCharge, chargeDue, comfortLine, effortOf, encounterDue, leaseFor, mayHold, nextCheckIn,
-  reactionLine, restingUntil, tickPresence,
+  HEARTBEAT_MS, REACTION_MS, afterCharge, chargeDue, comfortLine, encounterDue, leaseFor, mayHold, nextCheckIn, reactionLine,
+  restingUntil, tickPresence,
 } from './session.ts'
 import type { ServerMeta, StoredPrefs, StoredPresence } from './store.ts'
 import { KEYS, cacheRecord, readCache, readMeta, readOfflineMeta, readPrefs, readPresence, serverKeys } from './store.ts'
 import type {
   Account, Actions, Backend, Battle, BattleControl, Catch, Chime, Fx, GameState, HoldAction, Moment, Outcome, Reveal,
-  RevealControl, Sent, Slots, StateKey, Tab, Timer, View, World,
+  RevealControl, Sent, SignIn, Slots, StateKey, Tab, Timer, View, World,
 } from './types.ts'
 import { BackendError, isBackendError, isUnreachable } from './types.ts'
 import { dayLabel, dots, plural, safe, title } from './text.ts'
@@ -46,6 +46,13 @@ const POLL_MS = ECONOMY.client.pollEveryMs
 const OFFLINE_FALLBACK = 'Playing offline · /spin world online when you\'re connected'
 const MAX_AGENTS = 32
 
+/**
+ * How long a round plays: one pace for every battle. A battle is finished on the server once its rounds have played,
+ * so a pace that followed the effort setting would tell the server that setting through the request's timing, and the
+ * input window of every round has to have closed before the request leaves (SPEC 15, 20.2).
+ */
+export const ROUND_MS = paceMs('medium')
+
 // ---------- the initial state of every $.state value ----------
 
 export const ONLINE_FEATURES_UNKNOWN = '*'
@@ -58,14 +65,14 @@ export const INITIAL: GameState = {
   },
   me: null,
   cards: [],
-  signals: { family: 'sonnet', effort: '', working: false, turnStartedAt: null, cheering: 0, restingUntil: null },
+  signals: { family: 'sonnet', working: false, turnStartedAt: null, cheering: 0, restingUntil: null },
   battle: null,
   moments: [],
   reveal: null,
   social: { board: null, profile: null, trader: null, leaderboard: null, gift: null, loading: [] },
   pane: {
     tab: 'team', stack: [], family: 'all', rarity: 'all', album: 'haiku', page: 0, flipped: 0, hold: null, hello: false,
-    showUpdate: false, message: '', tone: 'warn', busy: null, busySince: 0,
+    showUpdate: false, message: '', tone: 'warn', toCopy: '', busy: null, busySince: 0,
   },
   prefs: { quiet: false, motion: true, sound: false },
   presence: { minutes: 0, need: ECONOMY.packs.presenceMinutes, blocked: null },
@@ -304,7 +311,7 @@ export type Game = {
   /** session.end: hand the presence lamp back (the whole chain has 1.5 s) */
   end(fx: Fx): Promise<void>
   turnStarted(fx: Fx): Promise<void>
-  turnStep(fx: Fx, model: string, effort: unknown): Promise<void>
+  turnStep(fx: Fx, model: string): Promise<void>
   turnCompleted(fx: Fx, reason: string): Promise<void>
   agentStarted(fx: Fx, agentId: string): Promise<void>
   agentFinished(fx: Fx, agentId: string): Promise<void>
@@ -332,7 +339,13 @@ export function createGame(o: GameOptions): Game {
     revealing: null as string | null,
     /** the band's moment driver runs once per load of the module */
     animating: false,
-    connecting: null as Promise<void> | null,
+    /**
+     * Moves on whenever the world or the server in play changes (setAccount): work begun for the one left behind (a
+     * connect, a refresh, the sign-in poll, a battle) sees that, sends nothing more and drops what it brings back.
+     */
+    place: 0,
+    /** the connect under way, and the place it is for */
+    connecting: null as { place: number; done: Promise<void> } | null,
     poll: null as Timer | null,
     expiry: new Map<string, Timer>(),
     agents: new Map<string, number>(),
@@ -359,6 +372,15 @@ export function createGame(o: GameOptions): Game {
   const put = <K extends StateKey>(fx: Fx, k: K, v: GameState[K]) => fx.state.update(k, () => v)
   const upd = <K extends StateKey>(fx: Fx, k: K, fn: (v: GameState[K]) => GameState[K]) => fx.state.update(k, fn)
   const sleep = (fx: Fx, ms: number) => new Promise<void>(r => { fx.after(Math.max(0, ms), r) })
+  /**
+   * For work about to begin: true while the world and the server in play stay the ones in play now. Taken before the
+   * account is read, so a switch landing during that read shows too. State written after an await checks it, inside
+   * the update where it can, so nothing lands in a world switched to since (SPEC 28, 33).
+   */
+  const stays = (): (() => boolean) => {
+    const place = rt.place
+    return () => rt.place === place
+  }
 
   async function publish(fx: Fx): Promise<void> {
     const [account, me, battle, prefs, signals] = await Promise.all([
@@ -419,9 +441,11 @@ export function createGame(o: GameOptions): Game {
     return rt.remote.backend
   }
 
-  async function backendOf(fx: Fx): Promise<{ backend: Backend; account: Account }> {
+  /** The active world's backend, its account, and `ok` while that world and server stay in play (stays). */
+  async function backendOf(fx: Fx): Promise<{ backend: Backend; account: Account; ok: () => boolean }> {
+    const ok = stays()
     const account = await get(fx, 'account')
-    return { backend: account.world === 'offline' ? local() : remote(account.server), account }
+    return { backend: account.world === 'offline' ? local() : remote(account.server), account, ok }
   }
 
   async function recordSent(fx: Fx, entry: Sent): Promise<void> {
@@ -503,10 +527,11 @@ export function createGame(o: GameOptions): Game {
 
   /**
    * One operation on the active world's backend, with the pane's busy line and plain-words errors. An online-only
-   * operation in the offline world shows the one-line "needs the online world" instead (SPEC 28).
+   * operation in the offline world shows the one-line "needs the online world" instead (SPEC 28). An answer or a
+   * failure that comes back once play moved to another world or server is dropped: the caller gets null.
    */
   async function run<K extends ApiOp>(fx: Fx, op: K, req: ApiRequest<K>, label: string): Promise<ApiResponse<K> | null> {
-    const { backend, account } = await backendOf(fx)
+    const { backend, account, ok } = await backendOf(fx)
     if (account.world === 'offline' && needsOnline(op)) {
       await pushMoment(fx, { kind: 'needs-online', id: 'needs-online', until: (await fx.now()) + HINT_MS })
       await message(fx, 'This needs the online world.')
@@ -517,14 +542,14 @@ export function createGame(o: GameOptions): Game {
       return null
     }
     const now = await fx.now()
-    await upd(fx, 'pane', p => ({ ...p, busy: label, busySince: now, message: '' }))
+    await upd(fx, 'pane', p => ({ ...p, busy: label, busySince: now, message: '', toCopy: '' }))
     try {
       const res = await backend.call(op, req)
       await upd(fx, 'pane', p => (p.busy === label ? { ...p, busy: null } : p))
-      return res
+      return ok() ? res : null
     } catch (err) {
-      await message(fx, failureText(err, account.host))
-      await noteFailure(fx, err)
+      if (ok()) await message(fx, failureText(err, account.host))
+      await noteFailure(fx, err, ok)
       return null
     }
   }
@@ -532,27 +557,39 @@ export function createGame(o: GameOptions): Game {
   /** The server no longer knows this machine's session (unused for 180 days, reset elsewhere, a wiped server). */
   const signedOut = (host: string) => `This computer is signed out of ${host} · /spin world online starts fresh`
 
-  /** A failure that says something about the link itself. */
-  async function noteFailure(fx: Fx, err: unknown): Promise<void> {
+  /**
+   * A failure that says something about the link itself: the link of the world and server it came from (`ok`), so a
+   * request still out when play moved on never marks the world switched to.
+   */
+  async function noteFailure(fx: Fx, err: unknown, ok: () => boolean): Promise<void> {
     if (!isBackendError(err)) return
-    if (err.code === 'unauthorized') await upd(fx, 'account', a => ({ ...a, link: 'signed-out', note: signedOut(a.host) }))
-    else if (err.code === 'upgrade_required') await upd(fx, 'account', a => ({ ...a, readOnly: true }))
-    else if (isUnreachable(err)) await upd(fx, 'account', a => ({ ...a, link: a.link === 'ready' ? 'unreachable' : a.link, note: `Can't reach ${a.host} right now` }))
+    if (err.code === 'unauthorized') await upd(fx, 'account', a => (ok() ? { ...a, link: 'signed-out', note: signedOut(a.host) } : a))
+    else if (err.code === 'upgrade_required') await upd(fx, 'account', a => (ok() ? { ...a, readOnly: true } : a))
+    else if (isUnreachable(err)) await upd(fx, 'account', a => (ok() ? { ...a, link: a.link === 'ready' ? 'unreachable' : a.link, note: `Can't reach ${a.host} right now` } : a))
   }
 
   // ---------- me and cards ----------
 
-  async function setMe(fx: Fx, me: MeResponse): Promise<void> {
+  /**
+   * The player as `origin` answered (null: the offline world), while `ok` says that world and server are still in
+   * play; the cache it fills is that origin's alone.
+   */
+  async function setMe(fx: Fx, me: MeResponse, origin: string | null, ok: () => boolean): Promise<void> {
     const now = await fx.now()
+    if (!ok()) return
+    let took = false
+    const before = await get(fx, 'me')
+    await upd(fx, 'me', v => {
+      took = ok()
+      return took ? me : v
+    })
+    if (!took) return
     rt.skew = me.now - now
     rt.lastRefresh = now
-    const before = await get(fx, 'me')
-    await put(fx, 'me', me)
     if (me.packs.length < ECONOMY.packs.bank) await unblock(fx, 'bank')
-    const account = await get(fx, 'account')
-    if (account.world === 'online') {
-      const cache = readCache(await fx.store.get(KEYS.cache(account.server)))
-      await fx.store.set(KEYS.cache(account.server), cacheRecord(me, cache?.cards ?? null))
+    if (origin !== null) {
+      const cache = readCache(await fx.store.get(KEYS.cache(origin)))
+      await fx.store.set(KEYS.cache(origin), cacheRecord(me, cache?.cards ?? null))
     }
     // a trade accepted while away arrives as a wrapped present (SPEC 13.9)
     if (before) {
@@ -565,31 +602,37 @@ export function createGame(o: GameOptions): Game {
     }
   }
 
-  async function loadCards(fx: Fx, backend: Backend, force = false): Promise<void> {
+  /** The collection from `backend`, the world `origin` names (null: offline), unless `ok` says play has moved on. */
+  async function loadCards(fx: Fx, backend: Backend, origin: string | null, ok: () => boolean, force = false): Promise<void> {
     const me = await get(fx, 'me')
     const cards = await get(fx, 'cards')
-    const account = await get(fx, 'account')
-    const cache = account.world === 'online' ? readCache(await fx.store.get(KEYS.cache(account.server))) : null
-    if (!force && me && cache?.cards && cache.cards.version === me.player.cardsVersion && cards.length > 0) return
+    const cache = origin !== null ? readCache(await fx.store.get(KEYS.cache(origin))) : null
+    if (!ok() || (!force && me && cache?.cards && cache.cards.version === me.player.cardsVersion && cards.length > 0)) return
     const res = await allCards(backend)
-    await put(fx, 'cards', res.cards)
-    if (account.world === 'online' && me) await fx.store.set(KEYS.cache(account.server), cacheRecord(me, res))
+    let took = false
+    await upd(fx, 'cards', v => {
+      took = ok()
+      return took ? res.cards : v
+    })
+    if (!took) return
+    if (origin !== null && me) await fx.store.set(KEYS.cache(origin), cacheRecord(me, res))
     await ensureSeasons(fx, res.cards)
   }
 
   /** me, then cards when they moved: after every change and every few minutes. */
   async function refresh(fx: Fx): Promise<void> {
-    const { backend } = await backendOf(fx)
+    const { backend, account, ok } = await backendOf(fx)
+    const origin = account.world === 'online' ? account.server : null
     try {
       const before = await get(fx, 'me')
       const had = new Set((await get(fx, 'cards')).map(c => c.id))
       const me = await backend.me({})
-      await setMe(fx, me)
-      await loadCards(fx, backend, !before || before.player.cardsVersion !== me.player.cardsVersion)
-      await wrapPresent(fx, had)
-      await upd(fx, 'account', a => (a.link === 'unreachable' ? { ...a, link: 'ready', note: '' } : a))
+      await setMe(fx, me, origin, ok)
+      await loadCards(fx, backend, origin, ok, !before || before.player.cardsVersion !== me.player.cardsVersion)
+      if (ok()) await wrapPresent(fx, had)
+      await upd(fx, 'account', a => (ok() && a.link === 'unreachable' ? { ...a, link: 'ready', note: '' } : a))
     } catch (err) {
-      await noteFailure(fx, err)
+      await noteFailure(fx, err, ok)
     }
     await publish(fx)
   }
@@ -643,13 +686,30 @@ export function createGame(o: GameOptions): Game {
     let world: World = prefs.world ?? o.world
     const firstRun = prefs.world === null
     if (prefs.worldOption !== null && prefs.worldOption !== o.world) world = o.world
-    const origin = serverOrigin(prefs.server ?? o.serverUrl)
-    await savePrefs(fx, { world, worldOption: o.world })
+    // the Server URL option moves play to its server once it changed (or while /spin server never chose one), as /spin
+    // server does; until it changes again, /spin server's later choice stands (SPEC 33)
+    const option = o.serverUrl.slice(0, 200)
+    const optionMoved = prefs.serverOption === null ? prefs.server === null : prefs.serverOption !== option
+    const origin = serverOrigin(optionMoved ? o.serverUrl : prefs.server ?? o.serverUrl)
+    // setting it in /config is the player's own OK to a community server; the band still says once whose server it is
+    const notice = optionMoved && origin !== null && origin !== DEFAULT_SERVER && !prefs.communityOk.includes(origin)
+    const was = { world: prefs.world, server: serverOrigin(prefs.server ?? prefs.serverOption ?? o.serverUrl) }
+    await savePrefs(fx, {
+      world, worldOption: o.world, serverOption: option,
+      ...(optionMoved ? { server: origin, communityOk: notice ? [...prefs.communityOk, origin!] : prefs.communityOk } : {}),
+    })
     await put(fx, 'prefs', { quiet: prefs.quiet, motion: prefs.motion, sound: prefs.sound })
     await upd(fx, 'signals', s => ({ ...s, family: rt.family }))
     await put(fx, 'clock', now)
     await put(fx, 'privacy', parseSent(await fx.store.get(KEYS.privacy)))
+    // a reload into another world or server (an option changed in /config) brings nothing of the old one along: not its
+    // collection, its moments, or a battle to finish against the other (SPEC 28, 33)
+    const before = await get(fx, 'account')
+    const moved = before.world !== world || (world === 'online' && origin !== null && before.server !== origin)
     await setAccount(fx, world, origin)
+    if (moved) await clearWorldState(fx)
+    if (!firstRun && (world !== was.world || (world === 'online' && origin !== was.server))) await unblock(fx, 'any')
+    if (notice) await pushMoment(fx, { kind: 'server', id: `server:${origin}`, origin: origin!, until: null })
     if (world === 'online' && origin && !(await get(fx, 'me'))) {
       const cache = readCache(await fx.store.get(KEYS.cache(origin)))
       if (cache) {
@@ -674,17 +734,28 @@ export function createGame(o: GameOptions): Game {
     fx.after(0, () => { void connect(cur(fx), { firstRun, explicit: false, fallback: firstRun }) })
   }
 
+  /** Online with a Server URL option Spinlings can't use (setAccount without an origin): no server is asked anything. */
+  const badAddress = (a: Account) => a.link === 'unreachable' && a.note.startsWith('The server address')
+
   async function setAccount(fx: Fx, world: World, origin: string | null): Promise<void> {
-    const server = origin ?? (await get(fx, 'account')).server
+    const current = await get(fx, 'account')
+    const server = origin ?? current.server
+    // offline, the server is only where going online will go: the world in play stays as it is
+    const moving = current.world !== world || (world === 'online' && current.server !== server)
+    // work for the place being left stops now, and again once the account says so, for any that read it just before
+    if (moving) rt.place++
+    // a usable address where the option held one that isn't: the link starts over, even on the same server
+    const kept = (a: Account) => a.world === world && !(origin && badAddress(a))
     await upd(fx, 'account', a => ({
       ...a, world, server, host: hostOf(server), community: server !== DEFAULT_SERVER,
-      link: world === 'online' && !origin ? 'unreachable' : a.world === world && a.server === server ? a.link : 'starting',
-      note: world === 'online' && !origin ? 'The server address in settings is not one Spinlings can use (https only)' : a.world === world ? a.note : '',
+      link: world === 'online' && !origin ? 'unreachable' : kept(a) && (world === 'offline' || a.server === server) ? a.link : 'starting',
+      note: world === 'online' && !origin ? 'The server address in settings is not one Spinlings can use (https only)' : kept(a) ? a.note : '',
       features: world === 'offline' ? OFFLINE_FEATURES : a.world === 'offline' || a.server !== server ? [ONLINE_FEATURES_UNKNOWN] : a.features,
       readOnly: world === 'offline' ? false : a.readOnly,
       // what a server said about newer mods holds for that server alone; the handshake says it again
       latest: world === 'offline' || a.server !== server ? null : a.latest ?? null,
     }))
+    if (moving) rt.place++
   }
 
   async function reseed(fx: Fx): Promise<void> {
@@ -698,82 +769,106 @@ export function createGame(o: GameOptions): Game {
    */
   type How = { firstRun: boolean; explicit: boolean; fallback: boolean }
 
-  /** Brings the active world up: online, a silent join without a session or the stored one; offline, the local save. */
+  /**
+   * Brings the active world up: online, a silent join without a session or the stored one; offline, the local save.
+   * One connect at a time per world and server: a call for the one under way shares it, and a call after a switch
+   * starts its own at once, while the one for the place left behind stops at its next step.
+   */
   function connect(fx: Fx, how: How): Promise<void> {
-    if (!rt.connecting) {
-      rt.connecting = connectNow(fx, how).finally(() => { rt.connecting = null })
-    }
-    return rt.connecting
+    const place = rt.place
+    if (rt.connecting?.place === place) return rt.connecting.done
+    const done: Promise<void> = connectNow(fx, how, () => rt.place === place).finally(() => {
+      if (rt.connecting?.done === done) rt.connecting = null
+    })
+    rt.connecting = { place, done }
+    return done
   }
 
-  async function connectNow(fx: Fx, how: How): Promise<void> {
+  /** The join's pause between slices of its proof of work: once play moved elsewhere the work stops, the join unsent. */
+  async function joinPause(fx: Fx, ok: () => boolean): Promise<void> {
+    await sleep(fx, 0)
+    if (!ok()) throw new BackendError('unavailable', 'refused', 0, 'The join was called off')
+  }
+
+  /**
+   * One connect, for the world and server in play when it began (`ok`): every network wait is followed by a check, and
+   * once play moved on it stops, sends nothing more and writes no state. A join that already went through keeps its
+   * session for its own server, which no other world reads.
+   */
+  async function connectNow(fx: Fx, how: How, ok: () => boolean): Promise<void> {
     const account = await get(fx, 'account')
-    if (account.world === 'offline') return connectOffline(fx)
-    if (account.link === 'unreachable' && account.note.startsWith('The server address')) return publish(fx)
+    if (!ok()) return
+    if (account.world === 'offline') return connectOffline(fx, ok)
+    if (badAddress(account)) return publish(fx)
     const origin = account.server
     const backend = remote(origin)
+    const link = (change: (a: Account) => Partial<Account>) => upd(fx, 'account', a => (ok() ? { ...a, ...change(a) } : a))
     await handshake(fx, origin)
     const meta = await metaOf(fx, origin)
     const token = await loadToken(fx.store, origin)
+    if (!ok()) return
     if (!token) {
       if (meta.deleted && !how.explicit) {
-        await upd(fx, 'account', a => ({ ...a, link: 'signed-out', note: 'Your online account was deleted · /spin world online starts fresh' }))
+        await link(() => ({ link: 'signed-out', note: 'Your online account was deleted · /spin world online starts fresh' }))
         return publish(fx)
       }
-      await upd(fx, 'account', a => ({ ...a, link: 'joining', note: '' }))
+      await link(() => ({ link: 'joining', note: '' }))
       try {
         if ((await get(fx, 'account')).readOnly) throw new BackendError('upgrade_required', 'refused', 426, 'This version is too old for the server')
-        const joined = await joinServer(backend, rt.family, () => sleep(fx, 0))
+        const joined = await joinServer(backend, rt.family, () => joinPause(fx, ok), ok)
         await saveToken(fx.store, origin, joined.token)
         await saveMeta(fx, origin, { deleted: false, welcomed: false })
-        await setMe(fx, joined.me)
-        await upd(fx, 'account', a => ({ ...a, link: 'ready', note: '' }))
-        await loadCards(fx, backend, true)
+        await setMe(fx, joined.me, origin, ok)
+        await link(() => ({ link: 'ready', note: '' }))
+        await loadCards(fx, backend, origin, ok, true)
       } catch (err) {
-        if (how.fallback) return fallbackOffline(fx, how.firstRun, err)
-        await upd(fx, 'account', a => ({ ...a, link: 'unreachable', note: failureText(err, a.host) }))
+        if (!ok()) return
+        if (how.fallback) return fallbackOffline(fx, how.firstRun, err, ok)
+        await link(a => ({ link: 'unreachable', note: failureText(err, a.host) }))
         return publish(fx)
       }
     } else {
       try {
-        await setMe(fx, await backend.me({}))
-        await upd(fx, 'account', a => ({ ...a, link: 'ready', note: '' }))
-        await loadCards(fx, backend)
+        await setMe(fx, await backend.me({}), origin, ok)
+        await link(() => ({ link: 'ready', note: '' }))
+        await loadCards(fx, backend, origin, ok)
       } catch (err) {
-        if (isBackendError(err) && err.code === 'unauthorized') {
-          await upd(fx, 'account', a => ({ ...a, link: 'signed-out', note: signedOut(a.host) }))
-        } else {
-          await upd(fx, 'account', a => ({ ...a, link: 'unreachable', note: failureText(err, a.host) }))
-        }
+        if (isBackendError(err) && err.code === 'unauthorized') await link(a => ({ link: 'signed-out', note: signedOut(a.host) }))
+        else await link(a => ({ link: 'unreachable', note: failureText(err, a.host) }))
         return publish(fx)
       }
     }
+    if (!ok()) return
     if (!(await metaOf(fx, origin)).version) await handshake(fx, origin)
-    await welcome(fx)
+    if (ok()) await welcome(fx)
     await publish(fx)
   }
 
-  async function connectOffline(fx: Fx): Promise<void> {
+  async function connectOffline(fx: Fx, ok: () => boolean): Promise<void> {
     const backend = local()
     try {
-      await setMe(fx, await backend.me({}))
-      await put(fx, 'cards', (await allCards(backend)).cards)
-      await upd(fx, 'account', a => ({ ...a, link: 'ready', note: '' }))
-      await welcome(fx)
+      await setMe(fx, await backend.me({}), null, ok)
+      await loadCards(fx, backend, null, ok, true)
+      await upd(fx, 'account', a => (ok() ? { ...a, link: 'ready', note: '' } : a))
+      if (ok()) await welcome(fx)
     } catch (err) {
       // an unreadable save, or one from a newer mod, is left as it is and says so (SPEC 32)
       const note = (isBackendError(err) && safe(err.message, 120)) || 'The offline world could not be opened'
-      await upd(fx, 'account', a => ({ ...a, link: 'unreachable', note }))
+      await upd(fx, 'account', a => (ok() ? { ...a, link: 'unreachable', note } : a))
     }
     await publish(fx)
   }
 
-  async function fallbackOffline(fx: Fx, firstRun: boolean, err: unknown): Promise<void> {
-    await savePrefs(fx, { world: 'offline' })
+  /** A join that failed where it should play offline instead (`ok`: the connect it ended is still the one in play). */
+  async function fallbackOffline(fx: Fx, firstRun: boolean, err: unknown, ok: () => boolean): Promise<void> {
     const account = await get(fx, 'account')
-    await upd(fx, 'account', a => ({ ...a, world: 'offline', link: 'starting', note: '', features: OFFLINE_FEATURES, readOnly: false, latest: null }))
+    if (!ok()) return
+    await setAccount(fx, 'offline', account.server)
+    const here = stays()
+    await savePrefs(fx, { world: 'offline' })
     await clearWorldState(fx)
-    await connectOffline(fx)
+    await connectOffline(fx, here)
+    if (!here()) return
     // on the first run the welcome itself says so, so the payoff is never held back by a line (SPEC 34.3, 34.4)
     const welcoming = firstRun && (await get(fx, 'moments')).some(m => m.kind === 'welcome')
     if (welcoming) await upd(fx, 'moments', list => list.map(m => (m.kind === 'welcome' ? { ...m, note: OFFLINE_FALLBACK } : m)))
@@ -820,9 +915,13 @@ export function createGame(o: GameOptions): Game {
     }
     if (!version) return
     const v = versionStatus(version)
-    await upd(fx, 'account', a => ({
-      ...a, readOnly: v.readOnly, features: v.features, latest: a.world === 'online' && a.server === origin ? v.target : a.latest ?? null,
-    }))
+    // what a server says holds for that server alone: an answer that lands after a switch is kept in its meta only
+    let here = false
+    await upd(fx, 'account', a => {
+      here = a.world === 'online' && a.server === origin
+      return here ? { ...a, readOnly: v.readOnly, features: v.features, latest: v.target } : a
+    })
+    if (!here) return
     if (v.update) {
       const prefs = await prefsRecord(fx)
       if (prefs.updateSeen !== v.update) {
@@ -834,13 +933,17 @@ export function createGame(o: GameOptions): Game {
   }
 
   async function clearWorldState(fx: Fx): Promise<void> {
+    // a passkey flow belongs to the account it began for: its poll stops, and its page is no longer offered
+    rt.poll?.cancel()
+    rt.poll = null
     await put(fx, 'me', null)
     await put(fx, 'cards', [])
     await put(fx, 'battle', null)
     await put(fx, 'reveal', null)
     await put(fx, 'social', INITIAL.social)
     await upd(fx, 'moments', list => list.filter(m => m.kind === 'update'))
-    await upd(fx, 'pane', p => ({ ...p, stack: [], hold: null, busy: null, message: '' }))
+    await upd(fx, 'pane', p => ({ ...p, stack: [], hold: null, busy: null, message: '', toCopy: '' }))
+    await upd(fx, 'account', a => ({ ...a, signIn: null, devices: null }))
   }
 
   // ---------- signals (SPEC 10) ----------
@@ -884,12 +987,11 @@ export function createGame(o: GameOptions): Game {
     })
   }
 
-  async function turnStep(fx: Fx, model: string, effort: unknown): Promise<void> {
+  async function turnStep(fx: Fx, model: string): Promise<void> {
     const family = familyOfModel(model)
-    const e = effortOf(effort)
     rt.family = family
     const s = await get(fx, 'signals')
-    if (s.family !== family || s.effort !== e) await upd(fx, 'signals', x => ({ ...x, family, effort: e }))
+    if (s.family !== family) await upd(fx, 'signals', x => ({ ...x, family }))
   }
 
   async function turnCompleted(fx: Fx, reason: string): Promise<void> {
@@ -944,7 +1046,9 @@ export function createGame(o: GameOptions): Game {
     const account = await get(fx, 'account')
     if (account.link === 'ready' && now - rt.lastRefresh >= PANE_REFRESH_MS) {
       await refresh(fx)
-      if (account.world === 'online') {
+      // the refresh waited on the network: the handshake and the offer go to the server in play after it, if still this one
+      const after = await get(fx, 'account')
+      if (account.world === 'online' && after.world === 'online' && after.server === account.server) {
         await handshake(fx, account.server)
         await passkeyOffer(fx, now)
       }
@@ -971,13 +1075,13 @@ export function createGame(o: GameOptions): Game {
   }
 
   async function charge(fx: Fx, family: Family, p: StoredPresence, now: number): Promise<void> {
-    const { backend } = await backendOf(fx)
+    const { backend, ok } = await backendOf(fx)
     let next: StoredPresence
     try {
       const res = await backend.chargePack({ family })
       next = afterCharge(p)
-      await upd(fx, 'me', me => (me ? { ...me, packs: res.packs } : me))
-      if (!(await get(fx, 'prefs')).quiet) {
+      await upd(fx, 'me', me => (me && ok() ? { ...me, packs: res.packs } : me))
+      if (ok() && !(await get(fx, 'prefs')).quiet) {
         await pushMoment(fx, { kind: 'pack-ready', id: 'pack-ready', count: res.packs.length, until: now + PACK_READY_MS })
       }
     } catch (err) {
@@ -988,7 +1092,7 @@ export function createGame(o: GameOptions): Game {
         next = { ...p, blocked: 'spacing', blockedUntil: at > now ? at : now + 15 * 60_000 }
       } else {
         next = { ...p, blocked: 'spacing', blockedUntil: now + 5 * 60_000 }
-        await noteFailure(fx, err)
+        await noteFailure(fx, err, ok)
       }
     }
     const fresh = readPresence(await fx.store.get(KEYS.presence))
@@ -1030,7 +1134,7 @@ export function createGame(o: GameOptions): Game {
 
   async function startBattle(fx: Fx, kind: 'wild' | 'duel', revenge?: string): Promise<void> {
     if (await get(fx, 'battle')) return
-    const { backend, account } = await backendOf(fx)
+    const { backend, account, ok } = await backendOf(fx)
     if (account.link !== 'ready') return
     if (account.world === 'online' && account.readOnly) {
       if (kind === 'duel') await line(fx, failureText(new BackendError('upgrade_required', 'refused', 426, ''), account.host), 'notice', HINT_MS)
@@ -1041,10 +1145,12 @@ export function createGame(o: GameOptions): Game {
     try {
       res = await backend.startBattle(req)
     } catch (err) {
-      if (kind === 'duel') await line(fx, failureText(err, account.host), 'notice', HINT_MS)
-      await noteFailure(fx, err)
+      if (kind === 'duel' && ok()) await line(fx, failureText(err, account.host), 'notice', HINT_MS)
+      await noteFailure(fx, err, ok)
       return
     }
+    // begun in a world play has since left: never shown or finished here; left open, it settles on its own where it began
+    if (!ok()) return
     const now = await fx.now()
     if (kind === 'duel') {
       if (account.world === 'offline') await fx.store.set(KEYS.offlineMeta, { ...readOfflineMeta(await fx.store.get(KEYS.offlineMeta)), lastDuelAt: now })
@@ -1063,6 +1169,8 @@ export function createGame(o: GameOptions): Game {
   function drive(fx: Fx, id: string): void {
     if (rt.driving === id) return
     rt.driving = id
+    // a battle is finished by the world and server it began in, never by one switched to while it played
+    const ok = stays()
     const pending: { res: ApiResponse<'finishBattle'> | null } = { res: null }
     const ctl: BattleControl = {
       battle: async () => { const b = await get(cur(fx), 'battle'); return b && b.id === id ? b : null },
@@ -1071,7 +1179,7 @@ export function createGame(o: GameOptions): Game {
         if (!b) return { rounds: [], result: 'draw', maxHp: { a: [], d: [] }, fainted: { a: [], d: [] } }
         if (b.live) return battleLog(b)!
         if (!b.log) {
-          pending.res = await finish(cur(fx), b)
+          pending.res = await finish(cur(fx), b, ok)
           if (pending.res) await upd(cur(fx), 'battle', x => (x && x.id === id ? { ...x, log: pending.res!.log } : x))
         }
         return ((await ctl.battle())?.log ?? pending.res?.log ?? { rounds: [], result: 'draw', maxHp: { a: [], d: [] }, fainted: { a: [], d: [] } }) as BattleLog
@@ -1083,13 +1191,13 @@ export function createGame(o: GameOptions): Game {
         if (cue) cur(fx).ui.sound(cue)
       },
       show: async n => { await upd(cur(fx), 'battle', b => (b && b.id === id ? { ...b, shown: Math.max(b.shown, n) } : b)) },
-      paceMs: async () => paceMs((await get(cur(fx), 'signals')).effort || 'medium'),
+      paceMs: async () => ROUND_MS,
       settle: async () => {
         const b = await ctl.battle()
         if (!b) return
         await ctl.phase('finishing')
-        const res = pending.res ?? await finish(cur(fx), b)
-        await settle(cur(fx), b, res)
+        const res = pending.res ?? await finish(cur(fx), b, ok)
+        await settle(cur(fx), b, res, ok)
       },
     }
     void o.slots.battle(fx, ctl)
@@ -1097,24 +1205,35 @@ export function createGame(o: GameOptions): Game {
       .finally(() => { if (rt.driving === id) rt.driving = null })
   }
 
-  /** Finishes on the server once it allows (SPEC 15: rounds x 1.5 s after start). */
-  async function finish(fx: Fx, b: Battle): Promise<ApiResponse<'finishBattle'> | null> {
+  /**
+   * Finishes on the server once it allows: no sooner than the rounds the presses play, 1.5 s each after the start, and
+   * after a "still playing" answer, once the wait its Retry-After names is over (SPEC 15). It is asked when the rounds
+   * have played at ROUND_MS, the same for everyone, so when it is asked says nothing about the effort setting (SPEC
+   * 20.2); and only while the world and server the battle began in are still in play (`ok`).
+   */
+  async function finish(fx: Fx, b: Battle, ok: () => boolean): Promise<ApiResponse<'finishBattle'> | null> {
     const { backend } = await backendOf(fx)
-    const wait = b.finishAfter - (await fx.now())
+    const inputs = b.live ? (await get(fx, 'battle'))?.inputs ?? b.inputs : []
+    const log = b.live ? battleLog({ ...b, inputs }) : null
+    const wait = (log ? finishAfter(b.startedAt, log.rounds.length) : b.finishAfter) - (await fx.now())
     if (wait > 0) await sleep(fx, wait + 50)
+    // past this the battle is settled on its own, with no presses: waiting longer could not finish it
+    const closes = b.startedAt + B.abandonMs
     for (let attempt = 0; attempt < 3; attempt++) {
+      if (!ok()) return null
       try {
-        return await backend.finishBattle({ battleId: b.id, inputs: b.live ? (await get(fx, 'battle'))?.inputs ?? b.inputs : [] })
+        return await backend.finishBattle({ battleId: b.id, inputs })
       } catch (err) {
-        if (isBackendError(err) && err.code === 'conflict' && attempt === 0 && (await fx.now()) < b.finishAfter + 3000) {
-          await sleep(fx, B.minRoundMs)
+        const retry = isBackendError(err) && err.code === 'conflict' ? err.retryAfterMs : null
+        if (retry !== null && attempt < 2 && (await fx.now()) + retry < closes) {
+          await sleep(fx, retry + 50)
           continue
         }
         if (isUnreachable(err) && attempt < 2) {
           await sleep(fx, 2000 * (attempt + 1))
           continue
         }
-        await noteFailure(fx, err)
+        await noteFailure(fx, err, ok)
         return null
       }
     }
@@ -1130,7 +1249,9 @@ export function createGame(o: GameOptions): Game {
     await publish(fx)
   }
 
-  async function settle(fx: Fx, b: Battle, res: ApiResponse<'finishBattle'> | null): Promise<void> {
+  /** Lands a finish in the world and server it was asked of (`ok`): once play moved on, its outcome and catch go nowhere. */
+  async function settle(fx: Fx, b: Battle, res: ApiResponse<'finishBattle'> | null, ok: () => boolean): Promise<void> {
+    if (!ok()) return
     if (!res) {
       await settleAbandoned(fx, b.id)
       await refresh(fx)
@@ -1168,7 +1289,8 @@ export function createGame(o: GameOptions): Game {
       await pushMoment(fx, { kind: 'evolve', id: `evolve:${x.cardId}:${x.stage}`, cardId: x.cardId, from: nameOf(card), to, stage: x.stage, until: now + B.resultBandMs + 8000 })
     }
     await refresh(fx)
-    if (c.status === 'catching') await catchNow(fx, b.id, 0)
+    // the refresh waited on the network: the catch is asked of the battle's own server only if still in play
+    if (ok() && c.status === 'catching') await catchNow(fx, b.id, 0)
   }
 
   async function pickCatch(fx: Fx, index: number): Promise<void> {
@@ -1184,7 +1306,7 @@ export function createGame(o: GameOptions): Game {
   async function catchNow(fx: Fx, battleId: string, index: number, resumed = false): Promise<void> {
     rt.catching.add(battleId)
     try {
-      const { backend } = await backendOf(fx)
+      const { backend, ok } = await backendOf(fx)
       const now = await fx.now()
       try {
         const { card } = await backend.catchCreature({ battleId, index })
@@ -1193,7 +1315,7 @@ export function createGame(o: GameOptions): Game {
       } catch (err) {
         const card = resumed && isBackendError(err) && err.code === 'conflict' ? await caughtBefore(fx, battleId, index) : null
         await setCatch(fx, battleId, card ? { status: 'caught', card } : { status: 'slipped' }, now + B.resultBandMs)
-        if (!card) await noteFailure(fx, err)
+        if (!card) await noteFailure(fx, err, ok)
       }
     } finally {
       rt.catching.delete(battleId)
@@ -1318,16 +1440,16 @@ export function createGame(o: GameOptions): Game {
   async function paneClosing(fx: Fx, byPerson: boolean): Promise<boolean> {
     const p = await get(fx, 'pane')
     if (byPerson && p.showUpdate && newerMod(await get(fx, 'account'))) {
-      await upd(fx, 'pane', x => ({ ...x, showUpdate: false, message: '' }))
+      await upd(fx, 'pane', x => ({ ...x, showUpdate: false, message: '', toCopy: '' }))
       return true
     }
     if (byPerson && p.stack.length > 0) {
       const top = p.stack[p.stack.length - 1]!
       if (top.kind === 'reveal') await doneReveal(fx)
-      else await upd(fx, 'pane', x => ({ ...x, stack: x.stack.slice(0, -1), hold: null, message: '' }))
+      else await upd(fx, 'pane', x => ({ ...x, stack: x.stack.slice(0, -1), hold: null, message: '', toCopy: '' }))
       return true
     }
-    await upd(fx, 'pane', x => ({ ...x, hold: null, message: '', busy: null, hello: false, showUpdate: false }))
+    await upd(fx, 'pane', x => ({ ...x, hold: null, message: '', toCopy: '', busy: null, hello: false, showUpdate: false }))
     return false
   }
 
@@ -1337,7 +1459,7 @@ export function createGame(o: GameOptions): Game {
     const now = await fx.now()
     const p = await get(fx, 'pane')
     if (!p.hold || p.hold.action !== action || p.hold.target !== target) {
-      await upd(fx, 'pane', x => ({ ...x, hold: { action, target, startedAt: now }, message: '' }))
+      await upd(fx, 'pane', x => ({ ...x, hold: { action, target, startedAt: now }, message: '', toCopy: '' }))
       return
     }
     if (now - p.hold.startedAt < HOLD_MS) return
@@ -1369,9 +1491,10 @@ export function createGame(o: GameOptions): Game {
         const res = await run(fx, 'gift', { cardId: target }, 'Wrapping the gift')
         if (res) {
           const link = pageUrl(account.server, 'g', res.gift.code)
-          await upd(fx, 'social', s => ({ ...s, gift: { code: res.gift.code, link, cardId: target } }))
+          // the gift view says it is on the clipboard only when it got there; otherwise it shows both lines to copy
+          const copied = await fx.ui.copy(`${link}\n/spin claim ${res.gift.code}`)
+          await upd(fx, 'social', s => ({ ...s, gift: { code: res.gift.code, link, cardId: target, copied } }))
           await upd(fx, 'pane', p => ({ ...p, stack: [...p.stack, { kind: 'gift', code: res.gift.code }] }))
-          await fx.ui.copy(`${link}\n/spin claim ${res.gift.code}`)
           await refresh(fx)
         }
         return
@@ -1405,7 +1528,7 @@ export function createGame(o: GameOptions): Game {
           await fx.store.delete(KEYS.offlineMeta)
           rt.local = null
           await clearWorldState(fx)
-          await connectOffline(fx)
+          await connectOffline(fx, stays())
         }
         await message(fx, 'Deleted.')
         await publish(fx)
@@ -1417,7 +1540,7 @@ export function createGame(o: GameOptions): Game {
         rt.local = null
         if (account.world === 'offline') {
           await clearWorldState(fx)
-          await connectOffline(fx)
+          await connectOffline(fx, stays())
         }
         await message(fx, 'The offline save is gone.')
         return
@@ -1447,9 +1570,10 @@ export function createGame(o: GameOptions): Game {
       return
     }
     await savePrefs(fx, { world })
+    // the switch itself first: from here, whatever is still on its way from the world left behind is dropped
+    await setAccount(fx, world, account.server)
     await clearWorldState(fx)
     await unblock(fx, 'any')
-    await setAccount(fx, world, account.server)
     if (world === 'online') await saveMeta(fx, account.server, { deleted: false })
     await connect(fx, { firstRun: false, explicit: true, fallback: world === 'online' })
     const now = (await get(fx, 'account')).world
@@ -1469,14 +1593,18 @@ export function createGame(o: GameOptions): Game {
     }
     const prefs = await prefsRecord(fx)
     if (origin !== DEFAULT_SERVER && !prefs.communityOk.includes(origin)) {
-      try {
-        await remote(origin).version({})
-      } catch (err) {
-        fx.ui.log(failureText(err, hostOf(origin)))
-        return
+      // offline nothing is sent, not even this check (SPEC 28): the server is first asked once play goes online
+      const online = account.world === 'online'
+      if (online) {
+        try {
+          await remote(origin).version({})
+        } catch (err) {
+          fx.ui.log(failureText(err, hostOf(origin)))
+          return
+        }
       }
       await pushMoment(fx, { kind: 'server', id: `server:${origin}`, origin, until: null })
-      fx.ui.log(`${hostOf(origin)} is a community server run by someone else. See the band to connect.`)
+      fx.ui.log(`${hostOf(origin)} is a community server run by someone else. ${online ? 'See the band to connect.' : 'See the band to use it when you play online.'}`)
       return
     }
     await useServer(fx, origin)
@@ -1493,7 +1621,7 @@ export function createGame(o: GameOptions): Game {
       fx.ui.log(versionReport(account, null))
       return
     }
-    if (account.link === 'unreachable' && account.note.startsWith('The server address')) {
+    if (badAddress(account)) {
       fx.ui.log(dots(`Spinlings ${CLIENT_VERSION}`, account.note))
       return
     }
@@ -1519,67 +1647,80 @@ export function createGame(o: GameOptions): Game {
     await savePrefs(fx, { server: origin, communityOk: origin === DEFAULT_SERVER ? prefs.communityOk : [...new Set([...prefs.communityOk, origin])] })
     await dropMoment(fx, `server:${origin}`)
     const account = await get(fx, 'account')
-    if (account.server === origin) return
+    // in play already, unless an unusable Server URL option held play back from it: then it connects as a switch does
+    if (account.server === origin && !badAddress(account)) return
+    // the move first, so what the old server still sends back is dropped; offline only the server to go online to changes
+    await setAccount(fx, account.world, origin)
     if (account.world === 'online') {
       await clearWorldState(fx)
       await unblock(fx, 'any')
+      await connect(fx, { firstRun: false, explicit: true, fallback: false })
     }
-    await setAccount(fx, account.world, origin)
-    if (account.world === 'online') await connect(fx, { firstRun: false, explicit: true, fallback: false })
-    fx.ui.log(`Server: ${hostOf(origin)}`)
+    fx.ui.log(account.world === 'online' ? `Server: ${hostOf(origin)}` : `Server: ${hostOf(origin)}, from when you play online`)
     await publish(fx)
   }
 
   // ---------- passkeys (SPEC 29, 30) ----------
 
+  /**
+   * A passkey flow belongs to the server it began on: it polls that origin alone, and stops (the poll and the page with
+   * it) once play moves to another world or server, so its poll id, which collects a session once, goes nowhere else.
+   */
   async function passkey(fx: Fx, kind: 'add' | 'signin'): Promise<void> {
+    const ok = stays()
     const account = await get(fx, 'account')
     if (account.world !== 'online') {
       await pushMoment(fx, { kind: 'needs-online', id: 'needs-online', until: (await fx.now()) + HINT_MS })
       return
     }
+    const origin = account.server
     // the page's link and the poll's progress show in the devices view, wherever the flow was started
     await openPane(fx, { view: { kind: 'devices' } })
     const res = kind === 'add' ? await run(fx, 'passkeyStart', {}, 'Preparing the passkey page') : await run(fx, 'authStart', {}, 'Preparing the sign-in page')
-    if (!res) return
+    if (!res || !ok()) return
     const now = await fx.now()
-    await upd(fx, 'account', a => ({ ...a, signIn: { kind, url: res.url, until: now + ECONOMY.server.pollTtlMs, status: 'pending' } }))
+    const signIn: SignIn = { kind, url: res.url, until: now + ECONOMY.server.pollTtlMs, status: 'pending' }
+    await upd(fx, 'account', a => (ok() ? { ...a, signIn } : a))
     await dropMoment(fx, 'passkey')
     rt.poll?.cancel()
+    const mark = (status: SignIn['status']) => (x: Account) => (ok() && x.signIn?.url === res.url ? { ...x, signIn: { ...x.signIn, status } } : x)
     const tick = async (): Promise<void> => {
       const f = cur(fx)
       const t = await f.now()
       const a = await get(f, 'account')
-      if (!a.signIn || a.signIn.url !== res.url) return
+      if (!ok() || !a.signIn || a.signIn.url !== res.url) return
       if (t >= a.signIn.until) {
-        await upd(f, 'account', x => (x.signIn ? { ...x, signIn: { ...x.signIn, status: 'expired' } } : x))
+        await upd(f, 'account', mark('expired'))
         return
       }
       try {
-        const poll = await remote(a.server).authPoll({ pollId: res.pollId })
+        const poll = await remote(origin).authPoll({ pollId: res.pollId })
         if (poll.status === 'added') {
-          await saveMeta(f, a.server, { passkeyDay: 'saved' })
-          await upd(f, 'account', x => (x.signIn ? { ...x, signIn: { ...x.signIn, status: 'added' } } : x))
-          await loadDevices(f)
+          await saveMeta(f, origin, { passkeyDay: 'saved' })
+          await upd(f, 'account', mark('added'))
+          if (ok()) await loadDevices(f)
           return
         }
         if (poll.status === 'done') {
-          await saveToken(f.store, a.server, poll.token)
-          await saveMeta(f, a.server, { deleted: false, welcomed: true, passkeyDay: 'saved' })
+          // the session it hands over is this origin's, kept whatever happens next; the cache was the old account's
+          await f.store.delete(KEYS.cache(origin))
+          await saveToken(f.store, origin, poll.token)
+          await saveMeta(f, origin, { deleted: false, welcomed: true, passkeyDay: 'saved' })
+          if (!ok()) return
           await clearWorldState(f)
-          await setMe(f, poll.me)
-          await upd(f, 'account', x => ({ ...x, link: 'ready', note: '', signIn: x.signIn ? { ...x.signIn, status: 'done' } : null }))
-          await loadCards(f, remote(a.server), true)
+          await setMe(f, poll.me, origin, ok)
+          await upd(f, 'account', x => (ok() ? { ...x, link: 'ready', note: '', signIn: { ...signIn, status: 'done' } } : x))
+          await loadCards(f, remote(origin), origin, ok, true)
           await publish(f)
           return
         }
       } catch (err) {
         if (isBackendError(err) && (err.code === 'not_found' || err.code === 'expired')) {
-          await upd(f, 'account', x => (x.signIn ? { ...x, signIn: { ...x.signIn, status: 'expired' } } : x))
+          await upd(f, 'account', mark('expired'))
           return
         }
       }
-      rt.poll = f.after(POLL_MS, () => { void tick() })
+      if (ok()) rt.poll = f.after(POLL_MS, () => { void tick() })
     }
     rt.poll = fx.after(POLL_MS, () => { void tick() })
   }
@@ -1764,10 +1905,13 @@ export function createGame(o: GameOptions): Game {
       else await message(fx, why)
       return
     }
-    const copied = await fx.ui.copy(shareText(found, account.world, account.server))
-    const text = copied ? `Copied ${nameOf(found)} to share.` : 'Could not reach the clipboard here.'
-    if (fromCommand) fx.ui.log(text)
-    else await message(fx, text)
+    const text = shareText(found, account.world, account.server)
+    const copied = await fx.ui.copy(text)
+    const done = `Copied ${nameOf(found)} to share.`
+    // where the clipboard is out of reach (a surface with none yet), the text itself shows, to select and copy by hand
+    if (fromCommand) fx.ui.log(copied ? done : `To share ${nameOf(found)}, copy this:\n${text}`)
+    else if (copied) await upd(fx, 'pane', p => ({ ...p, message: done, tone: 'good', toCopy: '', busy: null }))
+    else await upd(fx, 'pane', p => ({ ...p, message: '', toCopy: text, busy: null }))
   }
 
   // ---------- actions ----------
@@ -1789,8 +1933,8 @@ export function createGame(o: GameOptions): Game {
       dismiss: id => after(dismiss(fx, id)),
       open: to => after(openPane(fx, to)),
       close: () => after(fx.ui.closePane()),
-      tab: tab => after(upd(fx, 'pane', p => ({ ...p, tab, stack: [], page: 0, hold: null, message: '', hello: false, showUpdate: false }))),
-      push: view => after(upd(fx, 'pane', p => ({ ...p, stack: [...p.stack, view].slice(-8), hold: null, message: '', showUpdate: false }))),
+      tab: tab => after(upd(fx, 'pane', p => ({ ...p, tab, stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false, showUpdate: false }))),
+      push: view => after(upd(fx, 'pane', p => ({ ...p, stack: [...p.stack, view].slice(-8), hold: null, message: '', toCopy: '', showUpdate: false }))),
       back: () => after(paneClosing(fx, true)),
       pane: fn => after(upd(fx, 'pane', fn)),
       hold: (action, target) => after(hold(fx, action, target)),
@@ -1818,7 +1962,7 @@ export function createGame(o: GameOptions): Game {
       copyUpdate: () => after((async () => {
         const copied = await fx.ui.copy(UPDATE_COMMAND)
         if (copied) await message(fx, 'Copied. Run it in a terminal.', 'good')
-        else await message(fx, 'Could not reach the clipboard here.')
+        else await message(fx, 'Select the command below to copy it, then run it in a terminal.')
       })()),
       duel: revenge => after(startBattle(fx, 'duel', revenge)),
       profile: handle => after(loadProfile(fx, handle)),

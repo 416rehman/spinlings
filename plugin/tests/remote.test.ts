@@ -196,6 +196,18 @@ test('proof of work: bit-exact, sliced, and the join sends only challenge, nonce
   void pauses
 })
 
+test('the join is called off between requests once it is no longer wanted: nothing more is sent', async () => {
+  const { d, server } = deps({ token: async () => null })
+  let wanted = true
+  const backend = createRemoteBackend({ ...d, fetch: async (url, init) => { const res = server.handle(url, init); wanted = false; return res } })
+  const err = await rejected(joinServer(backend, 'opus', async () => undefined, () => wanted))
+  expect(err.code).toBe('unavailable')
+  expect(server.calls.map(c => c.path)).toEqual(['/v1/challenge'])
+  const before = server.calls.length
+  await rejected(joinServer(backend, 'opus', async () => undefined, () => false))
+  expect(server.calls.length).toBe(before)
+})
+
 test('proof of work: an absurd difficulty is declined', async () => {
   const { d } = deps({ server: fakeServer({ difficulty: 30 }), token: async () => null })
   const err = await rejected(joinServer(createRemoteBackend(d), 'opus', async () => undefined))
@@ -211,6 +223,17 @@ test('version handshake: read-only below minClient, an update to announce, featu
   expect(versionStatus({ ...base, minClient: '0.2.0', latestClient: '0.3.0' }, '0.1.0')).toMatchObject({ readOnly: true, update: '0.3.0' })
 })
 
+test('a refusal keeps the wait its Retry-After names: whole seconds only, none when absent', () => {
+  const playing = { error: { code: 'conflict', message: 'The battle is still playing' } }
+  const json = { 'content-type': 'application/json' }
+  const err = caught(() => readAnswer('finishBattle', answer(409, playing, { ...json, 'retry-after': '3' })))
+  expect({ code: err.code, status: err.status, retryAfterMs: err.retryAfterMs }).toEqual({ code: 'conflict', status: 409, retryAfterMs: 3000 })
+  expect(caught(() => readAnswer('finishBattle', answer(409, playing))).retryAfterMs).toBeNull()
+  expect(caught(() => readAnswer('finishBattle', answer(409, playing, { ...json, 'retry-after': 'Wed, 21 Oct 2026 07:28:00 GMT' }))).retryAfterMs).toBeNull()
+  expect(caught(() => readAnswer('finishBattle', answer(409, playing, { ...json, 'retry-after': '-1' }))).retryAfterMs).toBeNull()
+  expect(caught(() => readAnswer('chargePack', answer(429, { error: { code: 'rate_limited', message: 'Slow down' } }, { ...json, 'retry-after': '60' }))).retryAfterMs).toBe(60_000)
+})
+
 test('per-origin sessions: keys live under server:{origin}:, and readers trust nothing', () => {
   expect(KEYS.session(ORIGIN)).toBe('server:https://spinlings.dev:session')
   expect(serverKeys(['server:https://a.dev:session', 'server:https://b.dev:cache', 'offline:v1', 'prefs'], 'https://a.dev')).toEqual(['server:https://a.dev:session'])
@@ -218,6 +241,8 @@ test('per-origin sessions: keys live under server:{origin}:, and readers trust n
   expect(readToken('short')).toBeNull()
   expect(readToken({ token: TOKEN })).toBeNull()
   expect(readPrefs({ quiet: 'yes', world: 'moon', hints: [1, 'a'] })).toMatchObject({ quiet: false, world: null, hints: ['a'], motion: true })
+  expect(readPrefs({ server: ORIGIN, serverOption: 'https://cards.example.org' })).toMatchObject({ server: ORIGIN, serverOption: 'https://cards.example.org' })
+  expect(readPrefs({ serverOption: 7 }).serverOption).toBeNull()
   expect(readCache({ me: { player: 1 } })).toBeNull()
   expect(readCache({ me: fakeServer().me })?.me.player.handle).toBe('brave-wren-41')
 })

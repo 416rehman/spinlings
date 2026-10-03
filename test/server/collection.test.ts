@@ -188,17 +188,17 @@ describe('opening packs', () => {
     assert.equal((await p.call('cards')).cards.length, 8, 'a replay mints nothing')
   })
 
-  it('opens welcome packs trade-locked for 7 days from joining, and bound packs into bound cards', async () => {
+  it('opens welcome packs trade-locked until 7 days from the join day, and bound packs into bound cards', async () => {
     const s = server()
     const p = await s.join()
     s.tick(2 * DAY)
     const welcome = (await p.call('me')).packs.find(k => k.source === 'welcome')!
     const { cards } = await p.call('openPack', { packId: welcome.id })
-    assert.ok(cards.every(c => c.lockedUntil === T0 + 7 * DAY && !c.bound))
+    assert.ok(cards.every(c => c.lockedUntil === Date.UTC(2026, 9, 9) && !c.bound), 'a midnight: the hour of joining is not kept')
     const bound = grantPack(env(s), p.id, 'opus', 'promo', { bound: true })
     await s.db.batch([bound.stmt])
     assert.ok((await p.call('openPack', { packId: bound.pack.id })).cards.every(c => c.bound && c.lockedUntil === 0))
-    s.set(T0 + 7 * DAY)
+    s.set(Date.UTC(2026, 9, 9))
     const late = (await p.call('me')).packs.find(k => k.source === 'welcome')!
     assert.ok((await p.call('openPack', { packId: late.id })).cards.every(c => c.lockedUntil === 0), 'the lock has passed')
   })

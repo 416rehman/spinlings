@@ -212,12 +212,21 @@ test('update available: the chip is a verb with the version, u shows the command
         .toEqual({ where, copy: 'u', chip: undefined, label: CHIP_HIDE })
       expect({ where, esc: hintsOf(tree).endsWith(ESC_HIDE) }).toEqual({ where, esc: true })
 
-      // Copy: copied, and said in the good ink, not as a warning
+      // Copy, asked where the press came from: on the terminal it lands, said in the good ink, not as a warning; the
+      // desktop has no clipboard path yet, so the pane points at the command rather than claim a copy
       const copies = w.copied.length
       await press(ui, 'copy-update', clock)
-      expect({ where, copied: w.copied.slice(copies) }).toEqual({ where, copied: [UPDATE_COMMAND] })
-      const said = await ui.find({ type: 'Text', text: /Copied\. Run it in a terminal\./ })
-      expect({ where, said: !!said, color: said?.props.color }).toEqual({ where, said: true, color: INK.good })
+      expect({ where, asked: w.copies.at(-1) }).toEqual({ where, asked: { text: UPDATE_COMMAND, surface } })
+      if (surface === 'terminal') {
+        expect({ where, copied: w.copied.slice(copies) }).toEqual({ where, copied: [UPDATE_COMMAND] })
+        const said = await ui.find({ type: 'Text', text: /Copied\. Run it in a terminal\./ })
+        expect({ where, said: !!said, color: said?.props.color }).toEqual({ where, said: true, color: INK.good })
+      } else {
+        expect({ where, copied: w.copied.slice(copies) }).toEqual({ where, copied: [] })
+        const claims = await ui.find({ type: 'Text', text: /Copied/ })
+        const points = await ui.find({ type: 'Text', text: /Select the command below to copy it/ })
+        expect({ where, claims: !!claims, points: !!points }).toEqual({ where, claims: false, points: true })
+      }
 
       // the chip, now `Hide update`, closes the row (esc does too: game.test.ts), and takes u back
       await press(ui, 'version', clock)

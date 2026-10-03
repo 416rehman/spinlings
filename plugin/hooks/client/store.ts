@@ -44,8 +44,10 @@ export type StoredPrefs = {
   world: World | null
   /** the `world` option as last applied: a change in /config switches the world once */
   worldOption: World | null
-  /** /spin server's choice; null uses the server_url option */
+  /** the server in use, from /spin server or the server_url option, whichever changed last; null uses the option */
   server: string | null
+  /** the server_url option as last applied: a change in /config moves to that server once, as /spin server does */
+  serverOption: string | null
   /** one-time hints already shown (SPEC 21.3) */
   hints: string[]
   /** the UTC day of the last daily hello banner */
@@ -65,6 +67,7 @@ export function readPrefs(v: unknown): StoredPrefs {
     world: world(r.world),
     worldOption: world(r.worldOption),
     server: typeof r.server === 'string' && r.server.length <= 200 ? r.server : null,
+    serverOption: typeof r.serverOption === 'string' && r.serverOption.length <= 200 ? r.serverOption : null,
     hints: strs(r.hints, 64, 40),
     helloDay: str(r.helloDay, 10),
     updateSeen: typeof r.updateSeen === 'string' && SEMVER_RE.test(r.updateSeen) ? r.updateSeen : '',

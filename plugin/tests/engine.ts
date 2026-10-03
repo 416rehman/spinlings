@@ -30,16 +30,23 @@ export type Engine = {
   logs: string[]
   toasts: string[]
   sounds: string[]
+  /** what reached a clipboard */
   copied: string[]
+  /** every copy asked for, and the surface it was asked on */
+  copies: { text: string; surface: string }[]
   opened: number
 }
 
 export function engine(on: On, server: FakeServer = fakeServer()): Engine {
-  const w: Engine = { store: new Map(), reads: [], server, requests: [], status: [], logs: [], toasts: [], sounds: [], copied: [], opened: 0 }
+  const w: Engine = { store: new Map(), reads: [], server, requests: [], status: [], logs: [], toasts: [], sounds: [], copied: [], copies: [], opened: 0 }
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('session.end', (_$, e) => ({ sessionId: e.sessionId }))
   on('turn.start', (_$, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: 'engine answer' }))
+  on('turn.step', async function* (_$, e) {
+    yield { kind: 'stop', stopReason: 'end_turn', usage: null } as never
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('store.get', (_$, e) => { w.reads.push(e.key); return { value: w.store.get(e.key) } })
@@ -60,7 +67,14 @@ export function engine(on: On, server: FakeServer = fakeServer()): Engine {
   on('ui.toast', (_$, e) => { w.toasts.push(e.text); return { value: undefined } })
   on('ui.open', () => { w.opened++; return { value: { isPlaced: true } } })
   on('ui.close', () => ({ value: undefined }))
-  on('ui.copy', (_$, e) => { w.copied.push(e.text); return { value: { isCopied: true } } })
+  // as this build answers: the terminal writes as /copy does, and a remote surface (the desktop) has no path yet
+  on('ui.copy', (_$, e) => {
+    const surface = e.surface ?? SESSION.surface
+    w.copies.push({ text: e.text, surface })
+    if (surface !== 'terminal') return { value: { isCopied: false, reason: 'no-clipboard' } }
+    w.copied.push(e.text)
+    return { value: { isCopied: true } }
+  })
   on('ui.blit', () => ({ value: {} }))
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['engine'] }))
   return w

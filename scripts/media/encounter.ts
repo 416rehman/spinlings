@@ -2,10 +2,12 @@
 // shimmering outline), a wild Snowelkie appears with its FIRST IN THE WORLD? tease, four rounds play with a Perfect
 // special on the round 1 Now! shows, and the catch ceremony wobbles three beats before Gotcha!
 import type { Card } from '../../plugin/hooks/core/types.ts'
-import { paceMs, simulateBattle } from '../../plugin/hooks/core/battle.ts'
+import { simulateBattle } from '../../plugin/hooks/core/battle.ts'
 import { toBattleCard } from '../../plugin/hooks/core/cards.ts'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
-import { TIMING, catchPreMs, revealHoldMs, roundPlan, rustleMs } from '../../plugin/hooks/client/battleview.ts'
+import { TIMING } from '../../plugin/hooks/client/anim.ts'
+import { catchPreMs, revealHoldMs, roundPlan, rustleMs } from '../../plugin/hooks/client/battleview.ts'
+import { ROUND_MS } from '../../plugin/hooks/client/game.ts'
 import type { Battle, GameState, Outcome } from '../../plugin/hooks/client/types.ts'
 import { camera, recording } from './scenes.ts'
 import type { Shot } from './scenes.ts'
@@ -19,7 +21,7 @@ export function encounterShots(): Shot[] {
   const wild = w.mint('sonnet', 3, 'epic', {}, 4, 147926868)
   const base: GameState = { ...w.base, me: { ...w.base.me!, player: { ...w.base.me!.player, streak: 1 } } }
   const fresh = battleOf(w, { seed: 'enc-sonnet-3-13', defender: [wild], first: true })
-  const pace = paceMs(base.signals.effort)
+  const pace = ROUND_MS
   const cam = camera(now)
   const at = (b: Battle | null): GameState => ({ ...base, battle: b })
 

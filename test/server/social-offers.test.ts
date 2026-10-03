@@ -2,8 +2,12 @@
 // counter, expiry, the trust gate, storage limits, races and strict request parsing.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import type { Card } from '../../plugin/hooks/core/types.ts'
 import { stmt } from '../../server/src/db.ts'
+import type { Db } from '../../server/src/db.ts'
+import { tradeLock } from '../../server/src/game/social.ts'
+import { openDatabase } from '../../server/src/node.ts'
 import type { CardRow } from '../../server/src/schema.ts'
 import { ApiFailure, DAY, HOUR, server, T0 } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
@@ -12,6 +16,39 @@ import { fresh, list, midnight, snapshot, trust } from './social-helpers.ts'
 const cardIn = async (p: Player, id: string): Promise<Card | undefined> => (await p.call('cards')).cards.find(c => c.id === id)
 const row = async (s: Server, id: string) => (await s.db.get<CardRow>('SELECT * FROM cards WHERE id = ?', id))!
 const handle = (p: Player) => p.me.player.handle
+
+/**
+ * A database that holds back one batch: next(sql) catches the next batch running a statement like
+ * `sql`, `reached` resolves once it waits, and release() lets it write, so another request can run
+ * in between one handler's reads and its write.
+ */
+function holding(): { db: Db; next(sql: RegExp): { reached: Promise<void>; release(): void } } {
+  const base = openDatabase(':memory:').db
+  let gate: { sql: RegExp; arrive(): void; go: Promise<void> } | undefined
+  const db: Db = {
+    all: base.all,
+    get: base.get,
+    async batch(stmts) {
+      const g = gate
+      if (g && stmts.some(st => g.sql.test(st.sql))) {
+        gate = undefined
+        g.arrive()
+        await g.go
+      }
+      return base.batch(stmts)
+    },
+  }
+  return {
+    db,
+    next(sql) {
+      let arrive!: () => void, release!: () => void
+      const reached = new Promise<void>(resolve => { arrive = resolve })
+      const go = new Promise<void>(resolve => { release = resolve })
+      gate = { sql, arrive, go }
+      return { reached, release }
+    },
+  }
+}
 
 /** a and b past the trust gate, a with two fresh cards, b with one listed for trade */
 async function pair(s = server()) {
@@ -132,9 +169,11 @@ describe('accepting', () => {
     const res = (await b.call('acceptOffer', { offerId: offer.id })).offer
     assert.deepEqual([res.state, res.from, res.to, res.give.map(c => c.id), res.get.map(c => c.id)], ['accepted', handle(a), handle(b), [x.id], [z.id]])
     assert.deepEqual([(await a.row()).sparks, (await b.row()).sparks], [sa - 10, sb - 10])
+    // trade-locked until the first midnight 24 hours on: the lock never tells a the hour b accepted (SPEC 20.3)
+    const lock = Date.UTC(2026, 9, 4)
     for (const [p, id] of [[a, z.id], [b, x.id]] as const) {
       const c = (await cardIn(p, id))!
-      assert.deepEqual([c.state, c.forTrade, c.tiredUntil, c.lockedUntil], ['owned', false, 0, T0 + DAY], id)
+      assert.deepEqual([c.state, c.forTrade, c.tiredUntil, c.lockedUntil], ['owned', false, 0, lock], id)
       const r = await row(s, id)
       assert.deepEqual([r.owner_id, r.escrow_ref, r.arena_haiku, r.arena_sonnet, r.arena_opus, r.arena_fable], [p.id, null, 0, 0, 0, 0])
     }
@@ -143,12 +182,22 @@ describe('accepting', () => {
     assert.ok((await a.row()).cards_version > versions[0]! && (await b.row()).cards_version > versions[1]!)
     const news = (await a.call('me')).notices.find(n => n.kind === 'offer-accepted')!
     assert.equal(news.handle, handle(b))
-    // received cards are trade-locked for 24 hours
+    // received cards are trade-locked for 24 hours and more, up to that midnight
     assert.equal((await a.fails('gift', { cardId: z.id })).code, 'not_allowed')
-    s.tick(DAY)
+    s.set(lock - 1)
+    assert.equal((await a.fails('gift', { cardId: z.id })).code, 'not_allowed')
+    s.set(lock)
     assert.equal((await a.call('gift', { cardId: z.id })).gift.card.id, z.id)
     // and a repeat is refused cleanly
     assert.equal((await b.fails('acceptOffer', { offerId: offer.id })).code, 'conflict')
+  })
+
+  it('locks a card that changed hands until the first UTC midnight at least 24 hours on', () => {
+    const today = Date.UTC(2026, 9, 2)
+    assert.equal(tradeLock(today), today + DAY, 'exactly 24 hours on is that midnight')
+    assert.equal(tradeLock(today + 1), today + 2 * DAY)
+    assert.equal(tradeLock(T0), today + 2 * DAY)
+    assert.equal(tradeLock(today + DAY - 1), today + 2 * DAY)
   })
 
   it('a pure gift-trade asks for nothing and costs its sender nothing', async () => {
@@ -314,6 +363,23 @@ describe('races', () => {
     const open = await s.db.all<{ id: string }>(`SELECT id FROM offers WHERE state = 'open'`)
     assert.equal(open.length, 1)
     assert.equal((await row(s, x.id)).escrow_ref, open[0]!.id)
+  })
+
+  it('a spend the sender began before an accept took the fee re-runs and is refused, never a server error', async () => {
+    const held = holding()
+    const { s, a, b, x, z } = await pair(server({ db: held.db }))
+    const { offer } = await a.call('offer', { to: handle(b), give: [x.id], get: [z.id] })
+    const cost = ECONOMY.packs.buyCost
+    await s.db.batch([stmt('UPDATE players SET sparks = ? WHERE id = ?', cost + 5, a.id)])
+    // a's buy has read cost + 5 sparks; b's accept takes the 10-spark fee from a before the buy writes
+    const gate = held.next(/INSERT INTO packs/)
+    const buying = a.fails('buyPack', { family: 'opus' })
+    await gate.reached
+    await b.call('acceptOffer', { offerId: offer.id })
+    gate.release()
+    const err = await buying
+    assert.deepEqual([err.status, err.code], [409, 'insufficient_sparks'])
+    assert.equal((await a.row()).sparks, cost - 5)
   })
 
   it('an accept racing the sender spending their sparks never lets the fee go unpaid', async () => {

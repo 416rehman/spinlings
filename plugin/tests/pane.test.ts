@@ -172,6 +172,28 @@ test('empty states carry guidance on both surfaces', { timeoutMs: 60_000 }, asyn
   }
 })
 
+test('the clipboard is named only when a copy took: otherwise a gift\'s two lines and a share\'s text show, to copy by hand', { timeoutMs: 60_000 }, async ($, on) => {
+  draws(on, p)
+  const steps = demoSteps(NOW)
+  const textAt = async (title: string, surface: (typeof SURFACES)[number]) => {
+    p.state = steps.find(s => s.title === title)!.state
+    const ui = await $.ui.mount(MOUNT(80, surface))
+    const text = textOf(await ui.drawn())
+    await ui.unmount()
+    return text
+  }
+  for (const surface of SURFACES) {
+    const byHand = await textAt('Trade · a gift just wrapped, to copy by hand', surface)
+    expect({ surface, send: /Send your friend these lines:/.test(byHand), clipboard: /clipboard/.test(byHand) }).toEqual({ surface, send: true, clipboard: false })
+    expect(byHand).toContain('https://spinlings.dev/g/quiet-otter-lamp-4821')
+    expect(byHand).toContain('/spin claim quiet-otter-lamp-4821')
+    expect(await textAt('Trade · a gift just wrapped', surface)).toMatch(/The link and the claim command are on your clipboard/)
+    const share = await textAt('Card · a share to copy by hand (no clipboard here)', surface)
+    expect({ surface, lead: /To share it, copy this:/.test(share), copied: /Copied/.test(share) }).toEqual({ surface, lead: true, copied: false })
+    expect(share).toMatch(/https:\/\/spinlings\.dev\/c\//)
+  }
+})
+
 test('cards show as art wherever they appear: the grid, the team, the album', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
   const steps = demoSteps(NOW)
