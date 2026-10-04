@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 const dir = resolve(dirname(fileURLToPath(import.meta.url)), '../../docs/media')
 const SIZES: Record<string, [number, number]> = {
   'ph-1-battle.png': [1270, 760], 'ph-2-unique.png': [1270, 760], 'ph-3-pack.png': [1270, 760], 'ph-4-season.png': [1270, 760],
-  'x-card.png': [1200, 675], 'x-founders.png': [1200, 675], 'github-social.png': [1280, 640],
+  'x-card.png': [1200, 675], 'x-fusion.png': [1200, 675], 'github-social.png': [1280, 640],
 }
 const problems: string[] = []
 const files = readdirSync(dir)

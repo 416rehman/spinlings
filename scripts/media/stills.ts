@@ -4,7 +4,8 @@
 // Product Hunt gallery 1270 x 760 (4), X 1200 x 675, GitHub social preview 1280 x 640. The palette is the site's
 // og:image palette, so a shared link and a launch post look like one thing.
 import type { Card, Family } from '../../plugin/hooks/core/types.ts'
-import { cardName } from '../../plugin/hooks/core/cards.ts'
+import { cardName, fuse } from '../../plugin/hooks/core/cards.ts'
+import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 import { FAMILIES, FAMILY_INFO } from '../../plugin/hooks/core/families.ts'
 import { familySpecies } from '../../plugin/hooks/core/species.ts'
 import { spriteFor } from '../../plugin/hooks/core/sprite.ts'
@@ -16,7 +17,6 @@ import { createCanvas, encodePng, textWidth } from '../../server/src/png.ts'
 import { albumForm, eyes, shadow } from './shadows.ts'
 import { dayWith, mediaWorld } from './world.ts'
 
-const { eggPixels } = await import('../../plugin/hooks/ui/ceremony-art.tsx')
 const { cardBack } = await import('../../plugin/hooks/client/anim.ts')
 
 const BG = '#141a26', PANEL = '#1d2534', PLATE = '#1b1824', LINE = '#2c3547', TEXT = '#eceaf3', SOFT = '#a6a4b8', GOLD = INK.accent
@@ -259,27 +259,33 @@ function x(W: number, H: number): Canvas {
     text(c, xx + centre(20 * s, name, 3), 330 + 20 * s + 18, name, TEXT, 3)
     if (i < 2) text(c, xx + 20 * s + 20, 330 + 10 * s - 12, '>', SOFT, 4)
   })
-  text(c, 76, H - 76, '/plugin marketplace add 416rehman/spinlings', GOLD, 2)
+  text(c, 76, H - 89, '/plugin marketplace add 416rehman/spinlings', GOLD, 3)
+  text(c, 76, H - 53, '/plugin install spinlings@spinlings', GOLD, 3)
   return c
 }
 
-/** X, the drop post (1200 x 675): the Founder's Egg, its code, and what makes it worth showing off. */
-function founders(W: number, H: number): Canvas {
+/** X (1200 x 675): two real generated cards and the hybrid returned by the game's fusion rules. */
+function fusion(W: number, H: number): Canvas {
   const c = frame(W, H)
-  const egg = eggPixels(hexInt(FAMILY_COLOR.fable), 2, 0)
-  const s = 18, ex = W - 96 - 16 * s, ey = 150
-  sprite(c, only(glowOutline(egg, hexInt(RARITY_COLOR.epic), 1), egg), ex, ey, s)
-  sprite(c, egg, ex, ey, s)
-  sprite(c, only(sparkles(egg, 0.3, 'founders', { count: 5, color: 0xfff0a8, reach: 2 }), egg), ex, ey, s)
-  text(c, 72, 92, "The Founder's Egg", TEXT, 6)
-  text(c, 72, 170, 'Everyone who redeems it gets the', SOFT, 3)
-  text(c, 72, 204, 'same creature. Yours hatches with', SOFT, 3)
-  text(c, 72, 238, 'its own colours and genes.', SOFT, 3)
-  text(c, 72, 300, 'Launch week only:', TEXT, 3)
-  panel(c, 72, 342, 452, 92, PANEL, GOLD, 4, 3)
-  text(c, 72 + centre(452, 'FOUNDERS', 7), 358, 'FOUNDERS', GOLD, 7)
-  text(c, 72, 474, '/spin redeem FOUNDERS', TEXT, 3)
-  wordmark(c, 72, H - 92, 4, SOFT)
+  const w = mediaWorld(dayWith('wildBloom'), 'spinlings/media/fusion')
+  const a = w.mint('haiku', 5, 'rare', {}, 5, 59139635)
+  const b = w.mint('opus', 0, 'rare', {}, 5, 3985328812)
+  const hybrid = w.id(fuse(a, b, rngFromSeed('spinlings/media/fusion/result'), w.now))
+  heading(c, W, 'Fuse a new creature', 'Fuse two cards. A hybrid inherits their look, genes and traits.')
+  const s = 10, side = 20 * s, y = 296
+  ;([a, b, hybrid] as const).forEach((card, i) => {
+    const x = [96, 400, 848][i]!
+    const label = i === 2 ? 'Hybrid' : 'Parent'
+    text(c, x + centre(side, label, 2), y - 30, label, i === 2 ? GOLD : SOFT, 2)
+    plate(c, spriteFor(card), x, y, s, FAMILY_COLOR[card.family])
+    const name = cardName(card)
+    const scale = textWidth(name, 3) <= side + 40 ? 3 : 2
+    text(c, x + centre(side, name, scale), y + side + 20, name, TEXT, scale)
+  })
+  text(c, 330, y + side / 2 - 18, '+', SOFT, 5)
+  text(c, 736, y + side / 2 - 18, '>', SOFT, 5)
+  text(c, 72, H - 110, 'Fusion consumes both parent cards.', SOFT, 2)
+  wordmark(c, 72, H - 70, 4, SOFT)
   return c
 }
 
@@ -305,7 +311,7 @@ export async function stills(): Promise<[string, Uint8Array][]> {
     ['ph-3-pack.png', pack(1270, 760)],
     ['ph-4-season.png', season(1270, 760)],
     ['x-card.png', x(1200, 675)],
-    ['x-founders.png', founders(1200, 675)],
+    ['x-fusion.png', fusion(1200, 675)],
     ['github-social.png', social(1280, 640)],
   ]
   return Promise.all(list.map(async ([name, c]) => [name, await encodePng(c)] as [string, Uint8Array]))
