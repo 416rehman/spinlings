@@ -194,6 +194,7 @@ The game runs on the rhythm of your session, never its content. This is everythi
 | `session.compact` | `trigger` | A one-line reaction |
 | `ui.render` | the spinner's `mode`; the band's and pane's size | A spinner suffix during a battle, and drawing the band and pane |
 | `ui.close` | that you pressed esc in the pane | Going back one view |
+| `ui.message` (Spinlings pane card regions only) | the current card region's element key and a null payload | Selecting a card when you click its artwork in Desktop |
 | `command.run` | `/spin` and its arguments | The game's one command |
 
 **Never hooked:** `tool.call`, `prompt.submit`, `classic.PermissionRequest`. The mod never sees a tool name, a shell command, a file or a path.
@@ -306,7 +307,7 @@ spinlings/
     hooks/core/                     pure game logic, shared with the server
     hooks/client/                   pure client logic (presence, scheduling, view models)
     hooks/client/local/             the offline world, built from the same core rules
-    hooks/ui/                       pure view builders for the band and pane
+    hooks/ui/                       view builders and local Desktop card pointer regions
     tests/                          claude plugin test plugin
   server/
     src/worker.ts                   the Cloudflare Worker (D1 binding DB)

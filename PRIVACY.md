@@ -38,6 +38,7 @@ The mod reads only the shape of your Claude Code session:
 | Session open | `session.start`, `session.end`, a once-a-minute clock tick | Presence minutes for packs |
 | A session started over | `classic.SessionStart`, for `clear`, `resume` and `fork` only | Picking the game back up |
 | The band and the pane | `ui.render` and `ui.close` (their size, focus, and that you pressed esc) | Drawing them, and going back one view |
+| A Desktop card click | `ui.message` from the Spinlings pane's own card regions: an element key and a null payload | Selecting that currently displayed card; pointer coordinates remain local to the renderer |
 | The `/spin` command | `command.run` (the command's arguments) | The game's one command |
 
 It never hooks `tool.call`, `prompt.submit` or `classic.PermissionRequest`.

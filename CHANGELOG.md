@@ -4,6 +4,8 @@ One entry per release (SPEC 32), newest first. Each says what changed in plain w
 
 ## 0.2.4 (2026-10-04)
 
+- **A clearer browser collection.** Collection, Team and Stats have their own views. Rankings sit with stats, filters stay close to the cards, and card details open when you need them. Username timing appears in the edit flow instead of a permanent account notice. The site's existing palette, fonts and public pages are preserved.
+- **Pick the whole card.** In Claude Desktop, a card's artwork, name and surrounding tile select the same card, with its existing keyboard shortcut. A local pointer region forwards only a current element key and a null payload to the existing action; no pointer coordinates are stored or sent to the server.
 - **Close means close.** The pane footer now closes the host pane from a main tab. Back still returns from a detail view, and dismissing update instructions keeps the pane open. Actual Claude Desktop launch checks exposed the missing root close call.
 - **Compatibility and privacy.** API v1, rules 1, generator 2, the minimum client, requests, stored fields and public fields are unchanged. Released compatibility recordings remain immutable.
 

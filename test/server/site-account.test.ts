@@ -45,6 +45,7 @@ class Node {
   disabled = false
   value = ''
   href = ''
+  title = ''
   className = ''
   attributes = new Map<string, string>()
   focused = false
@@ -132,10 +133,47 @@ describe('the private browser collection', () => {
     assert.match(page, /<label for="username">Username<\/label>/)
     assert.match(page, /id="username"[^>]*maxlength="40"[^>]*aria-describedby="username-rules username-note username-status"/)
     assert.match(page, /id="username-status" role="status" aria-live="polite"/)
-    assert.match(page, /Your account and passkeys stay the same\./)
+    assert.doesNotMatch(page, /Your account and passkeys stay the same|Once a week/)
+    assert.match(page, /role="tablist" aria-label="Your collection"/)
+    for (const id of ['collection','team','stats']) assert.ok(page.includes(`role="tabpanel" aria-labelledby="tab-${id}"`))
     assert.equal((await s.request('GET','/v1/me')).status, 401)
     assert.equal((await s.request('DELETE','/account/signout')).status, 401)
     assert.equal((await s.request('POST','/account/signin/start',{body:{playerId:p.id}})).status, 400)
+  })
+
+  it('starts in Collection and changes sections with keyboard tabs without losing collection filters or refreshing data', async () => {
+    const s = server(); const p = await s.join(); const auth = await softAuthenticator(); await saved(s,p,auth)
+    const view = browser(s,auth); await view.node('signin').act()
+    assert.equal(view.node('panel-collection').hidden,false)
+    assert.equal(view.node('panel-team').hidden,true)
+    assert.equal(view.node('panel-stats').hidden,true)
+    assert.equal(view.node('tab-collection').attributes.get('aria-selected'),'true')
+    for (const balance of view.node('mybalance').children) {
+      assert.ok(balance.title)
+      assert.equal(balance.attributes.get('role'),'group')
+      assert.ok(balance.attributes.get('aria-label')?.includes(balance.title))
+      assert.ok(!balance.textContent.includes(balance.title),'balance explanations stay out of the permanent summary')
+    }
+    view.node('family').value = 'opus'; await view.node('family').act('change')
+    const ids = shownIds(view.node('collection')), requests = view.requests.length
+    await view.node('tab-collection').act('keydown',{key:'ArrowRight'})
+    assert.equal(view.node('panel-team').hidden,false)
+    assert.equal(view.node('panel-collection').hidden,true)
+    assert.equal(view.node('tab-team').attributes.get('tabindex'),'0')
+    assert.equal(view.node('tab-team').focused,true)
+    await view.node('tab-team').act('keydown',{key:'End'})
+    assert.equal(view.node('panel-stats').hidden,false)
+    assert.equal(view.node('panel-team').hidden,true)
+    await view.node('tab-stats').act('keydown',{key:'Home'})
+    assert.equal(view.node('panel-collection').hidden,false)
+    assert.equal(view.node('family').value,'opus')
+    assert.deepEqual(shownIds(view.node('collection')),ids)
+    assert.equal(view.requests.length,requests,'section switching uses already loaded data')
+    await view.node('tab-stats').act(); await view.node('refresh').act()
+    assert.equal(view.node('panel-stats').hidden,false,'refresh preserves the selected section')
+    await view.node('signout').act()
+    assert.equal(view.node('panel-collection').hidden,false)
+    assert.equal(view.node('panel-stats').hidden,true)
   })
 
   for (const alg of ['ES256','RS256'] as const) it(`signs in with ${alg}, displays own cards and stats, switches board/period, and revokes only the browser session`, async () => {
@@ -178,7 +216,7 @@ describe('the private browser collection', () => {
     const face = card.children[0], plaque = card.children[1]
     assert.match(face.className,/^cf/)
     const stats = plaque.children[0]
-    for (const key of ['hp','atk','def','spd'] as const) assert.ok(stats.textContent.includes(`${CARD_HELP.stats[key].label} ${target!.stats[key]}`))
+    for (const [i,key] of (['hp','atk','def','spd'] as const).entries()) assert.equal(stats.children[i].children[0].attributes.get('aria-label'),`${CARD_HELP.stats[key].label} ${target!.stats[key]}`)
     const attack = stats.children[1], button = attack.children[0], tip = attack.children[1]
     assert.equal(tip.textContent,CARD_HELP.stats.atk.text)
     assert.equal(tip.attributes.get('role'),'tooltip')
@@ -238,7 +276,7 @@ describe('the private browser collection', () => {
     assert.equal(view.node('collection').children.length,24)
     assert.ok(!shownIds(view.node('collection')).includes(target!.id))
     assert.equal(view.node('teamcards').children.length,3)
-    assert.match(view.node('inventory').textContent,/40 cards/)
+    assert.match(view.node('tab-collection').textContent,/40/)
     assert.match(view.node('collection-status').textContent,/24 of 40 matching cards/)
     const before = view.requests.length
     view.node('q').value = cardName(target!); await view.node('q').act('input')
@@ -275,7 +313,7 @@ describe('the private browser collection', () => {
     await give(s,p,[mintFor('fable','epic',rngFromSeed('changed-page'),s.now(),'pack')])
     await view.node('more').act()
     assert.equal(view.node('collection').children.length,24,'changed cursor version reloads the beginning')
-    assert.match(view.node('inventory').textContent,/54 cards/)
+    assert.match(view.node('tab-collection').textContent,/54/)
     hold = true
     const oldPage = view.node('more').act(); await ready
     view.node('family').value='fable'; await view.node('family').act('change')
@@ -325,7 +363,8 @@ describe('the private browser collection', () => {
     assert.equal(view.node('username-form').hidden,true)
     assert.equal(view.node('username-status').textContent,'Username saved.')
     assert.equal(view.node('username-change').disabled,true)
-    assert.match(view.node('username-note').textContent,/2026-10-09 UTC.*account and passkeys stay the same/)
+    assert.equal(view.node('username-note').textContent,'Next change: 2026-10-09 UTC.')
+    assert.equal(view.node('username-change').title,'Change username on 2026-10-09 UTC')
     assert.deepEqual(view.requests.filter(r => r.path === '/v1/me/handle'),[{path:'/v1/me/handle',authenticated:true,method:'POST',body:{handle:'Cozy_Heron-42'}}])
     assert.ok(view.storage.get('spinlings-session') === held)
     assert.equal((await p.call('me',{})).player.handle,'cozy_heron-42')

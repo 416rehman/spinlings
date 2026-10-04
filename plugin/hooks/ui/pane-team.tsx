@@ -7,6 +7,7 @@ import { dayLabel, dots, safe, span } from '../client/text.ts'
 import { teamSlots, today } from '../client/viewmodels.ts'
 import type { Slot } from '../client/viewmodels.ts'
 import type { Ctx, Shown } from './pane-kit.tsx'
+import { cardHit } from './card-hit-area.tsx'
 import { TILE, actions, btn, cardRow, column, heading, line, packArt, para, tabsHint, tile } from './pane-kit.tsx'
 import { ART, INK, MARK, SPACE } from './tokens.ts'
 
@@ -26,19 +27,21 @@ function emptySlot(c: Ctx, s: Slot, wide: boolean): RenderElement {
   const pick = () => c.actions.tab('cards')
   if (!wide) {
     return (
-      <Box key={`team-${s.slot}`} flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
+      <Box key={`team-${s.slot}`} position="relative" flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
         <Text dimColor>{`Slot ${s.slot + 1} · empty`}</Text>
         {btn(c, { key: `team-${s.slot}-pick`, label: 'Pick a card', on: pick })}
+        {cardHit(c.el, c.hitAreas, `team-${s.slot}`, pick, `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`)}
       </Box>
     )
   }
   return (
-    <Box key={`team-${s.slot}`} flexDirection="column" width={TILE} flexShrink={0}>
+    <Box key={`team-${s.slot}`} position="relative" flexDirection="column" width={TILE} flexShrink={0}>
       <Box width={TILE} height={ART.rows} borderStyle="round" borderDimColor justifyContent="center" alignItems="center">
         <Text dimColor>+</Text>
       </Box>
       {btn(c, { key: `team-${s.slot}-pick`, label: 'Pick a card', on: pick })}
       <Text dimColor>{`Slot ${s.slot + 1}`}</Text>
+      {cardHit(c.el, c.hitAreas, `team-${s.slot}`, pick, `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`)}
     </Box>
   )
 }
@@ -52,9 +55,10 @@ function packStrip(c: Ctx): RenderElement | null {
   return (
     <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
       {...shown.map(p => (
-        <Box key={`pack-${p.id}`} flexDirection="column" flexShrink={0} width={12}>
+        <Box key={`pack-${p.id}`} position="relative" flexDirection="column" flexShrink={0} width={12}>
           {packArt(c, p.family, `pack-${p.id}-art`)}
           {btn(c, { key: `pack-${p.id}`, label: `Open ${FAMILY_INFO[p.family].name}`, lit: true, on: () => c.actions.openPack(p.id) })}
+          {cardHit(c.el, c.hitAreas, `pack-${p.id}`, () => c.actions.openPack(p.id), `pack-${p.id}`, `${c.hitIntent}:${p.id}`)}
         </Box>
       ))}
       {packs.length > shown.length ? <Text dimColor>{`+${packs.length - shown.length}`}</Text> : null}

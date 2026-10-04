@@ -15,6 +15,7 @@ import { momentDriver, playBattle } from './client/scheduler.ts'
 import { band } from './ui/band.tsx'
 import { ceremony } from './ui/ceremony.tsx'
 import { pane } from './ui/pane.tsx'
+import { prepareCardHit, clearCardHits } from './ui/card-hit-state.ts'
 
 // The slots: the band (ui/band*.tsx, client/scheduler.ts), the pane and its ceremonies (ui/pane*.tsx, ui/ceremony*.tsx)
 // and the offline world (client/local/**).
@@ -276,6 +277,17 @@ export const register: Register = on => {
     await quietly($, 'close', async () => { keep = await game.paneClosing(fxOf($), e.origin.kind === 'person') })
     // answering without next keeps the pane open: esc went back one view
     if (keep) return { value: undefined }
+    clearCardHits(true)
+    return next(e)
+  })
+
+  on('ui.message', { component: 'Pane', requestId: PANE_ID, module: 'hooks/ui/card-hit.tsx' }, async ($, e, next) => {
+    const press = e.surface === 'desktop' ? prepareCardHit(e.element, e.data) : null
+    if (press) {
+      $.clock.after(0, () => { void quietly($, 'card press', async () => {
+        await press(key => $.ui.focus({ requestId: PANE_ID, key }))
+      }) })
+    }
     return next(e)
   })
 
@@ -293,9 +305,10 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => {
     game.site('pane', e.requestId)
     const state = await readAll($)
+    clearCardHits(e.surface !== 'desktop')
     return PANE({
       el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns, rows: e.props.scroll.bodyRows,
-      now: state.clock, actions: game.actions(fxOf($, e.surface)), focused: e.props.isFocused, placement: e.props.placement, state,
+      now: state.clock, actions: game.actions(fxOf($, e.surface)), focused: e.props.isFocused, placement: e.props.placement, state, hitAreas: e.surface === 'desktop',
     })
   })
 

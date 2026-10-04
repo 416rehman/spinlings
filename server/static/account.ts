@@ -7,7 +7,7 @@ export const ACCOUNT_JS = String.raw`(function () {
 'use strict'
 var $ = function(id) { return document.getElementById(id) }
 if (!$('account')) return
-var key = 'spinlings-session', token = '', me = null, cards = [], team = [], next = null, version = null, generation = 0, rankGeneration = 0, usernameGeneration = 0, browseGeneration = 0, renaming = false, browsing = false, total = 0, matched = 0, currentQuery = '', hintId = 0, activeHint = null
+var key = 'spinlings-session', token = '', me = null, cards = [], team = [], next = null, version = null, generation = 0, rankGeneration = 0, usernameGeneration = 0, browseGeneration = 0, renaming = false, browsing = false, total = 0, matched = 0, currentQuery = '', hintId = 0, activeHint = null, section = 'collection'
 var seasons = {}, colors = {common:'#9aa3ad',rare:'#4f8ff0',epic:'#b06ef3',legendary:'#f2b33d'}, familyColors = {haiku:'#4da86f',sonnet:'#5b8def',opus:'#df714c',fable:'#a874e8'}, marks = {haiku:'✿',sonnet:'≈',opus:'☀',fable:'☾'}
 var help = ${JSON.stringify(CARD_HELP)}
 try { token = sessionStorage.getItem(key) || '' } catch (_) {}
@@ -19,7 +19,8 @@ function clear(message) {
   resetFilters(); $('collection').setAttribute('aria-busy','false'); $('more').hidden = true; $('more').disabled = false
   closeUsername(); $('username-status').textContent = ''; $('username-note').textContent = ''
   $('dashboard').hidden = true; $('signout').hidden = true; $('signedout').hidden = false
-  ;['teamcards','stats','mybalance','collection','myhandle','rank','inventory','collection-status'].forEach(function(id) { $(id).replaceChildren() })
+  ;['teamcards','stats','mybalance','collection','myhandle','rank','inventory','collection-status','profile-art'].forEach(function(id) { $(id).replaceChildren() })
+  showSection('collection')
   $('refresh').disabled = false; say(message || '')
 }
 async function request(path, method, body, authenticated) {
@@ -46,18 +47,24 @@ function renderUsername() {
   $('myhandle').textContent = me.player.handle
   $('username-change').disabled = !!locked || busy
   ;['username','username-save','username-cancel'].forEach(function(id){$(id).disabled = busy})
-  $('username-note').textContent = (locked ? 'Change again on '+day+' UTC. ' : 'Once a week. ')+'Your account and passkeys stay the same.'
+  $('username-note').textContent = locked ? 'Next change: '+day+' UTC.' : 'Next change: 7 days after saving.'
+  $('username-change').title = locked ? 'Change username on '+day+' UTC' : 'Change username'
   if (locked) closeUsername()
 }
 function name(c) { var form = c.form || (seasons[c.species.split('-')[0].slice(1)] || []).find(function(s) {return s.id === c.species}); return form ? form.names[c.stage-1] : 'Spinling' }
-function stat(label,value) { var node = element('div'); node.className = 'accountstat'; node.append(element('b',value),element('span',label)); return node }
+function stat(label,value,tip) { var node = element('div'); node.className = 'accountstat'; if(tip){node.title = tip; node.setAttribute('role','group'); node.setAttribute('aria-label',label+' '+value+'. '+tip)} node.append(element('b',value),element('span',label)); return node }
 async function loadSeasons(batch) {
   var needed = Array.from(new Set(batch.filter(function(c) {return !c.form && /^s\d+-/.test(c.species)}).map(function(c) {return c.species.split('-')[0].slice(1)})))
   await Promise.all(needed.map(async function(n) {if (!seasons[n]) seasons[n] = (await request('/v1/season/'+n)).species}))
 }
-function hint(label, text) {
+function showSection(value) {
+  section = value; if (activeHint) activeHint.hide()
+  ;['collection','team','stats'].forEach(function(id){var on = id === value; $('panel-'+id).hidden = !on; $('tab-'+id).setAttribute('aria-selected',String(on)); $('tab-'+id).setAttribute('tabindex',on?'0':'-1')})
+}
+function hint(label, text, value) {
   var wrap = element('div'); wrap.className = 'cardhint'
   var button = element('button',label); button.type = 'button'; button.className = 'cardhint-label'
+  if (value !== undefined) {button.textContent = ''; button.append(element('span',label),element('b',value))}
   var tip = element('p',text), id = 'card-help-'+(++hintId), pinned = false, focused = false
   tip.id = id; tip.className = 'cardhint-tip'; tip.hidden = true; tip.setAttribute('role','tooltip')
   button.setAttribute('aria-controls',id); button.setAttribute('aria-describedby',id); button.setAttribute('aria-expanded','false')
@@ -88,7 +95,7 @@ function card(c) {
   var plaque = element('div'); plaque.className = 'accountplaque'
   var stats = element('div'); stats.className = 'cardstats'
   var icons = {hp:'♥',atk:'⚔',def:'◇',spd:'➜'}
-  ;['hp','atk','def','spd'].forEach(function(k){if (c.stats) stats.append(hint(icons[k]+' '+help.stats[k].label+' '+c.stats[k],help.stats[k].text))})
+  ;['hp','atk','def','spd'].forEach(function(k){if (c.stats) {var h = hint(icons[k]+' '+help.stats[k].short,help.stats[k].text,c.stats[k]); h.children[0].setAttribute('aria-label',help.stats[k].label+' '+c.stats[k]); stats.append(h)}})
   plaque.append(stats)
   var traits = element('div'); traits.className = 'cardtraits'
   ;(c.traits || []).forEach(function(t){if (help.traits[t]) traits.append(hint(help.traits[t].name,help.traits[t].text))})
@@ -116,7 +123,9 @@ function renderCards() {
   if (activeHint) activeHint.hide()
   $('collection').replaceChildren.apply($('collection'),cards.map(card)); $('more').hidden = !next
   $('collection-status').textContent = matched ? 'Showing '+cards.length+' of '+matched+' matching card'+(matched===1?'':'s')+'.' : 'No matching cards. Try another filter or reset them.'
-  $('inventory').textContent = total+' cards · '+me.packs.length+' unopened packs · '+(me.listings || []).length+' market listings · '+me.player.seen.length+' species discovered'
+  $('inventory').textContent = me.player.seen.length+' species discovered · '+me.packs.length+' unopened packs'+((me.listings || []).length?' · '+me.listings.length+' market listings':'')
+  $('tab-collection').textContent = '▦ Collection · '+total
+  var avatar = element('img'); if (team.length) {avatar.src = '/c/'+encodeURIComponent(team[0].id)+'/art.svg'; avatar.alt = ''; $('profile-art').replaceChildren(avatar)}
   $('teamcards').replaceChildren.apply($('teamcards'),team.map(card))
 }
 async function browse(more) {
@@ -163,7 +172,7 @@ async function refresh() {
     var result = await request('/v1/me','GET',undefined,true)
     if (revision !== generation || held !== token) return
     me = result
-    $('mybalance').replaceChildren(stat('✦ Sparks · crafting & packs',me.player.sparks),stat('★ Duel rating',me.player.rating),stat('League',me.player.league),stat('Consecutive wins',me.player.streak))
+    $('mybalance').replaceChildren(stat('✦ Sparks',me.player.sparks,'Crafts cards and buys packs.'),stat('★ Rating',me.player.rating,'Your duel rating.'),stat('League',me.player.league,'Pebble → Brook → Grove → Peak → Star, based on rating.'),stat('Win streak',me.player.streak,'Consecutive wins; each third earns a pack.'))
     var labels = {duelWins:'⚔ Duel wins',duelLosses:'Duel losses',playersBeaten:'Players beaten',wildWins:'Wild wins',catches:'Catches',speciesCollected:'Species collected',firstFinds:'First discoveries',mythicsFound:'Mythics found',marketSales:'Market sales'}
     $('stats').replaceChildren.apply($('stats'),Object.keys(labels).map(function(k){return stat(labels[k],(me.player.stats || {})[k] || 0)}))
     await browse(false)
@@ -231,6 +240,8 @@ $('filters-reset').addEventListener('click',function(){resetFilters(); return br
 ;['family','rarity','sort','trait','finish','scope'].forEach(function(id){$(id).addEventListener('change',function(){return browse(false)})})
 ;['board','period'].forEach(function(id){$(id).addEventListener('change',rankings)})
 $('refresh').addEventListener('click',refresh)
+;['collection','team','stats'].forEach(function(id,i){$('tab-'+id).addEventListener('click',function(){showSection(id)}); $('tab-'+id).addEventListener('keydown',function(e){var list = ['collection','team','stats'], index = e.key==='ArrowRight'?(i+1)%3:e.key==='ArrowLeft'?(i+2)%3:e.key==='Home'?0:e.key==='End'?2:-1; if (index>=0) {e.preventDefault(); showSection(list[index]); $('tab-'+list[index]).focus()}})})
+showSection(section)
 if (token) refresh()
 })()`
 

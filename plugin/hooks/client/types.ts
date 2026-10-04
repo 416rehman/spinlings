@@ -248,7 +248,7 @@ export type BandState = Pick<GameState, 'account' | 'me' | 'signals' | 'battle' 
 /** The band (ui/band*.tsx): null when nothing is live, so the engine's own band shows. */
 export type BandView = (env: ViewEnv & { state: BandState; isWorking: boolean }) => RenderElement | null
 /** The pane (ui/pane*.tsx): always a tree; header, body, hint row on every tab (SPEC 21). */
-export type PaneView = (env: ViewEnv & { state: GameState; focused: boolean; placement: 'dock' | 'inline' }) => RenderElement
+export type PaneView = (env: ViewEnv & { state: GameState; focused: boolean; placement: 'dock' | 'inline'; hitAreas?: boolean }) => RenderElement
 
 // ---------- drivers: timed sequences the band and the pane plug in ----------
 

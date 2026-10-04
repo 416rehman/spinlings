@@ -38,7 +38,8 @@ function ctxOf(env: Env, inDemo = false): Ctx {
   return {
     el: env.el, surface: env.surface, columns: Math.max(20, Math.floor(env.columns)), rows: env.rows, now: env.now || s.clock,
     actions: env.actions, state: s, root: screenOf(s.pane).kind === 'tab' && !startsHere(s), offline: s.account.world === 'offline',
-    motion: s.prefs.motion, versionKey: !inDemo,
+    motion: s.prefs.motion, versionKey: !inDemo, hitAreas: !!env.hitAreas && !inDemo,
+    hitIntent: JSON.stringify([s.account.world, s.account.server, s.pane.tab, s.pane.community, s.pane.stack]),
   }
 }
 

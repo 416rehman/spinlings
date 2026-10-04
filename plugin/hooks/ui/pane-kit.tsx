@@ -36,6 +36,9 @@ export type Ctx = {
   motion: boolean
   /** the footer's version chip takes `u`: everywhere but inside /spin demo, whose own Previous is on u */
   versionKey: boolean
+  /** the actual desktop pane forwards tile pointer messages; inert previews need no route */
+  hitAreas: boolean
+  hitIntent: string
 }
 
 /** What a screen hands the frame. `bare`: the screen says how the link stands itself, so the frame's note stays out. */
@@ -151,12 +154,12 @@ export function grid(c: Ctx, items: RenderElement[], per: number): RenderElement
 
 type Press = Pick<CardOptions, 'key' | 'on' | 'hotkey' | 'selected' | 'note' | 'dimmed' | 'extra'>
 
-/** The mini card: art, name (pressable), family mark, rarity initial, level and finish; the same order everywhere. */
-export const chip = (c: Ctx, x: CardFace, o: Press) => card(c.el, c.surface, x, 'mini', { ...o, motion: c.motion })
-/** The tile card (SPEC 21: sprite, name, rarity initial, level), its name pressable, with an optional state line. */
-export const tile = (c: Ctx, x: CardFace, o: Press) => card(c.el, c.surface, x, 'tile', { ...o, motion: c.motion })
+/** The mini card: art, name, family, rarity, level and finish; one control, in the same order everywhere. */
+export const chip = (c: Ctx, x: CardFace, o: Press) => card(c.el, c.surface, x, 'mini', { ...o, motion: c.motion, hitArea: c.hitAreas, hitIntent: c.hitIntent })
+/** The tile card (SPEC 21: sprite, name, rarity, level), pressable whole, with an optional state line. */
+export const tile = (c: Ctx, x: CardFace, o: Press) => card(c.el, c.surface, x, 'tile', { ...o, motion: c.motion, hitArea: c.hitAreas, hitIntent: c.hitIntent })
 /** A card as one row: the mini beside its name, marks and a note (narrow lists). */
-export const cardRow = (c: Ctx, x: CardFace, o: Press) => card(c.el, c.surface, x, 'row', { ...o, motion: c.motion, width: c.columns })
+export const cardRow = (c: Ctx, x: CardFace, o: Press) => card(c.el, c.surface, x, 'row', { ...o, motion: c.motion, width: c.columns, hitArea: c.hitAreas, hitIntent: c.hitIntent })
 
 /** A species (or any form) as a mini: its plain look at a stage, or its silhouette while unseen. */
 export function formMini(c: Ctx, key: string, form: Form & { id?: string }, seen: boolean, stage: 1 | 2 | 3 = 1): RenderElement {

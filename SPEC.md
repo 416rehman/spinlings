@@ -458,6 +458,7 @@ Pushed over the tabs and sections: card, fuse, species, listing and sell details
 | Context fill, rate limits | `session.measure` | Status line comfort note only ("your team is napping until 3:40 PM" at a 100% limit) |
 | Compaction | `session.compact` `trigger` | A one-line reaction only |
 | Session open | `session.start`, `session.end`, a `$.clock.every(60s)` heartbeat with a `$.store` lease | Presence minutes for pack charging |
+| Desktop card selection | `ui.message`, filtered to the Spinlings Pane and its card-hit module; `e.element` and `e.data` only (`null`) | Dispatch the existing card action for a key in the currently rendered pane; reject other payloads, unknown keys and terminal messages. Pointer coordinates stay in the renderer, never saved or sent. |
 
 **Never hooked:** `tool.call`, `prompt.submit`, `classic.PermissionRequest`.
 
@@ -475,7 +476,7 @@ spinlings/
     hooks/core/                     pure, shared game logic (also imported by the server)
     hooks/client/                   pure client logic (presence, scheduler, view models)
     hooks/client/local/             LocalBackend: the offline world, built from core rules only (section 28)
-    hooks/ui/                       pure view builders: (elements, viewModel, actions) => tree
+    hooks/ui/                       view builders and local Desktop card pointer regions
     types/index.d.ts                $.state contract
     tests/                          `claude plugin test plugin`
   server/

@@ -16,7 +16,7 @@ const sources = (readdirSync(HOOKS_DIR, { recursive: true }) as string[])
 
 const HOOKS = [
   'session.start', 'classic.SessionStart', 'session.end', 'turn.start', 'turn.step', 'turn.complete', 'agent.spawn',
-  'session.measure', 'session.compact', 'command.run', 'ui.close', 'ui.render',
+  'session.measure', 'session.compact', 'command.run', 'ui.close', 'ui.render', 'ui.message',
 ]
 
 const NOUNS = new Set(['ui', 'state', 'store', 'clock', 'command', 'http', 'session', 'audio'])
@@ -30,7 +30,7 @@ const METHODS: Record<string, string[]> = {
 
 /** Every event field register.tsx may read (SPEC 10), as `e.<path>`. */
 const FIELDS = new Set([
-  'agentId', 'model', 'effort', 'reason', 'rateLimits', 'trigger', 'args', 'origin.kind', 'surface', 'requestId',
+  'agentId', 'model', 'effort', 'reason', 'rateLimits', 'trigger', 'args', 'origin.kind', 'surface', 'requestId', 'element', 'data',
   'props.hasSurvey', 'props.bodyColumns', 'props.maxRows', 'props.isWorking', 'props.scroll.bodyRows', 'props.isFocused',
   'props.placement', 'props.suffix', 'props.mode',
 ])

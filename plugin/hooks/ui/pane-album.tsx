@@ -10,6 +10,7 @@ import { dots, fit, plural, safe } from '../client/text.ts'
 import { albumCount, albumEntries, craftChoices, cycle, fusionLog, parentsLine, perRow } from '../client/viewmodels.ts'
 import type { AlbumEntry } from '../client/viewmodels.ts'
 import { formArt } from './card.tsx'
+import { cardHit } from './card-hit-area.tsx'
 import type { Ctx, Shown } from './pane-kit.tsx'
 import { CHIP, TILE, actions, btn, cardRow, column, formMini, grid, heading, line, para, tabsHint } from './pane-kit.tsx'
 import { ECONOMY } from '../core/economy.ts'
@@ -22,11 +23,13 @@ function entryChip(c: Ctx, e: AlbumEntry): RenderElement {
   const s = e.species
   const name = e.seen ? safe(s.names[s.legendary ? 2 : 0], 24) : '???'
   const note = [s.legendary ? 'Legend' : '', e.owned > 0 ? `×${e.owned}` : '', e.wished ? 'wished' : ''].filter(Boolean).join(' ')
+  const open = () => c.actions.push({ kind: 'species', speciesId: s.id })
   return (
-    <Box key={`album-${s.id}`} flexDirection="column" width={CHIP} flexShrink={0}>
+    <Box key={`album-${s.id}`} position="relative" flexDirection="column" width={CHIP} flexShrink={0}>
       {formMini(c, `album-${s.id}`, s, e.seen)}
-      {btn(c, { key: `album-${s.id}-pick`, label: fit(name, CHIP), dim: !e.seen, lit: true, on: () => c.actions.push({ kind: 'species', speciesId: s.id }) })}
+      {btn(c, { key: `album-${s.id}-pick`, label: fit(name, CHIP), dim: !e.seen, lit: true, on: open })}
       <Text dimColor wrap="truncate-end" {...(s.legendary && e.seen ? { color: RARITY_COLOR.legendary } : {})}>{fit(note || ' ', CHIP)}</Text>
+      {cardHit(c.el, c.hitAreas, `album-${s.id}`, open, `album-${s.id}-pick`, `${c.hitIntent}:${s.id}`)}
     </Box>
   )
 }
