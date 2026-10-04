@@ -41,6 +41,9 @@ function appFor(env: Env): App | null {
 /** The share images (SPEC 9): the landing's meadow and every postcard. */
 const SHARE_PNG = /^\/(?:og\/meadow(?:-\d{8})?|w\/[a-z0-9-]+)\.png$/
 
+/** A cached response's browser TTL can be rewritten by the zone; keep the share route's policy. */
+const shareCacheControl = (path: string) => path === '/og/meadow.png' ? 'public, max-age=3600' : 'public, max-age=86400'
+
 /**
  * Share images are public, the same bytes for whoever asks, and costly to draw, so the Worker keeps
  * each 200 in the zone's cache by path and pin (their own Cache-Control says how long) and answers
@@ -54,7 +57,12 @@ export async function viaEdgeCache(req: Request, cache: EdgeCache | undefined, c
   const e = url.searchParams.get('e') ?? ''
   const key = new Request(url.origin + url.pathname + (url.pathname.startsWith('/w/') && ENTRY_RE.test(e) ? `?e=${e}` : ''))
   const hit = await cache.match(key).catch(() => undefined)
-  if (hit) return hit
+  if (hit) {
+    if (hit.status !== 200 || hit.headers.get('content-type') !== 'image/png') return hit
+    const res = new Response(hit.body, hit)
+    res.headers.set('Cache-Control', shareCacheControl(url.pathname))
+    return res
+  }
   const res = await answer()
   if (res.status === 200 && res.headers.get('content-type') === 'image/png') ctx.waitUntil(cache.put(key, res.clone()).catch(() => {}))
   return res

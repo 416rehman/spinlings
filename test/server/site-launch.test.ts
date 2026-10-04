@@ -191,4 +191,50 @@ describe('launch links and search previews', () => {
     assert.equal(answers, 6)
     assert.equal(stored.size, 1)
   })
+
+  it('restores each public share TTL on cache hits without drawing again or touching private routes', async () => {
+    const pixels = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 255, 11, 43])
+    const cached = new Response(pixels, { status: 200, statusText: 'OK', headers: {
+      'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=14400',
+      'CF-Cache-Status': 'HIT', Age: '40', ETag: '"drawing"', 'X-Content-Type-Options': 'nosniff',
+    } })
+    const matched: string[] = []
+    let answers = 0, stores = 0, waits = 0
+    const cache = {
+      match: async (req: Request) => { matched.push(req.url); return cached.clone() },
+      put: async () => { stores++ },
+    }
+    const context = { waitUntil: () => { waits++ } }
+    for (const [path, policy] of [
+      ['/og/meadow.png?utm_source=release&e=ignored', 'public, max-age=3600'],
+      ['/og/meadow-20261004.png', 'public, max-age=86400'],
+      ['/w/20261004-night-abcdefgh.png?e=haiku%2F1&ignored=value', 'public, max-age=86400'],
+    ]) {
+      const res = await viaEdgeCache(new Request(ORIGIN + path), cache, context, async () => {
+        answers++
+        throw new Error('A cached public image never runs the app')
+      })
+      assert.equal(res.status, 200)
+      assert.equal(res.statusText, 'OK')
+      assert.equal(res.headers.get('cache-control'), policy)
+      for (const name of ['content-type', 'cf-cache-status', 'age', 'etag', 'x-content-type-options']) assert.equal(res.headers.get(name), cached.headers.get(name), name)
+      assert.deepEqual(new Uint8Array(await res.arrayBuffer()), pixels)
+    }
+    assert.deepEqual(matched, [ORIGIN + '/og/meadow.png', ORIGIN + '/og/meadow-20261004.png', ORIGIN + '/w/20261004-night-abcdefgh.png?e=haiku/1'])
+    assert.equal(cached.headers.get('cache-control'), 'public, max-age=14400', 'the cached response itself is unchanged')
+    assert.equal(answers, 0)
+    assert.equal(stores, 0)
+    assert.equal(waits, 0)
+    for (const path of ['/account', '/account/cards', '/passkey/signin', '/v1/me', '/c/public-card.png']) {
+      const res = await viaEdgeCache(new Request(ORIGIN + path), cache, context, async () => {
+        answers++
+        return new Response('private', { headers: { 'Cache-Control': 'no-store' } })
+      })
+      assert.equal(res.headers.get('cache-control'), 'no-store')
+      assert.equal(await res.text(), 'private')
+    }
+    assert.equal(answers, 5)
+    assert.equal(matched.length, 3, 'private and excluded public-card routes never look in the share image cache')
+    assert.equal(stores, 0)
+  })
 })

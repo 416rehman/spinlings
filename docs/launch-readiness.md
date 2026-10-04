@@ -57,4 +57,4 @@ Actions use a read-only default token and require actions pinned by SHA. Active 
 
 Welcome-pack trading restrictions (Backlog 3) and server-delivered content packs (Backlog 5) remain decisions for the maintainer. Neither has been implemented in this candidate. Existing v1 seasons and creatures remain supported within the bounds in [compatibility.md](compatibility.md).
 
-Candidate checks: 897 Node tests passed with zero failures or skips; 159 Claude plugin tests passed with zero failures. Both strict validators, all 24 HTTP end-to-end steps, the site build and the Worker dry-run passed. The plugin suite ran separately from the heavy Node suite. The minimum supported mod remains 0.1.0; API v1, rules 1, generator 2 and offline save format 1 are unchanged.
+Candidate checks: 898 Node tests passed with zero failures or skips; 159 Claude plugin tests passed with zero failures. Both strict validators, all 24 HTTP end-to-end steps, the site build and the Worker dry-run passed. The plugin suite ran separately from the heavy Node suite. The minimum supported mod remains 0.1.0; API v1, rules 1, generator 2 and offline save format 1 are unchanged.
