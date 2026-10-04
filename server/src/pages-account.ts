@@ -11,6 +11,7 @@ import { colourPaths } from './pages-sprite.ts'
 import { spriteFor } from '../../plugin/hooks/core/sprite.ts'
 import { heading, html, layout } from './pages-html.ts'
 import { ACCOUNT_JS } from '../static/account.ts'
+import { CARD_HELP } from './card-guide.ts'
 
 export function browserAccount(api: Api): void {
   api.add({ method: 'GET', path: '/account', public: true, handler: ctx => layout({
@@ -38,9 +39,17 @@ export function browserAccount(api: Api): void {
 <p id="rank" role="status" aria-live="polite"></p><p class="fine">Board places use the last midnight UTC snapshot. Your stats above are current.</p>
 <a id="publicboard" href="/boards">See this leaderboard</a>
 <h2 id="mycards">Your cards</h2><p id="inventory"></p>
-<div class="accountfilters"><label>Family <select id="family"><option value="">All families</option><option value="haiku">✿ Haiku</option><option value="sonnet">≈ Sonnet</option><option value="opus">☀ Opus</option><option value="fable">☾ Fable</option></select></label>
-<label>Rarity <select id="rarity"><option value="">All rarities</option><option value="common">Common</option><option value="rare">Rare</option><option value="epic">Epic</option><option value="legendary">Legendary</option></select></label></div>
-<div id="collection" class="accountcards"></div><button class="pbtn" id="more" hidden>Load more cards</button>
+<form id="card-search" role="search"><div class="accountfilters cardbrowse"><label class="cardquery" for="q">Search cards<input id="q" type="search" maxlength="40" placeholder="Creature name" autocomplete="off"></label><button type="submit" class="pbtn">Search</button>
+<label for="family">Family<select id="family"><option value="">All families</option><option value="haiku">✿ Haiku</option><option value="sonnet">≈ Sonnet</option><option value="opus">☀ Opus</option><option value="fable">☾ Fable</option></select></label>
+<label for="rarity">Rarity<select id="rarity"><option value="">All rarities</option><option value="common">Common</option><option value="rare">Rare</option><option value="epic">Epic</option><option value="legendary">Legendary</option></select></label>
+<label for="sort">Sort<select id="sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name</option><option value="rarity">Rarest first</option><option value="level">Highest level</option><option value="atk">Highest Attack</option><option value="def">Highest Defense</option><option value="spd">Highest Speed</option><option value="hp">Highest HP</option><option value="genes">Best genes</option></select></label></div>
+<details class="morefilters" id="morefilters"><summary>More filters</summary><div class="accountfilters cardbrowse">
+<label for="trait">Trait<select id="trait"><option value="">Any trait</option>${Object.entries(CARD_HELP.traits).map(([id,trait]) => html`<option value="${id}">${trait.name}</option>`)}</select></label>
+<label for="finish">Finish<select id="finish"><option value="">Any finish</option><option value="foil">Foil</option><option value="shiny">Shiny</option><option value="both">Foil &amp; shiny</option></select></label>
+<label for="scope">Show<select id="scope"><option value="">All cards</option><option value="team">On my team</option><option value="forTrade">Marked for trade</option><option value="available">Not held</option></select></label></div></details>
+<button type="button" class="pbtn" id="filters-reset">Reset filters</button></form>
+<p id="collection-status" role="status" aria-live="polite"></p>
+<div id="collection" class="accountcards" aria-busy="false"></div><button class="pbtn" id="more" hidden>Load more cards</button>
 <p class="fine">Open packs, change your team and trade in Claude Code. This page shows the same online collection.</p>
 <button class="pbtn" id="refresh">Refresh collection</button></div>
 <noscript><p>Enable JavaScript to sign in with your passkey and see your collection.</p></noscript>
@@ -77,16 +86,23 @@ const ACCOUNT_CSS = `
 .account{background:var(--paper)}.accounthead,.accountnav,.accountfilters,.accountidentity{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
 .accounthead{justify-content:space-between}.accountpage h2{margin:32px 0 16px}.accountpage p{margin:16px 0}
 .accountnav{margin:24px 0}.accountnav a{font-weight:700}.accountpage [hidden]{display:none!important}
-.accountfilters{margin:16px 0}.accountfilters label{display:flex;align-items:center;gap:8px}
+.accountfilters{margin:16px 0}.accountfilters label{display:flex;align-items:center;gap:8px;min-width:0}
 .accountpage select,.accountpage input{font:inherit;color:var(--pink);background:var(--paper);border:2px solid var(--psoft);border-radius:6px;padding:8px;max-width:100%}
 .accountidentity{margin-top:16px}.accountidentity #myhandle{margin:0;overflow-wrap:anywhere;min-width:0}.accountpage input{box-sizing:border-box;width:24ch;min-width:0}.accountpage input[aria-invalid="true"]{border-color:var(--pink)}
 .accountpage .pbtn{font:inherit;font-weight:700;border:2px solid var(--psoft);border-radius:8px;padding:12px 16px;color:var(--pink);background:var(--paper);align-items:center}.accountpage .pbtn:disabled{opacity:.5;cursor:wait}
 .accountstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
 .accountstat{padding:12px;border:2px solid var(--psoft);border-radius:8px}.accountstat b{display:block;font-size:24px}
-.accountstat span{color:var(--psoft)}.accountcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}
-.accountcard{min-width:0;border:2px solid var(--rar);border-radius:8px;padding:12px;background:var(--paper)}
+.accountstat span{color:var(--psoft)}.accountcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:24px;align-items:start}
+.accountcard{position:relative;min-width:0;background:var(--paper)}.accountcard .cf{width:100%;box-sizing:border-box}
 .accountcard img{display:block;width:96px;height:96px;image-rendering:pixelated;margin:auto}.accountcard a{display:block;font-weight:700;overflow-wrap:anywhere;text-align:center}
-.accountcard p{font-size:14px;margin:8px 0}.accountcard summary{cursor:pointer}.accountcard details p{overflow-wrap:anywhere}
+.accountcard .cf-name{overflow:visible;text-overflow:clip;white-space:normal}.accountcard .cf-art{padding:12px 0;box-sizing:border-box}
+.accountcard p{font-size:14px;margin:8px 0}.accountcard summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px}.accountcard summary::before{content:'＋'}.accountcard details[open]>summary::before{content:'−'}
+.accountplaque{padding:8px 12px 12px;border:2px solid var(--psoft);border-top:0}.cardstats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px}
+.cardtraits{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.cardhint-label{font:inherit;font-size:14px;font-weight:700;color:var(--pink);background:transparent;border:0;min-height:44px;padding:4px 0;text-decoration:underline dotted;text-underline-offset:4px;text-align:left;cursor:help;overflow-wrap:anywhere}
+.cardtraits .cardhint-label{border:1px solid var(--psoft);border-radius:16px;padding:4px 10px;cursor:pointer}
+.accountcard .cardhint-tip{position:absolute;left:0;right:0;z-index:5;margin:0;padding:12px;background:var(--pink);color:var(--paper);border:2px solid var(--psoft);font-size:14px;line-height:1.5;overflow-wrap:anywhere;box-shadow:0 4px 0 #0002}
+.carddetails{border-top:1px solid var(--psoft)}.carddetails .cardhint{display:inline-block;margin-right:12px}.carddetails p{overflow-wrap:anywhere}
+.cardbrowse{align-items:end;gap:12px}.cardbrowse label{display:flex;flex-direction:column;align-items:start;gap:4px;flex:1 1 130px}.cardbrowse select,.cardbrowse input{width:100%;box-sizing:border-box}.cardbrowse .cardquery{flex:2 1 180px}.morefilters{margin:16px 0}.morefilters>summary{cursor:pointer;min-height:44px;display:list-item}
 #account-status:empty,#username-status:empty{display:none}#rank{font-size:20px;font-weight:700}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--pink);outline-offset:4px}
-@media(max-width:400px){.accountcards{grid-template-columns:repeat(2,minmax(0,1fr))}.accountcard{padding:8px}.accountstat b{font-size:20px}}
+@media(max-width:400px){.accountcards{grid-template-columns:minmax(0,1fr)}.accountstat b{font-size:20px}.cardbrowse label{flex-basis:100%}.accountfilters select{max-width:100%}}
 `

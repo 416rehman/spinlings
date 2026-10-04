@@ -11,7 +11,7 @@ import { spriteFor } from '../../plugin/hooks/core/sprite.ts'
 import type { BattleCard, Family, LeagueName } from '../../plugin/hooks/core/types.ts'
 import { FAMILY_COLOR, LEAGUE_COLOR, MYTHIC_COLOR } from '../../plugin/hooks/ui/tokens.ts'
 import { boldWords } from './pages-font.ts'
-import { cardFace, heading, html, installBlock, promptLine, raw, rarityLine, text } from './pages-html.ts'
+import { cardDetails, cardFace, heading, html, installBlock, promptLine, raw, rarityLine, text } from './pages-html.ts'
 import type { Raw } from './pages-html.ts'
 import { grassSvg, hillSvg, marketTopSvg, peaksSvg } from './pages-scene.ts'
 import { spriteSvg } from './pages-sprite.ts'
@@ -235,11 +235,12 @@ function lot(l: ListingView, last?: number, seller = true): Raw {
   const c = l.card
   const name = text(cardName(c), 40)
   return html`<li class="lot">
-<a class="cardlink" href="/c/${c.id}" aria-label="${name}, ${rarityLine(c)}">${cardFace(c, { level: true })}</a>
+<a class="cardlink" href="/c/${c.id}" aria-label="${name}, ${rarityLine(c)}">${cardFace(c, { level: true, combat: true, genes: true, traits: true })}</a>
 <div class="ptagbox"><p class="price${l.price ? '' : ' swaponly'}">${l.price ? html`${raw(ICONS.coin)}<b>${num(l.price)}</b><span class="sr"> sparks</span>` : html`${raw(ICONS.swap)}<b>Swap</b>`}</p>
 ${l.want ? html`<p class="want">${l.price ? 'and ' : 'for '}${wantWords(l.want)}</p>` : ''}</div>
 ${seller ? html`<p class="seller">from <a href="/u/${l.seller}">${text(l.seller, 40)}</a></p>` : ''}
 ${last !== undefined ? html`<p class="last">Last one sold for ${num(last)}</p>` : ''}
+${cardDetails(c)}
 </li>`
 }
 
@@ -255,7 +256,8 @@ export const LOTS_CSS = `
 .lot .cardlink{display:block;width:100%;color:inherit;text-decoration:none;transition:transform .2s var(--spring)}
 .lot .cardlink:hover{transform:translateY(-4px) rotate(-1deg)}
 .lot .cf{padding:6px 8px 12px;--cs:4px}
-.lot .cf-name{font-size:1rem}
+.lot .cf-name{font-size:1rem;white-space:normal;overflow:visible}
+.lot .card-inspect{align-self:stretch;color:#f1e6cf}
 .ptagbox{position:relative;z-index:1;margin-top:-6px;padding:8px 12px;background:#f1e6cf;color:#2a1d18;text-align:center;rotate:-2deg;box-shadow:0 3px 0 #0000004d;max-width:100%}
 .lot:nth-child(2n) .ptagbox{rotate:2deg}
 .ptagbox::before{content:"";position:absolute;left:50%;top:-4px;width:6px;height:6px;margin-left:-3px;background:#c2493d}

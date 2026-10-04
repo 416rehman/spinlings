@@ -83,6 +83,8 @@ A model family is one of `haiku`, `sonnet`, `opus` or `fable`, never a model id.
 
 **Your browser collection.** `/account` signs in with a saved passkey and reads your own online cards, team, packs, listings and current stats, plus your leaderboard places. It can also send the public username you choose to `POST /v1/me/handle`; other game actions remain in Claude Code. Its first-party script talks only to the same server. The session token stays in this tab's `sessionStorage`, never in a URL, page HTML, cookie or persistent browser storage. Sign out revokes only that browser session; your mod stays signed in. Closing the tab clears the local token. Browser access creates an ordinary session with the same 180-day expiry and new-device notice as a mod sign-in. Chosen usernames use the existing handle and retired-name fields. Passkeys belong to the stable account id, so changing your username does not change sign-in.
 
+**Collection browsing.** The browser can send a card-name or species search term, family, rarity, trait, finish, availability and sort choices to the authenticated `/account/cards` endpoint. It searches only your own collection. These choices are used to answer the request, never stored or logged, and are not visible to other players. Stat and trait explanations use the game's own rules; they add no tracking or third-party requests.
+
 The timing of requests says a little on its own. A pack charge means Claude Code was open on your machine, and a wild encounter means Claude was busy at that moment. It never says on what. Other players never see this timing (see below).
 
 `/spin privacy` shows the last 20 request paths and bodies the mod sent, with the token redacted.

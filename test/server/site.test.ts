@@ -405,7 +405,7 @@ describe('profile pages', () => {
     const { s, a } = await world()
     const loose = await looseCard(s, a)
     await s.db.batch([
-      stmt('UPDATE players SET rating = 1555, sparks = 98765, battles = 4321, streak = 17 WHERE id = ?', a.id),
+      stmt('UPDATE players SET rating = 1555, sparks = 98765, battles = 4321, streak = 173456789 WHERE id = ?', a.id),
       stmt('UPDATE cards SET for_trade = 1 WHERE id = ?', loose.id),
       // a bound card is never on offer, whatever its flag says
       stmt('UPDATE cards SET for_trade = 1 WHERE id = ?', a.me.player.team[0]!),
@@ -421,7 +421,7 @@ describe('profile pages', () => {
     assert.ok(text.includes('Peak league'))
     const album = (await s.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM album WHERE player_id = ?', a.id))!.n
     assert.ok(text.includes(`${album} species in their album`))
-    for (const secret of ['1555', '98765', '4321', ' 17 ', a.me.player.joinedDay]) assert.ok(!text.includes(secret), `never shows ${secret}`)
+    for (const secret of ['1555', '98765', '4321', '173456789', a.me.player.joinedDay]) assert.ok(!text.includes(secret), `never shows ${secret}`)
     assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b|\b(sparks|rating|battles|won|joined|last seen)\b/i)
     assert.equal((p.html.match(/<ul class="campers circle">(.*?)<\/ul>/s)?.[1]?.match(/<li class="camper">/g) ?? []).length, 3, 'three around the fire')
     assert.equal((text.match(/league/g) ?? []).length, 1, 'one league badge')

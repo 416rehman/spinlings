@@ -2,6 +2,12 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.2 (2026-10-04)
+
+- **Cards you can compare.** The browser collection shows Health, Attack, Defense and Speed without opening every card. It uses the website's pixel frames, rarity gems and finish accents. Public card pages and market cards explain stats, genes, family matchups, special moves and traits on hover, keyboard focus or tap. Attack is clearly distinguished from the damage of a particular hit.
+- **Find the right creature.** Search your whole collection by name or species, filter by family, rarity, trait, finish or availability, and sort by name, rarity, level, genes or combat stats. Counts and sorting cover the entire collection, with paged results and the complete team shown separately.
+- **Compatibility and privacy.** The mod's existing `/v1/cards` behavior, rules, generator, minimum client and stored game fields are unchanged. A new authenticated browser-only `/account/cards` read accepts collection search and filter choices; these are not stored or logged. Public pages expose the same card fields as before. Passkeys and username changes keep their existing behavior, and the website's overall appearance is preserved.
+
 ## 0.2.1 (2026-10-04)
 
 - **A clearer pane.** Four tabs: Team, Collection, Discoveries and Community. Community opens on Profile, with one section bar for Profile, Market, Rankings and Trading. Sections switch in place; Back from card, listing or player details returns to the selected section. Profile holds your stats, browser access and settings. Sparks, rating, league, streak, families and rarities have clear labels, today's rule opens its effect, and a small field guide explains the symbols. Layout adapts to narrow and short panes; shortcuts stay beside their buttons.

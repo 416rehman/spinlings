@@ -12,12 +12,14 @@ import type { BattleCard, Family } from '../../plugin/hooks/core/types.ts'
 import { seasonOf, seasonStart } from '../../plugin/hooks/core/world.ts'
 import { FAMILY_COLOR, FAMILY_MARK, MARK, MYTHIC_COLOR, RARITY_COLOR } from '../../plugin/hooks/ui/tokens.ts'
 import { escapeHtml } from './http.ts'
+import { CARD_HELP, cardMove, geneChange, STAT_KEYS } from './card-guide.ts'
 import { boldDefs, boldWords, glyphPath, layoutWord, pixelable, wordSvg } from './pages-font.ts'
 import { regularCard } from './pages-meet.ts'
 import { footTopSvg } from './pages-scene.ts'
 import { spriteSvg } from './pages-sprite.ts'
 import { regulars } from './pages-world.ts'
 import { SITE_ASSETS } from '../static/site.gen.ts'
+import { ACCOUNT_HASH } from '../static/account.ts'
 
 // ---- escaping by construction ------------------------------------------------------------------
 
@@ -309,6 +311,26 @@ clip-path:polygon(40% 0,60% 0,60% 20%,80% 20%,80% 40%,100% 40%,100% 60%,80% 60%,
 .cf-traits b{color:#1d1726}
 .cf-stamps{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--s1);margin-top:2px}
 .cf-stamps span{padding:1px 8px 2px;background:#1d1726;color:#fffdf5;font-size:.75rem;font-weight:700}
+.cf-combat{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;width:100%;margin:6px 0 0;font-size:.75rem;line-height:1.3}
+.cf-combat div{display:flex;justify-content:space-between;gap:4px;padding:4px;background:#eee8dd}
+.cf-combat dt{color:#4a4458}.cf-combat dd{margin:0;font-weight:800;font-variant-numeric:tabular-nums}
+.tile .cf-kind.traits{font-weight:600;line-height:1.35}
+.card-inspect{margin-top:8px;font-size:.875rem;line-height:1.5}
+.card-inspect>summary{min-height:44px;display:flex;align-items:center;gap:8px;font-weight:700;cursor:pointer}
+.card-inspect>summary::before{content:"+";font-family:var(--mono)}.card-inspect[open]>summary::before{content:"−"}
+.card-inspect>summary::-webkit-details-marker{display:none}
+.card-inspect .inspect-body{padding:12px;background:var(--paper);color:var(--pink);border:2px solid var(--pline)}
+.card-inspect .inspect-body>*+*{margin-top:8px}
+.card-help{position:relative;min-width:0}
+.card-help>summary{position:relative;min-height:44px;padding:8px 0;cursor:pointer;font-weight:700;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:4px}
+.card-help .help-body{margin-top:4px;font-weight:400;line-height:1.5;overflow-wrap:anywhere}
+.card-help .help-peek{display:none;position:absolute;z-index:6;bottom:calc(100% + 6px);left:0;width:min(260px,75vw);padding:10px 12px;border:2px solid var(--inkd);background:var(--cream);color:var(--inkd);box-shadow:0 4px 0 #0003;font:400 .8125rem/1.5 var(--sans);text-align:left;pointer-events:none;text-decoration:none}
+.card-inspect .help-peek,.combat-guide .help-peek{width:min(260px,100%)}
+.card-help:not([open])>summary:focus-visible .help-peek{display:block}
+@media (hover:hover){.card-help:not([open])>summary:hover .help-peek{display:block}}
+.inspect-genes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin:8px 0;font-variant-numeric:tabular-nums}
+.inspect-genes div{padding:4px 6px;background:color-mix(in srgb,currentColor 8%,#0000)}
+.inspect-genes dt{font-size:.75rem}.inspect-genes dd{margin:0;font-weight:700;font-size:.8125rem}
 .cf .holo{position:absolute;inset:0;pointer-events:none;opacity:0;mix-blend-mode:color-dodge;
 background:linear-gradient(115deg,transparent calc(var(--hx,50%) - 15%),#ff7ac6 calc(var(--hx,50%) - 9%),#f2b33d calc(var(--hx,50%) - 3%),#9ed36a var(--hx,50%),#5b8def calc(var(--hx,50%) + 6%),#a874e8 calc(var(--hx,50%) + 12%),transparent calc(var(--hx,50%) + 15%))}
 .cf.foil.tilting .holo,.cf.shiny.tilting .holo{opacity:.4}
@@ -318,7 +340,7 @@ background:linear-gradient(115deg,transparent calc(var(--hx,50%) - 15%),#ff7ac6 
 .cf.shiny .holo{background:linear-gradient(115deg,transparent calc(var(--hx,50%) - 14%),#fff6c9 calc(var(--hx,50%) - 4%),#f2b33d var(--hx,50%),#fff6c9 calc(var(--hx,50%) + 4%),transparent calc(var(--hx,50%) + 14%))}
 .cf.foil.shiny .holo{background:linear-gradient(115deg,transparent calc(var(--hx,50%) - 15%),#ff7ac6 calc(var(--hx,50%) - 9%),#f2b33d calc(var(--hx,50%) - 3%),#fff6c9 var(--hx,50%),#5b8def calc(var(--hx,50%) + 6%),#a874e8 calc(var(--hx,50%) + 12%),transparent calc(var(--hx,50%) + 15%))}
 .tile .cf{padding:6px 8px 12px;--cs:4px}
-.tile .cf-name{font-size:1rem}
+.tile .cf-name{font-size:1rem;white-space:normal;overflow:visible}
 .big .cf-name .pt,.cf.big .cf-name .pt{--gp:3px}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 html[data-motion=reduce] *,html[data-motion=reduce] *::before,html[data-motion=reduce] *::after{animation:none!important;transition:none!important}
@@ -437,7 +459,7 @@ ${og.image ? html`<meta property="og:image" content="${og.image}">
 ${scripted ? html`<script src="/static/${SITE_ASSETS.sky}"></script>` : ''}
 <style>${raw(CSS + bareOnce(o.css ?? ''))}</style>
 ${kind === 'passkey' ? html`<script src="/static/passkey.js" defer></script>` : ''}
-${kind === 'account' ? html`<script src="/static/account.js" defer></script>` : ''}
+${kind === 'account' ? html`<script src="/static/account.js?v=${ACCOUNT_HASH}" defer></script>` : ''}
 ${scripted ? html`<script type="module" src="/static/${SITE_ASSETS.site}"></script>` : ''}
 </head>
 <body class="${kind === 'home' ? 'home' : kind}">
@@ -637,7 +659,7 @@ export const rarityLine = (c: Pick<BattleCard, 'species' | 'rarity' | 'shiny' | 
 /** What the gene bar means, on hover. */
 export const GENE_TIP = 'How good its four genes are. Each gene lifts or lowers one stat by up to 12%.'
 
-export type FaceOptions = { big?: boolean; level?: boolean; genes?: boolean; traits?: boolean; stamps?: boolean; dna?: boolean; poke?: boolean }
+export type FaceOptions = { big?: boolean; level?: boolean; genes?: boolean; traits?: boolean; stamps?: boolean; dna?: boolean; poke?: boolean; combat?: boolean }
 
 /**
  * The card face (SPEC 21's one component), server-side; the client builds the same markup in card.ts.
@@ -657,7 +679,8 @@ export function cardFace(c: BattleCard, o: FaceOptions = {}): Raw {
 <p class="cf-rar">${rarityLine(c)}</p>
 <p class="cf-kind"><span class="mark" aria-hidden="true">${FAMILY_MARK[c.family]}</span> ${FAMILY_INFO[c.family].name}${o.level ? html`<span class="lv">Level ${c.level}</span>` : ''}</p>
 ${o.dna ? html`<p class="cf-dna" role="img" aria-label="Its colours">${dnaSwatches(c).map(col => html`<i style="--c:${col}"></i>`)}</p>` : ''}
-${o.genes ? html`<p class="cf-row genes" title="${GENE_TIP}"><b>Gene quality ${g}%</b><span class="bar"><i style="--v:${g}%"></i></span></p>` : ''}
+${o.genes ? html`<p class="cf-row genes" title="${GENE_TIP}"><b>${o.combat ? 'Genes' : 'Gene quality'} ${g}%</b><span class="bar"><i style="--v:${g}%"></i></span></p>` : ''}
+${o.combat ? html`<dl class="cf-combat">${STAT_KEYS.map(k => html`<div><dt>${CARD_HELP.stats[k].label}</dt><dd>${c.stats[k]}</dd></div>`)}</dl>` : ''}
 ${o.traits && c.traits.length ? html`<p class="cf-kind traits">${c.traits.map(t => TRAITS[t]?.name ?? t).join(', ')}</p>` : ''}
 ${marks.length ? html`<p class="cf-stamps">${marks.map(s => html`<span>${s}</span>`)}</p>` : ''}
 <span class="holo" aria-hidden="true"></span>
@@ -667,12 +690,35 @@ ${marks.length ? html`<p class="cf-stamps">${marks.map(s => html`<span>${s}</spa
 /** The tile: art, name, rarity, family and level (SPEC 21's one card component). */
 export function cardTile(c: BattleCard, o: { link?: boolean } = {}): Raw {
   const name = text(cardName(c), 40)
-  const face = cardFace(c, { level: true, stamps: true })
-  return html`<li class="tile">${o.link ? html`<a class="cardlink" href="/c/${c.id}" aria-label="${name}, ${rarityLine(c)}">${face}</a>` : face}</li>`
+  const face = cardFace(c, { level: true, stamps: true, genes: true, combat: true, traits: true })
+  return html`<li class="tile">${o.link ? html`<a class="cardlink" href="/c/${c.id}" aria-label="${name}, ${rarityLine(c)}">${face}</a>` : face}${cardDetails(c)}</li>`
 }
 
 export const cardTiles = (cards: readonly BattleCard[], o: { link?: boolean } = {}): Raw =>
   html`<ul class="cards">${cards.map(c => cardTile(c, o))}</ul>`
+
+/** Hover or focus previews help; native disclosure keeps the same explanation available on tap. */
+export function cardHelp(label: string, explanation: string): Raw {
+  return html`<details class="card-help"><summary>${label}<span class="help-peek" aria-hidden="true">${explanation}</span></summary><p class="help-body">${explanation}</p></details>`
+}
+
+export function cardGenes(c: Pick<BattleCard, 'genes'>): Raw {
+  return html`<dl class="inspect-genes">${STAT_KEYS.map((k, i) => html`<div><dt>${CARD_HELP.stats[k].label} gene</dt><dd>${c.genes[i]}/15 · ${geneChange(c.genes[i]!)}</dd></div>`)}</dl>`
+}
+
+/** Inspect public card facts only, outside the linked and clipped card face. */
+export function cardDetails(c: BattleCard): Raw {
+  const move = cardMove(c)
+  return html`<details class="card-inspect"><summary>Card details<span class="sr"> for ${text(cardName(c), 48)}</span></summary><div class="inspect-body">
+${STAT_KEYS.map(k => cardHelp(`${CARD_HELP.stats[k].label} ${c.stats[k]}`, CARD_HELP.stats[k].text))}
+${c.traits.map(t => cardHelp(TRAITS[t]?.name ?? t, TRAITS[t]?.text ?? ''))}
+${cardHelp(`${FAMILY_INFO[c.family].name} matchups`, CARD_HELP.families[c.family].text)}
+${cardHelp(move.name, move.text)}
+${cardHelp(`Gene quality ${geneScore(c.genes)}%`, CARD_HELP.genes)}${cardGenes(c)}
+${cardHelp('How damage works', CARD_HELP.damage)}
+${c.shiny || c.foil ? cardHelp('Shiny & foil', CARD_HELP.finishes) : ''}
+</div></details>`
+}
 
 /**
  * A card's DNA as colour: the few colours its genes painted it in, most-used first (outline, eyes and
@@ -694,6 +740,7 @@ export function fullCard(c: BattleCard): Raw {
   const name = text(cardName(c), 48)
   const st = c.stats
   const marks = stamps(c, { full: true })
+  const move = cardMove(c)
   return html`<article class="full" style="${familyStyle(c)};--rar:${rarityColor(c)}">
 <div class="bigcard${isMythic(c) ? ' mythic' : ''}" data-bigcard>${cardFace(c, { big: true, poke: true, level: true, genes: true, dna: true })}</div>
 <div class="plaque">
@@ -704,8 +751,9 @@ export function fullCard(c: BattleCard): Raw {
 <li>Season ${c.season}.</li>
 ${marks.map(s => html`<li${s.startsWith(MARK.first) || s.startsWith(MARK.mythic) ? html` class="seal"` : ''}>${s}</li>`)}
 </ul>
-<dl class="stats"><div><dt>HP</dt><dd>${st.hp}</dd></div><div><dt>Attack</dt><dd>${st.atk}</dd></div><div><dt>Defense</dt><dd>${st.def}</dd></div><div><dt>Speed</dt><dd>${st.spd}</dd></div></dl>
-${c.traits.length ? html`<ul class="traits">${c.traits.map(t => html`<li><strong>${TRAITS[t]?.name ?? t}</strong> <span>${TRAITS[t]?.text ?? ''}</span></li>`)}</ul>` : ''}
+<dl class="stats">${STAT_KEYS.map(k => html`<div><dt>${cardHelp(CARD_HELP.stats[k].label, CARD_HELP.stats[k].text)}</dt><dd>${st[k]}</dd></div>`)}</dl>
+${c.traits.length ? html`<ul class="traits">${c.traits.map(t => html`<li>${cardHelp(TRAITS[t]?.name ?? t, TRAITS[t]?.text ?? '')}</li>`)}</ul>` : ''}
+<div class="combat-guide">${cardHelp(`${FAMILY_INFO[c.family].name} matchups`, CARD_HELP.families[c.family].text)}${cardHelp(move.name, move.text)}${cardHelp('Four genes', CARD_HELP.genes)}${cardGenes(c)}${cardHelp('How damage works', CARD_HELP.damage)}${c.shiny || c.foil ? cardHelp('Shiny & foil', CARD_HELP.finishes) : ''}</div>
 </div>
 </article>`
 }
@@ -741,11 +789,18 @@ clip-path:polygon(0 8px,8px 8px,8px 0,calc(100% - 8px) 0,calc(100% - 8px) 8px,10
 .story{list-style:none;padding:0;margin:var(--s3) 0 0;display:flex;flex-wrap:wrap;gap:var(--s2);font-size:.9375rem}
 .story li{padding:3px 10px 4px;background:#3b2a22;color:#f1e3cf}
 .story li.seal{background:#a8324a;color:#fbf1e2;box-shadow:inset 0 -3px 0 #7a2236}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s2);margin:var(--s4) 0 0}
+.stats{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s2);margin:var(--s4) 0 0}
 .stats div{padding:10px var(--s2) 12px;background:#3b2a22;text-align:center}
 .stats dt{font-size:.8125rem;color:#e6d3bd}
+.stats .card-help,.stats .card-help>summary{position:static}
+.stats .card-help>summary{padding:0;min-height:28px;list-style:none}.stats summary::-webkit-details-marker{display:none}
+.stats .help-body{font-size:.8125rem;margin-bottom:8px}
+.stats .help-peek{left:0;right:0;width:100%;max-width:100%}
 .stats dd{margin:0;font:800 1.375rem/1.2 var(--sans);font-variant-numeric:tabular-nums}
 .traits{list-style:none;padding:0;margin:var(--s4) 0 0}
 .traits li+li{margin-top:var(--s2)}
 .traits span{color:#e6d3bd}
+.combat-guide{margin-top:var(--s3)}.combat-guide .help-body{color:#e6d3bd;font-size:.9375rem}
+.plaque .card-help>summary:focus-visible{outline-color:var(--cream)}
+@media (max-width:420px){.plaque{padding:var(--s3)}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 `

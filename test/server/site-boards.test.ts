@@ -150,7 +150,7 @@ describe('the market page', () => {
     const lots = [...p.html.matchAll(/<li class="lot">([\s\S]*?)<\/li>/g)].map(m => m[1]!)
     assert.equal(lots.length, 3)
     for (const c of [x, y, z]) assert.ok(p.html.includes(`<a class="cardlink" href="/c/${c!.id}"`), 'each card links to its page')
-    const texts = lots.map(l => textOf(l).replace(/^.*?Level \d+ /, '').trim())
+    const texts = lots.map(l => textOf(l.slice(l.indexOf('<div class="ptagbox">'), l.indexOf('<details class="card-inspect">'))).trim())
     assert.deepEqual(texts.sort(), [
       `120 sparks from ${handle(a)}`,
       `40 sparks and a shiny Haiku from ${handle(a)}`,

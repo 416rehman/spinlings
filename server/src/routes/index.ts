@@ -6,6 +6,7 @@ import { registerRetention } from '../game/retention.ts'
 import { registerTouch } from '../game/touch.ts'
 import { pages } from '../pages.ts'
 import { browserAccount } from '../pages-account.ts'
+import { accountCards } from '../account-cards.ts'
 import { account } from './account.ts'
 import { auth } from './auth.ts'
 import { battles } from './battles.ts'
@@ -24,4 +25,5 @@ export function registerRoutes(api: Api): void {
   market(api)
   pages(api)
   browserAccount(api)
+  accountCards(api)
 }

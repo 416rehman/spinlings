@@ -39,7 +39,7 @@ Spinlings is a Claude Code mod, so it needs Claude Code 2.1.287 or later (`claud
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
 
 ```sh
-git clone --branch v0.2.1 https://github.com/416rehman/spinlings
+git clone --branch v0.2.2 https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 
@@ -47,7 +47,7 @@ claude plugin validate spinlings/plugin
 
 **Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. To play entirely offline, where nothing leaves your machine, run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
 
-**Your collection in a browser.** Save a passkey from Community → Profile → Passkey & devices, then use Open your collection to sign in and see your cards, current stats and rankings. The link appears when your server supports browser collections; older servers offer your public profile instead. You can choose a public username there. Opening packs, choosing a team and trading happen in Claude Code.
+**Your collection in a browser.** Save a passkey from Community → Profile → Passkey & devices, then use Open your collection to sign in and see your cards, current stats and rankings. Search and filters cover your whole collection; sort by level, genes or combat stats to compare creatures. Hover, focus or tap a stat or trait for its effect. The link appears when your server supports browser collections; older servers offer your public profile instead. You can choose a public username there. Opening packs, choosing a team and trading happen in Claude Code.
 
 **Your username.** Keep your generated handle, or choose a unique public username in the browser: 1–40 ASCII letters, numbers, `_` or `-`, saved in lowercase. Names pass the game's name filter, and names such as `admin` and `support` are reserved. Changes share the once-a-week limit; an old name stays unavailable for 30 days. Renaming keeps your account, collection and saved passkeys.
 

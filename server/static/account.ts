@@ -1,19 +1,25 @@
 // First-party browser account access. The session stays in this tab, never in a URL, page,
 // cookie or localStorage. Every request stays on this origin and uses the mod's existing API.
+import { sha256Hex } from '../../plugin/hooks/core/sha256.ts'
+import { CARD_HELP } from '../src/card-guide.ts'
+
 export const ACCOUNT_JS = String.raw`(function () {
 'use strict'
 var $ = function(id) { return document.getElementById(id) }
 if (!$('account')) return
-var key = 'spinlings-session', token = '', me = null, cards = [], next = null, version = null, generation = 0, rankGeneration = 0, usernameGeneration = 0, renaming = false
-var seasons = {}, colors = {common:'#9aa3ad',rare:'#4f8ff0',epic:'#b06ef3',legendary:'#f2b33d'}
+var key = 'spinlings-session', token = '', me = null, cards = [], team = [], next = null, version = null, generation = 0, rankGeneration = 0, usernameGeneration = 0, browseGeneration = 0, renaming = false, browsing = false, total = 0, matched = 0, currentQuery = '', hintId = 0, activeHint = null
+var seasons = {}, colors = {common:'#9aa3ad',rare:'#4f8ff0',epic:'#b06ef3',legendary:'#f2b33d'}, familyColors = {haiku:'#4da86f',sonnet:'#5b8def',opus:'#df714c',fable:'#a874e8'}, marks = {haiku:'✿',sonnet:'≈',opus:'☀',fable:'☾'}
+var help = ${JSON.stringify(CARD_HELP)}
 try { token = sessionStorage.getItem(key) || '' } catch (_) {}
 function say(message) { $('account-status').textContent = message }
 function store(value) { token = value; try { value ? sessionStorage.setItem(key,value) : sessionStorage.removeItem(key) } catch (_) {} }
 function clear(message) {
-  generation++; rankGeneration++; usernameGeneration++; renaming = false; store(''); me = null; cards = []; next = null; version = null
+  generation++; rankGeneration++; usernameGeneration++; browseGeneration++; renaming = false; browsing = false; store(''); me = null; cards = []; team = []; next = null; version = null; total = matched = 0
+  if (activeHint) activeHint.hide()
+  resetFilters(); $('collection').setAttribute('aria-busy','false'); $('more').hidden = true; $('more').disabled = false
   closeUsername(); $('username-status').textContent = ''; $('username-note').textContent = ''
   $('dashboard').hidden = true; $('signout').hidden = true; $('signedout').hidden = false
-  ;['teamcards','stats','mybalance','collection','myhandle','rank','inventory'].forEach(function(id) { $(id).replaceChildren() })
+  ;['teamcards','stats','mybalance','collection','myhandle','rank','inventory','collection-status'].forEach(function(id) { $(id).replaceChildren() })
   $('refresh').disabled = false; say(message || '')
 }
 async function request(path, method, body, authenticated) {
@@ -24,7 +30,7 @@ async function request(path, method, body, authenticated) {
   var data = await res.json()
   if (!res.ok) {
     if (res.status === 401 && authenticated && token === held) clear('Sign in again to see your collection.')
-    throw new Error(res.status === 401 ? 'Sign in again to see your collection.' : (data.error && data.error.message || 'Could not load this. Try again.'))
+    var error = new Error(res.status === 401 ? 'Sign in again to see your collection.' : (data.error && data.error.message || 'Could not load this. Try again.')); error.status = res.status; throw error
   }
   return data
 }
@@ -49,26 +55,95 @@ async function loadSeasons(batch) {
   var needed = Array.from(new Set(batch.filter(function(c) {return !c.form && /^s\d+-/.test(c.species)}).map(function(c) {return c.species.split('-')[0].slice(1)})))
   await Promise.all(needed.map(async function(n) {if (!seasons[n]) seasons[n] = (await request('/v1/season/'+n)).species}))
 }
+function hint(label, text) {
+  var wrap = element('div'); wrap.className = 'cardhint'
+  var button = element('button',label); button.type = 'button'; button.className = 'cardhint-label'
+  var tip = element('p',text), id = 'card-help-'+(++hintId), pinned = false, focused = false
+  tip.id = id; tip.className = 'cardhint-tip'; tip.hidden = true; tip.setAttribute('role','tooltip')
+  button.setAttribute('aria-controls',id); button.setAttribute('aria-describedby',id); button.setAttribute('aria-expanded','false')
+  function hide() {pinned = false; tip.hidden = true; button.setAttribute('aria-expanded','false'); if (activeHint && activeHint.hide === hide) activeHint = null}
+  function show() {if (activeHint && activeHint.hide !== hide) activeHint.hide(); activeHint = {hide:hide,wrap:wrap}; tip.hidden = false; button.setAttribute('aria-expanded','true')}
+  button.addEventListener('pointerenter',function(e){if (e.pointerType === 'mouse') show()})
+  wrap.addEventListener('pointerleave',function(){if (!pinned && !focused) hide()})
+  button.addEventListener('focus',function(){focused = true; show()})
+  button.addEventListener('blur',function(){focused = false; hide()})
+  button.addEventListener('click',function(){if (pinned) hide(); else {pinned = true; show()}})
+  wrap.addEventListener('keydown',function(e){if (e.key === 'Escape') {e.preventDefault(); hide()}})
+  wrap.append(button,tip); return wrap
+}
+document.addEventListener('keydown',function(e){if (e.key === 'Escape' && activeHint) {e.preventDefault(); activeHint.hide()}})
+document.addEventListener('pointerdown',function(e){if (activeHint && !activeHint.wrap.contains(e.target)) activeHint.hide()},true)
 function card(c) {
-  var node = element('article'); node.className = 'accountcard'; node.style.setProperty('--rar',colors[c.rarity] || colors.common)
-  var link = element('a',name(c)); link.href = '/c/'+encodeURIComponent(c.id)
-  var img = element('img'); img.src = '/c/'+encodeURIComponent(c.id)+'/art.svg'; img.alt = name(c); img.width = img.height = 96; img.loading = 'lazy'
-  node.append(img,link,element('p',capital(c.family)+' · '+capital(c.rarity)+' · Level '+c.level),element('p',[c.shiny?'Shiny':'',c.foil?'Foil':'',c.bound?'Stays with you':'',c.state==='escrow'?'Held for a trade, gift or sale':'',c.forTrade?'For trade':''].filter(Boolean).join(' · ')))
-  var details = element('details'); details.append(element('summary','Stats & traits'))
-  if (c.stats) details.append(element('p','HP '+c.stats.hp+' · Attack '+c.stats.atk+' · Defense '+c.stats.def+' · Speed '+c.stats.spd))
-  var genes = c.genes || {}; var values = Array.isArray(genes) ? genes : Object.values(genes)
-  if (values.length === 4) details.append(element('p','Gene quality '+Math.round(values.reduce(function(a,b){return a+b},0)/60*100)+'%'))
-  if (c.traits && c.traits.length) details.append(element('p','Traits: '+c.traits.map(function(t){return capital(t.replace(/([A-Z])/g,' $1'))}).join(', ')))
-  node.append(details); return node
+  var node = element('article'); node.className = 'accountcard'; node.setAttribute('data-card-id',c.id)
+  node.style.setProperty('--rar',colors[c.rarity] || colors.common); node.style.setProperty('--fam',familyColors[c.family]); node.style.setProperty('--psky','#eef2ea')
+  var face = element('div'); face.className = 'cf'+(c.foil?' foil':'')+(c.shiny?' shiny':'')+(c.species==='mythic'?' mythic':'')
+  var art = element('a'); art.className = 'cf-art'; art.href = '/c/'+encodeURIComponent(c.id); art.setAttribute('aria-label','View '+name(c))
+  var img = element('img'); img.src = '/c/'+encodeURIComponent(c.id)+'/art.svg'; img.alt = ''; img.width = img.height = 96; img.loading = 'lazy'; art.append(img)
+  var link = element('a',name(c)); link.className = 'cf-name'; link.href = art.href
+  var finishes = [c.shiny?'Shiny':'',c.foil?'Foil':''].filter(Boolean).join(' ')
+  face.append(art,link,element('p',(c.species==='mythic'?'Mythic · 1 of 1':capital(c.rarity))+(finishes?' · '+finishes:'')))
+  face.children[2].className = 'cf-rar'
+  var family = element('p',marks[c.family]+' '+capital(c.family)+' · Level '+c.level); family.className = 'cf-kind'; face.append(family)
+  node.append(face)
+  var plaque = element('div'); plaque.className = 'accountplaque'
+  var stats = element('div'); stats.className = 'cardstats'
+  var icons = {hp:'♥',atk:'⚔',def:'◇',spd:'➜'}
+  ;['hp','atk','def','spd'].forEach(function(k){if (c.stats) stats.append(hint(icons[k]+' '+help.stats[k].label+' '+c.stats[k],help.stats[k].text))})
+  plaque.append(stats)
+  var traits = element('div'); traits.className = 'cardtraits'
+  ;(c.traits || []).forEach(function(t){if (help.traits[t]) traits.append(hint(help.traits[t].name,help.traits[t].text))})
+  if (traits.children.length) plaque.append(traits)
+  var more = element('details'); more.className = 'carddetails'; more.append(element('summary','More about this card'))
+  var values = c.genes || [], quality = Math.round(values.reduce(function(a,b){return a+b},0)/60*100)
+  more.append(hint('Genes '+quality+'%',help.genes),hint(marks[c.family]+' '+capital(c.family)+' matchups',help.families[c.family].text))
+  var genes = element('dl'); genes.className = 'inspect-genes'
+  ;['hp','atk','def','spd'].forEach(function(k,i){var gene = element('div'); gene.append(element('dt',help.stats[k].label+' gene'),element('dd',values[i]+'/15')); genes.append(gene)})
+  more.append(genes)
+  var move = help.families[c.family].special, mimic = (c.traits || []).includes('mimic'), quick = (c.traits || []).includes('quickCharge'), charge = quick ? help.charge.quick : help.charge.normal
+  more.append(hint('✦ '+(mimic?'Mimic special':move.name),(mimic?'Copies the special of the opposing active creature’s family. ':move.text+' ')+'Fires automatically after '+charge+' normal attack'+(charge===1?'':'s')+'. A Perfect press in Claude adds '+help.charge.perfect+'% power.'))
+  more.append(hint('How damage works',help.damage))
+  more.append(element('p','Stage '+c.stage+' of 3 · Season '+c.season))
+  if (c.foil || c.shiny) more.append(hint('✧ '+[c.foil?'Foil':'',c.shiny?'Shiny':''].filter(Boolean).join(' · '),help.finishes))
+  var state = [c.bound?(c.origin==='starter'?'Starter · stays with you':'Stays with you'):'',c.state==='escrow'?'Held for a trade, gift or sale':'',c.forTrade?'For trade':'',c.firstFind?'First discovery':''].filter(Boolean).join(' · ')
+  if (state) more.append(element('p',state))
+  plaque.append(more); node.append(plaque); return node
+}
+function resetFilters() {;['q','family','rarity','trait','finish','scope'].forEach(function(id){$(id).value = ''}); $('sort').value = 'newest'}
+function query() {
+  return ['q','family','rarity','sort','trait','finish','scope'].map(function(id){var value = $(id).value.trim(); return value ? id+'='+encodeURIComponent(value) : ''}).filter(Boolean).join('&')
 }
 function renderCards() {
-  var family = $('family').value, rarity = $('rarity').value
-  var filtered = cards.filter(function(c){return (!family || c.family===family) && (!rarity || c.rarity===rarity)})
-  $('collection').replaceChildren.apply($('collection'),filtered.map(card)); $('more').hidden = !next
-  $('inventory').textContent = cards.length+' cards'+(next?' loaded · more waiting':'')+' · '+me.packs.length+' unopened packs · '+(me.listings || []).length+' market listings · '+me.player.seen.length+' species discovered'
-  var team = me.player.team.map(function(id){return cards.find(function(c){return c.id===id})}).filter(Boolean)
+  if (activeHint) activeHint.hide()
+  $('collection').replaceChildren.apply($('collection'),cards.map(card)); $('more').hidden = !next
+  $('collection-status').textContent = matched ? 'Showing '+cards.length+' of '+matched+' matching card'+(matched===1?'':'s')+'.' : 'No matching cards. Try another filter or reset them.'
+  $('inventory').textContent = total+' cards · '+me.packs.length+' unopened packs · '+(me.listings || []).length+' market listings · '+me.player.seen.length+' species discovered'
   $('teamcards').replaceChildren.apply($('teamcards'),team.map(card))
-  if (team.length < me.player.team.length && next) $('teamcards').append(element('p','Load more cards to see the rest of your team.'))
+}
+async function browse(more) {
+  if (!token || !me || (more && (browsing || !next))) return
+  var params = query(); if (params !== currentQuery) more = false
+  var revision = ++browseGeneration, held = token, screen = generation, after = more ? next : null
+  if (activeHint) activeHint.hide()
+  browsing = true; $('more').disabled = true; $('collection').setAttribute('aria-busy','true')
+  $('collection-status').textContent = more ? 'Loading more cards…' : 'Finding your cards…'
+  if (!more) {$('collection').replaceChildren(); $('more').hidden = true}
+  try {
+    var page = await request('/account/cards'+(params || after ? '?'+params+(after?(params?'&':'')+'after='+encodeURIComponent(after):'') : ''),'GET',undefined,true)
+    if (revision !== browseGeneration || held !== token || screen !== generation) return
+    if (more && page.version !== version) {await browse(false); return}
+    await loadSeasons(page.cards.concat(page.team))
+    if (revision !== browseGeneration || held !== token || screen !== generation) return
+    var seen = new Set(more ? cards.map(function(c){return c.id}) : [])
+    var added = page.cards.filter(function(c){if (seen.has(c.id)) return false; seen.add(c.id); return true})
+    cards = more ? cards.concat(added) : added; team = page.team; next = page.next || null; version = page.version; total = page.total; matched = page.matched; currentQuery = params
+    renderCards()
+  } catch(e) {
+    if (revision !== browseGeneration || held !== token || screen !== generation) return
+    if (more && e.status === 409) {await browse(false); return}
+    $('collection-status').textContent = e.message
+  } finally {
+    if (revision === browseGeneration && held === token && screen === generation) {browsing = false; $('more').disabled = false; $('collection').setAttribute('aria-busy','false')}
+  }
 }
 async function rankings() {
   if (!token || !me) return
@@ -82,17 +157,18 @@ async function rankings() {
 }
 async function refresh() {
   if (!token || renaming) return
-  var revision = ++generation, held = token
+  var revision = ++generation, held = token; browseGeneration++; browsing = false; $('more').disabled = false; $('collection').setAttribute('aria-busy','false')
   $('refresh').disabled = true; renderUsername(); say('Loading your collection…')
   try {
-    var results = await Promise.all([request('/v1/me','GET',undefined,true),request('/v1/cards','GET',undefined,true)])
-    await loadSeasons(results[1].cards)
+    var result = await request('/v1/me','GET',undefined,true)
     if (revision !== generation || held !== token) return
-    me = results[0]; cards = results[1].cards; next = results[1].next || null; version = results[1].version
+    me = result
     $('mybalance').replaceChildren(stat('✦ Sparks · crafting & packs',me.player.sparks),stat('★ Duel rating',me.player.rating),stat('League',me.player.league),stat('Consecutive wins',me.player.streak))
     var labels = {duelWins:'⚔ Duel wins',duelLosses:'Duel losses',playersBeaten:'Players beaten',wildWins:'Wild wins',catches:'Catches',speciesCollected:'Species collected',firstFinds:'First discoveries',mythicsFound:'Mythics found',marketSales:'Market sales'}
     $('stats').replaceChildren.apply($('stats'),Object.keys(labels).map(function(k){return stat(labels[k],(me.player.stats || {})[k] || 0)}))
-    renderCards(); $('dashboard').hidden = false; $('signout').hidden = false; $('signedout').hidden = true; say('')
+    await browse(false)
+    if (revision !== generation || held !== token) return
+    $('dashboard').hidden = false; $('signout').hidden = false; $('signedout').hidden = true; say('')
     await rankings()
   } catch(e) {if (revision === generation) say(e.message)}
   finally {if (revision === generation) {$('refresh').disabled = false; renderUsername()}}
@@ -149,20 +225,13 @@ $('username-form').addEventListener('submit',async function(event) {
     if (revision === usernameGeneration && held === token) {renaming = false; $('refresh').disabled = false; renderUsername(); if (!$('username-form').hidden) $('username').focus()}
   }
 })
-$('more').addEventListener('click',async function() {
-  if (!next) return
-  var revision = generation, held = token; $('more').disabled = true
-  try {
-    var page = await request('/v1/cards?after='+encodeURIComponent(next),'GET',undefined,true)
-    if (revision !== generation || held !== token) return
-    if (page.version !== version) {await refresh(); return}
-    await loadSeasons(page.cards)
-    if (revision !== generation || held !== token) return
-    cards = cards.concat(page.cards); next = page.next || null; renderCards()
-  } catch(e) {say(e.message)} finally {$('more').disabled = false}
-})
-;['family','rarity'].forEach(function(id){$(id).addEventListener('change',renderCards)})
+$('more').addEventListener('click',function(){return browse(true)})
+$('card-search').addEventListener('submit',function(e){e.preventDefault(); return browse(false)})
+$('filters-reset').addEventListener('click',function(){resetFilters(); return browse(false)})
+;['family','rarity','sort','trait','finish','scope'].forEach(function(id){$(id).addEventListener('change',function(){return browse(false)})})
 ;['board','period'].forEach(function(id){$(id).addEventListener('change',rankings)})
 $('refresh').addEventListener('click',refresh)
 if (token) refresh()
 })()`
+
+export const ACCOUNT_HASH = sha256Hex(ACCOUNT_JS).slice(0, 12)
