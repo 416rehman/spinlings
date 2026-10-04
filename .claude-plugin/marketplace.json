@@ -15,8 +15,8 @@
         "source": "git-subdir",
         "url": "https://github.com/416rehman/spinlings.git",
         "path": "plugin",
-        "ref": "v0.2.3",
-        "sha": "b9fb0e894dce5c157383816b92952046f434c496"
+        "ref": "v0.2.4",
+        "sha": "01bdb5cf75dcd6f11c0c24f229efdfaf5e310682"
       }
     }
   ]
