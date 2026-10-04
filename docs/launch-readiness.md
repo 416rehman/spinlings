@@ -1,60 +1,60 @@
 # Launch readiness
 
-Complete this checklist against the release being announced. A passing older release does not cover new changes. Follow [releasing.md](releasing.md) for the release order and [CONTRIBUTING.md](../CONTRIBUTING.md) for the checks.
+Complete this checklist against the release being announced. Follow [releasing.md](releasing.md) and run every check in [CONTRIBUTING.md](../CONTRIBUTING.md) before each commit. Marketing posts and outreach require a separate instruction from the maintainer.
 
-Status below is for the v0.2.3 candidate on 2026-10-04. Checked items have local candidate evidence or verified repository settings; production, marketplace installation and release media still need their own verification. The candidate has not been published.
+v0.2.4 is released and live on 2026-10-04. Its tag points to `01bdb5cf75dcd6f11c0c24f229efdfaf5e310682`; marketplace commit `bfa9766e9ec5979412557d6178113df06e816e60` pins that exact tag and commit. Release and marketplace CI passed, and fresh and existing installs match all 92 tagged plugin files. The remaining launch gate is actual Desktop interaction verification and fresh v0.2.4 pane captures; those unchecked items must be completed before marketing.
 
-## Install and keep playing
+## Product and compatibility
 
-- [ ] A fresh install from `416rehman/spinlings` resolves to the release tag and pinned commit, passes strict validation, and opens `/spin` after restart.
-- [x] The README's minimum Claude Code version matches the supported engine. Desktop instructions account for its separately bundled version.
-- [x] Recorded traffic from every supported released mod still works against the new server; released fixtures remain unchanged.
-- [x] Missing server features stay hidden, unsupported mechanics have a safe supported path, and an unavailable server leaves Claude usable.
-- [x] A season transition preserves old cards, applies rewards once, changes the rating as documented, and serves the next season's frozen species to supported older mods.
-- [x] Passkeys still recover the same collection after username changes. Browser sign-out revokes only the browser session.
-- [x] `/spin version` explains installed and server status, with a working update instruction when one is needed.
+- [x] Four Claude tabs group the game into Team, Collection, Discoveries and Community. Profile, Market, Rankings and Trading share one Community section bar.
+- [ ] Actual installed v0.2.4 opens `/spin`; clicking card artwork, the name and the surrounding card selects the same creature. Back returns to its originating view and the footer Close closes the root pane.
+- [x] Claude Code requires 2.1.287 or later. Desktop needs a compatible bundled engine; updating the CLI does not update Desktop's engine.
+- [x] Every supported released mod's recorded traffic passes against the final server. Released recordings remain unchanged; the v0.2.4 recording contains 188 exchanges.
+- [x] Frozen rules-1 replay, generator-2 data and offline save format 1 remain supported. API v1 and the minimum supported mod, 0.1.0, are unchanged.
+- [x] Tests cover season transitions, one-time rewards, old cards, unavailable servers, capability checks and the installed/server status shown by `/spin version`.
+- [x] Passkeys identify the same account across chosen or generated username changes. Browser sign-out revokes only that browser session.
 
-Compatibility covers the installed mod's supported protocol and rendering rules. New families, new artwork primitives or new battle mechanics require an explicit compatibility design; a future content idea is not covered simply because the server can send JSON. The source of truth is [SPEC.md, section 32](../SPEC.md#32-versioning-and-backward-compatibility).
+Version 0.2.3 is the complete frozen-catalog loader baseline. Already installed older code retains its shipped loader; a server deployment cannot repair its rendering or hydration behavior. Recorded protocol compatibility does not promise that arbitrary future families, artwork primitives or mechanics work in every historical mod. Any such addition needs explicit supported rendering and replay paths. See [compatibility.md](compatibility.md) and [SPEC.md, section 32](../SPEC.md#32-versioning-and-backward-compatibility).
 
-## Site and sharing
+Welcome-pack farming restrictions (Backlog 3) and server-delivered content packs (Backlog 5) await the maintainer's decisions. Neither is implemented by this release. Existing seasons and creatures retain the compatibility bounds above.
 
-- [ ] The landing page, collection, leaderboards, market, card, profile, odds and privacy links return the intended page on the production origin.
-- [x] A new visitor can find the requirements and install commands, then understand their team, sparks, rating, families and daily rule.
-- [x] Layouts remain usable in narrow panes and at 320px in the browser, with keyboard, hover and tap help and no obscured actions.
-- [x] Demo playback can pause, reduced motion is respected, and filters and disclosure controls remain keyboard accessible.
-- [x] Public pages expose only documented public fields. The collection requires authentication; shared links never contain session tokens or passkey tickets.
-- [x] Titles, descriptions, canonical URLs and preview images match the actual page. Private and temporary pages stay out of indexing.
-- [x] Share a card or public profile using its canonical first-party link. Card previews show that card; profile previews use the branded meadow image. Neither reveals private account data.
-- [ ] Production health/version checks and the throwaway-account smoke pass, with only that smoke's disposable records cleaned up.
+## Browser experience and sharing
+
+- [x] The established public website's header, palette, type and scenery are preserved. The maintainer explicitly requested the account-page redesign: a compact profile summary and Collection, Team and Stats tabs, with rankings inside Stats.
+- [x] Account tabs support arrows, Home and End. Switching preserves filters without extra requests; refresh preserves the selected tab and sign-out clears private cards and search terms.
+- [x] Account cards offer whole-collection search, filters and sorting, compact combat stats, and hover, focus or tap explanations. Additional details and filters stay behind disclosures.
+- [x] The account layout was visually reviewed at desktop size and 320px, including a long username, with no horizontal overflow. Cooldown guidance appears inside username editing or the edit control's tooltip; the permanent weekly/passkey reassurance is removed.
+- [x] Landing-demo playback can pause, reduced motion is respected and disclosure/filter controls remain keyboard accessible.
+- [x] Final production routes, card/profile previews, health/version, robots, sitemap and private browser collection checks pass: `.dev/codex-live-ui-final-0.2.4.log`.
+- [x] The final production smoke proves passkey registration, rename and recovery, the same cards/team/stats, filters and Attack sorting, browser-only sign-out, account deletion and revoked access: `.dev/codex-prod-smoke-ui-final-0.2.4.log`. Exactly five discovery records verified as belonging to that smoke were removed.
+- [x] Private account/passkey pages stay out of indexing. Public pages expose only documented public fields. Shared card/profile URLs contain no session token or passkey ticket.
+
+Browser layout evidence is private: `.dev/account-desktop-0.2.4.png` and `.dev/account-mobile-0.2.4.png` show a local test collection. They establish layout review, not a real player's passkey sign-in or installed Desktop release.
 
 ## Repository and media
 
-- [x] README pitch, install commands, badges and links describe the release accurately. Badge targets lead to checks, releases, licensing or requirements.
-- [ ] Repository description, homepage, topics and social preview describe Spinlings accurately. A preview file in the repository still needs verification in GitHub's Social preview setting.
-- [x] Issues route ordinary feedback separately from private security reports; contribution and self-hosting instructions are easy to find.
-- [ ] The hero uses a real Claude Desktop capture. Capture new Team, Collection and Community views from the release, with the app sidebar and unrelated sessions out of frame.
-- [ ] Marketing screenshots and clips come from the real installed release. Generated artwork can illustrate creatures, but is not presented as a product screenshot.
-- [ ] Review every image and video for unrelated work, session titles, notification contents, personal data and credentials. Keep descriptive alt text and verify media links on GitHub.
-- [x] Inspect repository security settings, private vulnerability reporting and secret protection before pushing launch assets.
+- [x] README pitch, requirements, badges, install commands, security reporting, contribution and self-hosting links describe the product accurately.
+- [x] GitHub repository description, homepage and topics are set. Custom social-preview artwork is uploaded and visually verified; private proof is `.dev/github-social-preview-verified.jpg`.
+- [x] Private vulnerability reporting, Dependabot security updates, secret scanning and secret push protection are enabled. Actions default to a read-only token and require actions pinned by SHA.
+- [x] Active rulesets protect main history and immutable release tags. Required pull requests and CI on main remain a recommendation, not an enabled rule in the current direct-push workflow.
+- [x] The README hero uses a real v0.2.3 Claude Desktop duel. The reviewed GIF/video show 15 seconds of rounds 5–10, a timed Twist and a win/first-pack reward; they do not claim a completed evolution.
+- [ ] Capture fresh Team, Collection, Community Profile, Market, Rankings and Pack screenshots from the exact installed v0.2.4 release. Candidate previews and v0.2.3 panes are not relabelled as v0.2.4 captures.
+- [ ] Review every new screenshot, GIF and video for unrelated work, app sidebars, session titles, notification contents, usage banners, personal data and credentials. Native UI pixels stay intact; media have descriptive alt text and working repository-relative links. New v0.2.4 captures remain pending.
 
-Existing media includes a real [Desktop duel](media/desktop-duel.gif), its [video](media/desktop-duel.mp4) and [still](media/desktop-duel.png), plus [repository preview artwork](media/github-social.png). The duel capture predates the current four-tab navigation. Fresh release captures are still needed for the launch gallery; rendering a local preview does not replace them.
+The real battle files are [GIF](media/desktop-duel.gif), [video](media/desktop-duel.mp4) and [still](media/desktop-duel.png). Their private provenance records all 112 source/crop hashes and the 60 decoded clip frames; `.dev/desktop-v0.2.3/public-duel-export.json` verifies the final exports. Creature artwork, themed SVG scenes and repository preview art are illustrations and remain separate from product screenshots.
 
 ## Release gate
 
-- [x] Every required Node and plugin test passes with no failures or skips, both strict validators pass, HTTP end-to-end checks pass, and the site build is fresh. The Worker dry-run passes too.
-- [x] Version constants, compatibility recordings and changelog agree. No secrets or private test artifacts enter the commit.
-- [ ] Deploy the server first; then verify production, tag the exact checked commit, publish the release, and pin the marketplace to that tag and commit.
-- [ ] Both release and marketplace CI runs pass. Verify a fresh install and an update of an existing installation against the tag's actual Git blobs.
-- [ ] Prepare platform-specific copy and media only after this release gate. Recheck each platform's current rules before submitting. Posting and outreach require the maintainer's explicit instruction.
+- [x] Final source passes all required checks: 920 Node tests, zero failures/skips; 165 plugin tests, zero failures; both strict validators; all 24 HTTP end-to-end steps; a fresh site build. Worker dry-run also passes. Logs: `.dev/codex-ui-final-0.2.4-*.log`, `.dev/codex-ui-pin-0.2.4-*.log` and `.dev/codex-ui-handoff-0.2.4-*.log`.
+- [x] Version constants, compatibility recordings and changelog agree. No credentials or private test artifacts enter the commit.
+- [x] Push the checked source, deploy the server first, complete final production verification and restricted smoke cleanup, then tag the exact checked commit as `v0.2.4` and publish its changelog, comparison and strict validator output.
+- [x] Release CI passes on `01bdb5cf75dcd6f11c0c24f229efdfaf5e310682`: [release CI](https://github.com/416rehman/spinlings/actions/runs/37241771442).
+- [x] Marketplace source pins `v0.2.4` and `01bdb5cf75dcd6f11c0c24f229efdfaf5e310682`; all checks pass before its commit and [marketplace CI](https://github.com/416rehman/spinlings/actions/runs/37242460139) passes.
+- [x] A fresh install and the existing user installation match all 92 tagged plugin blobs and pass strict validation. Private evidence is `.dev/codex-install-{fresh,user}-{marketplace,install,validate}.log`; installation metadata and release bytes agree.
+- [ ] Actual Desktop verification confirms the loaded v0.2.4 footer, artwork/body/name selection, Back and root Close. Existing sessions may retain their previously loaded mod until restarted.
+- [ ] Return the Desktop QA world to online after the final demo checks with `/spin world online`.
+- [x] A private platform kit contains final release links, copy and honest asset versions: `.dev/launch-kit-v0.2.4.md`. Native screenshots remain pending as stated above. No marketing posts, scheduled posts, submissions, accounts or outreach have been created.
 
-## Repository audit: 2026-10-04
+Before the later marketing task, recheck each destination's current rules and maker access. Reddit destinations are candidates until their actual rules are reviewed; Product Hunt access and launch date need the maker's selection. Hacker News prohibits generated or AI-edited submission text, so its kit contains facts for a personally written submission. These are posting preparations, not permissions to publish.
 
-The repository is public under MIT, with its homepage set to `https://spinlings.dev`, a concise game description and relevant creature-game, Claude Code and pixel-art topics. Issues, private vulnerability reporting and Dependabot security updates are enabled. GitHub secret scanning and secret push protection were enabled during release preparation, and both settings were confirmed enabled.
-
-The presence of `media/github-social.png` confirms the asset exists; its upload as GitHub's social preview has not been verified. Fresh Claude Desktop captures of the release remain unchecked above.
-
-Actions use a read-only default token and require actions pinned by SHA. Active rulesets protect the history of the default branch and make release tags immutable. Requiring pull requests and passing CI on the default branch remains a one-time setup recommendation in releasing.md; it is not enabled in the current direct-push release workflow.
-
-Welcome-pack trading restrictions (Backlog 3) and server-delivered content packs (Backlog 5) remain decisions for the maintainer. Neither has been implemented in this candidate. Existing v1 seasons and creatures remain supported within the bounds in [compatibility.md](compatibility.md).
-
-Candidate checks: 898 Node tests passed with zero failures or skips; 159 Claude plugin tests passed with zero failures. Both strict validators, all 24 HTTP end-to-end steps, the site build and the Worker dry-run passed. The plugin suite ran separately from the heavy Node suite. The minimum supported mod remains 0.1.0; API v1, rules 1, generator 2 and offline save format 1 are unchanged.
+The candidate CI audit initially rejected one optional Linux package attestation. Current registry integrity and both attestations independently verified with the exact CI npm tooling and fresh caches; the failed job then passed on the same source commit with the audit unchanged. No dependency was omitted and no verification was disabled. Only this release's redundant tag deployment (`37242230066`) was cancelled after the manual server deploy.
