@@ -2,6 +2,11 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.4 (2026-10-04)
+
+- **Close means close.** The pane footer now closes the host pane from a main tab. Back still returns from a detail view, and dismissing update instructions keeps the pane open. Actual Claude Desktop launch checks exposed the missing root close call.
+- **Compatibility and privacy.** API v1, rules 1, generator 2, the minimum client, requests, stored fields and public fields are unchanged. Released compatibility recordings remain immutable.
+
 ## 0.2.3 (2026-10-04)
 
 - **Keep your creatures across worlds and seasons.** Frozen species now belong to their own server or offline save. Online collections, opponents and fusion parents load every needed season, including collections spanning more than eight seasons. Matching today's generator no longer skips an older season's frozen forms. The local season cache stays bounded and late responses cannot replace the active world's catalog.

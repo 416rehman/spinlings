@@ -2322,7 +2322,9 @@ export function createGame(o: GameOptions): Game {
         await loadCommunity(fx)
       })()),
       push: view => after(upd(fx, 'pane', p => ({ ...p, stack: [...p.stack, view].slice(-8), hold: null, message: '', toCopy: '', showUpdate: false }))),
-      back: () => after(paneClosing(fx, true)),
+      back: () => after((async () => {
+        if (!await paneClosing(fx, true)) await fx.ui.closePane()
+      })()),
       pane: fn => after(upd(fx, 'pane', fn)),
       hold: (action, target) => after(hold(fx, action, target)),
       openPack: packId => after(openPack(fx, packId)),

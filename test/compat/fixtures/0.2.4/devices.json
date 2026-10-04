@@ -1,0 +1,430 @@
+{
+  "client": "0.2.4",
+  "flow": "devices",
+  "about": "a passkey saved and used to sign in on another machine, reset access, and deleting the account",
+  "steps": [
+    {
+      "op": "challenge",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/challenge",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"challenge":"<challenge:1>","difficulty":8}
+      }
+    },
+    {
+      "op": "join",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/join",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4","content-type":"application/json"},
+        "body": {"challenge":"<challenge:1>","nonce":"<pow>","family":"haiku"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "token": "<token:1>",
+          "me": {
+            "player": {
+              "handle": "<handle:1>",
+              "handleRerollFrom": "2026-10-02",
+              "sparks": 100,
+              "rating": 1000,
+              "league": "Pebble",
+              "leaderboard": true,
+              "joinedDay": "2026-10-02",
+              "battles": 0,
+              "canTrade": true,
+              "team": ["<card:1>","<card:2>","<card:3>"],
+              "wishlist": [],
+              "cardsVersion": 1,
+              "streak": 0,
+              "seen": ["s1-fable-6","s1-haiku-7","s1-sonnet-6"],
+              "rested": false,
+              "nextWildAt": 0,
+              "nextDuelAt": 0,
+              "nextChargeAt": 1790945100000,
+              "stats": {
+                "duelWins": 0,
+                "duelLosses": 0,
+                "playersBeaten": 0,
+                "wildWins": 0,
+                "catches": 0,
+                "speciesCollected": 3,
+                "firstFinds": 3,
+                "mythicsFound": 0,
+                "marketSales": 0
+              }
+            },
+            "packs": [
+              {"id":"<pack:1>","family":"haiku","source":"welcome","day":"2026-10-02"},
+              {"id":"<pack:2>","family":"sonnet","source":"welcome","day":"2026-10-02"}
+            ],
+            "notices": [
+              {
+                "id": "<notice:1>",
+                "day": "2026-10-02",
+                "kind": "notice",
+                "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+              }
+            ],
+            "offers": {"incoming":[],"outgoing":[]},
+            "gifts": [],
+            "listings": [],
+            "now": 1790942400000
+          }
+        }
+      }
+    },
+    {
+      "op": "passkeyStart",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/me/passkey/start",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.4",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"url":"<url:1>","pollId":"<poll:1>"}
+      }
+    },
+    {
+      "op": "authPoll",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/auth/poll/<poll:1>",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"status":"pending"}
+      }
+    },
+    {"browser":"passkey-add","player":"b","url":"<url:1>","at":1790942400000},
+    {
+      "op": "authPoll",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/auth/poll/<poll:1>",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4"}
+      },
+      "response": {"status":200,"headers":{"content-type":"application/json; charset=utf-8"},"body":{"status":"added"}}
+    },
+    {
+      "op": "authStart",
+      "player": "laptop",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/auth/start",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4","content-type":"application/json"},
+        "body": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"url":"<url:2>","pollId":"<poll:2>"}
+      }
+    },
+    {
+      "op": "authPoll",
+      "player": "laptop",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/auth/poll/<poll:2>",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"status":"pending"}
+      }
+    },
+    {"browser":"passkey-signin","player":"laptop","url":"<url:2>","at":1790942400000},
+    {
+      "op": "authPoll",
+      "player": "laptop",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/auth/poll/<poll:2>",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "status": "done",
+          "token": "<token:2>",
+          "me": {
+            "player": {
+              "handle": "<handle:1>",
+              "handleRerollFrom": "2026-10-02",
+              "sparks": 100,
+              "rating": 1000,
+              "league": "Pebble",
+              "leaderboard": true,
+              "joinedDay": "2026-10-02",
+              "battles": 0,
+              "canTrade": true,
+              "team": ["<card:1>","<card:2>","<card:3>"],
+              "wishlist": [],
+              "cardsVersion": 1,
+              "streak": 0,
+              "seen": ["s1-fable-6","s1-haiku-7","s1-sonnet-6"],
+              "rested": false,
+              "nextWildAt": 0,
+              "nextDuelAt": 0,
+              "nextChargeAt": 1790945100000,
+              "stats": {
+                "duelWins": 0,
+                "duelLosses": 0,
+                "playersBeaten": 0,
+                "wildWins": 0,
+                "catches": 0,
+                "speciesCollected": 3,
+                "firstFinds": 3,
+                "mythicsFound": 0,
+                "marketSales": 0
+              }
+            },
+            "packs": [
+              {"id":"<pack:1>","family":"haiku","source":"welcome","day":"2026-10-02"},
+              {"id":"<pack:2>","family":"sonnet","source":"welcome","day":"2026-10-02"}
+            ],
+            "notices": [
+              {
+                "id": "<notice:2>",
+                "day": "2026-10-02",
+                "kind": "new-device",
+                "text": "A new device signed in · Reset access if this was not you"
+              },
+              {
+                "id": "<notice:3>",
+                "day": "2026-10-02",
+                "kind": "new-device",
+                "text": "A passkey was saved for your collection · Reset access if this was not you"
+              },
+              {
+                "id": "<notice:1>",
+                "day": "2026-10-02",
+                "kind": "notice",
+                "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+              }
+            ],
+            "offers": {"incoming":[],"outgoing":[]},
+            "gifts": [],
+            "listings": [],
+            "now": 1790942400000
+          }
+        }
+      }
+    },
+    {
+      "op": "authPoll",
+      "player": "laptop",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/auth/poll/<poll:2>",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4"}
+      },
+      "response": {
+        "status": 404,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"not_found","message":"No such sign-in"}}
+      }
+    },
+    {
+      "op": "devices",
+      "player": "laptop",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me/devices",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4","authorization":"Bearer <token:2>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"sessions":2,"passkeys":1}
+      }
+    },
+    {
+      "op": "me",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:1>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 100,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-10-02",
+            "battles": 0,
+            "canTrade": true,
+            "team": ["<card:1>","<card:2>","<card:3>"],
+            "wishlist": [],
+            "cardsVersion": 1,
+            "streak": 0,
+            "seen": ["s1-fable-6","s1-haiku-7","s1-sonnet-6"],
+            "rested": false,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 3,
+              "firstFinds": 3,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [
+            {"id":"<pack:1>","family":"haiku","source":"welcome","day":"2026-10-02"},
+            {"id":"<pack:2>","family":"sonnet","source":"welcome","day":"2026-10-02"}
+          ],
+          "notices": [
+            {
+              "id": "<notice:2>",
+              "day": "2026-10-02",
+              "kind": "new-device",
+              "text": "A new device signed in · Reset access if this was not you"
+            },
+            {
+              "id": "<notice:3>",
+              "day": "2026-10-02",
+              "kind": "new-device",
+              "text": "A passkey was saved for your collection · Reset access if this was not you"
+            },
+            {
+              "id": "<notice:1>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942400000
+        }
+      }
+    },
+    {
+      "op": "resetToken",
+      "player": "laptop",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/me/token",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.4",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"token":"<token:3>"}
+      }
+    },
+    {
+      "op": "me",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 401,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"unauthorized","message":"Unauthorized"}}
+      }
+    },
+    {
+      "op": "devices",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me/devices",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4","authorization":"Bearer <token:3>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"sessions":1,"passkeys":0}
+      }
+    },
+    {
+      "op": "deleteMe",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "DELETE",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4","authorization":"Bearer <token:3>"}
+      },
+      "response": {"status":200,"headers":{"content-type":"application/json; charset=utf-8"},"body":{"deleted":true}}
+    },
+    {
+      "op": "me",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.4","authorization":"Bearer <token:3>"}
+      },
+      "response": {
+        "status": 401,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"unauthorized","message":"Unauthorized"}}
+      }
+    }
+  ]
+}
