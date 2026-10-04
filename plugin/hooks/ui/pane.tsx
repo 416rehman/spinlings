@@ -6,6 +6,7 @@ import type { GameState, PaneView } from '../client/types.ts'
 import { drawnLayout, noteLayout } from '../client/battleview.ts'
 import { INERT, demoStep } from '../client/demo.ts'
 import { hasFeature, statusLine } from '../client/game.ts'
+import { catalogOf } from '../client/frozen.ts'
 import { fit, safe } from '../client/text.ts'
 import { band } from './band.tsx'
 import { hello, screenOf, withTop } from '../client/viewmodels.ts'
@@ -87,7 +88,7 @@ function starting(c: Ctx): Shown {
 /** The daily hello (SPEC 13.11): the first pane of each UTC day shows the rule and the featured species. */
 function helloBanner(c: Ctx): RenderElement | null {
   if (!c.state.pane.hello) return null
-  const day = hello(c.now)
+  const day = hello(c.now, catalogOf(c.state.account))
   const { Box } = c.el
   const name = day.featured ? safe(day.featured.names[day.featured.legendary ? 2 : 0], 24) : ''
   const beside = c.columns >= 30

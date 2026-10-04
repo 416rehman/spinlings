@@ -57,18 +57,18 @@ export function startBattle(s: LocalState, ctx: Ctx, req: StartBattleRequest): S
   if (req.kind === 'wild' && now < nextWildAt(s)) refuse('rate_limited', 'Nothing is rustling yet')
   if (req.kind === 'duel' && now < nextDuelAt(s)) refuse('rate_limited', 'Your team is catching its breath')
   const { cards, subs } = battleTeam(s, now)
-  const w = worldOf(now)
+  const w = worldOf(now, ctx.catalog)
   let rival: OpenBattle['rival'] = null
   let defender
   if (req.kind === 'wild') {
     const level = cards.reduce((n, c) => n + c.level, 0) / cards.length
-    const o = { rng, arena: req.family, now, level, rule: w.rule }
+    const o = { rng, arena: req.family, now, level, rule: w.rule, catalog: ctx.catalog }
     // beginner's luck: the first wild encounter ever is one gentle creature against the lead
     defender = firstWildDue(s.wildWon, s.lastWildAt)
       ? rollFirstWild({ ...o, lead: cards[0]!.family })
       : rollWildTeam({ ...o, featured: w.featured, roamer: w.roamer, rested: isRested(Math.max(s.lastWildAt, s.lastDuelAt), now) })
   } else {
-    const r = rollRival({ rng, now, rating: s.rating, power: cards.reduce((n, c) => n + cardPower(c), 0), size: cards.length })
+    const r = rollRival({ rng, now, rating: s.rating, power: cards.reduce((n, c) => n + cardPower(c), 0), size: cards.length, catalog: ctx.catalog })
     rival = { name: r.name, rating: r.rating }
     defender = r.team
   }
@@ -109,7 +109,7 @@ export function settle(s: LocalState, ctx: Ctx, b: OpenBattle, mode: SettleMode,
   const { setup } = b
   const held = new Map(s.cards.map(card => [card.id, { card, arena: s.arena[card.id] ?? noCounts() }]))
   const plan = settlePlan({
-    setup, log, mode, now, finishAfter: b.finishAfter, rng: ctx.rng, held, streak: s.streak, rating: s.rating,
+    setup, log, mode, now, finishAfter: b.finishAfter, rng: ctx.rng, catalog: ctx.catalog, held, streak: s.streak, rating: s.rating,
     opponentRating: b.rival?.rating ?? null, wildWon: s.wildWon, firstWinDue: s.firstWinDay !== utcDay(now), revenge: false,
   })
   const { answer } = plan

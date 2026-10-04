@@ -9,7 +9,7 @@ import { API_ROUTES } from '../../core/api.ts'
 import type { Card } from '../../core/types.ts'
 import { isFamily } from '../../core/families.ts'
 import { parsePathParam, parseRequest, parseResponse } from '../../core/schemas.ts'
-import { GENERATOR_VERSION, seasonSpecies } from '../../core/species.ts'
+import { GENERATOR_VERSION, seasonSpecies, resolveCards } from '../../core/species.ts'
 import { seasonOf, worldOf } from '../../core/world.ts'
 import type { Backend, LocalDeps } from '../types.ts'
 import { BackendError } from '../types.ts'
@@ -34,12 +34,13 @@ const write = <K extends ApiOp>(run: Handler<K>) => ({ write: true, run })
 
 /** Every offline operation (deleteMe aside), and whether it changes the save beyond the touch. */
 const OPS: OfflineOps = {
-  season: read<'season'>((_s, ctx, req) => {
+  season: read<'season'>((s, ctx, req) => {
     const season = Number(req.season)
     if (season > seasonOf(ctx.now)) refuse('not_found', 'That season has not begun')
-    return { season, generator: GENERATOR_VERSION, species: [...seasonSpecies(season)] }
+    const generator = s.generators[String(season)] ?? GENERATOR_VERSION
+    return { season, generator, species: [...seasonSpecies(season, ctx.catalog, generator)] }
   }),
-  world: read<'world'>((_s, ctx) => ({ ...worldOf(ctx.now), players: 1 })),
+  world: read<'world'>((_s, ctx) => ({ ...worldOf(ctx.now, ctx.catalog), players: 1 })),
   me: read<'me'>((s, ctx) => meView(s, ctx.now)),
   cards: read<'cards'>(s => ({ cards: s.cards, version: s.cardsVersion })),
   trader: read<'trader'>((s, ctx) => trader(s, ctx)),
@@ -118,8 +119,9 @@ export function createLocalBackend(deps: LocalDeps): Backend {
       const fresh = opened.kind === 'empty'
       const family = deps.family()
       const s = opened.kind === 'ok' ? opened.state : firstRun(ctx, isFamily(family) ? family : 'sonnet')
+      ctx.catalog = s.catalog
       const touched = touch(s, ctx)
-      const answer = checkResponse(op, entry.run(s, ctx, req))
+      const answer = resolveCards(checkResponse(op, entry.run(s, ctx, req)), s.catalog)
       if (!fresh && !touched && !entry.write) return answer
       const encoded = encodeState(s, randomId(rng))
       const size = JSON.stringify(encoded).length

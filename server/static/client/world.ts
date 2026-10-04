@@ -4,7 +4,7 @@
 import { applyXp, cardStats, stageFor } from '../../../plugin/hooks/core/cards.ts'
 import { installSeason } from '../../../plugin/hooks/core/species.ts'
 import type { Family } from '../../../plugin/hooks/core/types.ts'
-import { HOUR_FAMILY, meet, newSeed, teamRegulars } from '../../src/pages-meet.ts'
+import { catalogFor, HOUR_FAMILY, meet, newSeed, teamRegulars } from '../../src/pages-meet.ts'
 import type { Hour, SiteCard, SiteWorld } from '../../src/pages-meet.ts'
 import { $, H, store } from './util.ts'
 
@@ -22,7 +22,7 @@ export const W: World | null = (() => {
     const raw = main?.getAttribute('data-world')
     if (!raw) return null
     const w = JSON.parse(raw) as World
-    return installSeason(w.season, w.species) ? w : null
+    return installSeason(w.season, w.species, catalogFor(w)) ? w : null
   } catch { return null }
 })()
 

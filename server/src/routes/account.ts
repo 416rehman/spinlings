@@ -13,7 +13,7 @@ import type { Db, Stmt } from '../db.ts'
 import { fail, HttpError } from '../http.ts'
 import type { GiftRow, OfferRow, PlayerRow } from '../schema.ts'
 import { deletionStmts, newHandle, rerollStmts, rerollWait } from '../game/auth.ts'
-import { apiRoute, cached, commit, DAY, ensureSeason, notFound, playerGuard, publicRoute, setPlayer, teamOf } from '../game/ctx.ts'
+import { apiRoute, cached, catalogOf, commit, DAY, ensureSeason, notFound, playerGuard, publicRoute, setPlayer, teamOf } from '../game/ctx.ts'
 import { listingsOf } from '../game/market.ts'
 import { giftViews, offerViews, packsOf } from '../game/mint.ts'
 import { noticesOf } from '../game/notices.ts'
@@ -21,8 +21,8 @@ import { handleRerollFrom, nextChargeAt, nextDuelAt, nextWildAt, restedNow } fro
 import { statsOf } from '../game/stats.ts'
 
 /** This server's release, and the newest mod it knows of (SPEC 32). */
-export const SERVER_VERSION = '0.2.2'
-export const LATEST_CLIENT = '0.2.2'
+export const SERVER_VERSION = '0.2.3'
+export const LATEST_CLIENT = '0.2.3'
 
 const OFFERS_SHOWN = 50
 
@@ -98,7 +98,7 @@ export function account(api: Api): void {
 
   publicRoute(api, 'world', async ctx => {
     const seen = (await ctx.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM players WHERE last_seen >= ?', utcDay(ctx.now - DAY)))!.n
-    return cached({ ...worldOf(ctx.now), players: roughCount(seen) }, 300)
+    return cached({ ...worldOf(ctx.now, catalogOf(ctx.db)), players: roughCount(seen) }, 300)
   })
 
   // Immutable once made (SPEC 32): a past or current season, never one still to come.

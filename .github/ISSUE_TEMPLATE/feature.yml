@@ -1,0 +1,17 @@
+name: Feature idea
+description: Suggest a way to make Spinlings better.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would this help you do?
+      placeholder: Describe the part of the game that could work better.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      placeholder: What should happen when a player uses it?
+    validations:
+      required: true

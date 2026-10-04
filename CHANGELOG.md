@@ -2,6 +2,14 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.3 (2026-10-04)
+
+- **Keep your creatures across worlds and seasons.** Frozen species now belong to their own server or offline save. Online collections, opponents and fusion parents load every needed season, including collections spanning more than eight seasons. Matching today's generator no longer skips an older season's frozen forms. The local season cache stays bounded and late responses cannot replace the active world's catalog.
+- **Retain the rules you started with.** The server keeps an immutable rules-1 replay engine, independent of future balance changes. Future special labels use a generic display in every supported released mod while retaining the exact damage, HP and result. Below the minimum supported mod, collection reads and account deletion remain available; game writes still require an upgrade. The minimum stays 0.1.0.
+- **Offline history.** Generator 2 and its naming rules are retained separately, and saves resolve past seasons using their recorded generator version. Updating a future generator must preserve existing offline creatures.
+- **Ready to share.** Public pages have canonical URLs, complete social previews and a stable meadow image. A sitemap lists generic public pages, and crawler rules keep private and temporary paths out. Existing website styling is preserved. The README adds requirements, badges, update guidance and a compatibility guide; issue templates separate ordinary feedback from private security reports.
+- **Compatibility and privacy.** API v1, rules 1, generator 2, stored database fields and public card fields are unchanged. No new request metadata, telemetry or runtime dependency is added. Transient frozen forms stay local to rendering and are stripped from responses and stored battle JSON. Released compatibility fixtures remain immutable; tests also cover future labels, historical replay, cross-world isolation, long-lived collections and season rewards paid once.
+
 ## 0.2.2 (2026-10-04)
 
 - **Cards you can compare.** The browser collection shows Health, Attack, Defense and Speed without opening every card. It uses the website's pixel frames, rarity gems and finish accents. Public card pages and market cards explain stats, genes, family matchups, special moves and traits on hover, keyboard focus or tap. Attack is clearly distinguished from the damage of a particular hit.

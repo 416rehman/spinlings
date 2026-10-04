@@ -6,11 +6,12 @@
 //   The revealed pool: this season's regular species somebody has found, plus today's featured
 //     species; a family with fewer than 2 gets its regulars. Legendaries only once found.
 //   Never on the site: Mythics, the weekly roamer, colour art of an unfound species, finders' handles.
-import { mintBase } from '../../plugin/hooks/core/cards.ts'
+import { fuse, mintBase } from '../../plugin/hooks/core/cards.ts'
 import { promoForm } from '../../plugin/hooks/core/drops.ts'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { FAMILIES, FAMILY_INFO, beatenBy } from '../../plugin/hooks/core/families.ts'
 import { hashString, pick, rngFromSeed, shuffle, uint32, weighted } from '../../plugin/hooks/core/rng.ts'
+import { resolveCard } from '../../plugin/hooks/core/species.ts'
 import type { BattleCard, CardForm, DailyRule, Family, Rarity, Rng, Species } from '../../plugin/hooks/core/types.ts'
 import { featuredSpecies, seasonStart, utcDay } from '../../plugin/hooks/core/world.ts'
 
@@ -56,6 +57,18 @@ export type SiteWorld = {
   regulars: CardForm[]
 }
 
+const CATALOGS = new WeakMap<SiteWorld, Map<number, readonly Species[]>>()
+
+/** A page's own frozen species, shared by its meetings, restores and fusions. */
+export function catalogFor(w: SiteWorld): Map<number, readonly Species[]> {
+  let catalog = CATALOGS.get(w)
+  if (!catalog) {
+    catalog = new Map([[w.season, w.species]])
+    CATALOGS.set(w, catalog)
+  }
+  return catalog
+}
+
 export const regularSeed = (f: Family, i: number) => `spinlings/site/regular/${f}/${i}`
 
 /** A regular's form; its names come from the server (core/naming.ts), never from here. */
@@ -71,7 +84,7 @@ export type Entry = { species: Species } | { form: CardForm }
 const noonOf = (day: string) => Date.parse(day + 'T12:00:00Z')
 
 /** The featured species on a day of the world's season. */
-export const featuredOn = (w: SiteWorld, day: string) => (day === w.day ? w.featured : featuredSpecies(noonOf(day)))
+export const featuredOn = (w: SiteWorld, day: string) => (day === w.day ? w.featured : featuredSpecies(noonOf(day), catalogFor(w)))
 
 /**
  * A family's revealed regular species: found ones and the featured one, topped up with the family's
@@ -110,19 +123,26 @@ export function entryOf(w: SiteWorld, key: string, day: string): Entry | null {
 
 export type SiteCard = BattleCard & { xp: number }
 
+/** The den's hybrid keeps this page's species names and parent forms after the fusion names load. */
+export function fuseSite(w: SiteWorld, a: SiteCard, b: SiteCard, rng: Rng): SiteCard {
+  const catalog = catalogFor(w)
+  return resolveCard({ ...fuse(a, b, rng, w.now, catalog), id: 'hybrid' }, catalog)
+}
+
 export type CardOptions = { rarity: Rarity; shiny: boolean; foil: boolean; dna: number; level?: number; xp?: number; id?: string }
 
 /** A card for a pool entry, minted exactly as the game mints (genes, traits and stats from DNA). */
 export function siteCard(w: Pick<SiteWorld, 'season' | 'now'>, e: Entry, o: CardOptions): SiteCard {
   const common = { rarity: o.rarity, shiny: o.shiny, foil: o.foil, dna: o.dna, now: w.now, level: o.level ?? 1, xp: o.xp ?? 0 }
   const c = 'species' in e
-    ? mintBase({ ...common, species: e.species.id, season: e.species.season, family: e.species.family, legendary: e.species.legendary, origin: 'catch' })
+    ? mintBase({ ...common, species: e.species.id, appearance: e.species, season: e.species.season, family: e.species.family, legendary: e.species.legendary, origin: 'catch' })
     : mintBase({ ...common, species: 'promo', form: e.form, season: w.season, family: e.form.family, legendary: false, origin: 'promo' })
   const out: SiteCard = {
     id: o.id ?? 'site', species: c.species, season: c.season, family: c.family, rarity: c.rarity, shiny: c.shiny, dna: c.dna,
     genes: c.genes, traits: c.traits, level: c.level, stage: c.stage, stats: c.stats, xp: c.xp,
   }
   if (c.form) out.form = c.form
+  if (c.appearance) out.appearance = c.appearance
   if (c.foil) out.foil = true
   return out
 }

@@ -8,6 +8,7 @@ import { FAMILIES, FAMILY_INFO } from '../core/families.ts'
 import { cardPower, craftCost, rarityFits, rarityRank, recycleValue } from '../core/cards.ts'
 import { wantMatches } from '../core/market.ts'
 import { getSpecies, seasonSpecies } from '../core/species.ts'
+import type { SeasonCatalog } from '../core/species.ts'
 import { RULE_INFO, dailyRule, featuredSpecies, fusionCost, seasonOf, utcDay } from '../core/world.ts'
 import { nameOf } from './game.ts'
 import type { BoardName, GameState, HoldAction, PaneUi, PlayerStats, Reveal, Tab, View } from './types.ts'
@@ -188,9 +189,9 @@ export function fusePartners(card: Card, cards: readonly Card[]): Card[] {
 
 export type AlbumEntry = { species: Species; seen: boolean; owned: number; wished: boolean }
 
-export function albumEntries(season: number, family: Family, seen: readonly string[], cards: readonly Card[], wishlist: readonly string[]): AlbumEntry[] {
+export function albumEntries(season: number, family: Family, seen: readonly string[], cards: readonly Card[], wishlist: readonly string[], catalog?: SeasonCatalog): AlbumEntry[] {
   const seenSet = new Set(seen)
-  return seasonSpecies(season).filter(s => s.family === family).map(species => ({
+  return seasonSpecies(season, catalog).filter(s => s.family === family).map(species => ({
     species,
     seen: seenSet.has(species.id) || cards.some(c => c.species === species.id),
     owned: cards.filter(c => c.species === species.id).length,
@@ -198,8 +199,8 @@ export function albumEntries(season: number, family: Family, seen: readonly stri
   }))
 }
 
-export function albumCount(season: number, seen: readonly string[], cards: readonly Card[]): { seen: number; total: number } {
-  const all = seasonSpecies(season)
+export function albumCount(season: number, seen: readonly string[], cards: readonly Card[], catalog?: SeasonCatalog): { seen: number; total: number } {
+  const all = seasonSpecies(season, catalog)
   const set = new Set([...seen, ...cards.map(c => c.species)])
   return { seen: all.filter(s => set.has(s.id)).length, total: all.length }
 }
@@ -210,8 +211,8 @@ export function fusionLog(cards: readonly Card[]): Card[] {
 }
 
 /** The parents' names of a fusion, from its form ('?' for a parent this mod cannot name). */
-export function parentsLine(c: Card): string {
-  const names = (c.form?.parents ?? []).map(id => { const s = getSpecies(id); return s ? s.names[0] : '?' })
+export function parentsLine(c: Card, catalog?: SeasonCatalog): string {
+  const names = (c.form?.parents ?? []).map((id, at) => { const s = c.parentForms?.[at] ?? getSpecies(id, catalog); return s ? s.names[0] : '?' })
   return names.length === 2 ? `${names[0]} × ${names[1]}` : ''
 }
 
@@ -305,18 +306,18 @@ export function startPrice(c: Pick<Card, 'rarity' | 'shiny' | 'foil'>, sales: re
 }
 
 /** The species a want names, for its mini sprite; null for a family or rarity want. */
-export function wantSpecies(w: MarketWant | undefined | null): Species | null {
+export function wantSpecies(w: MarketWant | undefined | null, catalog?: SeasonCatalog): Species | null {
   if (!w?.species) return null
   try {
-    return getSpecies(w.species) ?? null
+    return getSpecies(w.species, catalog) ?? null
   } catch {
     return null
   }
 }
 
 /** A want in a few plain words: `Fogmaw`, `any Haiku · Rare+`, `any shiny`. */
-export function wantWords(w: MarketWant): string {
-  const s = wantSpecies(w)
+export function wantWords(w: MarketWant, catalog?: SeasonCatalog): string {
+  const s = wantSpecies(w, catalog)
   const finish = dots(w.shiny ? 'shiny' : '', w.foil ? 'foil' : '')
   if (s) return dots(safe(s.names[s.legendary ? 2 : 0], 24), finish)
   return dots(`any${w.family ? ' ' + FAMILY_INFO[w.family].name : ''}`, w.rarity ? `${title(w.rarity)}+` : '', finish)
@@ -387,11 +388,11 @@ export function grouped(n: number): string {
 
 // ---------- the daily hello (SPEC 13.11) ----------
 
-export function hello(now: number): { rule: string; text: string; featured: Species | null } {
+export function hello(now: number, catalog?: SeasonCatalog): { rule: string; text: string; featured: Species | null } {
   const rule = RULE_INFO[dailyRule(now)]
   let featured: Species | null = null
   try {
-    featured = getSpecies(featuredSpecies(now)) ?? null
+    featured = getSpecies(featuredSpecies(now, catalog), catalog) ?? null
   } catch {
     featured = null
   }

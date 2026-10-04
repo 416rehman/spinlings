@@ -6,6 +6,7 @@ import { mintBase } from './cards.ts'
 import { FAMILIES, hueAt } from './families.ts'
 import { pick, rngFromSeed, uint32 } from './rng.ts'
 import { ACCESSORIES, BODIES, PATTERNS, baseStats, statJitter } from './species.ts'
+import type { SeasonCatalog } from './species.ts'
 import { mintFor } from './trader.ts'
 import { seasonOf } from './world.ts'
 
@@ -47,13 +48,13 @@ export function dropItems(reward: DropReward): DropRewardItem[] {
 }
 
 /** Everything a redemption mints: cards, and the families of the packs for the server to create. */
-export function mintDropReward(reward: DropReward, rng: Rng, now: number, bound: boolean): { cards: NewCard[]; packs: Family[] } {
+export function mintDropReward(reward: DropReward, rng: Rng, now: number, bound: boolean, catalog?: SeasonCatalog): { cards: NewCard[]; packs: Family[] } {
   const cards: NewCard[] = []
   const packs: Family[] = []
   for (const item of dropItems(reward)) {
     if (item.type === 'egg') cards.push(promoCard(item.promo, uint32(rng), now, bound))
     else if (item.type === 'pack') for (let i = 0; i < item.count; i++) packs.push(item.family ?? pick(rng, FAMILIES))
-    else cards.push(mintFor(item.family ?? pick(rng, FAMILIES), item.rarity, rng, now, 'promo', bound))
+    else cards.push(mintFor(item.family ?? pick(rng, FAMILIES), item.rarity, rng, now, 'promo', bound, catalog))
   }
   return { cards, packs }
 }

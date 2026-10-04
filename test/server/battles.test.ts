@@ -91,7 +91,11 @@ describe('POST /v1/battles: a wild encounter', () => {
     const team = await teamCards(s, p)
     const res = await p.call('startBattle', { kind: 'wild', family: 'haiku' })
     const w = worldOf(T0)
-    assert.deepEqual(res.setup.attacker, team.map(c => toBattleCard(c.card)))
+    assert.deepEqual(res.setup.attacker, team.map(c => {
+      const { appearance, parentForms, ...wire } = toBattleCard(c.card)
+      return wire
+    }))
+    assert.ok(res.setup.attacker.every(c => !('appearance' in c) && !('parentForms' in c)), 'artwork stays in the frozen season catalog')
     assert.deepEqual([res.setup.kind, res.setup.arena, res.setup.rule, res.setup.rules], ['wild', 'haiku', w.rule, RULES_VERSION])
     assert.match(res.setup.seed, /^[0-9a-f]{32}$/)
     assert.deepEqual(res.opponent, { kind: 'wild' })

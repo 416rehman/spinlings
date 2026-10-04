@@ -382,7 +382,7 @@ export type PageKind = 'home' | 'site' | 'plain' | 'passkey' | 'account'
 export type PageOptions = {
   title: string
   description: string
-  /** this page's path, for og:url */
+  /** this page's canonical path and og:url; only validated postcard pins carry a query */
   path: string
   origin: string
   body: Raw
@@ -428,7 +428,12 @@ function favicon(): string {
 export function layout(o: PageOptions): Response {
   const kind: PageKind = o.kind ?? (o.script ? 'passkey' : 'plain')
   const url = o.origin + o.path
-  const og = o.og
+  const publicPage = kind !== 'passkey' && kind !== 'account' && (o.status ?? 200) === 200
+  const og = publicPage ? {
+    title: o.title, description: o.description,
+    image: `${o.origin}/og/meadow.png`, imageAlt: 'Spinlings creatures on a lamp-lit meadow path.',
+    ...o.og,
+  } : undefined
   const scripted = kind === 'home' || kind === 'site'
   const attrs = [
     o.hour ? html` data-hour="${o.hour}" data-hour-fixed` : '',
@@ -445,16 +450,22 @@ export function layout(o: PageOptions): Response {
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#14121c">
 ${o.noindex ? html`<meta name="robots" content="noindex">` : ''}
+${publicPage ? html`<link rel="canonical" href="${url}">` : ''}
 <link rel="icon" href="${favicon()}">
 ${og ? html`<meta property="og:site_name" content="Spinlings">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${url}">
 <meta property="og:title" content="${og.title}">
 <meta property="og:description" content="${og.description}">
+<meta name="twitter:title" content="${og.title}">
+<meta name="twitter:description" content="${og.description}">
 ${og.image ? html`<meta property="og:image" content="${og.image}">
+<meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="${og.imageAlt ?? og.title}">
+<meta name="twitter:image" content="${og.image}">
+<meta name="twitter:image:alt" content="${og.imageAlt ?? og.title}">
 <meta name="twitter:card" content="summary_large_image">` : html`<meta name="twitter:card" content="summary">`}` : ''}
 ${scripted ? html`<script src="/static/${SITE_ASSETS.sky}"></script>` : ''}
 <style>${raw(CSS + bareOnce(o.css ?? ''))}</style>

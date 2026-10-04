@@ -6,6 +6,7 @@ import { mintCard } from './cards.ts'
 import { FAMILIES } from './families.ts'
 import { chance, pick, rngFromSeed, shuffle, uint32 } from './rng.ts'
 import { familySpecies, legendaryOf } from './species.ts'
+import type { SeasonCatalog } from './species.ts'
 import { seasonOf, shinyChance, utcDay } from './world.ts'
 
 type Template = (a: Family, b: Family) => Omit<TraderDeal, 'id'>
@@ -42,16 +43,16 @@ export function traderGiveProblem(deal: TraderDeal, cards: readonly Pick<Card, '
 }
 
 /** What the Trader hands back: fresh current-season cards, or pack families for the server to create. */
-export function rollTraderDeal(deal: TraderDeal, rng: Rng, now: number): { cards: NewCard[]; packs: Family[] } {
+export function rollTraderDeal(deal: TraderDeal, rng: Rng, now: number, catalog?: SeasonCatalog): { cards: NewCard[]; packs: Family[] } {
   if (deal.get.kind === 'pack') return { cards: [], packs: Array.from({ length: deal.get.count }, () => deal.get.family) }
   const cards: NewCard[] = []
-  for (let i = 0; i < deal.get.count; i++) cards.push(mintFor(deal.get.family, deal.get.rarity, rng, now, 'trader'))
+  for (let i = 0; i < deal.get.count; i++) cards.push(mintFor(deal.get.family, deal.get.rarity, rng, now, 'trader', false, catalog))
   return { cards, packs: [] }
 }
 
 /** A fresh card of a family and rarity from the current season (a legendary is the family's legendary). */
-export function mintFor(family: Family, rarity: Rarity, rng: Rng, now: number, origin: Card['origin'], bound = false): NewCard {
+export function mintFor(family: Family, rarity: Rarity, rng: Rng, now: number, origin: Card['origin'], bound = false, catalog?: SeasonCatalog): NewCard {
   const season = seasonOf(now)
-  const species = rarity === 'legendary' ? legendaryOf(season, family) : pick(rng, familySpecies(season, family).filter(s => !s.legendary))
-  return mintCard({ species, rarity, shiny: chance(rng, shinyChance(now)), dna: uint32(rng), origin, now, foil: chance(rng, ECONOMY.foil.chance), bound })
+  const species = rarity === 'legendary' ? legendaryOf(season, family, catalog) : pick(rng, familySpecies(season, family, catalog).filter(s => !s.legendary))
+  return mintCard({ species, rarity, shiny: chance(rng, shinyChance(now)), dna: uint32(rng), origin, now, foil: chance(rng, ECONOMY.foil.chance), bound }, catalog)
 }

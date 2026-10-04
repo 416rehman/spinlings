@@ -3,11 +3,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Card, Family } from '../../plugin/hooks/core/types.ts'
-import { applyXp, fuse, mintCard } from '../../plugin/hooks/core/cards.ts'
+import { applyXp, cardName, cardStats, fuse, mintCard } from '../../plugin/hooks/core/cards.ts'
 import { ECONOMY, seasonEnd } from '../../plugin/hooks/core/economy.ts'
 import { generateMythic } from '../../plugin/hooks/core/mythics.ts'
 import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
-import { GENERATOR_VERSION, familySpecies, legendaryOf } from '../../plugin/hooks/core/species.ts'
+import { GENERATOR_VERSION, familySpecies, legendaryOf, seasonSpecies } from '../../plugin/hooks/core/species.ts'
 import { DAY_MS, EPOCH_MS, SEASON_MS, seasonOf } from '../../plugin/hooks/core/world.ts'
 import { createLocalBackend, recycleSuggestions } from '../../plugin/hooks/client/local/index.ts'
 import type { LocalState } from '../../plugin/hooks/client/local/save.ts'
@@ -249,4 +249,62 @@ test('a new season grants its league\'s packs, softens the rating and leaves a n
   assert.equal(again.packs.filter(p => p.source === 'season').length, end.packs, 'once')
   w.now += 31 * DAY_MS
   assert.ok(!(await w.backend.me({})).notices.some(n => n.text.startsWith('Season 1 ended')), 'old notices go after 30 days')
+})
+
+
+test('the compact save resolves retained generator forms without storing render metadata', async () => {
+  const w = world()
+  await w.backend.me({})
+  const cards = (await w.backend.cards({})).cards
+  assert.ok(cards.every(c => c.appearance))
+  for (const c of cards) {
+    const form = seasonSpecies(c.season, undefined, 2).find(s => s.id === c.species)!
+    assert.deepEqual(c.appearance, form)
+    assert.equal(cardName(c), form.names[c.stage - 1])
+    assert.deepEqual(cardStats(c), c.stats)
+  }
+  const battle = await w.backend.startBattle({ kind: 'wild', family: 'haiku' })
+  assert.ok(battle.setup.attacker.every(c => c.appearance))
+  assert.doesNotMatch(JSON.stringify(w.stored), /"(?:catalog|appearance|parentForms)":/)
+  const opened = openSave(w.stored)
+  assert.equal(opened.kind, 'ok')
+  if (opened.kind === 'ok' && opened.state.battle?.state === 'open') {
+    assert.deepEqual(opened.state.battle.setup.attacker.map(c => cardName(c)), battle.setup.attacker.map(c => cardName(c)))
+  } else assert.fail('battle did not reopen')
+  assert.equal((await w.backend.season({ season: 1 })).generator, 2)
+})
+
+test('unknown historical generators preserve card tuples while the current offline season remains usable', async () => {
+  const w = world()
+  await w.backend.me({})
+  const tuples = (w.stored as { cards: unknown[] }).cards
+  w.edit(s => { s.generators['1'] = 999 })
+  w.now += 2 * SEASON_MS
+  const me = await w.backend.me({})
+  assert.equal(me.player.handle, 'offline')
+  assert.equal((await w.backend.cards({})).cards.length, 0, 'unknown cards are held, never guessed')
+  assert.deepEqual((w.stored as { cards: unknown[] }).cards, tuples)
+  const season = seasonOf(w.now)
+  assert.equal((await w.backend.season({ season })).generator, GENERATOR_VERSION)
+  const fresh = await w.backend.openPack({ packId: me.packs[0]!.id })
+  assert.ok(fresh.cards.every(c => c.season === season && c.appearance))
+  const stored = w.stored as { cards: unknown[]; generators: Record<string, number> }
+  assert.deepEqual(stored.cards.slice(-tuples.length), tuples)
+  assert.equal(stored.generators['1'], 999)
+})
+
+test('a stored unknown catalog key survives local render catalog resolution', async () => {
+  const w = world()
+  await w.backend.me({})
+  const extra = { future: ['keep this value'], revision: 7 }
+  ;(w.stored as Record<string, unknown>).catalog = extra
+  w.now += DAY_MS
+  await w.backend.me({})
+  assert.deepEqual((w.stored as Record<string, unknown>).catalog, extra)
+  const reopened = openSave(w.stored)
+  assert.equal(reopened.kind, 'ok')
+  if (reopened.kind === 'ok') {
+    assert.ok(reopened.state.catalog instanceof Map)
+    assert.deepEqual(reopened.state.extra.catalog, extra)
+  }
 })

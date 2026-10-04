@@ -158,15 +158,18 @@ test('getSpecies, legendaryOf, formOf', () => {
   assert.deepEqual(['fusion', 'mythic', 'promo', 's1-opus-1', 'toString'].map(isFormKind), [true, true, true, false, false])
 })
 
-test('a season frozen by the server replaces the generated one; bad lists are refused', () => {
+test('a season frozen by the server replaces only its explicit catalog; bad lists are refused', () => {
   assert.equal(GENERATOR_VERSION, 2)
   const frozen = JSON.parse(JSON.stringify(seasonSpecies(77))) as ReturnType<typeof seasonSpecies>[number][]
+  const catalog = new Map()
+  const original = getSpecies('s77-haiku-0')!
   frozen[0] = { ...frozen[0]!, names: ['Frostlet', 'Frostmaw', 'Frosttitan'] }
-  assert.equal(installSeason(77, frozen.slice(1)), false)
-  assert.equal(installSeason(78, frozen), false, 'wrong season')
-  assert.equal(installSeason(77, frozen), true)
-  assert.deepEqual(getSpecies('s77-haiku-0')!.names, ['Frostlet', 'Frostmaw', 'Frosttitan'])
-  assert.ok(Object.isFrozen(getSpecies('s77-haiku-0')))
+  assert.equal(installSeason(77, frozen.slice(1), catalog), false)
+  assert.equal(installSeason(78, frozen, catalog), false, 'wrong season')
+  assert.equal(installSeason(77, frozen, catalog), true)
+  assert.deepEqual(getSpecies('s77-haiku-0', catalog)!.names, ['Frostlet', 'Frostmaw', 'Frosttitan'])
+  assert.ok(Object.isFrozen(getSpecies('s77-haiku-0', catalog)))
+  assert.strictEqual(getSpecies('s77-haiku-0'), original, 'offline generation is unchanged')
 })
 
 test('legendary and Mythic parents with an awkward front still fuse into three clean names, the same every time', () => {

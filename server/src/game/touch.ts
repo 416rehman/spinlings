@@ -13,7 +13,7 @@ import type { Stmt } from '../db.ts'
 import { fail } from '../http.ts'
 import type { PlayerRow } from '../schema.ts'
 import { battleTouch } from './battles-touch.ts'
-import { addSparks, commit, ensureSeason, loadPlayer, rngOf, setPlayer } from './ctx.ts'
+import { addSparks, catalogOf, commit, ensureSeason, loadPlayer, rngOf, setPlayer } from './ctx.ts'
 import { grantPack, mintCards } from './mint.ts'
 import { NOTICE_TEXT, notice } from './notices.ts'
 import { socialTouch } from './social-touch.ts'
@@ -41,7 +41,7 @@ export const seasonTurn: TouchStep = async ctx => {
   const rng = rngOf(ctx)
   const stmts: Stmt[] = []
   for (let i = 0; i < end.packs; i++) stmts.push(grantPack(ctx, p.id, pick(rng, FAMILIES), 'season').stmt)
-  if (end.legendary) stmts.push(...(await mintCards(ctx, p.id, [mintFor(pick(rng, FAMILIES), 'legendary', rng, ctx.now, 'season')])).stmts)
+  if (end.legendary) stmts.push(...(await mintCards(ctx, p.id, [mintFor(pick(rng, FAMILIES), 'legendary', rng, ctx.now, 'season', false, catalogOf(ctx.db))])).stmts)
   stmts.push(notice(ctx, p.id, 'season-end', NOTICE_TEXT.seasonEnd(p.season, end.league, end.packs, end.legendary)))
   // the reset moves the rating and season others see, so their midnight values are saved first
   stmts.push(publish(p.id, ctx.now), setPlayer(p.id, { season, rating: end.rating }))

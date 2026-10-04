@@ -12,6 +12,7 @@ import { API_ROUTES } from '../../plugin/hooks/core/api.ts'
 import type { ApiErrorCode, ApiOp, ApiRequest, OfferView } from '../../plugin/hooks/core/api.ts'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { parseApiError, parsePathParam, parseRequest } from '../../plugin/hooks/core/schemas.ts'
+import { solveProofOfWork } from '../../plugin/hooks/core/sha256.ts'
 import { familySpecies } from '../../plugin/hooks/core/species.ts'
 import { traderGiveProblem } from '../../plugin/hooks/core/trader.ts'
 import type { Card } from '../../plugin/hooks/core/types.ts'
@@ -295,13 +296,25 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     assert.notEqual(old, token)
   })
 
-  it('an old mod is refused with upgrade_required, except the version handshake', async () => {
+  it('a below-minimum mod keeps its collection, while game writes require an upgrade', async () => {
     const strict = await bootServer({ difficulty: 8, minClient: '9.0.0' })
     try {
       const old = connect(strict, 'old', 'opus')
-      old.token = 'a'.repeat(64)
+      const challenge = await old.call('challenge', {})
+      const joined = await fetch(strict.origin + '/v1/join', {
+        method: 'POST', headers: { 'x-spinlings-client': '9.0.0', 'content-type': 'application/json' },
+        body: JSON.stringify({ challenge: challenge.challenge, nonce: solveProofOfWork(challenge.challenge, challenge.difficulty), family: 'opus' }),
+      })
+      assert.equal(joined.status, 200)
+      old.token = ((await joined.json()) as { token: string }).token
       assert.equal((await old.call('version', {})).minClient, '9.0.0')
-      await refused(old, 'me', {}, 'upgrade_required', 426)
+      const me = await old.call('me', {})
+      assert.equal((await old.call('cards', {})).cards.length, 3)
+      assert.equal(me.player.team.length, 3)
+      await refused(old, 'buyPack', { family: 'opus' }, 'upgrade_required', 426)
+      await refused(old, 'startBattle', { kind: 'wild', family: 'opus' }, 'upgrade_required', 426)
+      assert.deepEqual(await old.call('deleteMe', {}), { deleted: true })
+      await refused(old, 'me', {}, 'unauthorized', 401)
     } finally {
       await strict.close()
     }

@@ -1345,7 +1345,7 @@ Passkeys are bound to `rp.id` forever. The production domain must be final befor
 
 ## 32. Versioning and backward compatibility
 
-**Constraint:** Claude Code does not auto-update plugins by default, so old mods stay in use for months. The server supports every mod version from `minClient` up. Updates never break play, and never affect Claude.
+**Constraint:** third-party marketplaces do not auto-update by default, so old mods stay in use for months. Players may enable marketplace auto-update; the marketplace cannot force it. The server supports every mod version from `minClient` up. A new season or balance change must not require a mod update, and never affects Claude.
 
 ### Wire API
 - **Additive within `/v1`:** new endpoints, new optional request fields (the server treats them as absent when missing), and new response fields and enum values.
@@ -1354,16 +1354,17 @@ Passkeys are bound to `rp.id` forever. The production domain must be final befor
   - unknown notice kind → a generic notice line (`notice`);
   - unknown trait → shown by id with no effect line;
   - unknown origin → `unknown`;
+  - unknown special label → a generic special, retaining the authoritative damage and HP;
   - and likewise: pack source → `bonus`, daily rule → `calm`, league → `Pebble`, offer state → `expired`, error code → `unavailable`, rarity → `common`, opponent kind → wild, sign-in poll status → `pending`. Families stay strict: a new family is a `/v2` change.
 
-  Responses must never be rejected for something new.
+  Additions must fit the existing reader's bounds. `/v1` retains four families, three slots per team, at most 30 rounds, two actions per round, and at most four hits and four charge per slot. Its server omits special labels outside the four original move IDs before answering either a finish or a repeated finish. New mechanics must provide a compatible log within these bounds or use `/v2`; merely changing `rules` cannot make an incompatible shape readable.
 - **Strict writer on the server.** Request parsing stays strict: unknown keys are rejected (security, section 12). A client never sends a field the server's `features` do not list.
 - **Pages.** `GET /v1/cards` answers the cards oldest first, as many as fit under the mod's 256 KB cap, with `next` while more remain. The mod asks again with `?after={next}` until `next` is absent, and reads the whole list again if `version` moved between pages. It sends `after` only back to the server that gave it, so a server without pages is never asked for one.
 
 ### Version handshake
 - **`GET /v1/version`** (public, cacheable for 1 hour) returns:
   `{ api: 1, server: semver, rules: int, generator: int, minClient: semver, latestClient: semver, sunset?: { api, date }, features: string[] }`
-- **Every request** carries `X-Spinlings-Client: <semver>`. It is identical for everyone on that version and is not logged (section 20). The server uses it only to choose compatible behaviour, and returns `426 upgrade_required` only below `minClient`.
+- **Every request** carries `X-Spinlings-Client: <semver>`. It is identical for everyone on that version and is not logged (section 20). It already supplies the installed mod's status; no device, usage or session fingerprint is added. This header is untrusted and never grants rewards or privileges. The server returns `426 upgrade_required` on game writes below `minClient`; reads and authenticated account deletion remain available.
 - **Mod behaviour:**
   - checks the version once per day while online, and once after a mod update so cached capabilities cannot hide newly available screens;
   - shows `Spinlings {latest} is out · claude plugin update spinlings@spinlings` once per new version in the band (dismissible, never repeated);
@@ -1376,11 +1377,13 @@ Passkeys are bound to `rp.id` forever. The production domain must be final befor
 - **Frozen seasons.**
   - Each season's 36 species are generated **once** by the server with the generator version current at season start, then stored (`seasons(season, generator, species_json)`).
   - They are served by `GET /v1/season/{n}` (immutable, cacheable forever).
+  - A catalog belongs to one server origin on the client and one database on the server. It never overwrites the pure offline generator or another world's frozen forms. Online cards, fusion parents and both battle teams resolve against their own catalog.
+  - Fetch every referenced season, including an opponent's, even when the server's current generator matches. That match does not prove a past season used the same generator. Do not stop after eight seasons or install responses that arrived after switching worlds.
   - Clients render online cards from this data plus the card's DNA. A generator improvement applies only to future seasons. Core keeps every frozen generator version needed by the offline world, append-only.
 - **Rules version.** `core` exports `RULES_VERSION` (battle rules) and `GENERATOR_VERSION` (species generation); `BattleSetup.rules` carries the server's rules version. `FinishBattleResponse.log` carries the authoritative `BattleLog`.
   - **Rules match:** the mod simulates locally (live animation, Perfect timing).
   - **Rules mismatch:** the mod skips the live prompt, finishes with no inputs, and animates the server's `log`. That is always correct, just without Perfect timing.
-- **In-flight battles** settle with the rules version stored on their battle row. The server keeps the previous rules version's simulator for at least 1 release.
+- **In-flight battles** settle with the rules version stored on their battle row. Append-only engines in `server/src/game/rules/` freeze their constants and helpers; the rules-1 engine uses the snapshot's authoritative stats and does not import changing balance or generator code. Keep historical engines while their open rows can exist. Register and test a new engine before changing `RULES_VERSION`; never silently discard a valid older battle during a deploy.
 
 ### Database
 - **Forward-only, expand-then-contract migrations:**
@@ -1396,7 +1399,7 @@ Passkeys are bound to `rp.id` forever. The production domain must be final befor
 - **Semver.** The plugin's `version` is bumped on every release, and the marketplace entry points at release tags.
 - **Order:** the server deploys first and the mod is released after.
 - **Changelog:** `CHANGELOG.md` gets one entry per release, noting any compatibility impact.
-- **Tests:** a compatibility test suite runs the current server against recorded request and response fixtures from every supported mod version, kept in `test/compat/fixtures/{version}/`.
+- **Tests:** a compatibility test suite runs the current server against recorded request and response fixtures from every supported mod version, kept in `test/compat/fixtures/{version}/`. Additional checks cover future special labels through the real finish endpoint and frozen readers, a rules mismatch, cross-world catalogs, more than eight seasons, season rollover, and historical engine replay. Recordings alone cannot prove those future scenarios.
 
 ### Offline isolation tests (part of section 28)
 - **Mod:**

@@ -7,6 +7,7 @@ import { applyXp, cardName, raisingFamily } from './cards.ts'
 import { ECONOMY, streakPackDue } from './economy.ts'
 import { rollBounty } from './packs.ts'
 import { chance } from './rng.ts'
+import type { SeasonCatalog } from './species.ts'
 
 /**
  * `finish` is the attacker's own finish; `auto` is a battle left behind (ten quiet minutes, or a new start). An auto
@@ -30,6 +31,7 @@ export const BATTLE_TEXT = {
 export type HeldCard = { card: Card; arena: ArenaCounts }
 
 export type SettleInput<H extends HeldCard> = {
+  catalog?: SeasonCatalog
   setup: BattleSetup
   log: BattleLog
   mode: SettleMode
@@ -92,7 +94,7 @@ export function settlePlan<H extends HeldCard>(o: SettleInput<H>): SettlePlan<H>
     const held = o.held.get(setup.attacker[slot]!.id)
     if (!held) continue
     const arena = { ...held.arena, [setup.arena]: held.arena[setup.arena] + 1 }
-    const grown = applyXp(held.card, rewards.xp, raisingFamily(arena, held.card.family))
+    const grown = applyXp(held.card, rewards.xp, raisingFamily(arena, held.card.family), o.catalog)
     let next = grown.card
     if (!win && log.fainted.a.includes(slot) && tiredUntil > now) {
       next = { ...next, tiredUntil: Math.max(next.tiredUntil, tiredUntil) }
@@ -100,7 +102,7 @@ export function settlePlan<H extends HeldCard>(o: SettleInput<H>): SettlePlan<H>
     }
     cards.push({ held, next, arena })
     xp.push({ cardId: next.id, xp: rewards.xp, levelsGained: grown.levelsGained, evolved: grown.evolved, stage: next.stage })
-    if (grown.evolved) tell('evolved', BATTLE_TEXT.evolved(cardName(held.card), cardName(next)))
+    if (grown.evolved) tell('evolved', BATTLE_TEXT.evolved(cardName(held.card, o.catalog), cardName(next, o.catalog)))
   }
 
   // rating: duels and Rivals inside the pair limit; wild battles leave it be
@@ -118,7 +120,7 @@ export function settlePlan<H extends HeldCard>(o: SettleInput<H>): SettlePlan<H>
   // limit may have defeated none, and then beginner's luck waits), a duel win's bounty
   const defeated = setup.defender.filter((_, i) => log.fainted.d.includes(i))
   const catchOptions: BattleCard[] = wild && win && o.mode === 'finish' && defeated.length && chance(o.rng, rewards.catchChance) ? defeated : []
-  const bounty = rewards.bountyChance > 0 && chance(o.rng, rewards.bountyChance) ? rollBounty(setup.defender[0]!, o.rng, now, setup.rule) : null
+  const bounty = rewards.bountyChance > 0 && chance(o.rng, rewards.bountyChance) ? rollBounty(setup.defender[0]!, o.rng, now, setup.rule, o.catalog) : null
 
   return {
     answer: {

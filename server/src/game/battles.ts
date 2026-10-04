@@ -18,27 +18,26 @@ import type { BattleCard, BattleLog, BattleSetup, Card } from '../../../plugin/h
 import { utcDay, worldOf } from '../../../plugin/hooks/core/world.ts'
 import { guard, stmt } from '../db.ts'
 import type { Db, Stmt } from '../db.ts'
-import { fail } from '../http.ts'
+import { fail, wireJson } from '../http.ts'
 import type { BattleRow, PlayerRow } from '../schema.ts'
-import { addSparks, bumpPlayer, DAY, ensureSeasons, newId, newSeed, notFound, randomInt, readJson, rngOf, setPlayer, teamOf } from './ctx.ts'
+import { addSparks, bumpPlayer, catalogOf, DAY, ensureSeasons, newId, newSeed, notFound, randomInt, readJson, rngOf, setPlayer, teamOf } from './ctx.ts'
 import type { Env } from './ctx.ts'
 import { bumpCards, cardGuard, cardsByIds, grantPack, mintCards, publicCard, queryCards, saveCard } from './mint.ts'
 import type { StoredCard } from './mint.ts'
 import { notice } from './notices.ts'
 import { battleFinished, firstWinDue, markDuelStart, markFirstWin, markWildStart, pairCounts, pairDuels, restedNow, waitUntil } from './pacing.ts'
 import { beat, count, publicRow, publish } from './stats.ts'
+import { replayRules } from './rules/index.ts'
 
 const B = ECONOMY.battle
 
 /**
  * The authoritative log for these inputs; null for a row that cannot be replayed, which closes with
- * nothing paid. Only one rules version exists so far: when RULES_VERSION moves, settle the previous
- * version's open battles with its own simulator here for at least one release (SPEC 32).
+ * nothing paid. Historical rules live in immutable server engines, independent of the current core.
  */
 export function replay(b: Pick<BattleRow, 'setup' | 'rules'>, inputs: readonly number[]): BattleLog | null {
-  if (b.rules !== RULES_VERSION) return null
   try {
-    return simulateBattle(JSON.parse(b.setup) as BattleSetup, inputs)
+    return replayRules(b.rules, JSON.parse(b.setup) as BattleSetup, inputs)
   } catch {
     return null
   }
@@ -200,7 +199,7 @@ async function duelFoe(env: Env, p: PlayerRow, team: readonly StoredCard[]): Pro
   const d = await findOpponent(env, p)
   const defender = d ? await defenseTeam(env.db, d) : []
   if (d && defender.length) return playerFoe(env, d, defender)
-  const rival = rollRival({ rng: rngOf(env), now: env.now, rating: p.rating, power: team.reduce((n, c) => n + cardPower(c.card), 0), size: team.length })
+  const rival = rollRival({ rng: rngOf(env), now: env.now, rating: p.rating, power: team.reduce((n, c) => n + cardPower(c.card), 0), size: team.length, catalog: catalogOf(env.db) })
   return {
     defender: rival.team, defenderId: null, kind: 'rival', stmts: [],
     opponent: { kind: 'rival', name: rival.name, league: leagueOf(rival.rating).name },
@@ -215,9 +214,9 @@ async function duelFoe(env: Env, p: PlayerRow, team: readonly StoredCard[]): Pro
  * forgets a wild start after a day, so a player who has still never won one meets another then.
  */
 function wildFoe(env: Env, p: PlayerRow, req: StartBattleRequest, team: readonly StoredCard[]): Foe {
-  const w = worldOf(env.now)
+  const w = worldOf(env.now, catalogOf(env.db))
   const level = team.reduce((n, c) => n + c.card.level, 0) / team.length
-  const o = { rng: rngOf(env), arena: req.family, now: env.now, level, rule: w.rule }
+  const o = { rng: rngOf(env), arena: req.family, now: env.now, level, rule: w.rule, catalog: catalogOf(env.db) }
   const defender = firstWildDue(p.wild_won === 1, p.last_wild_at)
     ? rollFirstWild({ ...o, lead: team[0]!.card.family })
     : rollWildTeam({ ...o, featured: w.featured, roamer: w.roamer, rested: restedNow(p, env.now) })
@@ -244,7 +243,7 @@ export async function prepareStart(env: Env, p: PlayerRow, req: StartBattleReque
       : req.handle !== undefined ? await challengeFoe(env, p, req.handle)
         : await duelFoe(env, p, cards)
   const setup: BattleSetup = {
-    seed: newSeed(env), kind: req.kind, arena: req.family, rule: worldOf(env.now).rule, rules: RULES_VERSION,
+    seed: newSeed(env), kind: req.kind, arena: req.family, rule: worldOf(env.now, catalogOf(env.db)).rule, rules: RULES_VERSION,
     attacker: cards.map(c => toBattleCard(c.card)), defender: foe.defender,
   }
   const id = newId(env)
@@ -260,7 +259,7 @@ export async function prepareStart(env: Env, p: PlayerRow, req: StartBattleReque
     stmt(
       `INSERT INTO battles (id, attacker_id, defender_id, kind, setup, opponent, started_at, rules, finish_after, revenge)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, p.id, foe.defenderId, foe.kind, JSON.stringify(setup), JSON.stringify(foe.stored), env.now, RULES_VERSION, until,
+      id, p.id, foe.defenderId, foe.kind, wireJson(setup), JSON.stringify(foe.stored), env.now, RULES_VERSION, until,
       req.revenge !== undefined,
     ),
     req.kind === 'wild' ? markWildStart(p, env.now) : markDuelStart(p, env.now),
@@ -331,7 +330,7 @@ export async function settleBattle(
   const plan = settlePlan({
     setup, log, mode, now, finishAfter: b.finish_after, rng, held, streak: p.streak, rating: p.rating,
     opponentRating: counts ? theirs : null, wildWon: p.wild_won !== 0, firstWinDue: firstWinDue(p, now), revenge: b.revenge === 1,
-    counts: !duel || counts,
+    counts: !duel || counts, catalog: catalogOf(env.db),
   })
   const { answer } = plan
   const told = (kind: NoticeKind) => {
@@ -367,7 +366,7 @@ export async function settleBattle(
   }
   if (b.kind === 'wild' && result === 'win') writes.push(...count(p.id, now, { wildWins: 1 }))
 
-  // sparks, the streak and its pack, the daily first win, the trust gate's count
+  // sparks, the streak and its pack, the daily first win and finished battle count
   writes.push(addSparks(p.id, answer.sparks), battleFinished(p.id, now))
   if (answer.streak !== p.streak) writes.push(setPlayer(p.id, { streak: answer.streak }))
   if (answer.streakPack) {
@@ -396,8 +395,8 @@ export async function settleBattle(
     `UPDATE battles SET state = 'settled', settled = ?, result = ?, setup = '{}', opponent = '{}', outcome = ?,
        catch_options = ?, catch_until = ?, ${SETTLED_TIMES}, version = version + 1
      WHERE id = ?`,
-    utcDay(now), result, mode === 'finish' ? JSON.stringify(response) : null,
-    catchOptions.length ? JSON.stringify(catchOptions) : null, catchOptions.length ? now + B.catchWindowMs : 0, b.id,
+    utcDay(now), result, mode === 'finish' ? wireJson(response) : null,
+    catchOptions.length ? wireJson(catchOptions) : null, catchOptions.length ? now + B.catchWindowMs : 0, b.id,
   ))
 
   return { response, stmts: [...guards, ...writes] }

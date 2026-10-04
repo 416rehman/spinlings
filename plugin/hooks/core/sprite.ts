@@ -9,6 +9,7 @@ import { exalt, grow, hybrid, partsFor } from './parts.ts'
 import type { Ears, Head, Legs, Parts, Tail, Wings } from './parts.ts'
 import { hashString, rngFromSeed } from './rng.ts'
 import { BODIES, formOf, getSpecies } from './species.ts'
+import type { SeasonCatalog } from './species.ts'
 
 /** [y][x] = 0xRRGGBB, or -1 for transparent. */
 export type Pixels = number[][]
@@ -150,13 +151,13 @@ function paletteOf(family: Family, h: number, lk: Look, tone: Tone): Palette {
 // ---------- sources ----------
 
 /** What a form may carry beyond the contract: a species id; a card form's kind, a fusion's parents, a seed. */
-type FormExtra = Form & Partial<Pick<CardForm, 'kind' | 'parents' | 'seed'>> & { id?: string }
+type FormExtra = Form & Partial<Pick<CardForm, 'kind' | 'parents' | 'seed'>> & { id?: string; parentForms?: Card['parentForms'] }
 
 /** Evolution stages (SPEC section 22). Legendaries and Mythics are always drawn in their final form. */
 export type Stage = CardStage
 
 export type SpriteSource =
-  | Pick<Card, 'species' | 'form' | 'dna' | 'shiny' | 'rarity' | 'stage' | 'raisedIn'>
+  | Pick<Card, 'species' | 'form' | 'appearance' | 'parentForms' | 'dna' | 'shiny' | 'rarity' | 'stage' | 'raisedIn'>
   | { form: Form; stage?: Stage; shiny?: boolean; rarity?: Rarity; raisedIn?: Family; seed?: string }
 
 export type DrawOptions = {
@@ -172,18 +173,19 @@ export type DrawOptions = {
 const isMythic = (form: Form) => (form as FormExtra).kind === 'mythic'
 
 /** The 16x16 sprite of a card, or of a bare form (album, Mythics) with its plain look. */
-export function spriteFor(src: SpriteSource): Pixels {
+export function spriteFor(src: SpriteSource, catalog?: SeasonCatalog): Pixels {
   if (!('dna' in src)) {
     const lk = { ...formLook(src.form), shiny: src.shiny ?? false }
     const o: DrawOptions = { mythic: isMythic(src.form) }
     if (src.raisedIn) o.raisedIn = src.raisedIn
     if (src.seed) o.seed = src.seed
-    return draw(src.form, lk, src.stage ?? 1, src.form.legendary || src.rarity === 'legendary', o)
+    return draw(src.form, lk, src.stage ?? 1, src.form.legendary || src.rarity === 'legendary', o, catalog)
   }
-  const form = formOf(src)
+  const resolved = formOf(src, catalog)
+  const form = src.parentForms ? { ...resolved, parentForms: src.parentForms } : resolved
   const o: DrawOptions = { mythic: src.species === 'mythic' || isMythic(form) }
   if (src.raisedIn) o.raisedIn = src.raisedIn
-  return draw(form, cardLook(src), src.stage, form.legendary || src.rarity === 'legendary', o)
+  return draw(form, cardLook(src, catalog), src.stage, form.legendary || src.rarity === 'legendary', o, catalog)
 }
 
 const UNLOCK_TAIL: Record<Body, Tail> = { blob: 'curl', critter: 'fluffy', bird: 'fin', ghost: 'curl', bug: 'spike', wyrm: 'spike' }
@@ -198,12 +200,12 @@ const MYTHIC_HEADS: readonly Head[] = ['merged', 'round', 'wide', 'small']
  * unlocks one new part (a tail, wings, or livelier arms). Legendaries and Mythics take their final, largest form.
  * Fusions take parent A's body and parent B's head-top and wings. Birds always keep their beak.
  */
-export function formParts(form: Form, stage: Stage, exalted: boolean, seed?: string): Parts {
+export function formParts(form: Form, stage: Stage, exalted: boolean, seed?: string, catalog?: SeasonCatalog): Parts {
   const f = form as FormExtra
   const key = seed ?? f.seed ?? f.id ?? `form/${form.body}/${form.names[0]}`
   let p: Parts
   if (!seed && !f.seed && f.parents) {
-    const a = getSpecies(f.parents[0]), b = getSpecies(f.parents[1])
+    const a = f.parentForms?.[0] ?? getSpecies(f.parents[0], catalog), b = f.parentForms?.[1] ?? getSpecies(f.parents[1], catalog)
     p = hybrid(partsFor(a ? a.id : 'fusion/' + f.names[0], form.body), partsFor(b ? b.id : 'fusion/' + f.names[1], b ? b.body : form.body))
   } else p = partsFor(key, form.body)
   for (let s = 1; s < (exalted ? 3 : stage); s++) p = grow(p)
@@ -814,12 +816,12 @@ export function raisedHue(hue: number, family: Family, raisedIn: Family | undefi
 }
 
 /** Draws a form with a given look. Exposed for tools; cards go through spriteFor. */
-export function draw(form: Form, lk: Look, stage: Stage, legendary: boolean, o: DrawOptions = {}): Pixels {
+export function draw(form: Form, lk: Look, stage: Stage, legendary: boolean, o: DrawOptions = {}, catalog?: SeasonCatalog): Pixels {
   const mythic = o.mythic ?? false
   const exalted = legendary || mythic
   // legendaries and Mythics never evolve: they are always in their final form
   const st: Stage = exalted ? 3 : stage
-  let p = o.parts ?? formParts(form, st, exalted, o.seed)
+  let p = o.parts ?? formParts(form, st, exalted, o.seed, catalog)
   // a Mythic stays slim enough for its sparkles
   if (mythic && !o.parts) p = { ...p, tw: Math.min(p.tw, 4.5), hw: Math.min(p.hw, 4.5), wings: p.wings === 'large' ? 'leaf' : p.wings }
   const raised = st > 1 ? o.raisedIn : undefined
@@ -837,7 +839,7 @@ export function draw(form: Form, lk: Look, stage: Stage, legendary: boolean, o: 
   // earlier stages out first
   let floor = SIZE, rise: boolean | undefined
   if (!exalted && !o.parts) for (let s = 1; s < st; s++) {
-    const prev = build(formParts(form, s as Stage, false, o.seed), dressAt(s as Stage, floor, rise), rngFromSeed('shape/' + lk.shapeSeed))
+    const prev = build(formParts(form, s as Stage, false, o.seed, catalog), dressAt(s as Stage, floor, rise), rngFromSeed('shape/' + lk.shapeSeed))
     floor = prev.headTop
     rise = prev.rise ?? rise
   }
@@ -856,7 +858,7 @@ export function draw(form: Form, lk: Look, stage: Stage, legendary: boolean, o: 
   } else {
     // a fusion's head keeps parent B's family colours; its body takes parent A's
     const parents = (form as FormExtra).parents
-    const a = parents ? getSpecies(parents[0]) : undefined
+    const a = (form as FormExtra).parentForms?.[0] ?? (parents ? getSpecies(parents[0], catalog) : undefined)
     if (a) low = paletteOf(a.family, bodyHue(a.family, a.hue, lk.shiny), lk, tone)
   }
   const at = (x: number, y: number) => K[y]?.[x] ?? '.'

@@ -2,7 +2,12 @@
 
 **Tiny pixel creatures that battle above your prompt while Claude works.**
 
-[![ci](https://github.com/416rehman/spinlings/actions/workflows/ci.yml/badge.svg)](https://github.com/416rehman/spinlings/actions/workflows/ci.yml)
+[![Checks](https://github.com/416rehman/spinlings/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/416rehman/spinlings/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/416rehman/spinlings)](https://github.com/416rehman/spinlings/releases/latest)
+[![MIT license](https://img.shields.io/github/license/416rehman/spinlings)](LICENSE)
+[![Claude Code 2.1.287 or later](https://img.shields.io/badge/Claude_Code-2.1.287%2B-e6c09f)](#install)
+
+[Website](https://spinlings.dev) · [Install](#install) · [How to play](docs/how-to-play.md) · [What's new](CHANGELOG.md)
 
 Spinlings is a creature card game that lives inside Claude Code. While Claude works, wild creatures rustle into a slim band above the prompt and your team of three battles them. Win, and you might catch one. Every card is one of a kind, with its own look, genes and traits. You can fuse two cards into a hybrid nobody has seen before, trade, sell or gift cards to other players, challenge them to duels and climb the global leaderboards.
 
@@ -34,12 +39,14 @@ claude plugin marketplace add 416rehman/spinlings
 claude plugin install spinlings@spinlings
 ```
 
-Spinlings is a Claude Code mod, so it needs Claude Code 2.1.287 or later (`claude update`). Start a new session after installing.
+**Requires Claude Code 2.1.287 or later.** Run `claude --version` to check, or `claude update` to update the CLI. Restart Claude and start a new session after installing, then run `/spin` to open your team.
+
+The Code tab in Claude Desktop needs a bundled Claude Code version that supports mods too. Updating the CLI does not update Desktop's bundled version; update the desktop app if the mod is unavailable there.
 
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
 
 ```sh
-git clone --branch v0.2.2 https://github.com/416rehman/spinlings
+git clone --branch v0.2.3 https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 
@@ -47,11 +54,15 @@ claude plugin validate spinlings/plugin
 
 **Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. To play entirely offline, where nothing leaves your machine, run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
 
-**Your collection in a browser.** Save a passkey from Community → Profile → Passkey & devices, then use Open your collection to sign in and see your cards, current stats and rankings. Search and filters cover your whole collection; sort by level, genes or combat stats to compare creatures. Hover, focus or tap a stat or trait for its effect. The link appears when your server supports browser collections; older servers offer your public profile instead. You can choose a public username there. Opening packs, choosing a team and trading happen in Claude Code.
+**Your collection in a browser.** Save a passkey from Community → Profile → Passkey & devices, then [open your collection](https://spinlings.dev/account) to sign in and see your cards, current stats and rankings. Search and filters cover your whole collection; sort by level, genes or combat stats to compare creatures. Hover, focus or tap a stat or trait for its effect. The mod's link appears when your server supports browser collections; older servers offer your public profile instead. You can choose a public username there. Opening packs, choosing a team and trading happen in Claude Code.
 
 **Your username.** Keep your generated handle, or choose a unique public username in the browser: 1–40 ASCII letters, numbers, `_` or `-`, saved in lowercase. Names pass the game's name filter, and names such as `admin` and `support` are reserved. Changes share the once-a-week limit; an old name stays unavailable for 30 days. Renaming keeps your account, collection and saved passkeys.
 
 `/spin quiet` silences everything. To leave for good, delete your account from `/spin privacy`, then run `claude plugin uninstall spinlings@spinlings`.
+
+**Keeping your game.** New seasons bring new species without reinstalling the mod. Cards from past seasons keep battling and trading, and season rewards arrive on your first visit after the season changes. The server supplies online card stats and frozen species data; old mod releases remain covered by compatibility tests. New screens, families or artwork shapes may need a mod update. New battle rules can play through the server's log when they fit the supported format. `/spin version` shows your installed version and server status; the pane offers an update when one is available. See [what arrives without an update](docs/compatibility.md).
+
+Optional: turn on updates in `/plugin` → Marketplaces → spinlings → Enable auto-update. Claude loads the new version in your next session; [Anthropic's update guide](https://code.claude.com/docs/en/discover-plugins#turn-auto-update-on-or-off-for-a-marketplace) has the details.
 
 ## See it
 
@@ -344,13 +355,15 @@ More in [SPEC.md](SPEC.md), sections 11, 12, 15, 16 and 20.
 
 **Can someone message me?** No. There is no chat or bio. Your public username is the only name you can type; generated handles remain the default.
 
-**Does it work in the desktop app?** Yes, and that is where it looks best: in the Code tab of the Claude desktop app, sprites are crisp SVG and the ceremonies play as smooth SVG animation, in light and dark mode alike. In the terminal, sprites are drawn with half-block characters.
+**Does it work in the desktop app?** The Code tab supports it when the app's bundled Claude Code supports mods (2.1.287 or later). There, sprites are crisp SVG and ceremonies animate in light and dark mode. Desktop can lag behind the CLI; if the mod does not appear, check the requirement under [Install](#install). The terminal is also supported, with sprites drawn using half-block characters.
 
 **Is this made by Anthropic?** No. Spinlings is an independent open-source project and is not affiliated with or endorsed by Anthropic.
 
 ## Contributing
 
-Issues and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). The short version: the mod stays content-blind, privacy comes first, the code stays free of runtime dependencies, and game text stays in the creature world. Security problems go through [SECURITY.md](SECURITY.md), not public issues.
+Issues and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md); [SPEC.md](SPEC.md) explains the design and [docs/self-hosting.md](docs/self-hosting.md) covers running your own world. The short version: the mod stays content-blind, privacy comes first, the code stays free of runtime dependencies, and game text stays in the creature world.
+
+[Report a bug or suggest a feature](https://github.com/416rehman/spinlings/issues/new/choose). Security and privacy problems go through [SECURITY.md](SECURITY.md) and [private vulnerability reporting](https://github.com/416rehman/spinlings/security/advisories/new). Before announcing a release, use the [launch checklist](docs/launch-readiness.md).
 
 ## License
 

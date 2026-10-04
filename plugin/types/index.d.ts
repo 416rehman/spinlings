@@ -42,11 +42,14 @@ export type SpinCardForm = SpinForm & {
   discoveredBy?: string
   stamp?: string
 }
+export type SpinSpecies = SpinForm & { id: string; season: number; index: number }
 
 export type SpinCard = {
   id: string
   species: string
   form?: SpinCardForm
+  appearance?: SpinForm
+  parentForms?: [SpinForm | null, SpinForm | null]
   season: number
   family: SpinFamily
   rarity: SpinRarity
@@ -72,7 +75,7 @@ export type SpinCard = {
 
 /** How a battle sees a card, and how other players' cards are always shown: no ownership details, no timestamps. */
 export type SpinBattleCard = Pick<SpinCard,
-  'id' | 'species' | 'form' | 'season' | 'family' | 'rarity' | 'shiny' | 'foil' | 'dna' | 'genes' | 'traits'
+  'id' | 'species' | 'form' | 'appearance' | 'parentForms' | 'season' | 'family' | 'rarity' | 'shiny' | 'foil' | 'dna' | 'genes' | 'traits'
   | 'level' | 'stage' | 'raisedIn' | 'stats' | 'firstFind'>
 
 export type SpinBattleSetup = {
@@ -242,6 +245,8 @@ export type SpinSignIn = { kind: 'add' | 'signin'; url: string; until: number; s
 
 /** Which world is active and how the link to it stands. */
 export type SpinAccount = {
+  /** Frozen species of the active online origin, resolved locally from immutable season answers. */
+  species?: SpinSpecies[]
   world: SpinWorld
   /** the online server's origin (kept while offline, for the switch back) */
   server: string

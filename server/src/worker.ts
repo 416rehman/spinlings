@@ -39,7 +39,7 @@ function appFor(env: Env): App | null {
 }
 
 /** The share images (SPEC 9): the landing's meadow and every postcard. */
-const SHARE_PNG = /^\/(?:og\/meadow-\d{8}|w\/[a-z0-9-]+)\.png$/
+const SHARE_PNG = /^\/(?:og\/meadow(?:-\d{8})?|w\/[a-z0-9-]+)\.png$/
 
 /**
  * Share images are public, the same bytes for whoever asks, and costly to draw, so the Worker keeps

@@ -4,10 +4,11 @@
 // species or the form, so about 8,000 cards stay far inside the store's 4 MiB, next to the online cache. A card this
 // version cannot read (a card, a pack), and any key it does not know, is written back untouched rather than dropped.
 import type { Notice, PackSource } from '../../core/api.ts'
-import type { BattleCard, BattleSetup, Card, CardForm, CardOrigin, CardStage, Family, Genes, Rarity, TraitId } from '../../core/types.ts'
+import type { BattleCard, BattleSetup, Card, CardForm, CardOrigin, CardStage, Family, Genes, Rarity, Species, TraitId } from '../../core/types.ts'
 import { cardStats } from '../../core/cards.ts'
 import { DAY_RE, ID_RE, parseBattleCard, parseBattleSetup, parseCardForm, parseNotice } from '../../core/schemas.ts'
-import { isFormKind } from '../../core/species.ts'
+import { isFormKind, resolveCard, resolveCards, seasonSpecies, SPECIES_ID } from '../../core/species.ts'
+import type { SeasonCatalog } from '../../core/species.ts'
 
 /** The current format version. Bump it, with a migration from the version before, whenever the stored shape changes. */
 export const SAVE_VERSION = 1
@@ -72,6 +73,8 @@ export type LocalState = {
   trader: { day: string; used: number[] }
   /** the species generator version each season was first played with (SPEC 32) */
   generators: Record<string, number>
+  /** Resolved historical forms for this transaction; never serialized into the compact save. */
+  catalog: Map<number, readonly Species[]>
   /** the nearly-full notice was given */
   nearFull: boolean
   /** cards and packs this version could not read: written back exactly as found */
@@ -117,7 +120,7 @@ export function encodeCard(c: Card): unknown[] {
 }
 
 /** A stored card, with its stats recomputed; null when any part of it is not one this version can read. */
-export function decodeCard(t: unknown): Card | null {
+export function decodeCard(t: unknown, catalog?: SeasonCatalog): Card | null {
   if (!Array.isArray(t) || t.length < 16 || t.length > 17) return null
   const [cardId, species, season, rarity, flags, dna, genes, traits, level, xp, stage, raised, origin, minted, locked, tired, form] = t
   const r = code(RARITY_CODES, rarity), o = code(ORIGIN_CODES, origin), f = int(flags, 0, 63), g = int(genes, 0, 0xffff)
@@ -148,7 +151,9 @@ export function decodeCard(t: unknown): Card | null {
     ...(f & FLAG.firstFind ? { firstFind: true as const } : {}),
   }
   try {
-    card.stats = cardStats(card)
+    if (catalog && !isFormKind(card.species) && !catalog.has(card.season)) return null
+    if (catalog) Object.assign(card, resolveCard(card, catalog))
+    card.stats = cardStats(card, catalog)
   } catch {
     return null
   }
@@ -161,11 +166,11 @@ export function blankState(joined: string): LocalState {
   return {
     joined, sparks: 0, rating: 1000, streak: 0, battles: 0, wildWon: false, season: 1, helloDay: '', firstWinDay: '',
     lastWildAt: 0, lastDuelAt: 0, lastChargeAt: 0, charges: [], team: [], seen: [], cardsVersion: 0, cards: [], arena: {},
-    packs: [], notices: [], battle: null, done: [], trader: { day: '', used: [] }, generators: {}, nearFull: false, keep: { cards: [], packs: [] }, extra: {},
+    packs: [], notices: [], battle: null, done: [], trader: { day: '', used: [] }, generators: {}, catalog: new Map(), nearFull: false, keep: { cards: [], packs: [] }, extra: {},
   }
 }
 
-const KNOWN = new Set(['v', 'w', ...Object.keys(blankState('2026-10-01')).filter(k => k !== 'keep' && k !== 'extra')])
+const KNOWN = new Set(['v', 'w', ...Object.keys(blankState('2026-10-01')).filter(k => k !== 'keep' && k !== 'extra' && k !== 'catalog')])
 
 function decodePack(t: unknown): LocalPack | null {
   if (!Array.isArray(t) || t.length !== 6) return null
@@ -178,16 +183,16 @@ function decodePack(t: unknown): LocalPack | null {
 const encodePack = (p: LocalPack): unknown[] =>
   [p.id, FAMILY_CODES.indexOf(p.family), SOURCE_CODES.indexOf(p.source), p.day, p.lockUntil, p.bound ? 1 : 0]
 
-function decodeBattle(v: unknown): LocalBattle | null {
+function decodeBattle(v: unknown, catalog: SeasonCatalog): LocalBattle | null {
   if (!isRecord(v) || !id(v.id)) return null
   try {
     if (v.state === 'open') {
       const rival = isRecord(v.rival) && typeof v.rival.name === 'string' && int(v.rival.rating, 0, 100_000) !== null
         ? { name: v.rival.name, rating: v.rival.rating as number } : null
-      return { id: v.id, state: 'open', setup: parseBattleSetup(v.setup), rival, startedAt: time(v.startedAt), finishAfter: time(v.finishAfter) }
+      return { id: v.id, state: 'open', setup: resolveCards(parseBattleSetup(v.setup), catalog), rival, startedAt: time(v.startedAt), finishAfter: time(v.finishAfter) }
     }
     if (v.state === 'settled' && Array.isArray(v.options) && v.options.length <= 3) {
-      return { id: v.id, state: 'settled', options: v.options.map(o => parseBattleCard(o)), until: time(v.until) }
+      return { id: v.id, state: 'settled', options: resolveCards(v.options.map(o => parseBattleCard(o)), catalog), until: time(v.until) }
     }
   } catch {
     // a battle is passing state: one this version cannot read simply ends
@@ -216,6 +221,23 @@ export function decodeState(o: Record<string, unknown>): LocalState {
   s.battles = num('battles', 0, 1e9)
   s.season = num('season', 1, 9999)
   s.cardsVersion = num('cardsVersion', 0, 1e9)
+  if (isRecord(o.generators)) for (const [k, g] of Object.entries(o.generators)) if (/^[1-9]\d{0,3}$/.test(k) && int(g, 1, 1e6) !== null) s.generators[k] = g as number
+  const seasons = new Set([s.season])
+  const collect = (v: unknown): void => {
+    if (typeof v === 'string') {
+      const m = SPECIES_ID.exec(v)
+      if (m) seasons.add(Number(m[1]))
+    } else if (Array.isArray(v)) for (const item of v) collect(item)
+    else if (isRecord(v)) for (const item of Object.values(v)) collect(item)
+  }
+  collect(o.cards)
+  collect(o.battle)
+  for (const season of seasons) {
+    try {
+      // Compact v1 saves shipped with generator 2; a missing legacy entry keeps that historical meaning.
+      s.catalog.set(season, seasonSpecies(season, undefined, s.generators[String(season)] ?? 2))
+    } catch { /* unknown future generators keep their tuples untouched below */ }
+  }
   s.wildWon = o.wildWon === true
   s.nearFull = o.nearFull === true
   s.helloDay = day(o.helloDay, '')
@@ -225,7 +247,7 @@ export function decodeState(o: Record<string, unknown>): LocalState {
   s.lastChargeAt = time(o.lastChargeAt)
   s.charges = Array.isArray(o.charges) ? o.charges.filter(t => int(t, 0, MAX_TIME) !== null).slice(-64) as number[] : []
   for (const raw of Array.isArray(o.cards) ? o.cards : []) {
-    const c = decodeCard(raw)
+    const c = decodeCard(raw, s.catalog)
     if (c) s.cards.push(c)
     else s.keep.cards.push(raw)
   }
@@ -239,10 +261,9 @@ export function decodeState(o: Record<string, unknown>): LocalState {
     else s.keep.packs.push(raw)
   }
   s.notices = Array.isArray(o.notices) ? o.notices.flatMap(n => { try { return [parseNotice(n)] } catch { return [] } }).slice(-LIMITS.notices) : []
-  s.battle = decodeBattle(o.battle)
+  s.battle = decodeBattle(o.battle, s.catalog)
   s.done = Array.isArray(o.done) ? o.done.filter(id).slice(-8) : []
   if (isRecord(o.trader)) s.trader = { day: day(o.trader.day, ''), used: Array.isArray(o.trader.used) ? o.trader.used.filter(k => int(k, 0, 9) !== null) as number[] : [] }
-  if (isRecord(o.generators)) for (const [k, g] of Object.entries(o.generators)) if (/^[1-9]\d{0,3}$/.test(k) && int(g, 1, 1e6) !== null) s.generators[k] = g as number
   for (const [k, v] of Object.entries(o)) if (!KNOWN.has(k)) s.extra[k] = v
   return s
 }
@@ -257,8 +278,15 @@ export function encodeState(s: LocalState, stamp: string): Record<string, unknow
     wildWon: s.wildWon, season: s.season, helloDay: s.helloDay, firstWinDay: s.firstWinDay, lastWildAt: s.lastWildAt,
     lastDuelAt: s.lastDuelAt, lastChargeAt: s.lastChargeAt, charges: s.charges, team: s.team, seen: s.seen,
     cardsVersion: s.cardsVersion, cards: [...s.cards.map(encodeCard), ...s.keep.cards], arena, packs: [...s.packs.map(encodePack), ...s.keep.packs],
-    notices: s.notices, battle: s.battle, done: s.done, trader: s.trader, generators: s.generators, nearFull: s.nearFull,
+    notices: s.notices, battle: s.battle ? stripAppearance(s.battle) : null, done: s.done, trader: s.trader, generators: s.generators, nearFull: s.nearFull,
   }
+}
+
+/** Local render metadata must not grow either the compact save or its transient battle snapshot. */
+function stripAppearance<T>(v: T): T {
+  if (Array.isArray(v)) return v.map(stripAppearance) as T
+  if (!isRecord(v)) return v
+  return Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'appearance' && k !== 'parentForms').map(([k, item]) => [k, stripAppearance(item)])) as T
 }
 
 /** The write stamp of a stored value, or null when there is none. */

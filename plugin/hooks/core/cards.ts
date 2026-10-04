@@ -8,6 +8,7 @@ import { FAMILIES, beatenBy, beats, clampHue } from './families.ts'
 import { fusionNameLine } from './naming.ts'
 import { between, chance, int, pick, rngFromSeed, shuffle, uint32 } from './rng.ts'
 import { PATTERNS, familySpecies, formOf, seasonSpecies } from './species.ts'
+import type { SeasonCatalog } from './species.ts'
 import { TRAIT_IDS } from './traits.ts'
 import { seasonOf, shinyChance } from './world.ts'
 
@@ -48,6 +49,7 @@ export type MintBase = {
   /** a season species id, or the kind of an embedded form */
   species: string
   form?: CardForm
+  appearance?: Form
   season: number
   family: Family
   /** final form: always stage 3 */
@@ -64,13 +66,14 @@ export type MintBase = {
 }
 
 /** The one place a card comes into being. Genes and traits come from the DNA; legendaries and Mythics are foil and final. */
-export function mintBase(o: MintBase): NewCard {
+export function mintBase(o: MintBase, catalog?: SeasonCatalog): NewCard {
   const dna = o.dna >>> 0
   const key = dnaKey({ species: o.species, dna })
   const level = o.level ?? 1
   const card: NewCard = {
     species: o.species,
     ...(o.form ? { form: o.form } : {}),
+    ...(o.appearance ? { appearance: o.appearance } : {}),
     season: o.season,
     family: o.family,
     rarity: o.rarity,
@@ -91,15 +94,15 @@ export function mintBase(o: MintBase): NewCard {
     tiredUntil: 0,
     state: 'owned',
   }
-  card.stats = cardStats(card)
+  card.stats = cardStats(card, catalog)
   return card
 }
 
 export type MintOptions = Omit<MintBase, 'species' | 'form' | 'season' | 'family' | 'legendary'> & { species: Species }
 
-export function mintCard(o: MintOptions): NewCard {
+export function mintCard(o: MintOptions, catalog?: SeasonCatalog): NewCard {
   const { species, ...rest } = o
-  return mintBase({ ...rest, species: species.id, season: species.season, family: species.family, legendary: species.legendary })
+  return mintBase({ ...rest, ...(catalog ? { appearance: species } : {}), species: species.id, season: species.season, family: species.family, legendary: species.legendary }, catalog)
 }
 
 /**
@@ -112,6 +115,8 @@ export function toBattleCard(c: BattleCard): BattleCard {
     genes: [...c.genes], traits: [...c.traits], level: c.level, stage: c.stage, stats: { ...statsOf(c) },
   }
   if (c.form) out.form = c.form
+  if (c.appearance) out.appearance = c.appearance
+  if (c.parentForms) out.parentForms = c.parentForms
   if (c.foil) out.foil = true
   if (c.firstFind) out.firstFind = true
   return out
@@ -131,15 +136,15 @@ export function cardFromBattleCard(c: BattleCard, origin: CardOrigin, now: numbe
   return { ...rest, xp: 0, bound: false, forTrade: false, origin, mintedAt: now, lockedUntil: 0, tiredUntil: 0, state: 'owned' }
 }
 
-export type StatCard = Pick<BattleCard, 'species' | 'form' | 'genes' | 'rarity' | 'level' | 'stage' | 'traits'>
+export type StatCard = Pick<BattleCard, 'species' | 'form' | 'appearance' | 'genes' | 'rarity' | 'level' | 'stage' | 'traits'>
 
 export function geneMult(gene: number): number {
   return ECONOMY.stats.geneBase + ECONOMY.stats.genePerPoint * gene
 }
 
 /** The stat formula: round(base * gene * rarity * level * stage * trait). */
-export function cardStats(card: StatCard): Stats {
-  const base = formOf(card).base
+export function cardStats(card: StatCard, catalog?: SeasonCatalog): Stats {
+  const base = formOf(card, catalog).base
   const s = ECONOMY.stats
   const common = s.rarityMult[card.rarity] * (1 + s.levelStep * (card.level - 1)) * s.stageMult[card.stage - 1]!
   const t = ECONOMY.traits
@@ -155,12 +160,12 @@ export function cardStats(card: StatCard): Stats {
 }
 
 /** The stats to show and battle with: the server's when the card carries them, else the formula. */
-export function statsOf(card: StatCard & { stats?: Stats }): Stats {
-  return card.stats ?? cardStats(card)
+export function statsOf(card: StatCard & { stats?: Stats }, catalog?: SeasonCatalog): Stats {
+  return card.stats ?? cardStats(card, catalog)
 }
 
-export function cardPower(card: StatCard & { stats?: Stats }): number {
-  const s = statsOf(card)
+export function cardPower(card: StatCard & { stats?: Stats }, catalog?: SeasonCatalog): number {
+  const s = statsOf(card, catalog)
   return s.hp + 2 * s.atk + 2 * s.def + s.spd
 }
 
@@ -169,8 +174,8 @@ export function geneScore(genes: Genes): number {
   return Math.round(((genes[0] + genes[1] + genes[2] + genes[3]) / 60) * 100)
 }
 
-export function cardName(card: Pick<Card, 'species' | 'form' | 'stage'>): string {
-  return formOf(card).names[card.stage - 1]!
+export function cardName(card: Pick<Card, 'species' | 'form' | 'appearance' | 'stage'>, catalog?: SeasonCatalog): string {
+  return formOf(card, catalog).names[card.stage - 1]!
 }
 
 export type Look = {
@@ -192,8 +197,8 @@ export type Look = {
 }
 
 /** A card's individual look, all from its DNA. */
-export function look(card: Pick<Card, 'species' | 'form' | 'dna' | 'shiny'>): Look {
-  const form = formOf(card)
+export function look(card: Pick<Card, 'species' | 'form' | 'appearance' | 'dna' | 'shiny'>, catalog?: SeasonCatalog): Look {
+  const form = formOf(card, catalog)
   const rng = rngFromSeed(dnaKey(card))
   const c = ECONOMY.cosmetics
   const hue = clampHue(form.family, form.hue + (rng() * 2 - 1) * c.hueShift)
@@ -247,7 +252,7 @@ export type XpCard = Pick<Card, 'level' | 'xp' | 'stage'> & { family?: Family; r
  * The first evolution fixes `raisedIn` (the raising family now, see raisingFamily; defaults to the card's own family).
  * A card that carries stats gets them recomputed. Returns a new card.
  */
-export function applyXp<T extends XpCard>(card: T, gained: number, raisedIn?: Family): { card: T; levelsGained: number; evolved: boolean } {
+export function applyXp<T extends XpCard>(card: T, gained: number, raisedIn?: Family, catalog?: SeasonCatalog): { card: T; levelsGained: number; evolved: boolean } {
   let level = card.level
   let xp = card.xp + Math.max(0, gained)
   while (level < ECONOMY.levels.max && xp >= xpToNext(level)) {
@@ -259,16 +264,16 @@ export function applyXp<T extends XpCard>(card: T, gained: number, raisedIn?: Fa
   const out: T = { ...card, level, xp, stage }
   const raised = raisedIn ?? card.family
   if (card.stage === 1 && stage > 1 && out.raisedIn === undefined && raised) out.raisedIn = raised
-  if (card.stats && 'genes' in card) out.stats = cardStats(out as unknown as StatCard)
+  if (card.stats && 'genes' in card) out.stats = cardStats(out as unknown as StatCard, catalog)
   return { card: out, levelsGained: level - card.level, evolved: stage !== card.stage }
 }
 
-type FuseParent = Pick<Card, 'species' | 'form' | 'season' | 'family' | 'rarity' | 'dna' | 'shiny' | 'foil' | 'genes' | 'traits' | 'level' | 'stage'>
+type FuseParent = Pick<Card, 'species' | 'form' | 'appearance' | 'season' | 'family' | 'rarity' | 'dna' | 'shiny' | 'foil' | 'genes' | 'traits' | 'level' | 'stage'>
 
 /** Fuses two cards into a new hybrid. Both parents are consumed by the caller. */
-export function fuse(a: FuseParent, b: FuseParent, rng: Rng, now: number): NewCard {
-  const fa = formOf(a), fb = formOf(b)
-  const lb = look(b)
+export function fuse(a: FuseParent, b: FuseParent, rng: Rng, now: number, catalog?: SeasonCatalog): NewCard {
+  const fa = formOf(a, catalog), fb = formOf(b, catalog)
+  const lb = look(b, catalog)
   const dna = uint32(rng)
 
   let rank = Math.max(rarityRank(a.rarity), rarityRank(b.rarity))
@@ -291,7 +296,7 @@ export function fuse(a: FuseParent, b: FuseParent, rng: Rng, now: number): NewCa
   const level = Math.max(1, Math.floor((a.level + b.level) / 2) - 1)
   const season = seasonOf(now)
   const taken: string[] = []
-  for (const s of new Set([season, a.season, b.season])) for (const sp of seasonSpecies(s)) taken.push(...sp.names)
+  for (const s of new Set([season, a.season, b.season])) for (const sp of seasonSpecies(s, catalog)) taken.push(...sp.names)
   const r2 = (v: number) => Math.round(v * 100) / 100
   const form: CardForm = {
     kind: 'fusion',
@@ -333,13 +338,13 @@ export function rarityFits(species: Species, rarity: Rarity): boolean {
 }
 
 /** Three bound commons at level 3, one good battle from evolving: the player's family, the one it beats, the one that beats it. */
-export function starterTeam(family: Family, rng: Rng, now: number): NewCard[] {
+export function starterTeam(family: Family, rng: Rng, now: number, catalog?: SeasonCatalog): NewCard[] {
   const season = seasonOf(now)
   return [family, beats(family), beatenBy(family)].map(f => {
-    const species = pick(rng, familySpecies(season, f).filter(s => !s.legendary))
+    const species = pick(rng, familySpecies(season, f, catalog).filter(s => !s.legendary))
     const shiny = chance(rng, shinyChance(now))
     return mintCard({
       species, rarity: 'common', shiny, dna: uint32(rng), origin: 'starter', now, level: ECONOMY.starter.level, xp: ECONOMY.starter.xp, bound: true,
-    })
+    }, catalog)
   })
 }

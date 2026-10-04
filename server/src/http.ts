@@ -55,8 +55,13 @@ export function secure(res: Response): Response {
   return out
 }
 
+/** Frozen forms are local rendering metadata, omitted recursively from wire answers and stored snapshots. */
+export function wireJson(data: unknown): string {
+  return JSON.stringify(data, (key, value) => key === 'appearance' || key === 'parentForms' ? undefined : value)
+}
+
 export function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(data), {
+  return new Response(wireJson(data), {
     status,
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers },
   })

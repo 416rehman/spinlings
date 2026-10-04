@@ -4,6 +4,7 @@ import type { DailyRule } from './types.ts'
 import { ECONOMY } from './economy.ts'
 import { hashString } from './rng.ts'
 import { seasonSpecies } from './species.ts'
+import type { SeasonCatalog } from './species.ts'
 
 export const DAY_MS = 86_400_000
 export const EPOCH_MS = Date.UTC(2026, 9, 1)
@@ -57,14 +58,14 @@ export function dailyRule(now: number): DailyRule {
 }
 
 /** Today's featured species id: one of the current season's regular species. */
-export function featuredSpecies(now: number): string {
-  const regular = seasonSpecies(seasonOf(now)).filter(s => !s.legendary)
+export function featuredSpecies(now: number, catalog?: SeasonCatalog): string {
+  const regular = seasonSpecies(seasonOf(now), catalog).filter(s => !s.legendary)
   return regular[hashString('spinlings/featured/' + utcDay(now)) % regular.length]!.id
 }
 
 /** This ISO week's roaming legendary species id, from the current season. */
-export function weeklyRoamer(now: number): string {
-  const legends = seasonSpecies(seasonOf(now)).filter(s => s.legendary)
+export function weeklyRoamer(now: number, catalog?: SeasonCatalog): string {
+  const legends = seasonSpecies(seasonOf(now), catalog).filter(s => s.legendary)
   return legends[hashString('spinlings/roamer/' + isoWeek(now)) % legends.length]!.id
 }
 
@@ -90,6 +91,6 @@ export function catchChance(rule: DailyRule): number {
 
 export type WorldState = { day: string; season: number; rule: DailyRule; featured: string; roamer: string }
 
-export function worldOf(now: number): WorldState {
-  return { day: utcDay(now), season: seasonOf(now), rule: dailyRule(now), featured: featuredSpecies(now), roamer: weeklyRoamer(now) }
+export function worldOf(now: number, catalog?: SeasonCatalog): WorldState {
+  return { day: utcDay(now), season: seasonOf(now), rule: dailyRule(now), featured: featuredSpecies(now, catalog), roamer: weeklyRoamer(now, catalog) }
 }

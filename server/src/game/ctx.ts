@@ -7,6 +7,7 @@ import { rngFromSeed } from '../../../plugin/hooks/core/rng.ts'
 import { cleanText, parsePathParam, parseQuery, parseRequest, SchemaError } from '../../../plugin/hooks/core/schemas.ts'
 import { toHex } from '../../../plugin/hooks/core/sha256.ts'
 import { GENERATOR_VERSION, installSeason, seasonSpecies } from '../../../plugin/hooks/core/species.ts'
+import type { SeasonCatalog } from '../../../plugin/hooks/core/species.ts'
 import type { Rng, Species } from '../../../plugin/hooks/core/types.ts'
 import { seasonOf, utcDay } from '../../../plugin/hooks/core/world.ts'
 import type { Api, Ctx, PlayerCtx } from '../app.ts'
@@ -96,7 +97,7 @@ export function requestOf<K extends ApiOp>(ctx: Pick<Ctx, 'body' | 'params'> & {
 /**
  * Adds an authenticated API operation at its API_ROUTES method and path. The handler gets the parsed
  * request (path parameters and body fields in one object) and returns the response object, which
- * TypeScript holds to ApiResponse<K>. The current season is installed first. Touch hooks run first
+ * TypeScript holds to ApiResponse<K>. The current season is loaded first. Touch hooks run first
  * unless `touch: false`.
  */
 export function apiRoute<K extends ApiOp>(
@@ -203,20 +204,42 @@ export const today = (now: number): string => utcDay(now)
 
 // ---- frozen seasons (SPEC 32) ------------------------------------------------------------------
 
-/** per database: season -> the generator version its stored species were made with */
+/** Every database owns its frozen species; default core generation remains the offline world. */
+const catalogs = new WeakMap<Db, Map<number, readonly Species[]>>()
+
+export function catalogOf(db: Db): SeasonCatalog {
+  let catalog = catalogs.get(db)
+  if (!catalog) catalogs.set(db, (catalog = new Map()))
+  return catalog
+}
+
+/** Per database: season -> the generator version its stored species were made with. */
 const installed = new WeakMap<Db, Map<number, number>>()
 
+/** A batched reader can cache stored rows without changing another database or offline generation. */
+export function rememberSeason(db: Db, row: SeasonRow): { generator: number; species: readonly Species[] } {
+  const catalog = catalogOf(db) as Map<number, readonly Species[]>
+  let done = installed.get(db)
+  if (!done) installed.set(db, (done = new Map()))
+  const known = done.get(row.season)
+  if (known !== undefined) return { generator: known, species: catalog.get(row.season)! }
+  const species = JSON.parse(row.species_json) as Species[]
+  if (!installSeason(row.season, species, catalog)) throw new Error(`season ${row.season} is stored broken`)
+  done.set(row.season, row.generator)
+  return { generator: row.generator, species: catalog.get(row.season)! }
+}
+
 /**
- * Makes core's seasonSpecies(season) answer with this server's frozen species: read from `seasons`,
- * or generated with the current GENERATOR_VERSION and stored the first time anyone needs the season.
- * Cheap after the first call per isolate. Call it before minting or computing stats for a season;
+ * Loads this database's frozen species from `seasons`, or generates and stores a new season from
+ * the pure default generator. Call core with catalogOf(db) when using them. Cheap after the first
+ * call per database and isolate. Call it before minting or computing stats for a season;
  * apiRoute, publicRoute and the card loaders in mint.ts already do.
  */
 export async function ensureSeason(db: Db, season: number): Promise<{ generator: number; species: readonly Species[] }> {
   let done = installed.get(db)
   if (!done) installed.set(db, (done = new Map()))
   const known = done.get(season)
-  if (known !== undefined) return { generator: known, species: seasonSpecies(season) }
+  if (known !== undefined) return { generator: known, species: catalogOf(db).get(season)! }
   const read = () => db.get<SeasonRow>('SELECT season, generator, species_json FROM seasons WHERE season = ?', season)
   let row = await read()
   if (!row) {
@@ -226,12 +249,20 @@ export async function ensureSeason(db: Db, season: number): Promise<{ generator:
     )])
     row = (await read())!
   }
-  const species = JSON.parse(row.species_json) as Species[]
-  if (!installSeason(season, species)) throw new Error(`season ${season} is stored broken`)
-  done.set(season, row.generator)
-  return { generator: row.generator, species: seasonSpecies(season) }
+  return rememberSeason(db, row)
 }
 
 export async function ensureSeasons(db: Db, seasons: Iterable<number>): Promise<void> {
-  for (const s of new Set(seasons)) await ensureSeason(db, s)
+  const catalog = catalogOf(db)
+  const missing = [...new Set(seasons)].filter(s => !catalog.has(s))
+  // A cold collection can span many seasons and fusion parents. Load stored catalogs in bounded
+  // batches instead of spending one D1 query per season; new seasons still use the guarded insert.
+  for (let i = 0; i < missing.length; i += 90) {
+    const part = missing.slice(i, i + 90)
+    const rows = await db.all<SeasonRow>(
+      `SELECT season, generator, species_json FROM seasons WHERE season IN (${part.map(() => '?').join(', ')})`, ...part,
+    )
+    for (const row of rows) rememberSeason(db, row)
+    for (const season of part) if (!catalog.has(season)) await ensureSeason(db, season)
+  }
 }

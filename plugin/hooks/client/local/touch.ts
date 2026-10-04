@@ -7,7 +7,7 @@ import { ECONOMY, seasonEnd } from '../../core/economy.ts'
 import { FAMILIES } from '../../core/families.ts'
 import { otherFamily } from '../../core/packs.ts'
 import { pick } from '../../core/rng.ts'
-import { GENERATOR_VERSION } from '../../core/species.ts'
+import { GENERATOR_VERSION, seasonSpecies } from '../../core/species.ts'
 import { mintFor } from '../../core/trader.ts'
 import { DAY_MS, seasonOf, utcDay } from '../../core/world.ts'
 import { sweepBattle } from './battles.ts'
@@ -31,7 +31,9 @@ export function firstRun(ctx: Ctx, family: Family): LocalState {
   s.helloDay = day
   s.lastChargeAt = now
   s.generators[String(s.season)] = GENERATOR_VERSION
-  s.team = addCards(s, ctx, starterTeam(family, rng, now), { bound: true }).map(c => c.id)
+  s.catalog.set(s.season, seasonSpecies(s.season))
+  ctx.catalog = s.catalog
+  s.team = addCards(s, ctx, starterTeam(family, rng, now, ctx.catalog), { bound: true }).map(c => c.id)
   const lockUntil = now + ECONOMY.welcomeLockMs
   for (const f of [family, otherFamily(family, rng)]) grantPack(s, ctx, f, 'welcome', { lockUntil })
   return s
@@ -42,7 +44,7 @@ function seasonTurn(s: LocalState, ctx: Ctx, season: number): void {
   const end = seasonEnd(s.rating)
   for (let i = 0; i < end.packs; i++) grantPack(s, ctx, pick(ctx.rng, FAMILIES), 'season')
   const legendary = end.legendary && hasRoom(s, 1, true)
-  if (legendary) addCards(s, ctx, [mintFor(pick(ctx.rng, FAMILIES), 'legendary', ctx.rng, ctx.now, 'season')])
+  if (legendary) addCards(s, ctx, [mintFor(pick(ctx.rng, FAMILIES), 'legendary', ctx.rng, ctx.now, 'season', false, ctx.catalog)])
   addNotice(s, ctx, 'season-end',
     `Season ${s.season} ended in ${end.league}: ${end.packs} reward pack${end.packs === 1 ? '' : 's'}${legendary ? ' and a foil legendary' : ''}!`)
   s.rating = end.rating
@@ -55,6 +57,12 @@ export function touch(s: LocalState, ctx: Ctx): boolean {
   const day = utcDay(now)
   const season = seasonOf(now)
   let changed = false
+  if (s.generators[String(season)] === undefined) {
+    s.generators[String(season)] = GENERATOR_VERSION
+    changed = true
+  }
+  if (!s.catalog.has(season)) s.catalog.set(season, seasonSpecies(season, undefined, s.generators[String(season)]!))
+  ctx.catalog = s.catalog
   if (s.helloDay !== day) {
     s.sparks += ECONOMY.sparks.dailyHello
     s.helloDay = day
@@ -62,10 +70,6 @@ export function touch(s: LocalState, ctx: Ctx): boolean {
   }
   if (s.season < season) {
     seasonTurn(s, ctx, season)
-    changed = true
-  }
-  if (s.generators[String(season)] === undefined) {
-    s.generators[String(season)] = GENERATOR_VERSION
     changed = true
   }
   if (sweepBattle(s, ctx)) changed = true

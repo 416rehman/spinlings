@@ -5,12 +5,12 @@ import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { FAMILIES } from '../../plugin/hooks/core/families.ts'
 import { DAY_RE, S, SchemaError } from '../../plugin/hooks/core/schemas.ts'
 import { sha256Hex } from '../../plugin/hooks/core/sha256.ts'
-import { installSeason } from '../../plugin/hooks/core/species.ts'
+import { SPECIES_ID } from '../../plugin/hooks/core/species.ts'
 import { TRAIT_IDS } from '../../plugin/hooks/core/traits.ts'
-import type { Card, Family, Rarity, Species, TraitId } from '../../plugin/hooks/core/types.ts'
+import type { Card, CardForm, Family, Rarity, TraitId } from '../../plugin/hooks/core/types.ts'
 import type { Api, PlayerCtx } from './app.ts'
 import type { Db, SqlParam } from './db.ts'
-import { teamOf } from './game/ctx.ts'
+import { catalogOf, rememberSeason, teamOf } from './game/ctx.ts'
 import { cardOf } from './game/mint.ts'
 import { b64urlDecode, b64urlEncode } from './game/passkeys.ts'
 import { fail, json } from './http.ts'
@@ -96,15 +96,19 @@ const KEYS: Record<Sort, string> = {
   level: 'level', genes: `(${GENES})`, hp: statKey('hp', 0), atk: statKey('atk', 1), def: statKey('def', 2), spd: statKey('spd', 3),
 }
 
-/** Stored stats are authoritative. Only pre-stats rows need their frozen species for cardOf's fallback. */
+/** Stored stats stay authoritative; frozen forms are resolved only within this database. */
 async function wireCards(db: Db, rows: readonly CardRow[]): Promise<Map<string, Card>> {
-  const seasons = [...new Set(rows.filter(r => typeof JSON.parse(r.stats).hp !== 'number').map(r => r.season))]
+  const catalog = catalogOf(db)
+  const seasons = [...new Set(rows.flatMap(r => [r.season, ...(r.form ? (JSON.parse(r.form) as CardForm).parents ?? [] : []).flatMap(id => {
+    const match = SPECIES_ID.exec(id)
+    return match ? [Number(match[1])] : []
+  })]))].filter(season => !catalog.has(season))
   if (seasons.length) {
     const frozen = await db.all<SeasonRow>(`SELECT season, generator, species_json FROM seasons WHERE season IN (${marks(seasons.length)})`, ...seasons)
-    for (const r of frozen) if (!installSeason(r.season, JSON.parse(r.species_json) as Species[])) throw new Error('Stored season is invalid')
+    for (const r of frozen) rememberSeason(db, r)
     if (frozen.length !== seasons.length) throw new Error('Stored season is missing')
   }
-  const cards = new Map(rows.map(r => [r.id, cardOf(r).card]))
+  const cards = new Map(rows.map(r => [r.id, cardOf(r, catalog).card]))
   const mythics = [...cards.values()].filter(c => c.form?.kind === 'mythic').map(c => c.id)
   if (mythics.length) {
     const finders = await db.all<{ card_id: string; handle: string }>(

@@ -2,6 +2,7 @@
 import { ECONOMY } from '../core/economy.ts'
 import { FAMILIES, FAMILY_INFO, SPECIALS } from '../core/families.ts'
 import { communitySection, hasFeature } from '../client/game.ts'
+import { catalogOf } from '../client/frozen.ts'
 import type { BoardName, BoardPeriod, CommunitySection } from '../client/types.ts'
 import { safe } from '../client/text.ts'
 import { grouped, hello } from '../client/viewmodels.ts'
@@ -70,7 +71,7 @@ export function mineScreen(c: Ctx): Shown {
 }
 
 export function todayScreen(c: Ctx): Shown {
-  const day = hello(c.now)
+  const day = hello(c.now, catalogOf(c.state.account))
   return {
     body: column(c, [heading(c, day.rule), para(c, `${day.text}.`), para(c, 'A different meadow rule arrives each day at midnight UTC.', { dim: true })]),
     hints: ['esc Back'],

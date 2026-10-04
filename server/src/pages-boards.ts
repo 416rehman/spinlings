@@ -7,6 +7,7 @@ import type { BoardName, BoardPeriod, ListingView, MarketResponse, MarketSort, M
 import { cardName } from '../../plugin/hooks/core/cards.ts'
 import { FAMILIES, FAMILY_INFO } from '../../plugin/hooks/core/families.ts'
 import { getSpecies } from '../../plugin/hooks/core/species.ts'
+import type { SeasonCatalog } from '../../plugin/hooks/core/species.ts'
 import { spriteFor } from '../../plugin/hooks/core/sprite.ts'
 import type { BattleCard, Family, LeagueName } from '../../plugin/hooks/core/types.ts'
 import { FAMILY_COLOR, LEAGUE_COLOR, MYTHIC_COLOR } from '../../plugin/hooks/ui/tokens.ts'
@@ -218,11 +219,11 @@ const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1)
 const an = (word: string) => (/^[aeiou]/i.test(word) ? 'an' : 'a')
 
 /** What a listing asks for in return, in a few plain words. */
-export function wantWords(w: MarketWant): string {
+export function wantWords(w: MarketWant, catalog?: SeasonCatalog): string {
   const fin = [w.shiny ? 'shiny' : '', w.foil ? 'foil' : ''].filter(Boolean).join(' ')
   const up = w.rarity ? `, ${w.rarity} or up` : ''
   if (w.species) {
-    const sp = getSpecies(w.species)
+    const sp = getSpecies(w.species, catalog)
     const name = sp ? text(sp.name, 40) : cap(w.species)
     return fin ? `${an(fin)} ${fin} ${name}${up}` : `${name}${up}`
   }
@@ -231,22 +232,22 @@ export function wantWords(w: MarketWant): string {
 }
 
 /** One listing: the card (linking to its page), a paper price tag, what it wants, and who put it up. */
-function lot(l: ListingView, last?: number, seller = true): Raw {
+function lot(l: ListingView, last?: number, seller = true, catalog?: SeasonCatalog): Raw {
   const c = l.card
   const name = text(cardName(c), 40)
   return html`<li class="lot">
 <a class="cardlink" href="/c/${c.id}" aria-label="${name}, ${rarityLine(c)}">${cardFace(c, { level: true, combat: true, genes: true, traits: true })}</a>
 <div class="ptagbox"><p class="price${l.price ? '' : ' swaponly'}">${l.price ? html`${raw(ICONS.coin)}<b>${num(l.price)}</b><span class="sr"> sparks</span>` : html`${raw(ICONS.swap)}<b>Swap</b>`}</p>
-${l.want ? html`<p class="want">${l.price ? 'and ' : 'for '}${wantWords(l.want)}</p>` : ''}</div>
+${l.want ? html`<p class="want">${l.price ? 'and ' : 'for '}${wantWords(l.want, catalog)}</p>` : ''}</div>
 ${seller ? html`<p class="seller">from <a href="/u/${l.seller}">${text(l.seller, 40)}</a></p>` : ''}
 ${last !== undefined ? html`<p class="last">Last one sold for ${num(last)}</p>` : ''}
 ${cardDetails(c)}
 </li>`
 }
 
-export const lots = (listings: readonly ListingView[], prices: MarketResponse['prices'] = [], o: { seller?: boolean } = {}): Raw => {
+export const lots = (listings: readonly ListingView[], prices: MarketResponse['prices'] = [], o: { seller?: boolean; catalog?: SeasonCatalog } = {}): Raw => {
   const last = new Map(prices.map(p => [p.species, p.sales[0]?.price]))
-  return html`<ul class="lots">${listings.map(l => lot(l, last.get(l.card.species), o.seller !== false))}</ul>`
+  return html`<ul class="lots">${listings.map(l => lot(l, last.get(l.card.species), o.seller !== false, o.catalog))}</ul>`
 }
 
 export const LOTS_CSS = `
@@ -279,7 +280,7 @@ const marketHref = (v: MarketView, after?: string) => {
   return `/market${q ? `?${q}` : ''}`
 }
 
-export function marketBody(res: MarketResponse, v: MarketView, paged: boolean): Raw {
+export function marketBody(res: MarketResponse, v: MarketView, paged: boolean, catalog?: SeasonCatalog): Raw {
   const n = res.listings.length
   return html`<section class="mkthead" aria-labelledby="market-h">
 <div class="wrap">
@@ -295,7 +296,7 @@ export function marketBody(res: MarketResponse, v: MarketView, paged: boolean): 
 <nav class="period" aria-label="Sort">${SORTS.map(s => html`<a href="${marketHref({ ...v, sort: s })}"${current(v.sort === s)}>${cap(s)}</a>`)}</nav>
 </div>
 ${n
-    ? html`<div class="stall">${lots(res.listings, res.prices)}</div>
+    ? html`<div class="stall">${lots(res.listings, res.prices, { catalog })}</div>
 ${res.next || paged ? html`<p class="pages">${paged ? html`<a class="tbtn" href="${marketHref(v)}">Back to the start</a>` : ''}${res.next ? html`<a class="pbtn" href="${marketHref(v, res.next)}"><span class="face">More cards</span></a>` : ''}</p>` : ''}`
     : html`<div class="nobody">${raw(spriteSvg(spriteFor({ form: regulars()[6]!, stage: 1 }), { cls: 'shut' }))}<div><p class="big">${v.family ? `No ${FAMILY_INFO[v.family].name} cards up right now.` : 'The stalls are empty right now.'}</p><p>Put one of yours up from Claude Code and it shows here.</p></div></div>`}
 <div class="join"><div><h2>${heading('Not playing yet?')}</h2>${installBlock('install', 'Install Spinlings. Your starter team hatches right away.')}</div></div>

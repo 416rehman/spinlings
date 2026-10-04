@@ -77,9 +77,12 @@ describe('duel matchmaking', () => {
     const team = new Map((await cardsOf(s.db, b.id)).map(c => [c.card.id, c.card]))
     const start = await a.call('startBattle', DUEL_REQ)
     assert.deepEqual(start.opponent, { kind: 'player', handle: b.me.player.handle, league: 'Pebble' })
-    assert.deepEqual(start.setup.defender, b.me.player.team.map(id => toBattleCard(team.get(id)!)))
+    assert.deepEqual(start.setup.defender, b.me.player.team.map(id => {
+      const { appearance, parentForms, ...wire } = toBattleCard(team.get(id)!)
+      return wire
+    }))
     for (const card of start.setup.defender) {
-      for (const key of ['mintedAt', 'lockedUntil', 'tiredUntil', 'origin', 'state', 'bound', 'forTrade', 'xp', 'raisedIn']) assert.ok(!(key in card), key)
+      for (const key of ['mintedAt', 'lockedUntil', 'tiredUntil', 'origin', 'state', 'bound', 'forTrade', 'xp', 'raisedIn', 'appearance', 'parentForms']) assert.ok(!(key in card), key)
     }
     assert.ok(!JSON.stringify(start).includes(b.id), 'never the player id')
     const row = await battleRow(s, start.id)

@@ -71,8 +71,15 @@ function racing(): { db: Db; race<T>(n: number, run: () => Promise<T>): Promise<
     async race(n, run) {
       need = n
       lost = 0
-      const timer = setTimeout(release, 2000) // a racer that never writes must not hang the test
-      try { return [await run(), lost] } finally { clearTimeout(timer) }
+      let timedOut = false
+      // Cold fusion naming can exceed two seconds while the complete Node suite shares the CPU.
+      // A watchdog must report an incomplete barrier, never silently turn the race into serial calls.
+      const timer = setTimeout(() => { timedOut = true; release() }, 30_000)
+      try {
+        const result = await run()
+        assert.equal(timedOut, false, 'Not every racing handler reached its guarded batch')
+        return [result, lost]
+      } finally { clearTimeout(timer); release() }
     },
   }
 }

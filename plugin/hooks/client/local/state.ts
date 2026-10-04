@@ -6,6 +6,7 @@ import type { Card, Family, NewCard, Rng } from '../../core/types.ts'
 import { cardStats } from '../../core/cards.ts'
 import { ECONOMY, chargeSpacingMs, isRested, leagueOf } from '../../core/economy.ts'
 import { SPECIES_ID } from '../../core/species.ts'
+import type { SeasonCatalog } from '../../core/species.ts'
 import { DAY_MS, utcDay } from '../../core/world.ts'
 import { BackendError } from '../types.ts'
 import type { LocalPack, LocalState } from './save.ts'
@@ -14,6 +15,7 @@ import { LIMITS } from './save.ts'
 const B = ECONOMY.battle
 
 export type Ctx = {
+  catalog?: SeasonCatalog
   /** one clock reading for the whole operation */
   now: number
   /** crypto-backed (SPEC 28) */
@@ -82,7 +84,7 @@ export function addCards(s: LocalState, ctx: Ctx, fresh: readonly NewCard[], o: 
       ...rest, id: ctx.id(), bound: c.bound || o.bound === true, forTrade: false,
       lockedUntil: Math.max(c.lockedUntil, o.lockedUntil ?? 0), tiredUntil: 0, state: 'owned',
     }
-    card.stats = cardStats(card)
+    card.stats = cardStats(card, ctx.catalog)
     return card
   })
   s.cards.push(...out)

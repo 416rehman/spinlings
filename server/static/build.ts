@@ -2,7 +2,8 @@
 // server/static/site.gen.ts, which the Worker and Node both serve without reading files:
 //   sky.{hash}.js    synchronous, in <head>: the hour, the moon and html.js (at most 1 KB)
 //   site.{hash}.js   the module that brings the meadow to life, with core/names.ts swapped for a
-//                    late-bound stub (the name generator is big and only fusion needs it)
+//                    late-bound stub (the name generator is big and only fusion needs it);
+//                    offline species generation is disabled because the page provides its frozen forms
 //   names.{hash}.js  the real fusion names, imported on the first fuse
 // esbuild comes from wrangler's own dependency, so wrangler stays the only dev dependency (SPEC 12).
 //   node server/static/build.ts            write site.gen.ts
@@ -42,6 +43,7 @@ async function build(entry: string, o: BundleOptions): Promise<{ main: string; p
       name: 'names-stub',
       setup(b) {
         b.onResolve({ filter: /[\\/]names\.ts$/ }, args => (/core[\\/]naming\.ts$/.test(args.importer) ? { path: here('./client/names-stub.ts') } : undefined))
+        b.onResolve({ filter: /[\\/]generators[\\/]index\.ts$/ }, () => ({ path: here('./client/generators-stub.ts') }))
         b.onResolve({ filter: /[\\/]png\.ts$/ }, args => (/pages-font\.ts$/.test(args.importer) ? { path: here('./client/png-glyphs.ts') } : undefined))
       },
     }] : [],
@@ -83,6 +85,7 @@ async function write() {
     console.log(`site.gen.ts written (${out.length} bytes) in ${Date.now() - t} ms`)
   } catch (e) {
     console.error(e instanceof Error ? e.message : e)
+    if (!process.argv.includes('--watch')) process.exitCode = 1
   }
 }
 

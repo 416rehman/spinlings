@@ -1,12 +1,12 @@
 // The den (#collect): the pack ceremony with real slot odds (glowing backs, flips on f or by
 // themselves every 1.2 s, a layered reveal, a summary), and the nest, where two cards fuse into a
 // hybrid nobody has ever seen through the real fuse() once names.js has loaded.
-import { cardName, fuse } from '../../../plugin/hooks/core/cards.ts'
+import { cardName } from '../../../plugin/hooks/core/cards.ts'
 import { FAMILY_INFO } from '../../../plugin/hooks/core/families.ts'
 import { rngFromSeed, uint32 } from '../../../plugin/hooks/core/rng.ts'
 import type { Species } from '../../../plugin/hooks/core/types.ts'
 import { FAMILY_COLOR } from '../../../plugin/hooks/ui/tokens.ts'
-import { rollPack, siteCard } from '../../src/pages-meet.ts'
+import { fuseSite, rollPack, siteCard } from '../../src/pages-meet.ts'
 import type { PackSlot, SiteCard } from '../../src/pages-meet.ts'
 import { shadowSvg } from '../../src/pages-sprite.ts'
 import { spriteFor } from '../../../plugin/hooks/core/sprite.ts'
@@ -346,8 +346,7 @@ async function fuseNow() {
     try {
       // a regular's colours only carry through as the head-top parent, so a species leads when it can
       const [pa, pb] = a.species === 'promo' && b.species !== 'promo' ? [b, a] : [a, b]
-      const made = fuse(pa, pb, rngFromSeed('site-fuse/' + Array.from(crypto.getRandomValues(new Uint8Array(8))).join('.')), W.now)
-      hybrid = { ...made, id: 'hybrid' } as SiteCard
+      hybrid = fuseSite(W, pa, pb, rngFromSeed('site-fuse/' + Array.from(crypto.getRandomValues(new Uint8Array(8))).join('.')))
     } catch { hybrid = null }
   }
   if (!hybrid) {

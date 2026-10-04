@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in the game, mod or website is not working.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe game actions and versions. Keep account tokens, passkey links and work content private. Security or privacy problems belong in [private vulnerability reporting](https://github.com/416rehman/spinlings/security/advisories/new).
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened?
+      placeholder: What did you see, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      placeholder: List the game controls or website actions that lead to the problem.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did it happen?
+      options:
+        - Claude Code terminal
+        - Claude Desktop Code tab
+        - Website
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions, if known
+      description: Spinlings from /spin version; Claude Code from claude --version. Website reports can leave this blank.
+  - type: dropdown
+    id: world
+    attributes:
+      label: World
+      options:
+        - spinlings.dev
+        - Offline
+        - Self-hosted server

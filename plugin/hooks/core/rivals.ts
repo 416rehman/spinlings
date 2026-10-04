@@ -6,6 +6,7 @@ import { RARITIES, cardPower, mintCard, rarityRank, toBattleCard } from './cards
 import { rivalName } from './naming.ts'
 import { between, chance, pick, uint32, weighted } from './rng.ts'
 import { seasonSpecies } from './species.ts'
+import type { SeasonCatalog } from './species.ts'
 import { seasonOf, shinyChance } from './world.ts'
 
 export type Rival = {
@@ -22,6 +23,7 @@ export function rivalScale(rating: number): number {
 }
 
 export type RivalOptions = {
+  catalog?: SeasonCatalog
   rng: Rng
   now: number
   /** the player's rating */
@@ -37,7 +39,7 @@ export function rollRival(o: RivalOptions): Rival {
   const { rng, now } = o
   const size = Math.min(ECONOMY.teamSize, Math.max(1, Math.round(o.size)))
   const target = (Math.max(1, o.power) / size) * rivalScale(o.rating)
-  const regular = seasonSpecies(seasonOf(now)).filter(s => !s.legendary)
+  const regular = seasonSpecies(seasonOf(now), o.catalog).filter(s => !s.legendary)
   const team: BattleCard[] = []
   for (let slot = 0; slot < size; slot++) {
     const species = pick(rng, regular)
@@ -50,11 +52,11 @@ export function rollRival(o: RivalOptions): Rival {
     const r0 = rarityRank(rolled), epic = rarityRank('epic')
     const ranks = [r0, ...Array.from({ length: r0 }, (_, k) => r0 - 1 - k), ...Array.from({ length: epic - r0 }, (_, k) => r0 + 1 + k)]
     let best: NewCard | undefined
-    const miss = (c: NewCard) => Math.abs(cardPower(c) - target)
+    const miss = (c: NewCard) => Math.abs(cardPower(c, o.catalog) - target)
     for (const rank of ranks) {
       if (best && miss(best) <= target * 0.1) break
       for (let level = 1; level <= ECONOMY.levels.max; level++) {
-        const c = mintCard({ species, rarity: RARITIES[rank]!, shiny, dna, origin: 'catch', now, level, foil })
+        const c = mintCard({ species, rarity: RARITIES[rank]!, shiny, dna, origin: 'catch', now, level, foil }, o.catalog)
         if (!best || miss(c) < miss(best)) best = c
       }
     }

@@ -10,6 +10,7 @@ import { fail, HttpError } from '../http.ts'
 import { abandoned, autoSettle, closeBattle, finishedAgain, openBattleOf, ownBattle, prepareCatch, prepareStart, replay, settleBattle } from '../game/battles.ts'
 import { apiRoute, commit, loadPlayer } from '../game/ctx.ts'
 import { checkDuelStart, checkWildStart } from '../game/pacing.ts'
+import { finishView } from '../game/rules/wire.ts'
 
 export function battles(api: Api): void {
   apiRoute(api, 'startBattle', async (ctx, req) => {
@@ -32,7 +33,7 @@ export function battles(api: Api): void {
 
   apiRoute(api, 'finishBattle', async (ctx, req) => {
     const b = await ownBattle(ctx.db, ctx.player.id, req.battleId)
-    if (b.state === 'settled' && b.outcome) return finishedAgain(b, ctx.now)
+    if (b.state === 'settled' && b.outcome) return finishView(finishedAgain(b, ctx.now))
     if (b.state !== 'open' || abandoned(b, ctx.now)) fail('conflict', 'That battle is already over')
     const log = replay(b, req.inputs)
     if (!log) {
@@ -47,7 +48,7 @@ export function battles(api: Api): void {
     }
     const settled = await settleBattle(ctx, b, ctx.player, 'finish', log)
     await commit(ctx, settled.stmts)
-    return settled.response
+    return finishView(settled.response)
   })
 
   apiRoute(api, 'catchCreature', async (ctx, req) => {

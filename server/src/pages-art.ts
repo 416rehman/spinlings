@@ -73,7 +73,9 @@ export function formSvg(form: Form, stage: CardStage, o: SvgOptions & { shadow?:
 
 /** A card exactly as the game draws it: its DNA look, stage and raised form. */
 export function cardSvg(card: BattleCard, o: SvgOptions = {}): string {
-  const key = `card|${card.species}|${card.form ? formKey(card.form) : ''}|${card.dna}|${card.stage}|${card.raisedIn ?? ''}|${card.shiny}|${card.rarity}`
+  const form = card.form ?? card.appearance
+  const parents = card.parentForms?.map(p => p ? formKey(p) : '').join('|') ?? ''
+  const key = `card|${card.species}|${form ? formKey(form) : ''}|${parents}|${card.dna}|${card.stage}|${card.raisedIn ?? ''}|${card.shiny}|${card.rarity}`
   const art = memoized(key, () => spriteFor(card))
   return svgOf(art.px, art.paths, o)
 }

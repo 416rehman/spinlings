@@ -6,10 +6,11 @@ import type { BoardName, BoardPeriod, ListingView, MarketRequest, MarketResponse
 import type { BattleCard, DropReward } from '../../plugin/hooks/core/types.ts'
 import { normalizeDropCode } from '../../plugin/hooks/core/drops.ts'
 import { DROP_CODE_RE, GIFT_CODE_RE, HANDLE_RE, ID_RE, parseDropReward } from '../../plugin/hooks/core/schemas.ts'
+import { SPECIES_ID } from '../../plugin/hooks/core/species.ts'
 import { utcDay } from '../../plugin/hooks/core/world.ts'
 import type { PlayerCtx } from './app.ts'
 import type { Db } from './db.ts'
-import { teamOf } from './game/ctx.ts'
+import { ensureSeasons, teamOf } from './game/ctx.ts'
 import { browse, listingExpiry, listingsOf } from './game/market.ts'
 import { cardsByIds, publicCard, queryCards } from './game/mint.ts'
 import { profileOf } from './game/social-board.ts'
@@ -126,12 +127,19 @@ const PRICE_CURSOR = /^(0|[1-9]\d{0,6})\.[a-z2-7]{26}$/
  * One page of the open market, exactly as GET /v1/market answers anyone: public cards, the seller's handle as
  * listed, the terms and the day. A cursor that does not fit the sort starts from the top instead of failing.
  */
-export function marketPage(db: Db, now: number, q: MarketRequest): Promise<MarketResponse> {
+export async function marketPage(db: Db, now: number, q: MarketRequest): Promise<MarketResponse> {
   const fits = q.after !== undefined && ((q.sort ?? 'newest') === 'newest' ? NEWEST_CURSOR : PRICE_CURSOR).test(q.after)
   const { after: _, ...rest } = q
   // browse reads only the database and the clock
-  return browse({ db, now } as unknown as PlayerCtx, fits ? q : rest)
+  const res = await browse({ db, now } as unknown as PlayerCtx, fits ? q : rest)
+  await ensureWantedSeasons(db, res.listings)
+  return res
 }
+
+const ensureWantedSeasons = (db: Db, listings: readonly ListingView[]) => ensureSeasons(db, listings.flatMap(l => {
+  const match = l.want?.species ? SPECIES_ID.exec(l.want.species) : null
+  return match ? [Number(match[1])] : []
+}))
 
 /** A player's open listings by their current handle, newest first; the market shows them to anyone already. */
 export async function listingsByHandle(db: Db, handle: string, now: number): Promise<ListingView[]> {
@@ -140,5 +148,7 @@ export async function listingsByHandle(db: Db, handle: string, now: number): Pro
   if (!p) return []
   // one past its lapse day waits only for the sweep to send it home: it is not for sale
   const today = utcDay(now)
-  return (await listingsOf(db, p.id)).filter(l => listingExpiry(Date.parse(`${l.day}T00:00:00Z`)) > today).slice(0, LISTINGS_SHOWN)
+  const listings = (await listingsOf(db, p.id)).filter(l => listingExpiry(Date.parse(`${l.day}T00:00:00Z`)) > today).slice(0, LISTINGS_SHOWN)
+  await ensureWantedSeasons(db, listings)
+  return listings
 }

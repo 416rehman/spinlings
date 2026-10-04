@@ -15,8 +15,9 @@ import { DAILY_RULES, EPOCH_MS, RULE_INFO, dailyRule, seasonOf, utcDay } from '.
 import { FAMILY_COLOR } from '../../plugin/hooks/ui/tokens.ts'
 import type { Api, Ctx } from './app.ts'
 import { passkeyPage } from './game/auth.ts'
+import { catalogOf } from './game/ctx.ts'
 import { rpIdOf } from './game/passkeys.ts'
-import { fail, png } from './http.ts'
+import { escapeHtml, fail, png } from './http.ts'
 import { cardPng } from './pages-art.ts'
 import {
   BOARD_IDS, BOARDS, BOARDS_CSS, LOTS_CSS, MARKET_CSS, RANKS_CSS, SORTS, STATS_CSS, boardsBody, lots, marketBody, statTiles,
@@ -87,7 +88,7 @@ export function pages(api: Api): void {
       cache: preview ? 'no-store' : MINUTE_CACHE, now: ctx.now, team: true,
       og: {
         title: 'Spinlings', description: 'Wild creatures find you while Claude works. A creature card game inside Claude Code.',
-        image: `${ctx.origin}/og/meadow-${dayKey(ctx.now)}.png`, imageAlt: 'A team of Spinlings on a lamp-lit path as a wild one rustles in the grass.',
+        image: `${ctx.origin}/og/meadow.png`, imageAlt: 'A team of Spinlings on a lamp-lit path as a wild one rustles in the grass.',
       },
       ...(preview?.scheme === 'dark' || preview?.scheme === 'light' ? { scheme: preview.scheme } : {}),
       ...(preview?.motion === 'reduce' ? { motion: 'reduce' as const } : {}),
@@ -95,6 +96,15 @@ export function pages(api: Api): void {
       body: landingBody({ w, ...shown, deals: traderDeals(ctx.now) }),
     })
   })
+
+  // Only generic pages belong in a search index. Player, card, gift, postcard and passkey links
+  // remain outside the sitemap; no database read or query parameter becomes a crawler hint.
+  page('/robots.txt', ctx => new Response(`User-agent: *\nAllow: /\nDisallow: /v1/\nDisallow: /account\nDisallow: /passkey/\nDisallow: /g/\nSitemap: ${ctx.origin}/sitemap.xml\n`, {
+    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': HOUR_CACHE },
+  }))
+  page('/sitemap.xml', ctx => new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/boards', '/market', '/odds', '/privacy'].map(path => `<url><loc>${escapeHtml(ctx.origin + path)}</loc></url>`).join('')}</urlset>\n`, {
+    headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': HOUR_CACHE },
+  }))
 
   // first-party scripts, content-hashed and immutable (SPEC 36); only the table's own names, never
   // one it inherits (constructor, __proto__, toString)
@@ -108,24 +118,25 @@ export function pages(api: Api): void {
   // asked for. Only a fresh drawing spends from the address's 'share' bucket, so a stream of new seeds
   // cannot keep the server drawing. The Worker also keeps them in its edge cache (worker.ts).
   const meadows = imageCache(1), postcards = imageCache(64)
-  const shareImage = async (ctx: Ctx, kept: ImageCache, key: string, draw: () => Promise<Uint8Array>) => {
+  const shareImage = async (ctx: Ctx, kept: ImageCache, key: string, draw: () => Promise<Uint8Array>, cache = DAY_CACHE) => {
     let bytes = kept.get(key)
     if (!bytes) {
       ctx.limit('share')
       bytes = kept.set(key, draw())
     }
-    return png(await bytes, DAY_CACHE)
+    return png(await bytes, cache)
   }
 
   page('/og/:file', async ctx => {
+    const stable = ctx.params.file === 'meadow.png'
     const m = /^meadow-(\d{8})\.png$/.exec(ctx.params.file!)
     const today = dayKey(ctx.now), yesterday = dayKey(ctx.now - 86_400_000)
-    if (!m || (m[1] !== today && m[1] !== yesterday)) return missing(ctx, 'No such picture', 'Meadow pictures last a day.')
+    if (!stable && (!m || (m[1] !== today && m[1] !== yesterday))) return missing(ctx, 'No such picture', 'Meadow pictures last a day.')
     // yesterday's link still unfurls, with today's meadow
     return shareImage(ctx, meadows, today, async () => {
       const w = await siteWorld(ctx.db, ctx.now)
       return meadowPng(w, w.species.find(s => s.id === w.featured)!)
-    })
+    }, stable ? HOUR_CACHE : DAY_CACHE)
   })
 
   page('/w/:seed', async ctx => {
@@ -191,13 +202,13 @@ export function pages(api: Api): void {
       kind: 'site', title: 'The market: Spinlings', description: 'One-of-a-kind Spinlings cards up for sparks or a swap. Buy them inside Claude Code.',
       path: '/market', origin: ctx.origin, cache: MINUTE_CACHE, now: ctx.now, css: SITE_CSS + MARKET_CSS + LOTS_CSS + RANKS_CSS,
       og: { title: 'The Spinlings market', description: 'One-of-a-kind cards up for sparks or a swap.' },
-      body: marketBody(res, { ...(family ? { family } : {}), sort }, after !== undefined),
+      body: marketBody(res, { ...(family ? { family } : {}), sort }, after !== undefined, catalogOf(ctx.db)),
     })
   }, 'browse')
 
   page('/u/:handle', async ctx => {
     const p = await profile(ctx.db, ctx.params.handle!, ctx.now)
-    if (!p) return missing(ctx, 'No trainer by that name', 'Handles are random and can change once a week, so an old link may point nowhere.')
+    if (!p) return missing(ctx, 'No trainer by that name', 'Usernames can change once a week, so an old link may point nowhere.')
     const handle = text(p.handle, 40)
     const lead = p.team[0]
     const selling = await listingsByHandle(ctx.db, p.handle, ctx.now)
@@ -214,7 +225,7 @@ export function pages(api: Api): void {
 ${p.team.length ? teamCamp(p.team) : html`<div class="wrap"><p class="empty doze">${raw(spriteSvg(spriteFor({ form: regulars()[2]!, stage: 1 }), { cls: 'shut' }))}<span>No team saved right now. Everyone's off in the grass.</span></p></div>`}
 <section class="wrap profile">
 ${p.stats ? html`<h2>${heading('Stats')}</h2>${statTiles(p.stats)}` : ''}
-${selling.length ? html`<h2>${heading('On the market')}</h2><div class="stall">${lots(selling, [], { seller: false })}</div><p class="more"><a href="/market">See the whole market</a></p>` : ''}
+${selling.length ? html`<h2>${heading('On the market')}</h2><div class="stall">${lots(selling, [], { seller: false, catalog: catalogOf(ctx.db) })}</div><p class="more"><a href="/market">See the whole market</a></p>` : ''}
 <h2>${heading('Pinned for trade')}</h2>
 ${p.forTrade.length ? html`<div class="board">${cardTiles(p.forTrade, { link: true })}</div>` : html`<p class="empty doze">${raw(spriteSvg(spriteFor(lead ?? { form: regulars()[2]!, stage: 1 }), { cls: 'shut' }))}<span>Nothing pinned for trade yet. Check back soon.</span></p>`}
 <div class="cta">

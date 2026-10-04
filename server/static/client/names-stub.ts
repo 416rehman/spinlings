@@ -1,6 +1,6 @@
 // Stands in for core/names.ts inside site.js: the name generator is large and only a fusion needs
 // it, so its one real copy lives in names.js and is bound here on the first fuse. Until then, any
-// call throws (installSeason means nothing else ever asks for a name).
+// call throws; the page's explicit species catalog supplies every name outside fusion.
 type Names = typeof import('../../../plugin/hooks/core/names.ts')
 let impl: Names | null = null
 

@@ -41,7 +41,7 @@ export function buyPack(s: LocalState, ctx: Ctx, req: BuyPackRequest): PacksResp
 export function openPack(s: LocalState, ctx: Ctx, req: OpenPackRequest): OpenPackResponse {
   const pack = s.packs.find(p => p.id === req.packId) ?? refuse('not_found', 'That pack is not here')
   needRoom(s, ECONOMY.packs.size)
-  const rolled = rollPack(pack.family, seasonOf(ctx.now), ctx.rng, ctx.now)
+  const rolled = rollPack(pack.family, seasonOf(ctx.now), ctx.rng, ctx.now, dailyRule(ctx.now), ctx.catalog)
   const cards = addCards(s, ctx, rolled, { lockedUntil: pack.lockUntil > ctx.now ? pack.lockUntil : 0, bound: pack.bound })
   s.packs = s.packs.filter(p => p.id !== pack.id)
   return { cards }
@@ -66,7 +66,7 @@ export function fuseCards(s: LocalState, ctx: Ctx, req: { cardId: string } & Fus
   const cost = fusionCost(dailyRule(ctx.now))
   mustAfford(s, cost)
   const lock = Math.max(a.lockedUntil, b.lockedUntil)
-  const hybrid = fuse(a, b, ctx.rng, ctx.now)
+  const hybrid = fuse(a, b, ctx.rng, ctx.now, ctx.catalog)
   removeCards(s, [a.id, b.id])
   s.sparks -= cost
   const card = addCards(s, ctx, [hybrid], lock > ctx.now ? { lockedUntil: lock } : {})[0]!
@@ -85,7 +85,7 @@ export function recycle(s: LocalState, _ctx: Ctx, req: { cardId: string }): Recy
 /** The current season only (SPEC 4). */
 export function craft(s: LocalState, ctx: Ctx, req: CraftRequest): CardResponse {
   const season = Number(SPECIES_ID.exec(req.speciesId)?.[1] ?? 0)
-  const species = season === seasonOf(ctx.now) ? getSpecies(req.speciesId) : undefined
+  const species = season === seasonOf(ctx.now) ? getSpecies(req.speciesId, ctx.catalog) : undefined
   if (!species) return refuse('not_allowed', "Only this season's creatures can be crafted")
   if (!rarityFits(species, req.rarity)) refuse('bad_request', species.legendary ? 'A legendary is always legendary' : 'Only legendaries come in legendary')
   const cost = craftCost(req.rarity)
@@ -94,7 +94,7 @@ export function craft(s: LocalState, ctx: Ctx, req: CraftRequest): CardResponse 
   const fresh = mintCard({
     species, rarity: req.rarity, shiny: chance(ctx.rng, shinyChance(ctx.now)), dna: uint32(ctx.rng), origin: 'craft', now: ctx.now,
     foil: chance(ctx.rng, ECONOMY.foil.chance),
-  })
+  }, ctx.catalog)
   s.sparks -= cost
   return { card: addCards(s, ctx, [fresh])[0]! }
 }
@@ -118,7 +118,7 @@ export function traderDeal(s: LocalState, ctx: Ctx, req: { dealId: string } & Tr
   const given = req.cardIds.map(id => ownCard(s, id))
   const problem = traderGiveProblem(deal, given, ctx.now)
   if (problem) refuse('not_allowed', problem.charAt(0).toUpperCase() + problem.slice(1))
-  const got = rollTraderDeal(deal, ctx.rng, ctx.now)
+  const got = rollTraderDeal(deal, ctx.rng, ctx.now, ctx.catalog)
   needRoom(s, got.cards.length - given.length)
   removeCards(s, req.cardIds)
   const cards = addCards(s, ctx, got.cards)

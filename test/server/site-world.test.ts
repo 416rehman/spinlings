@@ -370,7 +370,7 @@ describe('the meadow share image', () => {
     assert.deepEqual(pngSize(bytes), [1200, 630])
     assert.ok(bytes.length < 150 * 1024)
     const page = (await html(s, '/')).text
-    assert.ok(page.includes(`<meta property="og:image" content="http://localhost:8787/og/meadow-${day}.png">`))
+    assert.ok(page.includes('<meta property="og:image" content="http://localhost:8787/og/meadow.png">'))
     assert.ok(page.includes('<meta property="og:image:alt" content="A team of Spinlings on a lamp-lit path as a wild one rustles in the grass.">'))
     for (const bad of ['meadow-20200101.png', 'meadow-x.png', 'sky.png']) assert.equal((await s.request('GET', `/og/${bad}`, { client: null })).status, 404)
   })

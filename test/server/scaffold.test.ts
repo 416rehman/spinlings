@@ -73,13 +73,18 @@ describe('the version handshake', () => {
     assert.deepEqual(v.features, [...FEATURES])
   })
 
-  it('answers 426 upgrade_required only to a well-formed client below minClient, and never on /v1/version', async () => {
+  it('leaves old clients readable while refusing game writes below minClient', async () => {
     const s = server()
+    const p = await s.join()
     for (const client of ['0.0.9', '0.0.99-beta']) {
-      const res = await s.request('GET', '/v1/world', { client })
+      const res = await s.request('POST', '/v1/packs/buy', { client, token: p.token, body: { family: 'haiku' } })
       assert.equal(res.status, 426)
       assert.equal(((await res.json()) as { error: { code: string } }).error.code, 'upgrade_required')
       assert.equal((await s.request('GET', '/v1/version', { client })).status, 200)
+      assert.equal((await s.request('GET', '/v1/world', { client })).status, 200)
+      assert.equal((await s.request('GET', '/v1/me', { client, token: p.token })).status, 200)
+      assert.equal((await s.request('GET', '/v1/cards', { client, token: p.token })).status, 200)
+      assert.equal((await s.request('GET', '/v1/cards', { client })).status, 401)
     }
     for (const client of [null, '0.1.0', '0.2.0', '1.0.0', 'garbage', '0.0.9.9']) {
       assert.equal((await s.request('GET', '/v1/world', { client })).status, 200, String(client))
@@ -93,6 +98,8 @@ describe('the version handshake', () => {
     assert.equal(tooOld('0.2.0-beta.1', '0.2.0-beta.2'), true)
     assert.equal(tooOld('0.2.0-beta.2', '0.2.0-beta.2'), false)
     assert.equal(tooOld('0.2.1-beta.1', '0.2.0'), false)
+    assert.equal((await s.request('DELETE', '/v1/me', { client: '0.0.9', token: p.token })).status, 200)
+    assert.equal((await s.request('GET', '/v1/me', { client: '0.0.9', token: p.token })).status, 401)
   })
 })
 

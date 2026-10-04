@@ -73,6 +73,10 @@ export type Card = {
   species: string
   /** present exactly when species is 'fusion', 'mythic' or 'promo' */
   form?: CardForm
+  /** Locally resolved frozen species; never accepted from a card request or sent by the mod. */
+  appearance?: Form
+  /** Locally resolved fusion parents, kept out of the wire and offline save. */
+  parentForms?: [Form | null, Form | null]
   season: number
   family: Family
   rarity: Rarity
@@ -109,7 +113,7 @@ export type Card = {
  * is set only on the owner's own cards (ownBattleCard): the arena a card grew up in is never shown to others.
  */
 export type BattleCard = Pick<Card,
-  'id' | 'species' | 'form' | 'season' | 'family' | 'rarity' | 'shiny' | 'foil' | 'dna' | 'genes' | 'traits'
+  'id' | 'species' | 'form' | 'appearance' | 'parentForms' | 'season' | 'family' | 'rarity' | 'shiny' | 'foil' | 'dna' | 'genes' | 'traits'
   | 'level' | 'stage' | 'raisedIn' | 'stats' | 'firstFind'>
 
 /** A freshly minted card: everything but the id, which the server (or the offline save) assigns. */

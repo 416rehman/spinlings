@@ -27,7 +27,7 @@ export type Config = {
    * and the base of every link it hands out. Unset, each request's own origin is used.
    */
   origin?: string
-  /** mods older than this get 426 upgrade_required (SPEC 32) */
+  /** mods older than this can read and delete their account; game writes get 426 (SPEC 32) */
   minClient: string
 }
 
@@ -102,8 +102,8 @@ const MAX_URL = 2048
 const HAS_BODY = new Set(['POST', 'PUT', 'PATCH'])
 const RETRIES = 3
 export const MIN_CLIENT = '0.1.0'
-/** Always answered, whatever the client: how an old mod learns it is old. */
-const UNGATED = new Set(['/v1/version', '/v1/health'])
+/** Reading and erasing an account remain available even below the supported game version. */
+const readable = (method: string, path: string) => method === 'GET' || method === 'HEAD' || (method === 'DELETE' && path === '/v1/me')
 
 export function createApp(options: AppOptions): App {
   const { db } = options
@@ -162,7 +162,7 @@ export function createApp(options: AppOptions): App {
     if (match.kind === 'method') throw new HttpError('not_allowed', 'Method not allowed', 405, { Allow: match.allow.join(', ') })
     seen.pattern = match.pattern
     const route = match.value
-    if (url.pathname.startsWith('/v1/') && !UNGATED.has(url.pathname) && tooOld(req.headers.get('x-spinlings-client'), config.minClient)) {
+    if (url.pathname.startsWith('/v1/') && !readable(req.method, url.pathname) && tooOld(req.headers.get('x-spinlings-client'), config.minClient)) {
       fail('upgrade_required', 'This Spinlings is too old for the server: claude plugin update spinlings@spinlings')
     }
 
@@ -262,4 +262,3 @@ function describe(err: unknown): string {
   const frame = err.stack?.split('\n').find(l => l.trim().startsWith('at '))?.trim().slice(3)
   return frame ? `${err.name} at ${frame}` : err.name
 }
-

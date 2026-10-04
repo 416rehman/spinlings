@@ -105,7 +105,7 @@ export function readCache(v: unknown): Cache | null {
 }
 
 export function cacheRecord(me: MeResponse, cards: CardsResponse | null): Cache {
-  return { me, cards: cards && cards.cards.length <= CACHE_MAX_CARDS ? cards : null }
+  return { me: parseMeResponse(me), cards: cards && cards.cards.length <= CACHE_MAX_CARDS ? parseCardsResponse(cards) : null }
 }
 
 export type ServerMeta = {

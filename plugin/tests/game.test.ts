@@ -8,11 +8,11 @@
 import { expect, test } from 'claude-code/testing'
 import type { ApiOp, StartBattleResponse, VersionResponse } from '../hooks/core/api.ts'
 import { FEATURES } from '../hooks/core/api.ts'
-import type { Card } from '../hooks/core/types.ts'
+import type { Card, Species } from '../hooks/core/types.ts'
 import { RULES_VERSION, simulateBattle } from '../hooks/core/battle.ts'
-import { toBattleCard } from '../hooks/core/cards.ts'
+import { cardName, mintCard, toBattleCard } from '../hooks/core/cards.ts'
 import { finishAfter } from '../hooks/core/economy.ts'
-import { GENERATOR_VERSION } from '../hooks/core/species.ts'
+import { GENERATOR_VERSION, seasonSpecies } from '../hooks/core/species.ts'
 import { INITIAL, OFFLINE_FEATURES, createGame } from '../hooks/client/game.ts'
 import { createLocalBackend } from '../hooks/client/local/index.ts'
 import { CLIENT_VERSION } from '../hooks/client/remote.ts'
@@ -569,4 +569,75 @@ test('a wrapped gift is marked copied only when the copy took', async () => {
     expect(w.state.social.gift).toEqual({ code: gift.code, link: `${ORIGIN}/g/${gift.code}`, cardId: gift.card.id, copied: takes })
     expect(w.state.pane.stack.at(-1)).toEqual({ kind: 'gift', code: gift.code })
   }
+})
+
+
+// Frozen cards are resolved by the installed orchestrator, beyond its own collection and current generator.
+test('matching generator versions still hydrate nine owned seasons and a foreign battle opponent', async () => {
+  const w = world({})
+  const cards: Card[] = Array.from({ length: 9 }, (_, i) => ({ ...mintCard({ species: seasonSpecies(i + 1)[0]!,
+    rarity: 'common', shiny: false, dna: 4, origin: 'pack', now: NOW }), id: 'frozencard' + (i + 1) }))
+  const foreign: Card = { ...mintCard({ species: seasonSpecies(10)[0]!, rarity: 'common', shiny: false, dna: 5,
+    origin: 'catch', now: NOW }), id: 'foreigncard' }
+  const me = { ...server.me, player: { ...server.me.player, team: cards.slice(0, 3).map(c => c.id) } }
+  const asked: number[] = []
+  const game = createGame({ slots, remote: () => backend({
+    version: async () => VERSION, me: async () => me,
+    cards: async () => ({ cards, version: me.player.cardsVersion }),
+    season: async (req: { season: number }) => {
+      asked.push(req.season)
+      const species = JSON.parse(JSON.stringify(seasonSpecies(req.season))) as Species[]
+      species[0] = { ...species[0]!, names: ['Frostlet', 'Frostmaw', 'Frosttitan'], hue: 140, body: 'ghost' }
+      return { season: req.season, generator: 1, species }
+    },
+    startBattle: async () => { const b = started('duel'); return { ...b, setup: { ...b.setup, attacker: cards.slice(0, 3).map(toBattleCard), defender: [toBattleCard(foreign)] } } },
+  }) })
+  await game.boot(w.fx, { model: null })
+  await w.advance(1000)
+  expect([...asked].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9])
+  expect(w.state.cards.map(c => cardName(c))).toEqual(Array(9).fill('Frostlet'))
+  expect(w.state.cards.map(c => c.stats)).toEqual(cards.map(c => c.stats))
+  expect(JSON.stringify(w.store.get('server:' + ORIGIN + ':cache')).includes('appearance')).toBe(false)
+  await game.command(w.fx, 'battle')
+  await w.advance(1000)
+  expect(cardName(w.state.battle!.setup.defender[0]!)).toBe('Frostlet')
+  expect(asked.filter(n => n === 10).length).toBe(1)
+})
+
+test('a below-min installed session reads, blocks battles and buys, can delete, then plays offline', async () => {
+  const w = world({})
+  let writes = 0, reads = 0, deletes = 0, joins = 0
+  w.fx.fetch = async () => { joins++; throw new Error('unexpected automatic join') }
+  const game = createGame({ slots: both, remote: () => backend({
+    version: async () => ({ ...VERSION, minClient: '9.9.0', latestClient: '9.9.0' }),
+    me: async () => server.me,
+    cards: async () => { reads++; return { cards: server.cards, version: server.me.player.cardsVersion } },
+    startBattle: async () => { writes++; return started('duel') },
+    buyPack: async () => { writes++; return { packs: [] } },
+    deleteMe: async () => { deletes++; return { deleted: true } },
+  }) })
+  await game.boot(w.fx, { model: null })
+  await w.advance(1000)
+  expect(w.state.account).toMatchObject({ world: 'online', link: 'ready', readOnly: true })
+  expect(reads).toBe(1)
+  expect(w.state.cards.map(c => c.id)).toEqual(server.cards.map(c => c.id))
+  await game.command(w.fx, 'battle')
+  await game.actions(w.fx).buyPack('opus')
+  expect(writes).toBe(0)
+  expect(w.state.battle).toBeNull()
+  await game.actions(w.fx).hold('delete-account', '')
+  await w.advance(2000)
+  await game.actions(w.fx).hold('delete-account', '')
+  await w.advance(1000)
+  expect(deletes).toBe(1)
+  expect(w.state.account.link).toBe('signed-out')
+  expect(w.store.has('server:' + ORIGIN + ':session')).toBe(false)
+  expect(w.store.get('server:' + ORIGIN + ':meta')).toMatchObject({ deleted: true })
+  expect(joins).toBe(0)
+  await game.command(w.fx, 'world offline')
+  await w.advance(1000)
+  expect(w.state.account).toMatchObject({ world: 'offline', link: 'ready', readOnly: false })
+  expect(w.state.cards.length).toBe(3)
+  expect(writes).toBe(0)
+  expect(joins).toBe(0)
 })

@@ -16,7 +16,7 @@ import type { Api } from '../app.ts'
 import { stmt } from '../db.ts'
 import { fail } from '../http.ts'
 import { spendJoinCounter } from '../ratelimit.ts'
-import { addSparks, apiRoute, commit, mustAfford, notFound, rngOf, setPlayer, teamOf } from '../game/ctx.ts'
+import { addSparks, apiRoute, catalogOf, commit, mustAfford, notFound, rngOf, setPlayer, teamOf } from '../game/ctx.ts'
 import {
   bankGuard, deletePack, dropByCode, dropLive, dropReward, mustBeFree, mustBeHome, mustBeTradeable, ownPack,
   packGuard, redeemStmts, seasonOfSpecies, takeCards, traderView, useDeal,
@@ -61,7 +61,7 @@ export function collection(api: Api): void {
   apiRoute(api, 'openPack', async (ctx, req) => {
     const p = ctx.player
     const pack = (await ownPack(ctx.db, p.id, req.packId)) ?? notFound('pack')
-    const rolled = rollPack(pack.family as Family, seasonOf(ctx.now), rngOf(ctx), ctx.now)
+    const rolled = rollPack(pack.family as Family, seasonOf(ctx.now), rngOf(ctx), ctx.now, undefined, catalogOf(ctx.db))
     const minted = await mintCards(ctx, p.id, rolled, { bound: pack.bound === 1 })
     await commit(ctx, [packGuard(p.id, pack.id), deletePack(pack.id), ...minted.stmts])
     return { cards: minted.cards }
@@ -101,7 +101,7 @@ export function collection(api: Api): void {
     mustBeFree(b)
     const cost = fusionCost(dailyRule(ctx.now))
     mustAfford(p, cost)
-    const minted = await mintCards(ctx, p.id, [fuse(a.card, b.card, rngOf(ctx), ctx.now)])
+    const minted = await mintCards(ctx, p.id, [fuse(a.card, b.card, rngOf(ctx), ctx.now, catalogOf(ctx.db))])
     await commit(ctx, [...takeCards(p, [a, b]), addSparks(p.id, -cost), ...minted.stmts])
     return { card: minted.cards[0]!, consumed: [a.card.id, b.card.id] as [string, string] }
   })
@@ -119,7 +119,7 @@ export function collection(api: Api): void {
   // The current season only (SPEC 4); the season is read from the id before any species is looked up.
   apiRoute(api, 'craft', async (ctx, req) => {
     const p = ctx.player
-    const species = seasonOfSpecies(req.speciesId) === seasonOf(ctx.now) ? getSpecies(req.speciesId) : undefined
+    const species = seasonOfSpecies(req.speciesId) === seasonOf(ctx.now) ? getSpecies(req.speciesId, catalogOf(ctx.db)) : undefined
     if (!species) fail('not_allowed', "Only this season's creatures can be crafted")
     if (!rarityFits(species, req.rarity)) fail('bad_request', species.legendary ? 'A legendary is always legendary' : 'Only legendaries come in legendary')
     const cost = craftCost(req.rarity)
@@ -128,7 +128,7 @@ export function collection(api: Api): void {
     const fresh = mintCard({
       species, rarity: req.rarity, shiny: chance(rng, shinyChance(ctx.now)), dna: uint32(rng), origin: 'craft', now: ctx.now,
       foil: chance(rng, ECONOMY.foil.chance),
-    })
+    }, catalogOf(ctx.db))
     const minted = await mintCards(ctx, p.id, [fresh])
     await commit(ctx, [addSparks(p.id, -cost), ...minted.stmts])
     return { card: minted.cards[0]! }
@@ -161,7 +161,7 @@ export function collection(api: Api): void {
     const cards = await ownCards(ctx.db, p.id, req.cardIds)
     const problem = traderGiveProblem(deal, cards.map(c => c.card), ctx.now)
     if (problem) fail('not_allowed', sentence(problem))
-    const got = rollTraderDeal(deal, rngOf(ctx), ctx.now)
+    const got = rollTraderDeal(deal, rngOf(ctx), ctx.now, catalogOf(ctx.db))
     const minted = await mintCards(ctx, p.id, got.cards)
     const packs = got.packs.map(f => grantPack(ctx, p.id, f, 'trader'))
     await commit(ctx, [...takeCards(p, cards), useDeal(p.id, ctx.now, k), ...minted.stmts, ...packs.map(g => g.stmt)])
@@ -187,7 +187,7 @@ export function collection(api: Api): void {
     if (drop.supply !== null && drop.redeemed >= drop.supply) return refuse('cap_reached', 'Every one of these has found a home')
     const reward = dropReward(drop) ?? fail('unavailable', 'This code is resting, try again later')
     const bound = drop.bound === 1
-    const got = mintDropReward(reward, rngOf(ctx), ctx.now, bound)
+    const got = mintDropReward(reward, rngOf(ctx), ctx.now, bound, catalogOf(ctx.db))
     const minted = await mintCards(ctx, p.id, got.cards, { bound })
     const packs = got.packs.map(f => grantPack(ctx, p.id, f, 'promo', { bound }))
     await commit(ctx, [...spend, ...redeemStmts(drop, p.id, ctx.now), ...minted.stmts, ...packs.map(g => g.stmt)])

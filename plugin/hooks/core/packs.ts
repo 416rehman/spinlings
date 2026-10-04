@@ -6,24 +6,26 @@ import { mintCard, toBattleCard } from './cards.ts'
 import { generateMythic, mythicSeed } from './mythics.ts'
 import { chance, between, pick, uint32, weighted } from './rng.ts'
 import { familySpecies, getSpecies, legendaryOf, seasonSpecies } from './species.ts'
+import type { SeasonCatalog } from './species.ts'
 import { dailyRule, seasonOf, shinyChance } from './world.ts'
 
 /** Five fresh cards of the pack's family. Slots 1-4 and slot 5 use their own odds. */
-export function rollPack(family: Family, season: number, rng: Rng, now: number, rule: DailyRule = dailyRule(now)): NewCard[] {
+export function rollPack(family: Family, season: number, rng: Rng, now: number, rule: DailyRule = dailyRule(now), catalog?: SeasonCatalog): NewCard[] {
   const p = ECONOMY.packs
-  const regular = familySpecies(season, family).filter(s => !s.legendary)
+  const regular = familySpecies(season, family, catalog).filter(s => !s.legendary)
   const odds = shinyChance(now, rule)
   const out: NewCard[] = []
   for (let slot = 0; slot < p.size; slot++) {
     const rarity = weighted(rng, slot === p.size - 1 ? p.lastSlotOdds : p.odds)
-    const species = rarity === 'legendary' ? legendaryOf(season, family) : pick(rng, regular)
+    const species = rarity === 'legendary' ? legendaryOf(season, family, catalog) : pick(rng, regular)
     const shiny = chance(rng, odds)
-    out.push(mintCard({ species, rarity, shiny, dna: uint32(rng), origin: 'pack', now, foil: chance(rng, ECONOMY.foil.chance) }))
+    out.push(mintCard({ species, rarity, shiny, dna: uint32(rng), origin: 'pack', now, foil: chance(rng, ECONOMY.foil.chance) }, catalog))
   }
   return out
 }
 
 export type WildOptions = {
+  catalog?: SeasonCatalog
   rng: Rng
   /** the arena family (the attacker's current model) */
   arena: Family
@@ -49,9 +51,9 @@ export function rollWildTeam(o: WildOptions): BattleCard[] {
   const season = seasonOf(now)
   const rule = o.rule ?? dailyRule(now)
   const odds = shinyChance(now, rule)
-  const regular = seasonSpecies(season).filter(s => !s.legendary)
-  const featured = o.featured ? getSpecies(o.featured) : undefined
-  const roamer = o.roamer ? getSpecies(o.roamer) : undefined
+  const regular = seasonSpecies(season, o.catalog).filter(s => !s.legendary)
+  const featured = o.featured ? getSpecies(o.featured, o.catalog) : undefined
+  const roamer = o.roamer ? getSpecies(o.roamer, o.catalog) : undefined
   const avg = Math.min(ECONOMY.levels.max, Math.max(1, Math.round(o.level)))
 
   const lead = chance(rng, w.mythicChance) ? 'mythic' : chance(rng, w.roamerChance) && roamer?.legendary ? 'roamer' : 'regular'
@@ -79,7 +81,7 @@ export function rollWildTeam(o: WildOptions): BattleCard[] {
       rarity = weighted(rng, slot === 0 && o.rested ? w.restedRarity : w.rarity)
     }
     const shiny = chance(rng, odds)
-    const card = mintCard({ species, rarity, shiny, dna: uint32(rng), origin: 'catch', now, level, foil: chance(rng, ECONOMY.foil.chance) })
+    const card = mintCard({ species, rarity, shiny, dna: uint32(rng), origin: 'catch', now, level, foil: chance(rng, ECONOMY.foil.chance) }, o.catalog)
     team.push(toBattleCard({ ...card, id: `wild-${slot}` }))
   }
   return team
@@ -91,16 +93,16 @@ export function rollWildTeam(o: WildOptions): BattleCard[] {
  * cycle, Topsy-Turvy and the arena bonus all counted. A starter team wins it almost always, and that first wild win
  * always catches. Never a Mythic or the roamer; it may still be shiny or foil. The id is 'wild-0'.
  */
-export function rollFirstWild(o: Pick<WildOptions, 'rng' | 'arena' | 'now' | 'level' | 'rule'> & { lead: Family }): BattleCard[] {
+export function rollFirstWild(o: Pick<WildOptions, 'rng' | 'arena' | 'now' | 'level' | 'rule' | 'catalog'> & { lead: Family }): BattleCard[] {
   const { rng, arena, now, lead } = o
   const rule = o.rule ?? dailyRule(now)
   // how hard a family hits the lead against how hard the lead hits it back
   const edge = (f: Family) => (typeMult(f, lead, rule) * (f === arena ? ECONOMY.battle.arena : 1)) / typeMult(lead, f, rule)
   const family = FAMILIES.reduce((a, b) => (edge(b) < edge(a) ? b : a))
-  const species = pick(rng, familySpecies(seasonOf(now), family).filter(s => !s.legendary))
+  const species = pick(rng, familySpecies(seasonOf(now), family, o.catalog).filter(s => !s.legendary))
   const level = Math.max(1, Math.min(ECONOMY.wild.firstLevel, Math.round(o.level) - 2))
   const shiny = chance(rng, shinyChance(now, rule))
-  const card = mintCard({ species, rarity: 'common', shiny, dna: uint32(rng), origin: 'catch', now, level, foil: chance(rng, ECONOMY.foil.chance) })
+  const card = mintCard({ species, rarity: 'common', shiny, dna: uint32(rng), origin: 'catch', now, level, foil: chance(rng, ECONOMY.foil.chance) }, o.catalog)
   return [toBattleCard({ ...card, id: 'wild-0' })]
 }
 
@@ -108,12 +110,12 @@ export function rollFirstWild(o: Pick<WildOptions, 'rng' | 'arena' | 'now' | 'le
  * A duel bounty: a freshly rolled card of the opponent's lead species, never a legendary. A fusion lead gives its B
  * parent; a lead with no regular species to copy (a legendary, a Mythic, a promo) gives a regular of its family.
  */
-export function rollBounty(lead: Pick<BattleCard, 'species' | 'form' | 'family'>, rng: Rng, now: number, rule: DailyRule = dailyRule(now)): NewCard {
+export function rollBounty(lead: Pick<BattleCard, 'species' | 'form' | 'family'>, rng: Rng, now: number, rule: DailyRule = dailyRule(now), catalog?: SeasonCatalog): NewCard {
   const parents = lead.form?.parents
-  let species = parents ? getSpecies(parents[1]) ?? getSpecies(parents[0]) : getSpecies(lead.species)
-  if (!species || species.legendary) species = pick(rng, familySpecies(seasonOf(now), lead.family).filter(s => !s.legendary))
+  let species = parents ? getSpecies(parents[1], catalog) ?? getSpecies(parents[0], catalog) : getSpecies(lead.species, catalog)
+  if (!species || species.legendary) species = pick(rng, familySpecies(seasonOf(now), lead.family, catalog).filter(s => !s.legendary))
   const rarity = weighted(rng, ECONOMY.packs.odds.filter(([r]) => r !== 'legendary'))
-  return mintCard({ species, rarity, shiny: chance(rng, shinyChance(now, rule)), dna: uint32(rng), origin: 'bounty', now, foil: chance(rng, ECONOMY.foil.chance) })
+  return mintCard({ species, rarity, shiny: chance(rng, shinyChance(now, rule)), dna: uint32(rng), origin: 'bounty', now, foil: chance(rng, ECONOMY.foil.chance) }, catalog)
 }
 
 /** Uniform pick of another family for the second welcome pack. */

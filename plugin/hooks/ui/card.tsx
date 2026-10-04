@@ -37,7 +37,7 @@ const CHECK = '✓'
 
 /** Anything shown as a card: your own (Card) or another player's or a wild one (a battle card, no ownership fields). */
 export type CardFace = Pick<Card,
-  'id' | 'species' | 'form' | 'season' | 'family' | 'rarity' | 'shiny' | 'foil' | 'dna' | 'genes' | 'traits' | 'level'
+  'id' | 'species' | 'form' | 'appearance' | 'parentForms' | 'season' | 'family' | 'rarity' | 'shiny' | 'foil' | 'dna' | 'genes' | 'traits' | 'level'
   | 'stage' | 'raisedIn' | 'stats' | 'firstFind'>
   & Partial<Pick<Card, 'xp' | 'origin' | 'bound' | 'forTrade' | 'state' | 'lockedUntil' | 'tiredUntil'>>
 
@@ -164,8 +164,7 @@ const BOX = { tl: 0x256d, tr: 0x256e, bl: 0x2570, br: 0x256f, h: 0x2500, v: 0x25
 const pixelCache = new Map<string, Pixels>()
 
 function artKey(c: CardFace, mini: boolean, ghost: boolean): string {
-  const f = c.form
-  const formKey = f ? `${f.kind}:${f.seed ?? ''}:${f.parents?.join('+') ?? ''}:${f.names[0]}:${f.hue}:${f.body}` : ''
+  const formKey = JSON.stringify([c.form ?? c.appearance ?? null, c.parentForms ?? null])
   return `${c.species}|${formKey}|${c.dna}|${c.stage}|${c.shiny ? 1 : 0}|${c.rarity}|${c.raisedIn ?? ''}|${mini ? 'm' : 'c'}|${ghost ? 'g' : ''}`
 }
 
@@ -293,7 +292,7 @@ const formCache = new Map<string, Pixels>()
  */
 export function formArt(el: El, surface: Surface, key: string, form: Form & { id?: string }, seen: boolean, stage: 1 | 2 | 3 = 1, size: 'tile' | 'mini' = 'tile'): RenderElement {
   const at = form.legendary ? 3 : stage
-  const ck = `form|${form.id ?? form.names[0]}|${form.hue}|${form.body}|${at}|${seen ? 1 : 0}|${size}`
+  const ck = `form|${JSON.stringify(form)}|${at}|${seen ? 1 : 0}|${size}`
   let px = formCache.get(ck)
   if (!px) {
     try {

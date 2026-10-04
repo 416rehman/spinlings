@@ -4,6 +4,7 @@ import type { RenderElement } from 'claude-code'
 import type { Family, Species } from '../core/types.ts'
 import { FAMILIES, FAMILY_INFO } from '../core/families.ts'
 import { getSpecies } from '../core/species.ts'
+import { catalogOf } from '../client/frozen.ts'
 import { seasonOf } from '../core/world.ts'
 import { dots, fit, plural, safe } from '../client/text.ts'
 import { albumCount, albumEntries, craftChoices, cycle, fusionLog, parentsLine, perRow } from '../client/viewmodels.ts'
@@ -34,7 +35,8 @@ export function albumScreen(c: Ctx): Shown {
   const me = c.state.me
   const season = seasonOf(c.now)
   const seen = me?.player.seen ?? []
-  const count = albumCount(season, seen, c.state.cards)
+  const catalog = catalogOf(c.state.account)
+  const count = albumCount(season, seen, c.state.cards, catalog)
   const page = c.state.pane.album
   const go = (by: number) => c.actions.pane(p => ({ ...p, album: cycle(PAGES, p.album, by) }))
   const nav = actions(c, [
@@ -53,13 +55,13 @@ export function albumScreen(c: Ctx): Shown {
         line(c, `Fusion Log · ${plural(log.length, 'hybrid')}`),
         log.length === 0
           ? para(c, 'No hybrids yet. Open a card in Collection and choose Fuse to make one nobody has ever seen.', { dim: true })
-          : column(c, shown.map(x => cardRow(c, x, { key: `log-${x.id}`, note: parentsLine(x), on: () => c.actions.push({ kind: 'card', cardId: x.id }) })), SPACE.none),
+          : column(c, shown.map(x => cardRow(c, x, { key: `log-${x.id}`, note: parentsLine(x, catalog), on: () => c.actions.push({ kind: 'card', cardId: x.id }) })), SPACE.none),
         log.length > shown.length ? line(c, `and ${log.length - shown.length} more in Collection`, { dim: true }) : null,
       ]),
       hints: [tabsHint(c.state), 'n Next family', 'p Previous', log.length > 0 ? 'Tab Pick a hybrid' : '', 'esc Close'],
     }
   }
-  const entries = albumEntries(season, page, seen, c.state.cards, me?.player.wishlist ?? [])
+  const entries = albumEntries(season, page, seen, c.state.cards, me?.player.wishlist ?? [], catalog)
   const inFamily = entries.filter(e => e.seen).length
   return {
     body: column(c, [
@@ -89,7 +91,7 @@ function stages(c: Ctx, s: Species, seen: boolean): RenderElement {
 }
 
 export function speciesScreen(c: Ctx, speciesId: string): Shown {
-  const s = getSpecies(speciesId)
+  const s = getSpecies(speciesId, catalogOf(c.state.account))
   if (!s) return { body: column(c, [line(c, 'Discoveries', { dim: true }), para(c, 'This creature is not in this album.', { dim: true })]), hints: ['esc Back'] }
   const me = c.state.me
   const seen = (me?.player.seen ?? []).includes(s.id) || c.state.cards.some(x => x.species === s.id)

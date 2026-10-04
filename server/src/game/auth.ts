@@ -19,7 +19,7 @@ import { fail } from '../http.ts'
 import { spendJoinCounter } from '../ratelimit.ts'
 import type { AuthPollRow, PlayerRow } from '../schema.ts'
 import { RIVAL } from './battles.ts'
-import { addDays, dayStart, ensureSeason, loadPlayer, newId, notFound, pickWord, randomInt, rngOf, setPlayer } from './ctx.ts'
+import { addDays, catalogOf, dayStart, ensureSeason, loadPlayer, newId, notFound, pickWord, randomInt, rngOf, setPlayer } from './ctx.ts'
 import type { Env } from './ctx.ts'
 import { grantPack, mintCards } from './mint.ts'
 import { NOTICE_TEXT, notice } from './notices.ts'
@@ -81,7 +81,7 @@ export async function joinPlayer(ctx: Ctx, req: JoinRequest): Promise<{ token: s
   const season = seasonOf(ctx.now)
   await ensureSeason(ctx.db, season)
   const rng = rngOf(ctx)
-  const starters = await mintCards(ctx, id, shuffle(rng, starterTeam(pick(rng, FAMILIES), rng, ctx.now)), { bound: true })
+  const starters = await mintCards(ctx, id, shuffle(rng, starterTeam(pick(rng, FAMILIES), rng, ctx.now, catalogOf(ctx.db))), { bound: true })
   const packs = [req.family, otherFamily(req.family, rng)].map(f => grantPack(ctx, id, f, 'welcome'))
   const team = starters.cards.map(c => c.id)
   await ctx.db.batch([
@@ -354,4 +354,3 @@ export function rerollStmts(p: Pick<PlayerRow, 'id' | 'handle'>, handle: string,
     ...forgetFinder(p.id),
   ]
 }
-

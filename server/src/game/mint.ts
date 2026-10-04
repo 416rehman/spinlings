@@ -7,13 +7,14 @@ import type { GiftView, OfferState, OfferView, PackSource, PackView } from '../.
 import { cardPower, cardStats, toBattleCard } from '../../../plugin/hooks/core/cards.ts'
 import { FAMILIES } from '../../../plugin/hooks/core/families.ts'
 import { parseCard } from '../../../plugin/hooks/core/schemas.ts'
-import { SPECIES_ID } from '../../../plugin/hooks/core/species.ts'
+import { resolveCard, SPECIES_ID } from '../../../plugin/hooks/core/species.ts'
+import type { SeasonCatalog } from '../../../plugin/hooks/core/species.ts'
 import type { BattleCard, Card, CardForm, CardOrigin, Family, Genes, NewCard, Rarity, Stats, TraitId } from '../../../plugin/hooks/core/types.ts'
 import { utcDay } from '../../../plugin/hooks/core/world.ts'
 import { guard, stmt } from '../db.ts'
 import type { Db, SqlParam, Stmt } from '../db.ts'
 import type { CardRow, GiftRow, OfferRow, PackRow } from '../schema.ts'
-import { dayStart, ensureSeasons, newId, notFound, readJson } from './ctx.ts'
+import { catalogOf, dayStart, ensureSeasons, newId, notFound, readJson } from './ctx.ts'
 import type { Env } from './ctx.ts'
 import { albumAdd, count } from './stats.ts'
 
@@ -35,7 +36,7 @@ const isSeasonSpecies = (species: string) => SPECIES_ID.test(species)
 /** A form as stored: never a finder's name, which rows minted before finders were named on reading may still carry. */
 const withoutFinder = ({ discoveredBy: _, ...form }: CardForm): CardForm => form
 
-export function cardOf(r: CardRow): StoredCard {
+export function cardOf(r: CardRow, catalog?: SeasonCatalog): StoredCard {
   const base = {
     species: r.species,
     ...(r.form ? { form: withoutFinder(JSON.parse(r.form) as CardForm) } : {}),
@@ -56,8 +57,8 @@ export function cardOf(r: CardRow): StoredCard {
     dna: r.dna,
     xp: r.xp,
     ...(r.raised_in ? { raisedIn: r.raised_in as Family } : {}),
-    // rows from before stats were stored get them computed (their season is installed by the loaders)
-    stats: typeof stored.hp === 'number' ? (stored as Stats) : cardStats(base),
+    // Rows from before stats were stored use this database's frozen species.
+    stats: typeof stored.hp === 'number' ? (stored as Stats) : cardStats(base, catalog),
     bound: r.bound === 1,
     forTrade: r.for_trade === 1,
     origin: r.origin as CardOrigin,
@@ -68,7 +69,7 @@ export function cardOf(r: CardRow): StoredCard {
     ...(r.first_find === 1 ? { firstFind: true as const } : {}),
   }
   return {
-    card, owner: r.owner_id, version: r.version, escrowRef: r.escrow_ref,
+    card: catalog ? resolveCard(card, catalog) : card, owner: r.owner_id, version: r.version, escrowRef: r.escrow_ref,
     arena: { haiku: r.arena_haiku, sonnet: r.arena_sonnet, opus: r.arena_opus, fable: r.arena_fable },
   }
 }
@@ -82,18 +83,25 @@ export function publicCard(card: Card | BattleCard): BattleCard {
   return rest
 }
 
-// ---- loaders (each installs the seasons its cards come from, so stats and names resolve) --------
+// ---- loaders (resolve frozen seasons and fusion parents in this database) -----------------------
 
 const CHUNK = 90 // D1 binds at most 100 parameters per statement
 
 /** Cards by any SELECT over `cards`; keep the SELECT bounded. */
 export async function queryCards(db: Db, sql: string, ...params: SqlParam[]): Promise<StoredCard[]> {
   const rows = await db.all<CardRow>(sql, ...params)
-  await ensureSeasons(db, rows.map(r => r.season))
-  const cards = rows.map(cardOf)
+  await ensureSeasons(db, rows.flatMap(r => seasonsOf(r.season, r.form ? JSON.parse(r.form) as CardForm : undefined)))
+  const catalog = catalogOf(db)
+  const cards = rows.map(r => cardOf(r, catalog))
   await nameFinders(db, cards)
   return cards
 }
+
+/** A fusion can retain the artwork of parents from older seasons. */
+const seasonsOf = (season: number, form?: CardForm): number[] => [season, ...(form?.parents ?? []).flatMap(id => {
+  const match = SPECIES_ID.exec(id)
+  return match ? [Number(match[1])] : []
+})]
 
 /**
  * Who found each caught Mythic, named as it is read (SPEC 18, 20.1): the finder's handle while it is
@@ -232,7 +240,8 @@ export type MintOptions = {
  * handler's batch, after the owner's row exists; return `cards` to the client.
  */
 export async function mintCards(env: Env, owner: string, fresh: readonly NewCard[], o: MintOptions = {}): Promise<{ cards: Card[]; stmts: Stmt[] }> {
-  await ensureSeasons(env.db, fresh.map(c => c.season))
+  await ensureSeasons(env.db, fresh.flatMap(c => seasonsOf(c.season, c.form)))
+  const catalog = catalogOf(env.db)
   const caught = (c: Pick<NewCard, 'species' | 'origin'>) => c.species === 'mythic' && c.origin === 'catch'
   const finder = fresh.some(caught) ? (await env.db.get<{ handle: string }>('SELECT handle FROM players WHERE id = ?', owner))?.handle : undefined
   const species = [...new Set(fresh.map(c => c.species).filter(isSeasonSpecies))]
@@ -252,10 +261,10 @@ export async function mintCards(env: Env, owner: string, fresh: readonly NewCard
     const { firstFind: _, ...rest } = c as NewCard & { firstFind?: true }
     if (rest.form) rest.form = withoutFinder(rest.form)
     // a self-check: a card that would not pass the client's own reader is a server bug, not a row
-    const card = parseCard({
+    const card = resolveCard(parseCard({
       ...rest,
       id,
-      stats: cardStats(c),
+      stats: cardStats(c, catalog),
       bound: c.bound || o.bound === true,
       forTrade: false,
       mintedAt: dayStart(day),
@@ -263,7 +272,7 @@ export async function mintCards(env: Env, owner: string, fresh: readonly NewCard
       tiredUntil: 0,
       state: 'owned',
       ...(first ? { firstFind: true } : {}),
-    })
+    }), catalog)
     stmts.push(stmt(
       `INSERT INTO cards (id, owner_id, species, form, season, family, rarity, shiny, foil, dna, genes, traits, level, xp, stage,
          stats, power, bound, for_trade, origin, minted, locked_until, tired_until, state, first_find, raised_in)

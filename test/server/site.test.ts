@@ -53,7 +53,10 @@ function assertSelfContained(html: string, origin = ORIGIN) {
   for (const [, tag] of html.matchAll(/<script\b([^>]*)>/gi)) assert.ok(allowed.includes(tag!), `only first-party scripts (${tag})`)
   assert.doesNotMatch(html, /<script\b[^>]*>[^<]+<\/script>/i, 'no inline script')
   for (const [, url] of html.matchAll(/\ssrc="([^"]*)"/gi)) assert.match(url!, /^\//, `src ${url} is same-origin`)
-  for (const [, tag] of html.matchAll(/<link\b([^>]*)>/gi)) assert.match(tag!, /href="data:/, 'links are inline data only')
+  for (const [, tag] of html.matchAll(/<link\b([^>]*)>/gi)) {
+    if (/rel="canonical"/.test(tag!)) assert.ok(tag!.includes(`href="${origin}/`), 'canonical links stay on this origin')
+    else assert.match(tag!, /href="data:/, 'asset links are inline data only')
+  }
   for (const [, url] of html.matchAll(/url\(\s*["']?([^"')]*)/gi)) assert.match(url!, /^(data:|#[a-z0-9-]+$)/, `css url ${url} is inline or in this document`)
   for (const [url] of html.matchAll(/https?:\/\/[^\s"'<>)]+/gi)) {
     assert.ok(url.startsWith(REPO) || url.startsWith(origin + '/'), `${url} is our repo or this origin`)

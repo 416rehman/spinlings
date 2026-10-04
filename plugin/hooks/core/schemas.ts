@@ -19,7 +19,7 @@ import type {
 } from './api.ts'
 import type {
   BattleAction, BattleCard, BattleLog, BattleRound, BattleSetup, Card, CardForm, CardOrigin, DropReward, DropRewardItem, Form, Genes,
-  PromoEgg, Species, Stats, TraderDeal,
+  PromoEgg, SpecialId, Species, Stats, TraderDeal,
 } from './types.ts'
 import { wantProblem } from './market.ts'
 import { isBlocked } from './naming.ts'
@@ -127,7 +127,10 @@ function record<T>(shape: Record<string, Field>, tolerant: boolean, check?: (v: 
       if (typeof field === 'function') {
         if (!present) fail(`${path}.${k}`, 'missing')
         out[k] = field(src[k], `${path}.${k}`)
-      } else if (present) out[k] = field.optional(src[k], `${path}.${k}`)
+      } else if (present) {
+        const parsed = field.optional(src[k], `${path}.${k}`)
+        if (parsed !== undefined) out[k] = parsed
+      }
     }
     const problem = check?.(out as T)
     if (problem) fail(path, problem)
@@ -299,6 +302,10 @@ export const battleSetupSchema = view<BattleSetup>({
 
 const slot = int(0, 2)
 const sides = <T>(s: Schema<T>) => view<{ a: T; d: T }>({ a: s, d: s })
+const specialView: Schema<SpecialId | undefined> = (v, path) => {
+  const id = str({ min: 1, max: 24, re: /^[a-zA-Z][a-zA-Z0-9]*$/ })(v, path)
+  return ['flurry', 'couplet', 'crescendo', 'twist'].includes(id) ? id as SpecialId : undefined
+}
 
 export const battleActionSchema = view<BattleAction>({
   round: int(1, 30),
@@ -306,7 +313,7 @@ export const battleActionSchema = view<BattleAction>({
   slot,
   targetSlot: slot,
   move: oneOf(['attack', 'special'] as const),
-  special: optional(oneOf(['flurry', 'couplet', 'crescendo', 'twist'] as const)),
+  special: optional(specialView),
   perfect: optional(oneOf([true] as const)),
   hits: int(0, 4),
   dmg: int(0, 1e6),

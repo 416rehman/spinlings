@@ -133,8 +133,8 @@ export function mergePixels(a: Pixels, b: Pixels, p: number): Pixels {
 export function parentMinis(c: CardFace): [Pixels, Pixels] {
   const own = artPixels(c, true)
   const ps = c.form?.kind === 'fusion' ? c.form.parents : undefined
-  const one = (id: string | undefined): Pixels => {
-    const s = id ? getSpecies(id) : undefined
+  const one = (id: string | undefined, at: number): Pixels => {
+    const s = c.parentForms?.[at] ?? (id ? getSpecies(id) : undefined)
     if (!s) return own
     try {
       return miniSprite(spriteFor({ form: s, stage: 1 }))
@@ -142,7 +142,7 @@ export function parentMinis(c: CardFace): [Pixels, Pixels] {
       return own
     }
   }
-  return [one(ps?.[0]), one(ps?.[1])]
+  return [one(ps?.[0], 0), one(ps?.[1], 1)]
 }
 
 // ---------- terminal frames ----------

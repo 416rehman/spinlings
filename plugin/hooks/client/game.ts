@@ -9,9 +9,8 @@ import { RULES_VERSION, perfectRounds, simulateBattle } from '../core/battle.ts'
 import { cardName, rarityRank, toBattleCard } from '../core/cards.ts'
 import { ECONOMY, finishAfter, leagueOf } from '../core/economy.ts'
 import { FAMILY_INFO, familyOfModel } from '../core/families.ts'
-import { parseSeasonResponse } from '../core/schemas.ts'
 import { DEFAULT_SERVER } from '../core/servers.ts'
-import { GENERATOR_VERSION, installSeason } from '../core/species.ts'
+import { GENERATOR_VERSION } from '../core/species.ts'
 import { emojiMosaic, miniSprite, spriteFor } from '../core/sprite.ts'
 import { DAY_MS, seasonOf, utcDay } from '../core/world.ts'
 import { findCard, parseCommand } from './commands.ts'
@@ -33,6 +32,8 @@ import type {
 } from './types.ts'
 import { BackendError, isBackendError, isUnreachable } from './types.ts'
 import { dayLabel, dots, plural, safe, title } from './text.ts'
+import { createFrozenCatalog, createSeasonCache } from './frozen.ts'
+import type { FrozenCatalog } from './frozen.ts'
 
 const B = ECONOMY.battle
 const PANE_REFRESH_MS = 5 * 60_000
@@ -450,13 +451,17 @@ export function createGame(o: GameOptions): Game {
     /** when the last version handshake failed in this load: /spin version does not wait on another for a while */
     versionFailedAt: -Infinity,
     local: null as Backend | null,
-    remote: null as { origin: string; backend: Backend } | null,
+    remote: null as { origin: string; backend: Backend; frozen: FrozenCatalog } | null,
     sites: { band: null as string | null, pane: null as string | null },
     family: 'sonnet' as Family,
   }
 
   const cur = (fx: Fx) => rt.fx ?? fx
   const enter = (fx: Fx) => { rt.fx = fx }
+  const seasonCache = createSeasonCache({
+    get: key => rt.fx!.store.get(key), set: (key, value) => rt.fx!.store.set(key, value),
+    delete: key => rt.fx!.store.delete(key), keys: () => rt.fx!.store.keys(),
+  })
 
   // ---------- state ----------
 
@@ -518,17 +523,31 @@ export function createGame(o: GameOptions): Game {
   function remote(origin: string): Backend {
     if (rt.remote?.origin !== origin) {
       const make = o.remote ?? createRemoteBackend
-      rt.remote = {
-        origin,
-        backend: make({
+      const raw = make({
           origin,
           fetch: (url, init) => rt.fx!.fetch(url, init),
           token: () => loadToken(rt.fx!.store, origin),
           now: () => rt.fx!.now(),
           after: (ms, fn) => rt.fx!.after(ms, fn),
           sent: entry => recordSent(rt.fx!, entry),
-        }),
+        })
+      const frozen = createFrozenCatalog({
+        read: season => seasonCache.read(origin, season),
+        write: (season, data) => seasonCache.write(origin, season, data),
+        fetch: season => raw.season({ season }),
+        now: () => rt.fx!.now(),
+        changed: species => upd(rt.fx!, 'account', a =>
+          a.world === 'online' && a.server === origin ? { ...a, species } : a).then(() => undefined),
+      })
+      const call: Backend['call'] = async (op, req) => {
+        const ok = stays()
+        const answer = await raw.call(op, req)
+        if (!ok() || op === 'version' || op === 'season' || op === 'challenge') return answer
+        return frozen.hydrate(answer, [seasonOf(await rt.fx!.now())], ok)
       }
+      const backend = { call } as Backend
+      for (const op of Object.keys(API_ROUTES) as ApiOp[]) backend[op] = (req: never) => call(op, req) as never
+      rt.remote = { origin, backend, frozen }
     }
     return rt.remote.backend
   }
@@ -629,7 +648,7 @@ export function createGame(o: GameOptions): Game {
       await message(fx, 'This needs the online world.')
       return null
     }
-    if (account.world === 'online' && account.readOnly && API_ROUTES[op].method !== 'GET') {
+    if (account.world === 'online' && account.readOnly && API_ROUTES[op].method !== 'GET' && op !== 'deleteMe') {
       await message(fx, failureText(new BackendError('upgrade_required', 'refused', 426, ''), account.host))
       return null
     }
@@ -741,7 +760,11 @@ export function createGame(o: GameOptions): Game {
     const me = await get(fx, 'me')
     const cards = await get(fx, 'cards')
     const cache = origin !== null ? readCache(await fx.store.get(KEYS.cache(origin))) : null
-    if (!ok() || (!force && me && cache?.cards && cache.cards.version === me.player.cardsVersion && cards.length > 0)) return
+    if (!ok()) return
+    if (!force && me && cache?.cards && cache.cards.version === me.player.cardsVersion && cards.length > 0) {
+      await ensureSeasons(fx, cards)
+      return
+    }
     const res = await allCards(backend)
     let took = false
     await upd(fx, 'cards', v => {
@@ -785,28 +808,22 @@ export function createGame(o: GameOptions): Game {
     await upd(fx, 'moments', list => list.map(m => (m.id === target.id && m.kind === 'present' ? { ...m, cardIds: fresh } : m)))
   }
 
-  /** Online cards render from the server's frozen species when its generator differs from this mod's (SPEC 32). */
+  /** Frozen seasons are authoritative even when the current generator versions happen to match. */
   async function ensureSeasons(fx: Fx, cards: readonly Card[]): Promise<void> {
+    const ok = stays()
     const account = await get(fx, 'account')
-    if (account.world !== 'online') return
-    const meta = await metaOf(fx, account.server)
-    if (!meta.version || versionStatus(meta.version).generatorMatch) return
-    const now = await fx.now()
-    const seasons = [...new Set([seasonOf(now), ...cards.map(c => c.season)])].slice(0, 8)
-    for (const season of seasons) {
-      try {
-        let data = null
-        try {
-          data = parseSeasonResponse(await fx.store.get(KEYS.season(account.server, season)))
-        } catch {
-          data = await remote(account.server).season({ season })
-          await fx.store.set(KEYS.season(account.server, season), data)
-        }
-        if (data.season === season) installSeason(season, data.species)
-      } catch {
-        // a season the server cannot send leaves those cards drawn from this mod's own generator
-      }
+    if (account.world === 'offline') {
+      const catalog = createFrozenCatalog({
+        read: async () => null, write: async () => undefined,
+        fetch: season => local().season({ season }), now: () => fx.now(),
+        changed: species => upd(fx, 'account', a => ok() ? { ...a, species } : a),
+      })
+      await catalog.hydrate(cards, [seasonOf(await fx.now())], ok)
+      return
     }
+    remote(account.server)
+    const resolved = await rt.remote!.frozen.hydrate(cards, [seasonOf(await fx.now())], ok)
+    await upd(fx, 'cards', current => ok() ? resolved as Card[] : current)
   }
 
   // ---------- boot and the first run (SPEC 34) ----------
@@ -875,6 +892,7 @@ export function createGame(o: GameOptions): Game {
       link: world === 'online' && !origin ? 'unreachable' : kept(a) && (world === 'offline' || a.server === server) ? a.link : 'starting',
       note: world === 'online' && !origin ? 'The server address in settings is not one Spinlings can use (https only)' : kept(a) ? a.note : '',
       features: world === 'offline' ? OFFLINE_FEATURES : a.world === 'offline' || a.server !== server ? [ONLINE_FEATURES_UNKNOWN] : a.features,
+      species: world === 'offline' || a.server !== server ? undefined : a.species,
       readOnly: world === 'offline' ? false : a.readOnly,
       // what a server said about newer mods holds for that server alone; the handshake says it again
       latest: world === 'offline' || a.server !== server ? null : a.latest ?? null,
@@ -1056,7 +1074,8 @@ export function createGame(o: GameOptions): Game {
         await pushMoment(fx, { kind: 'update', id: `update:${v.update}`, version: v.update, until: null })
       }
     }
-    if (!v.generatorMatch) await ensureSeasons(fx, await get(fx, 'cards'))
+    const cards = await get(fx, 'cards')
+    if (cards.length > 0) await ensureSeasons(fx, cards)
   }
 
   async function clearWorldState(fx: Fx): Promise<void> {

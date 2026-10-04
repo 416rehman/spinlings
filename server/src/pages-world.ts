@@ -9,7 +9,7 @@ import { speciesNameLine } from '../../plugin/hooks/core/naming.ts'
 import type { CardForm, Family, Species } from '../../plugin/hooks/core/types.ts'
 import { fusionCost, seasonOf, seasonStart, utcDay, worldOf } from '../../plugin/hooks/core/world.ts'
 import type { Db } from './db.ts'
-import { DAY, ensureSeason } from './game/ctx.ts'
+import { catalogOf, DAY, ensureSeason } from './game/ctx.ts'
 import { regularForm, regularSeed } from './pages-meet.ts'
 import type { SiteWorld } from './pages-meet.ts'
 
@@ -45,7 +45,7 @@ export type SiteFacts = SiteWorld & { seasonDay: number; daysLeft: number }
 export async function siteWorld(db: Db, now: number, season = seasonOf(now)): Promise<SiteFacts> {
   const { species } = await ensureSeason(db, season)
   const at = Math.min(now, seasonStart(season + 1) - 1)
-  const w = worldOf(at)
+  const w = worldOf(at, catalogOf(db))
   const found = await db.all<{ species: string; day: string }>('SELECT species, day FROM firsts WHERE season = ? AND day <= ? ORDER BY species', season, w.day)
   return {
     now: at, day: w.day, season, rule: w.rule, featured: w.featured,

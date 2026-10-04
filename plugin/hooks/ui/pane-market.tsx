@@ -7,6 +7,7 @@ import type { Family, Rarity } from '../core/types.ts'
 import { FAMILIES, FAMILY_INFO } from '../core/families.ts'
 import { ECONOMY } from '../core/economy.ts'
 import { marketChips, nameOf } from '../client/game.ts'
+import { catalogOf } from '../client/frozen.ts'
 import { dayLabel, dots, safe, title } from '../client/text.ts'
 import type { Listing, MarketQuery, MarketWant } from '../client/types.ts'
 import {
@@ -39,7 +40,7 @@ function rowsFor(c: Ctx, each: number): number {
 /** What a listing asks in return, as a picture: the wanted creature's mini sprite, or its family mark and rarity gem. */
 function wantArt(c: Ctx, w: MarketWant, key: string, big = false): RenderElement {
   const { Box, Text } = c.el
-  const s = wantSpecies(w)
+  const s = wantSpecies(w, catalogOf(c.state.account))
   const finish = dots(w.shiny ? 'shiny' : '', w.foil ? 'foil' : '')
   const mark = (
     <Box flexDirection="row" columnGap={SPACE.tight} flexShrink={0}>
@@ -51,7 +52,7 @@ function wantArt(c: Ctx, w: MarketWant, key: string, big = false): RenderElement
     </Box>
   )
   // the wanted creature's name (and finish) under its art: never cut
-  const words = s ? wantWords(w) : finish
+  const words = s ? wantWords(w, catalogOf(c.state.account)) : finish
   return (
     <Box key={key} flexDirection={s && big ? 'column' : 'row'} columnGap={SPACE.tight} flexShrink={0}>
       {mark}
@@ -233,7 +234,7 @@ export function listingScreen(c: Ctx, v: { listingId: string; cardId: string | n
     </Box>
   )
   const picker = l.want && !ownIt ? column(c, [
-    line(c, fits.length > 0 ? `Pick the card you give (${wantWords(l.want)})` : `You have no ${wantWords(l.want)} free to give yet.`, { dim: true }),
+    line(c, fits.length > 0 ? `Pick the card you give (${wantWords(l.want, catalogOf(c.state.account))})` : `You have no ${wantWords(l.want, catalogOf(c.state.account))} free to give yet.`, { dim: true }),
     fits.length > 0 ? grid(c, fits.slice(0, perRow(c.columns, CHIP) * 2).map((x, i) => chip(c, x, {
       key: `fit-${x.id}`, hotkey: i < 3 ? String(i + 2) : undefined, selected: x.id === v.cardId, on: () => pick(x.id),
     })), perRow(c.columns, CHIP)) : null,
@@ -299,11 +300,11 @@ export function sellScreen(c: Ctx, v: { cardId: string; price: number; want: Mar
     <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
       {btn(c, { key: 'want-none', label: 'Sparks only', dim: v.want !== null, on: () => set({ want: null, price: price > 0 ? price : startPrice(x, sales) }) })}
       {...wants.map((w, i) => {
-        const s = wantSpecies(w)
+        const s = wantSpecies(w, catalogOf(c.state.account))
         return (
           <Box key={`want-${i}`} flexDirection="row" flexWrap="wrap" columnGap={SPACE.tight} rowGap={SPACE.tight} width={Math.min(c.columns, CHIP + 24)} flexShrink={0}>
             {s ? formMini(c, `want-${i}-art`, s, true) : <Text color={FAMILY_COLOR[x.family]}>{FAMILY_MARK[x.family]}</Text>}
-            {btn(c, { key: `want-${i}`, label: `${MARK.swap} ${wantWords(w)}`, dim: !sameWant(v.want, w), lit: true, on: () => set({ want: sameWant(v.want, w) ? null : w, price }) })}
+            {btn(c, { key: `want-${i}`, label: `${MARK.swap} ${wantWords(w, catalogOf(c.state.account))}`, dim: !sameWant(v.want, w), lit: true, on: () => set({ want: sameWant(v.want, w) ? null : w, price }) })}
           </Box>
         )
       })}
@@ -311,8 +312,8 @@ export function sellScreen(c: Ctx, v: { cardId: string; price: number; want: Mar
     </Box>
   )
   const name = nameOf(x)
-  const label = price > 0 && v.want ? `List for ${MARK.spark} ${grouped(price)} + ${wantWords(v.want)}`
-    : price > 0 ? `List for ${MARK.spark} ${grouped(price)}` : v.want ? `List for ${wantWords(v.want)}` : 'List'
+  const label = price > 0 && v.want ? `List for ${MARK.spark} ${grouped(price)} + ${wantWords(v.want, catalogOf(c.state.account))}`
+    : price > 0 ? `List for ${MARK.spark} ${grouped(price)}` : v.want ? `List for ${wantWords(v.want, catalogOf(c.state.account))}` : 'List'
   const shortLabel = label.length + 3 > c.columns
   const ready = !problem && (price > 0 || !!v.want) && !c.state.account.readOnly
   return {
