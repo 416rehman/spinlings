@@ -16,6 +16,11 @@ describe('sessions', () => {
       const schema = REQUEST_SCHEMAS[op as keyof typeof REQUEST_SCHEMAS]
       if (!schema) continue
       for (const key of ['playerId', 'player', 'me', 'token', 'handle']) {
+        // A username change supplies the new public label, never the caller's identity.
+        if (op === 'rerollHandle' && key === 'handle') {
+          assert.deepEqual(schema({ handle: 'moss_keeper' }, '$'), { handle: 'moss_keeper' })
+          continue
+        }
         assert.throws(() => schema({ [key]: 'x' }, '$'), Error, `${op} accepts ${key}`)
       }
     }

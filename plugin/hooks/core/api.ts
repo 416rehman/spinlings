@@ -18,6 +18,10 @@ export const FEATURES = [
   'challenge',
   /** player stats (PlayerView.stats, ProfileResponse.stats) and every leaderboard (rankings) */
   'stats',
+  /** Private collection and passkey sign-in at /account. */
+  'browser-account',
+  /** POST /v1/me/handle accepts an optional chosen public username. */
+  'custom-handles',
 ] as const
 export type Feature = (typeof FEATURES)[number]
 
@@ -186,6 +190,7 @@ export type AuthPollResponse =
   | { status: 'added' }
   /** a passkey sign-in finished: the new session, delivered exactly once */
   | { status: 'done'; token: string; me: MeResponse }
+export type HandleRequest = { handle?: string }
 export type HandleResponse = { handle: string; handleRerollFrom: string }
 export type LeaderboardOptRequest = { optIn: boolean }
 export type LeaderboardOptResponse = { leaderboard: boolean }
@@ -354,8 +359,8 @@ export interface SpinlingsApi {
   devices(req: EmptyRequest): Promise<DevicesResponse>
   /** POST /v1/me/passkey/start */
   passkeyStart(req: EmptyRequest): Promise<AuthStartResponse>
-  /** POST /v1/me/handle: a fresh random handle, once a week */
-  rerollHandle(req: EmptyRequest): Promise<HandleResponse>
+  /** POST /v1/me/handle: a chosen public username, or a random handle with {}, once a week */
+  rerollHandle(req: HandleRequest): Promise<HandleResponse>
   /** PUT /v1/me/leaderboard */
   setLeaderboard(req: LeaderboardOptRequest): Promise<LeaderboardOptResponse>
   /** GET /v1/cards, a page at a time */

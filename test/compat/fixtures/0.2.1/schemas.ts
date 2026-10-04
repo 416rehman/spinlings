@@ -1,3 +1,7 @@
+// The 0.2.1 mod's response reader, frozen for test/compat/replay.test.ts (SPEC 32): plugin/hooks/core/schemas.ts
+// as 0.2.1 shipped it, written by scripts/compat-record.ts. Only the imports differ (values written in, types and
+// functions from the live modules), and the other checks of client/net.ts readAnswer follow at the end. Never edit it.
+
 // A tiny validator, and a schema for every wire and domain shape (SPEC sections 12 and 32).
 // - Requests are parsed STRICTLY by the server: unknown keys, wrong types, bad formats and out-of-range numbers all
 //   throw a SchemaError naming the path. No request schema accepts card data (SPEC section 28).
@@ -16,14 +20,14 @@ import type {
   RecycleResponse, RedeemRequest, RedeemResponse, SaleView, SeasonResponse, StartBattleRequest, StartBattleResponse,
   TeamRequest, TeamResponse, TokenResponse, TraderDealRequest, TraderDealResponse, TraderDealView, TraderResponse,
   VersionResponse, WishlistRequest, WishlistResponse, WorldResponse,
-} from './api.ts'
+} from '../../../../plugin/hooks/core/api.ts'
 import type {
   BattleAction, BattleCard, BattleLog, BattleRound, BattleSetup, Card, CardForm, CardOrigin, DropReward, DropRewardItem, Form, Genes,
   PromoEgg, Species, Stats, TraderDeal,
-} from './types.ts'
-import { wantProblem } from './market.ts'
-import { isBlocked } from './naming.ts'
-import { SPECIES_ID } from './species.ts'
+} from '../../../../plugin/hooks/core/types.ts'
+import { wantProblem } from '../../../../plugin/hooks/core/market.ts'
+import { isBlocked } from '../../../../plugin/hooks/core/naming.ts'
+const SPECIES_ID = /^s([1-9]\d{0,3})-(haiku|sonnet|opus|fable)-([0-8])$/
 
 export class SchemaError extends Error {
   readonly path: string
@@ -721,3 +725,9 @@ export function cleanText(s: unknown, max = 80): string {
   const chars = Array.from(s.replace(ANSI, '').replace(UNSAFE, ''))
   return chars.length > max ? chars.slice(0, Math.max(0, max - 1)).join('') + '…' : chars.join('')
 }
+
+// ---------- what client/net.ts readAnswer also required of every answer in 0.2.1 ----------
+
+export const RESPONSE_MAX_BYTES = 262144
+export const JSON_CONTENT_TYPE = /^application\/json(\s*;|$)/i
+export const RETRY_AFTER = /^\s*\d{1,6}\s*$/

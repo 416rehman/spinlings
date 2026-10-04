@@ -24,7 +24,13 @@ export function browserAccount(api: Api): void {
 <p id="account-status" role="status" aria-live="polite"></p>
 <div id="dashboard" hidden>
 <nav class="accountnav" aria-label="Your collection"><a href="#myteam">Team</a><a href="#mystats">Stats</a><a href="#myranks">Rankings</a><a href="#mycards">Cards</a></nav>
-<p id="myhandle" class="lede"></p><div id="mybalance" class="accountstats"></div>
+<div class="accountidentity"><p id="myhandle" class="lede"></p><button type="button" class="pbtn" id="username-change" aria-controls="username-form" aria-expanded="false">Change username</button></div>
+<form id="username-form" hidden novalidate><label for="username">Username</label><div class="accountfilters">
+<input id="username" name="handle" type="text" required minlength="1" maxlength="40" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="username-rules username-note username-status">
+<button type="submit" class="pbtn" id="username-save">Save username</button><button type="button" class="pbtn" id="username-cancel">Cancel</button></div>
+<p id="username-rules" class="fine">1–40 letters, numbers, _ or -. Saved in lowercase.</p></form>
+<p id="username-note" class="fine">Your account and passkeys stay the same.</p><p id="username-status" role="status" aria-live="polite"></p>
+<div id="mybalance" class="accountstats"></div>
 <h2 id="myteam">Your team</h2><div id="teamcards" class="accountcards"></div>
 <h2 id="mystats">Your stats</h2><div id="stats" class="accountstats"></div>
 <h2 id="myranks">Your rankings</h2><div class="accountfilters"><label>Board <select id="board"><option value="rating">Rating</option><option value="beaten">Players beaten</option><option value="duelWins">Duel wins</option><option value="species">Species collected</option><option value="mythics">Mythics found</option><option value="sales">Market sales</option></select></label>
@@ -68,11 +74,12 @@ export function browserAccount(api: Api): void {
 
 const ACCOUNT_CSS = `
 .accountpage{max-width:1100px;padding-top:var(--s5);padding-bottom:var(--s5);color:var(--pink)}
-.account{background:var(--paper)}.accounthead,.accountnav,.accountfilters{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
+.account{background:var(--paper)}.accounthead,.accountnav,.accountfilters,.accountidentity{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
 .accounthead{justify-content:space-between}.accountpage h2{margin:32px 0 16px}.accountpage p{margin:16px 0}
 .accountnav{margin:24px 0}.accountnav a{font-weight:700}.accountpage [hidden]{display:none!important}
 .accountfilters{margin:16px 0}.accountfilters label{display:flex;align-items:center;gap:8px}
-.accountpage select{font:inherit;color:var(--pink);background:var(--paper);border:2px solid var(--psoft);border-radius:6px;padding:8px;max-width:100%}
+.accountpage select,.accountpage input{font:inherit;color:var(--pink);background:var(--paper);border:2px solid var(--psoft);border-radius:6px;padding:8px;max-width:100%}
+.accountidentity{margin-top:16px}.accountidentity #myhandle{margin:0;overflow-wrap:anywhere;min-width:0}.accountpage input{box-sizing:border-box;width:24ch;min-width:0}.accountpage input[aria-invalid="true"]{border-color:var(--pink)}
 .accountpage .pbtn{font:inherit;font-weight:700;border:2px solid var(--psoft);border-radius:8px;padding:12px 16px;color:var(--pink);background:var(--paper);align-items:center}.accountpage .pbtn:disabled{opacity:.5;cursor:wait}
 .accountstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
 .accountstat{padding:12px;border:2px solid var(--psoft);border-radius:8px}.accountstat b{display:block;font-size:24px}
@@ -80,6 +87,6 @@ const ACCOUNT_CSS = `
 .accountcard{min-width:0;border:2px solid var(--rar);border-radius:8px;padding:12px;background:var(--paper)}
 .accountcard img{display:block;width:96px;height:96px;image-rendering:pixelated;margin:auto}.accountcard a{display:block;font-weight:700;overflow-wrap:anywhere;text-align:center}
 .accountcard p{font-size:14px;margin:8px 0}.accountcard summary{cursor:pointer}.accountcard details p{overflow-wrap:anywhere}
-#account-status:empty{display:none}#rank{font-size:20px;font-weight:700}button:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--pink);outline-offset:4px}
+#account-status:empty,#username-status:empty{display:none}#rank{font-size:20px;font-weight:700}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--pink);outline-offset:4px}
 @media(max-width:400px){.accountcards{grid-template-columns:repeat(2,minmax(0,1fr))}.accountcard{padding:8px}.accountstat b{font-size:20px}}
 `

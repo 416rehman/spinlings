@@ -2,15 +2,16 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
-## Unreleased
+## 0.2.1 (2026-10-04)
 
 - **A clearer pane.** Four tabs: Team, Collection, Discoveries and Community. Community opens on Profile, with one section bar for Profile, Market, Rankings and Trading. Sections switch in place; Back from card, listing or player details returns to the selected section. Profile holds your stats, browser access and settings. Sparks, rating, league, streak, families and rarities have clear labels, today's rule opens its effect, and a small field guide explains the symbols. Layout adapts to narrow and short panes; shortcuts stay beside their buttons.
 - **Your place.** Community → Rankings shows all six leaderboard categories and both periods, with your own rank first. Market and leaderboard commands still work, and an older cached Market tab opens Community → Market. A mod update refreshes cached server capabilities once, so new screens do not stay hidden until the next day.
-- **Browser access.** A saved passkey opens the same online collection, stats and rankings in a read-only browser view. The session stays in the tab; signing out revokes only that session. Existing public website styling is preserved.
+- **Browser access.** A saved passkey opens the same online collection, stats and rankings in a browser view. Profile offers this link only after the server confirms `browser-account` support; older servers offer the public profile. The session stays in the tab; signing out revokes only that session. Existing public website styling is preserved.
+- **Your public username.** Keep the generated handle or choose a unique name in the browser: 1–40 ASCII letters, numbers, `_` or `-`, saved in lowercase, filtered and checked against reserved names. Name changes share the existing once-a-week limit; old names stay held for 30 days. Your account id, collection and saved passkeys stay the same. The browser otherwise remains a view of your game.
 - **Effort is cosmetic.** Claude's effort setting changes local battle-band ink and frame glow only. Requests, send times, battle pace and saved values are identical for low and max effort. No effort value leaves the machine.
 - **Pause the demo.** The landing-page battle can be paused and resumed through the catch and evolution, with motion and timers held in place.
 - **Docs.** The README hero uses the real Desktop duel capture; the spec matches current trading and leaderboard rules.
-- **Compatibility and privacy.** API `/v1`, rules, generator, minimum client and stored game fields are unchanged. Browser sign-in uses the existing passkey verifier and ordinary sessions. Other players see no new information.
+- **Compatibility and privacy.** API `/v1`, rules, generator and minimum client are unchanged. `POST /v1/me/handle` accepts an optional chosen `handle`; an empty `{}` still draws a generated handle for older mods. Features `browser-account` and `custom-handles` advertise the new support. Browser sign-in uses the existing passkey verifier and ordinary sessions. The existing handle and retired-name storage holds chosen usernames too; other players can now see the public name you choose, with the same game fields as before.
 
 ## 0.2.0 (2026-10-03)
 

@@ -1,0 +1,1964 @@
+{
+  "client": "0.2.1",
+  "flow": "battles",
+  "about": "wild battles up to a catch, the minimum duration and spacing, a Rival duel, and a finish asked twice",
+  "steps": [
+    {
+      "op": "challenge",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/challenge",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.1"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"challenge":"<challenge:1>","difficulty":8}
+      }
+    },
+    {
+      "op": "join",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/join",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.1","content-type":"application/json"},
+        "body": {"challenge":"<challenge:1>","nonce":"<pow>","family":"fable"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "token": "<token:1>",
+          "me": {
+            "player": {
+              "handle": "<handle:1>",
+              "handleRerollFrom": "2026-10-02",
+              "sparks": 100,
+              "rating": 1000,
+              "league": "Pebble",
+              "leaderboard": true,
+              "joinedDay": "2026-10-02",
+              "battles": 0,
+              "canTrade": true,
+              "team": ["<card:1>","<card:2>","<card:3>"],
+              "wishlist": [],
+              "cardsVersion": 1,
+              "streak": 0,
+              "seen": ["s1-fable-6","s1-haiku-4","s1-sonnet-1"],
+              "rested": false,
+              "nextWildAt": 0,
+              "nextDuelAt": 0,
+              "nextChargeAt": 1790945100000,
+              "stats": {
+                "duelWins": 0,
+                "duelLosses": 0,
+                "playersBeaten": 0,
+                "wildWins": 0,
+                "catches": 0,
+                "speciesCollected": 3,
+                "firstFinds": 3,
+                "mythicsFound": 0,
+                "marketSales": 0
+              }
+            },
+            "packs": [
+              {"id":"<pack:1>","family":"fable","source":"welcome","day":"2026-10-02"},
+              {"id":"<pack:2>","family":"opus","source":"welcome","day":"2026-10-02"}
+            ],
+            "notices": [
+              {
+                "id": "<notice:1>",
+                "day": "2026-10-02",
+                "kind": "notice",
+                "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+              }
+            ],
+            "offers": {"incoming":[],"outgoing":[]},
+            "gifts": [],
+            "listings": [],
+            "now": 1790942400000
+          }
+        }
+      }
+    },
+    {
+      "op": "me",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.1","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:1>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 100,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-10-02",
+            "battles": 0,
+            "canTrade": true,
+            "team": ["<card:1>","<card:2>","<card:3>"],
+            "wishlist": [],
+            "cardsVersion": 1,
+            "streak": 0,
+            "seen": ["s1-fable-6","s1-haiku-4","s1-sonnet-1"],
+            "rested": false,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 3,
+              "firstFinds": 3,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [
+            {"id":"<pack:1>","family":"fable","source":"welcome","day":"2026-10-02"},
+            {"id":"<pack:2>","family":"opus","source":"welcome","day":"2026-10-02"}
+          ],
+          "notices": [
+            {
+              "id": "<notice:1>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942400000
+        }
+      }
+    },
+    {
+      "op": "openPack",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/open",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"packId":"<pack:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:4>",
+              "species": "s1-fable-4",
+              "season": 1,
+              "family": "fable",
+              "rarity": "rare",
+              "shiny": true,
+              "dna": 2835988761,
+              "genes": [6,6,4,10],
+              "traits": ["sturdy"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":57,"atk":22,"def":14,"spd":10},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:5>",
+              "species": "s1-fable-5",
+              "season": 1,
+              "family": "fable",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 3141810707,
+              "genes": [7,7,8,12],
+              "traits": ["mimic"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":50,"atk":17,"def":14,"spd":19},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:6>",
+              "species": "s1-fable-1",
+              "season": 1,
+              "family": "fable",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 1353958272,
+              "genes": [12,14,15,2],
+              "traits": ["showoff"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":47,"atk":19,"def":16,"spd":12},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:7>",
+              "species": "s1-fable-1",
+              "season": 1,
+              "family": "fable",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 3054272125,
+              "genes": [7,2,1,11],
+              "traits": ["sturdy"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":44,"atk":16,"def":13,"spd":14},
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:8>",
+              "species": "s1-fable-0",
+              "season": 1,
+              "family": "fable",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 15507947,
+              "genes": [15,4,8,10],
+              "traits": ["showoff"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":52,"atk":22,"def":17,"spd":16},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "openPack",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/open",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"packId":"<pack:2>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:9>",
+              "species": "s1-opus-5",
+              "season": 1,
+              "family": "opus",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 94211885,
+              "genes": [2,5,12,1],
+              "traits": ["moonlit"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":53,"atk":17,"def":21,"spd":8},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:10>",
+              "species": "s1-opus-5",
+              "season": 1,
+              "family": "opus",
+              "rarity": "epic",
+              "shiny": false,
+              "dna": 2185130996,
+              "genes": [14,6,15,5],
+              "traits": ["glassHeart","mimic"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":60,"atk":22,"def":24,"spd":9},
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:11>",
+              "species": "s1-opus-6",
+              "season": 1,
+              "family": "opus",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 287587475,
+              "genes": [10,2,3,12],
+              "traits": ["mimic"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":58,"atk":18,"def":17,"spd":10},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:12>",
+              "species": "s1-opus-7",
+              "season": 1,
+              "family": "opus",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 839294053,
+              "genes": [11,13,9,0],
+              "traits": ["moonlit"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":55,"atk":19,"def":21,"spd":9},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:13>",
+              "species": "s1-opus-5",
+              "season": 1,
+              "family": "opus",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 3742317310,
+              "genes": [14,15,11,1],
+              "traits": ["sleepy"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":74,"atk":19,"def":21,"spd":7},
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "me",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.1","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:1>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 100,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-10-02",
+            "battles": 0,
+            "canTrade": true,
+            "team": ["<card:1>","<card:2>","<card:3>"],
+            "wishlist": [],
+            "cardsVersion": 3,
+            "streak": 0,
+            "seen": [
+              "s1-fable-0",
+              "s1-fable-1",
+              "s1-fable-4",
+              "s1-fable-5",
+              "s1-fable-6",
+              "s1-haiku-4",
+              "s1-opus-5",
+              "s1-opus-6",
+              "s1-opus-7",
+              "s1-sonnet-1"
+            ],
+            "rested": false,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 10,
+              "firstFinds": 10,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [],
+          "notices": [
+            {
+              "id": "<notice:1>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942400000
+        }
+      }
+    },
+    {
+      "op": "startBattle",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"kind":"wild","family":"fable"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "id": "<battle:1>",
+          "setup": {
+            "seed": "1b72262e753f7b7d5c13883f5f7b2c67",
+            "kind": "wild",
+            "arena": "fable",
+            "rule": "opusDay",
+            "rules": 1,
+            "attacker": [
+              {
+                "id": "<card:1>",
+                "species": "s1-sonnet-1",
+                "season": 1,
+                "family": "sonnet",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 1194204572,
+                "genes": [7,9,11,1],
+                "traits": ["ambush"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":52,"atk":25,"def":17,"spd":9},
+                "firstFind": true
+              },
+              {
+                "id": "<card:2>",
+                "species": "s1-haiku-4",
+                "season": 1,
+                "family": "haiku",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 1683240156,
+                "genes": [5,9,3,2],
+                "traits": ["showoff"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":57,"atk":19,"def":12,"spd":19},
+                "firstFind": true
+              },
+              {
+                "id": "<card:3>",
+                "species": "s1-fable-6",
+                "season": 1,
+                "family": "fable",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 1952040964,
+                "genes": [8,9,11,8],
+                "traits": ["homebody"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":48,"atk":18,"def":17,"spd":14},
+                "firstFind": true
+              }
+            ],
+            "defender": [
+              {
+                "id": "wild-0",
+                "species": "s1-haiku-5",
+                "season": 1,
+                "family": "haiku",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 1221227012,
+                "genes": [15,14,13,12],
+                "traits": ["ambush"],
+                "level": 1,
+                "stage": 1,
+                "stats": {"hp":47,"atk":18,"def":13,"spd":18}
+              }
+            ]
+          },
+          "opponent": {"kind":"wild"},
+          "subs": [],
+          "firstPossible": [true],
+          "startedAt": 1790942400000,
+          "finishAfter": 1790942403000
+        }
+      }
+    },
+    {
+      "op": "finishBattle",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles/<battle:1>/finish",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"inputs":[]}
+      },
+      "response": {
+        "status": 409,
+        "headers": {"content-type":"application/json; charset=utf-8","retry-after":"3"},
+        "body": {"error":{"code":"conflict","message":"The battle is still playing"}}
+      }
+    },
+    {
+      "op": "finishBattle",
+      "player": "a",
+      "at": 1790942403000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles/<battle:1>/finish",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"inputs":[]}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "result": "win",
+          "sparks": 10,
+          "xp": [{"cardId":"<card:1>","xp":20,"levelsGained":1,"evolved":true,"stage":2}],
+          "rating": 1000,
+          "ratingDelta": 0,
+          "catchOptions": [
+            {
+              "id": "wild-0",
+              "species": "s1-haiku-5",
+              "season": 1,
+              "family": "haiku",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 1221227012,
+              "genes": [15,14,13,12],
+              "traits": ["ambush"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":47,"atk":18,"def":13,"spd":18}
+            }
+          ],
+          "dailyWinPack": true,
+          "streak": 1,
+          "streakPack": false,
+          "tired": [],
+          "log": {
+            "rounds": [
+              {
+                "round": 1,
+                "actions": [
+                  {
+                    "round": 1,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 8,
+                    "crit": false,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["ambush"]
+                  },
+                  {
+                    "round": 1,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 32,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["ambush"]
+                  }
+                ],
+                "hp": {"a":[44,57,48],"d":[15]},
+                "charge": {"a":[1,0,0],"d":[1]},
+                "active": {"a":0,"d":0},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 2,
+                "actions": [
+                  {
+                    "round": 2,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 6,
+                    "crit": false,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 2,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 24,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[38,57,48],"d":[0]},
+                "charge": {"a":[2,0,0],"d":[2]},
+                "active": {"a":0,"d":-1},
+                "attackerSpecialReady": false
+              }
+            ],
+            "result": "win",
+            "maxHp": {"a":[52,57,48],"d":[47]},
+            "fainted": {"a":[],"d":[0]}
+          },
+          "bounty": null
+        }
+      }
+    },
+    {
+      "op": "startBattle",
+      "player": "a",
+      "at": 1790942403000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"kind":"wild","family":"fable"}
+      },
+      "response": {
+        "status": 429,
+        "headers": {"content-type":"application/json; charset=utf-8","retry-after":"477"},
+        "body": {"error":{"code":"rate_limited","message":"Nothing is rustling yet"}}
+      }
+    },
+    {
+      "op": "catchCreature",
+      "player": "a",
+      "at": 1790942403000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles/<battle:1>/catch",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"index":0}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "card": {
+            "id": "<card:14>",
+            "species": "s1-haiku-5",
+            "season": 1,
+            "family": "haiku",
+            "rarity": "common",
+            "shiny": false,
+            "dna": 1221227012,
+            "genes": [15,14,13,12],
+            "traits": ["ambush"],
+            "level": 1,
+            "stage": 1,
+            "stats": {"hp":47,"atk":18,"def":13,"spd":18},
+            "firstFind": true,
+            "xp": 0,
+            "bound": false,
+            "forTrade": false,
+            "origin": "catch",
+            "mintedAt": 1790899200000,
+            "lockedUntil": 0,
+            "tiredUntil": 0,
+            "state": "owned"
+          }
+        }
+      }
+    },
+    {
+      "op": "catchCreature",
+      "player": "a",
+      "at": 1790942403000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles/<battle:1>/catch",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"index":0}
+      },
+      "response": {
+        "status": 409,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"conflict","message":"Nothing is waiting to be caught"}}
+      }
+    },
+    {
+      "op": "me",
+      "player": "a",
+      "at": 1790942403000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.1","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:1>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 110,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-10-02",
+            "battles": 1,
+            "canTrade": true,
+            "team": ["<card:1>","<card:2>","<card:3>"],
+            "wishlist": [],
+            "cardsVersion": 5,
+            "streak": 1,
+            "seen": [
+              "s1-fable-0",
+              "s1-fable-1",
+              "s1-fable-4",
+              "s1-fable-5",
+              "s1-fable-6",
+              "s1-haiku-4",
+              "s1-haiku-5",
+              "s1-opus-5",
+              "s1-opus-6",
+              "s1-opus-7",
+              "s1-sonnet-1"
+            ],
+            "rested": false,
+            "nextWildAt": 1790942880000,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 1,
+              "catches": 1,
+              "speciesCollected": 11,
+              "firstFinds": 11,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [{"id":"<pack:3>","family":"fable","source":"daily","day":"2026-10-02"}],
+          "notices": [
+            {
+              "id": "<notice:1>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942403000
+        }
+      }
+    },
+    {
+      "op": "startBattle",
+      "player": "a",
+      "at": 1790942403000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"kind":"duel","family":"fable"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "id": "<battle:2>",
+          "setup": {
+            "seed": "2c5dd592882c987bb2e186242d356789",
+            "kind": "duel",
+            "arena": "fable",
+            "rule": "opusDay",
+            "rules": 1,
+            "attacker": [
+              {
+                "id": "<card:1>",
+                "species": "s1-sonnet-1",
+                "season": 1,
+                "family": "sonnet",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 1194204572,
+                "genes": [7,9,11,1],
+                "traits": ["ambush"],
+                "level": 4,
+                "stage": 2,
+                "stats": {"hp":63,"atk":30,"def":21,"spd":11},
+                "firstFind": true
+              },
+              {
+                "id": "<card:2>",
+                "species": "s1-haiku-4",
+                "season": 1,
+                "family": "haiku",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 1683240156,
+                "genes": [5,9,3,2],
+                "traits": ["showoff"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":57,"atk":19,"def":12,"spd":19},
+                "firstFind": true
+              },
+              {
+                "id": "<card:3>",
+                "species": "s1-fable-6",
+                "season": 1,
+                "family": "fable",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 1952040964,
+                "genes": [8,9,11,8],
+                "traits": ["homebody"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":48,"atk":18,"def":17,"spd":14},
+                "firstFind": true
+              }
+            ],
+            "defender": [
+              {
+                "id": "rival-0",
+                "species": "s1-fable-0",
+                "season": 1,
+                "family": "fable",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 371993885,
+                "genes": [12,2,0,13],
+                "traits": ["sturdy"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":53,"atk":23,"def":16,"spd":18},
+                "foil": true
+              },
+              {
+                "id": "rival-1",
+                "species": "s1-sonnet-7",
+                "season": 1,
+                "family": "sonnet",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 1223818328,
+                "genes": [10,6,4,9],
+                "traits": ["underdog"],
+                "level": 4,
+                "stage": 2,
+                "stats": {"hp":59,"atk":25,"def":18,"spd":15}
+              },
+              {
+                "id": "rival-2",
+                "species": "s1-opus-4",
+                "season": 1,
+                "family": "opus",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 3206093136,
+                "genes": [9,1,12,2],
+                "traits": ["swift"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":63,"atk":20,"def":16,"spd":9}
+              }
+            ]
+          },
+          "opponent": {"kind":"rival","name":"Brackenby","league":"Pebble"},
+          "subs": [],
+          "firstPossible": [false,true,true],
+          "startedAt": 1790942403000,
+          "finishAfter": 1790942419500
+        }
+      }
+    },
+    {
+      "op": "finishBattle",
+      "player": "a",
+      "at": 1790942419500,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles/<battle:2>/finish",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"inputs":[3,10]}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "result": "loss",
+          "sparks": 3,
+          "xp": [
+            {"cardId":"<card:1>","xp":8,"levelsGained":0,"evolved":false,"stage":2},
+            {"cardId":"<card:2>","xp":8,"levelsGained":0,"evolved":false,"stage":1},
+            {"cardId":"<card:3>","xp":8,"levelsGained":0,"evolved":false,"stage":1}
+          ],
+          "rating": 985,
+          "ratingDelta": -15,
+          "catchOptions": [],
+          "dailyWinPack": false,
+          "streak": 0,
+          "streakPack": false,
+          "tired": ["<card:1>","<card:2>","<card:3>"],
+          "log": {
+            "rounds": [
+              {
+                "round": 1,
+                "actions": [
+                  {
+                    "round": 1,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 12,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 1,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 23,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["ambush"]
+                  }
+                ],
+                "hp": {"a":[51,57,48],"d":[30,59,63]},
+                "charge": {"a":[1,0,0],"d":[1,0,0]},
+                "active": {"a":0,"d":0},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 2,
+                "actions": [
+                  {
+                    "round": 2,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 11,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 2,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 19,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[40,57,48],"d":[11,59,63]},
+                "charge": {"a":[2,0,0],"d":[2,0,0]},
+                "active": {"a":0,"d":0},
+                "attackerSpecialReady": true
+              },
+              {
+                "round": 3,
+                "actions": [
+                  {
+                    "round": 3,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 31,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": [],
+                    "special": "twist"
+                  },
+                  {
+                    "round": 3,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 10,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 9,
+                    "targetFainted": false,
+                    "traits": ["sturdy"],
+                    "special": "couplet",
+                    "perfect": true
+                  }
+                ],
+                "hp": {"a":[18,57,48],"d":[1,59,63]},
+                "charge": {"a":[0,0,0],"d":[0,0,0]},
+                "active": {"a":0,"d":0},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 4,
+                "actions": [
+                  {
+                    "round": 4,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 13,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 4,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 18,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[5,57,48],"d":[0,59,63]},
+                "charge": {"a":[1,0,0],"d":[1,0,0]},
+                "active": {"a":0,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 5,
+                "actions": [
+                  {
+                    "round": 5,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 13,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[0,57,48],"d":[0,59,63]},
+                "charge": {"a":[1,0,0],"d":[1,1,0]},
+                "active": {"a":1,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 6,
+                "actions": [
+                  {
+                    "round": 6,
+                    "side": "a",
+                    "slot": 1,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 6,
+                    "crit": false,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 6,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 23,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[0,34,48],"d":[0,53,63]},
+                "charge": {"a":[1,1,0],"d":[1,2,0]},
+                "active": {"a":1,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 7,
+                "actions": [
+                  {
+                    "round": 7,
+                    "side": "a",
+                    "slot": 1,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 6,
+                    "crit": false,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 7,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 1,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 38,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 9,
+                    "targetFainted": true,
+                    "traits": [],
+                    "special": "couplet"
+                  }
+                ],
+                "hp": {"a":[0,0,48],"d":[0,56,63]},
+                "charge": {"a":[1,2,0],"d":[1,0,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 8,
+                "actions": [
+                  {
+                    "round": 8,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 13,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 8,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 10,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["homebody"]
+                  }
+                ],
+                "hp": {"a":[0,0,35],"d":[0,46,63]},
+                "charge": {"a":[1,2,1],"d":[1,1,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 9,
+                "actions": [
+                  {
+                    "round": 9,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 13,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 9,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 9,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["homebody"]
+                  }
+                ],
+                "hp": {"a":[0,0,22],"d":[0,37,63]},
+                "charge": {"a":[1,2,2],"d":[1,2,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": true
+              },
+              {
+                "round": 10,
+                "actions": [
+                  {
+                    "round": 10,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 21,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 9,
+                    "targetFainted": false,
+                    "traits": [],
+                    "special": "couplet"
+                  },
+                  {
+                    "round": 10,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 30,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["homebody"],
+                    "special": "twist",
+                    "perfect": true
+                  }
+                ],
+                "hp": {"a":[0,0,1],"d":[0,16,63]},
+                "charge": {"a":[1,2,0],"d":[1,0,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 11,
+                "actions": [
+                  {
+                    "round": 11,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 18,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": ["underdog"]
+                  }
+                ],
+                "hp": {"a":[0,0,0],"d":[0,16,63]},
+                "charge": {"a":[1,2,0],"d":[1,1,0]},
+                "active": {"a":-1,"d":1},
+                "attackerSpecialReady": false
+              }
+            ],
+            "result": "loss",
+            "maxHp": {"a":[63,57,48],"d":[53,59,63]},
+            "fainted": {"a":[0,1,2],"d":[0]}
+          },
+          "bounty": null
+        }
+      }
+    },
+    {
+      "op": "finishBattle",
+      "player": "a",
+      "at": 1790942419500,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles/<battle:2>/finish",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.1",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"inputs":[]}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "result": "loss",
+          "sparks": 3,
+          "xp": [
+            {"cardId":"<card:1>","xp":8,"levelsGained":0,"evolved":false,"stage":2},
+            {"cardId":"<card:2>","xp":8,"levelsGained":0,"evolved":false,"stage":1},
+            {"cardId":"<card:3>","xp":8,"levelsGained":0,"evolved":false,"stage":1}
+          ],
+          "rating": 985,
+          "ratingDelta": -15,
+          "catchOptions": [],
+          "dailyWinPack": false,
+          "streak": 0,
+          "streakPack": false,
+          "tired": ["<card:1>","<card:2>","<card:3>"],
+          "log": {
+            "rounds": [
+              {
+                "round": 1,
+                "actions": [
+                  {
+                    "round": 1,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 12,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 1,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 23,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["ambush"]
+                  }
+                ],
+                "hp": {"a":[51,57,48],"d":[30,59,63]},
+                "charge": {"a":[1,0,0],"d":[1,0,0]},
+                "active": {"a":0,"d":0},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 2,
+                "actions": [
+                  {
+                    "round": 2,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 11,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 2,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 19,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[40,57,48],"d":[11,59,63]},
+                "charge": {"a":[2,0,0],"d":[2,0,0]},
+                "active": {"a":0,"d":0},
+                "attackerSpecialReady": true
+              },
+              {
+                "round": 3,
+                "actions": [
+                  {
+                    "round": 3,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 31,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": [],
+                    "special": "twist"
+                  },
+                  {
+                    "round": 3,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 10,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 9,
+                    "targetFainted": false,
+                    "traits": ["sturdy"],
+                    "special": "couplet",
+                    "perfect": true
+                  }
+                ],
+                "hp": {"a":[18,57,48],"d":[1,59,63]},
+                "charge": {"a":[0,0,0],"d":[0,0,0]},
+                "active": {"a":0,"d":0},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 4,
+                "actions": [
+                  {
+                    "round": 4,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 13,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 4,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 18,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[5,57,48],"d":[0,59,63]},
+                "charge": {"a":[1,0,0],"d":[1,0,0]},
+                "active": {"a":0,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 5,
+                "actions": [
+                  {
+                    "round": 5,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 13,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[0,57,48],"d":[0,59,63]},
+                "charge": {"a":[1,0,0],"d":[1,1,0]},
+                "active": {"a":1,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 6,
+                "actions": [
+                  {
+                    "round": 6,
+                    "side": "a",
+                    "slot": 1,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 6,
+                    "crit": false,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 6,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 23,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[0,34,48],"d":[0,53,63]},
+                "charge": {"a":[1,1,0],"d":[1,2,0]},
+                "active": {"a":1,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 7,
+                "actions": [
+                  {
+                    "round": 7,
+                    "side": "a",
+                    "slot": 1,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 6,
+                    "crit": false,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 7,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 1,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 38,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 9,
+                    "targetFainted": true,
+                    "traits": [],
+                    "special": "couplet"
+                  }
+                ],
+                "hp": {"a":[0,0,48],"d":[0,56,63]},
+                "charge": {"a":[1,2,0],"d":[1,0,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 8,
+                "actions": [
+                  {
+                    "round": 8,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 13,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 8,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 10,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["homebody"]
+                  }
+                ],
+                "hp": {"a":[0,0,35],"d":[0,46,63]},
+                "charge": {"a":[1,2,1],"d":[1,1,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 9,
+                "actions": [
+                  {
+                    "round": 9,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 13,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 9,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 9,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["homebody"]
+                  }
+                ],
+                "hp": {"a":[0,0,22],"d":[0,37,63]},
+                "charge": {"a":[1,2,2],"d":[1,2,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": true
+              },
+              {
+                "round": 10,
+                "actions": [
+                  {
+                    "round": 10,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 21,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 9,
+                    "targetFainted": false,
+                    "traits": [],
+                    "special": "couplet"
+                  },
+                  {
+                    "round": 10,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 30,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["homebody"],
+                    "special": "twist",
+                    "perfect": true
+                  }
+                ],
+                "hp": {"a":[0,0,1],"d":[0,16,63]},
+                "charge": {"a":[1,2,0],"d":[1,0,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 11,
+                "actions": [
+                  {
+                    "round": 11,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 18,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": ["underdog"]
+                  }
+                ],
+                "hp": {"a":[0,0,0],"d":[0,16,63]},
+                "charge": {"a":[1,2,0],"d":[1,1,0]},
+                "active": {"a":-1,"d":1},
+                "attackerSpecialReady": false
+              }
+            ],
+            "result": "loss",
+            "maxHp": {"a":[63,57,48],"d":[53,59,63]},
+            "fainted": {"a":[0,1,2],"d":[0]}
+          },
+          "bounty": null
+        }
+      }
+    },
+    {
+      "op": "me",
+      "player": "a",
+      "at": 1790942419500,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.1","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:1>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 113,
+            "rating": 985,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-10-02",
+            "battles": 2,
+            "canTrade": true,
+            "team": ["<card:1>","<card:2>","<card:3>"],
+            "wishlist": [],
+            "cardsVersion": 6,
+            "streak": 0,
+            "seen": [
+              "s1-fable-0",
+              "s1-fable-1",
+              "s1-fable-4",
+              "s1-fable-5",
+              "s1-fable-6",
+              "s1-haiku-4",
+              "s1-haiku-5",
+              "s1-opus-5",
+              "s1-opus-6",
+              "s1-opus-7",
+              "s1-sonnet-1"
+            ],
+            "rested": false,
+            "nextWildAt": 1790942880000,
+            "nextDuelAt": 1790942523000,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 1,
+              "catches": 1,
+              "speciesCollected": 11,
+              "firstFinds": 11,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [{"id":"<pack:3>","family":"fable","source":"daily","day":"2026-10-02"}],
+          "notices": [
+            {
+              "id": "<notice:1>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942419500
+        }
+      }
+    }
+  ]
+}

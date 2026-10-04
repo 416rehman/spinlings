@@ -165,6 +165,79 @@ for (const alg of ['ES256', 'RS256'] as const) {
       assert.equal((await signIn(s, auth)).status, 200)
       assert.equal((await s.db.get<{ sign_count: number }>('SELECT sign_count FROM passkeys'))!.sign_count, 2)
     })
+
+    for (const rename of ['chosen', 'generated'] as const) {
+      it(`keeps the collection, sessions and both passkeys through a ${rename} username change`, async () => {
+        const s = server()
+        const p = await s.join()
+        const cards = await p.call('cards')
+        const team = cards.cards.map(c => c.id).reverse()
+        await p.call('setTeam', { cardIds: team })
+        const before = await p.call('me')
+        const first = await softAuthenticator(alg)
+        const added = await addPasskey(s, p, first)
+        assert.equal(added.status, 200)
+        assert.deepEqual(await s.call('authPoll', { pollId: added.pollId }), { status: 'added' })
+        const savedKeys = await s.db.all('SELECT * FROM passkeys WHERE player_id = ?', p.id)
+        const savedSessions = await s.db.all('SELECT * FROM sessions WHERE player_id = ?', p.id)
+
+        // An assertion made before the rename must still resolve to the same account afterwards.
+        const pending = await s.call('authStart', {})
+        const ticket = ticketOf(pending.url)
+        const options = (await page(s, 'signin', ticket)).options
+        const assertion = await first.get(options, ORIGIN)
+        const renamed = await p.call('rerollHandle', rename === 'chosen' ? { handle: 'chosen-fern' } : {})
+        assert.notEqual(renamed.handle, before.player.handle)
+        if (rename === 'chosen') assert.equal(renamed.handle, 'chosen-fern')
+        assert.equal((await p.row()).id, p.id)
+        assert.deepEqual(await s.db.all('SELECT * FROM passkeys WHERE player_id = ?', p.id), savedKeys, 'renaming does not rewrite credentials')
+        assert.deepEqual(await s.db.all('SELECT * FROM sessions WHERE player_id = ?', p.id), savedSessions, 'existing mod sessions are retained')
+        const me = await p.call('me')
+        assert.equal(me.player.handle, renamed.handle)
+        assert.deepEqual(me.player.team, team)
+        assert.deepEqual(me.packs, before.packs)
+        assert.deepEqual(await p.call('cards'), cards)
+
+        const collect = async (pollId: string) => {
+          const done = await s.call('authPoll', { pollId })
+          assert.equal(done.status, 'done')
+          if (done.status !== 'done') assert.fail('a valid passkey must deliver its session')
+          assert.notEqual(done.token, p.token)
+          assert.equal(done.me.player.handle, renamed.handle)
+          assert.deepEqual(done.me.player.team, team)
+          assert.deepEqual(done.me.packs, before.packs)
+          const device = await s.as(done.token)
+          assert.equal(device.id, p.id, 'passkey lookup keeps the player ID rather than following the public username')
+          assert.deepEqual(await device.call('cards'), cards)
+          return device
+        }
+        assert.equal((await post(s, '/passkey/signin/finish', { ticket, ...assertion })).status, 200)
+        await collect(pending.pollId)
+        const fresh = await signIn(s, first)
+        assert.equal(fresh.status, 200)
+        const device = await collect(fresh.pollId)
+
+        // Register a different algorithm from the recovered session, preserving WebAuthn identity.
+        const second = await softAuthenticator(alg === 'ES256' ? 'RS256' : 'ES256')
+        const another = await addPasskey(s, device, second)
+        assert.equal(another.status, 200)
+        assert.equal(another.options.user.id, added.options.user.id)
+        assert.equal(second.userId, first.userId)
+        assert.deepEqual(another.options.excludeCredentials, [{ type: 'public-key', id: first.id }])
+        assert.deepEqual(await s.call('authPoll', { pollId: another.pollId }), { status: 'added' })
+        const keys = await s.db.all<{ player_id: string; user_id: string; alg: number }>('SELECT player_id, user_id, alg FROM passkeys')
+        assert.equal(keys.length, 2)
+        assert.ok(keys.every(k => k.player_id === p.id && k.user_id === added.options.user.id))
+        assert.deepEqual(keys.map(k => k.alg).sort((a, b) => a - b), [-257, -7])
+        for (const auth of [first, second]) {
+          const signed = await signIn(s, auth)
+          assert.equal(signed.status, 200)
+          await collect(signed.pollId)
+        }
+        assert.deepEqual(await p.call('devices'), { sessions: 5, passkeys: 2 })
+        assert.equal((await p.call('me')).player.handle, renamed.handle, 'the original mod session still works after both sign-ins')
+      })
+    }
   })
 }
 

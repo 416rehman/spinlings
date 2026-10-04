@@ -4,7 +4,7 @@ Spinlings is a game that runs inside Claude Code, which is where your work happe
 
 ## The short version
 
-- **The game does not know who you are.** You are a random token and a random handle. Nothing about your Claude account, email, organization or machine is ever sent.
+- **Generated identity by default.** You start with a random token and a random handle. You may choose a public username; reusing a name from elsewhere can identify you. Nothing about your Claude account, email, organization or machine is ever sent by the mod.
 - **Nothing about your work leaves your machine.** The mod never reads your prompts, Claude's answers, tool calls, files, paths, repository names or cost.
 - **Nothing about your usage is shown to anyone.** The only usage-related value the server receives is a model family (haiku, sonnet, opus or fable), only when you join, a pack charges or a battle starts. Nobody else sees it, and it is deleted with that pack or battle.
 - **Other players see a small, fixed set of things:** your handle, team, for-trade cards, album count and league, your market listings, and, unless you hide from the leaderboards, your game stats and places on the boards (counts such as duel wins and players beaten, as they stood at the last midnight, never with a time). They never see timestamps, activity, battle counts or which model you use. One caveat is under [What someone could still guess](#what-someone-could-still-guess).
@@ -16,8 +16,9 @@ Spinlings is a game that runs inside Claude Code, which is where your work happe
 
 - **A random token and a random handle.** The server creates both when you join. The handle looks like `soft-otter-42` (an adjective, a noun and two digits). Both are chosen at random by the server and have no relation to your Claude account, email, organization, machine, OS user, session id, model or anything else.
 - **The mod never sends any of those.** It never calls `$.session.authorize`, `$.session.id` or `$.session.repo`.
-- **You can reroll your handle** once a week.
-- **There is no free text anywhere.** No chat, no bios and no names you type, so nothing you write is ever shown to anyone.
+- **An optional public username.** The signed-in browser page lets you choose a unique name of 1–40 ASCII letters, numbers, `_` or `-`, saved in lowercase. It passes the game's name filter; names such as `admin` and `support` are reserved. This name is sent to the server, stored as your handle and shown wherever your handle appears. A reused name can connect your game profile to another identity.
+- **You can change your handle** once a week, either by choosing a username or drawing another generated handle. Previous names stay unavailable for 30 days. The account id, collection, sessions and saved passkeys remain the same.
+- **There is no chat or bio.** Your optional public username is the only user-written public text.
 - **A passkey is optional.** It lets another computer sign in to your account. It is made with a random 16-byte user id, never your handle or a name, and it needs no email and no password.
 
 ## What the mod reads on your machine
@@ -73,14 +74,14 @@ These are all the kinds of request body the mod can send:
 | Buy from the market | the listing's id and, when it asks for a card, the id of the card of yours you give |
 | Finish a battle | the round numbers on which you pressed 1 |
 | Redeem a drop | the code you typed |
-| Everything else (catching, packs, team, fusion, recycling, crafting, trading, the Wandering Trader, wishlist, gifts, claims, the leaderboard switch, a new handle, passkeys, resetting access, settings) | the ids of the cards, packs, species, offers, listings, players or gift codes involved, and simple choices such as which catch you picked or a for-trade switch |
+| Everything else (catching, packs, team, fusion, recycling, crafting, trading, the Wandering Trader, wishlist, gifts, claims, the leaderboard switch, a new generated handle, passkeys, resetting access, settings) | the ids of the cards, packs, species, offers, listings, players or gift codes involved, and simple choices such as which catch you picked or a for-trade switch |
 | Reading your game, profiles, the trade board, the market, the leaderboards and the world | nothing but the market filters and the board you choose (a family, rarity, species, shiny, foil, kind, price range, sort; a board and all time or this season); a big collection or a long market comes a page at a time, and each next page is asked for by the marker the server sent with the last one |
 
 A model family is one of `haiku`, `sonnet`, `opus` or `fable`, never a model id. Every request also carries the mod's version in an `X-Spinlings-Client` header, which is the same for everyone on that version and is never stored. Claude Code's own HTTP layer may add standard headers such as a user agent; the server never stores them.
 
 **Passkeys.** Saving or using a passkey happens on a page of the server that you open in your browser. That page sends the server what the browser's passkey prompt returns: a new public key when you save one, or a signature when you sign in. Nothing else about you or your device is sent.
 
-**Your browser collection.** `/account` signs in with a saved passkey and reads your own online cards, team, packs, listings and current stats, plus your leaderboard places. Its first-party script talks only to the same server. The session token stays in this tab's `sessionStorage`, never in a URL, page HTML, cookie or persistent browser storage. Sign out revokes only that browser session; your mod stays signed in. Closing the tab clears the local token. Browser access creates an ordinary session with the same 180-day expiry and new-device notice as a mod sign-in. It adds no new stored game fields or public player information.
+**Your browser collection.** `/account` signs in with a saved passkey and reads your own online cards, team, packs, listings and current stats, plus your leaderboard places. It can also send the public username you choose to `POST /v1/me/handle`; other game actions remain in Claude Code. Its first-party script talks only to the same server. The session token stays in this tab's `sessionStorage`, never in a URL, page HTML, cookie or persistent browser storage. Sign out revokes only that browser session; your mod stays signed in. Closing the tab clears the local token. Browser access creates an ordinary session with the same 180-day expiry and new-device notice as a mod sign-in. Chosen usernames use the existing handle and retired-name fields. Passkeys belong to the stable account id, so changing your username does not change sign-in.
 
 The timing of requests says a little on its own. A pack charge means Claude Code was open on your machine, and a wild encounter means Claude was busy at that moment. It never says on what. Other players never see this timing (see below).
 
@@ -90,7 +91,7 @@ The timing of requests says a little on its own. A pack charge means Claude Code
 
 | Data | How long |
 |---|---|
-| A player id and your handle | Until you delete your account, or until it can no longer be reached (below) |
+| A player id and your generated or chosen public handle | Until you delete your account, or until it can no longer be reached (below) |
 | A session for each device you play on: a SHA-256 hash of its token (never the token), the day it was made and the day it was last used | Deleted after 180 days unused |
 | Passkeys you saved: the credential id, the public key, the random user id, a sign-in counter and the day you saved it | Until you delete your account |
 | A passkey page in progress | Deleted after 10 minutes, or when used |
@@ -107,7 +108,7 @@ The timing of requests says a little on its own. A pack charge means Claude Code
 | Battles (teams, seed, your presses, result) | Deleted 7 days after the battle is settled. Only aggregate counters remain. |
 | Notices (defense results, trade and gift news) | Deleted after 30 days |
 | Finished offers and gifts (accepted, declined, cancelled, expired or claimed) | Deleted 30 days after they end |
-| Your previous handle, after a reroll or after deletion | Kept for 30 days, so nobody else takes it straight away |
+| Your previous handle, after any name change or after deletion | Kept for 30 days, so nobody else takes it straight away |
 | Join challenges | Deleted when used, or when they expire after 5 minutes |
 | Join counters (see below) | Deleted after 24 hours |
 
@@ -142,7 +143,7 @@ Cards other players see show the creature, its level, stats and traits, and noth
 - **Gifts:** whoever claims your gift sees your handle and the card. The gift page at `{server}/g/{code}` shows the card to anyone who has the code.
 - **Cards that change hands** arrive as if made that day: their earlier dates, arena counts and raised form are cleared, so nothing on them tells the new owner when or how you had them.
 - **First discoveries:** the first card of a species anyone in the world obtains in a season carries a `First Discovered` stamp wherever that card is shown. The game never says who found it.
-- **Mythics:** if you catch a Mythic, its card says "Discovered by" your handle, and the public "Mythics found" list shows your handle and the Mythic's name, nothing else. If you reroll your handle or delete your account, your handle comes off the card and the list.
+- **Mythics:** if you catch a Mythic, its card says "Discovered by" your handle, and the public "Mythics found" list shows your handle and the Mythic's name, nothing else. If you change your handle or delete your account, your handle comes off the card and the list.
 
 **Public pages** (profiles, card pages at `{server}/c/{id}` and gift pages) show only what a profile shows, plus Mythic discoveries as handle and name. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. Passkey pages and the browser collection use `connect-src 'self'` to talk only to the same server; the collection shell contains no player data until you sign in.
 

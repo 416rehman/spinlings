@@ -4,11 +4,13 @@ import { API_VERSION, FEATURES } from '../../../plugin/hooks/core/api.ts'
 import type { MeResponse, PlayerView } from '../../../plugin/hooks/core/api.ts'
 import { RULES_VERSION } from '../../../plugin/hooks/core/battle.ts'
 import { leagueOf } from '../../../plugin/hooks/core/economy.ts'
+import { isBlocked } from '../../../plugin/hooks/core/naming.ts'
 import { GENERATOR_VERSION } from '../../../plugin/hooks/core/species.ts'
 import { seasonOf, utcDay, worldOf } from '../../../plugin/hooks/core/world.ts'
 import type { Api } from '../app.ts'
-import type { Db } from '../db.ts'
-import { HttpError } from '../http.ts'
+import { guard } from '../db.ts'
+import type { Db, Stmt } from '../db.ts'
+import { fail, HttpError } from '../http.ts'
 import type { GiftRow, OfferRow, PlayerRow } from '../schema.ts'
 import { deletionStmts, newHandle, rerollStmts, rerollWait } from '../game/auth.ts'
 import { apiRoute, cached, commit, DAY, ensureSeason, notFound, playerGuard, publicRoute, setPlayer, teamOf } from '../game/ctx.ts'
@@ -19,8 +21,8 @@ import { handleRerollFrom, nextChargeAt, nextDuelAt, nextWildAt, restedNow } fro
 import { statsOf } from '../game/stats.ts'
 
 /** This server's release, and the newest mod it knows of (SPEC 32). */
-export const SERVER_VERSION = '0.2.0'
-export const LATEST_CLIENT = '0.2.0'
+export const SERVER_VERSION = '0.2.1'
+export const LATEST_CLIENT = '0.2.1'
 
 const OFFERS_SHOWN = 50
 
@@ -113,12 +115,23 @@ export function account(api: Api): void {
     return { deleted: true as const }
   }, { touch: false })
 
-  apiRoute(api, 'rerollHandle', async ctx => {
+  apiRoute(api, 'rerollHandle', async (ctx, req) => {
     const p = ctx.player
+    const chosen = req.handle?.toLowerCase()
+    if (chosen === p.handle) return { handle: p.handle, handleRerollFrom: handleRerollFrom(p, ctx.now) }
     const wait = rerollWait(handleRerollFrom(p, ctx.now), ctx.now)
     if (wait > 0) throw new HttpError('rate_limited', 'A new handle once a week', 429, { 'Retry-After': String(Math.ceil(wait / 1000)) })
-    const handle = await newHandle(ctx)
-    await commit(ctx, rerollStmts(p, handle, ctx.now))
+    const guards: Stmt[] = []
+    if (chosen !== undefined) {
+      if (isBlocked(chosen) || ['admin', 'administrator', 'moderator', 'support', 'system', 'spinlings'].includes(chosen)) fail('bad_request', 'Choose another username')
+      const day = utcDay(ctx.now)
+      const free = 'SELECT NOT EXISTS (SELECT 1 FROM players WHERE handle = ?) AND NOT EXISTS (SELECT 1 FROM retired_handles WHERE handle = ? AND until > ?)'
+      const params = [chosen, chosen, day]
+      if (!(await ctx.db.get<{ free: number }>(`${free} AS free`, ...params))?.free) fail('conflict', 'That username is taken')
+      guards.push(guard(free, ...params))
+    }
+    const handle = chosen ?? await newHandle(ctx)
+    await commit(ctx, [...guards, ...rerollStmts(p, handle, ctx.now)])
     return { handle, handleRerollFrom: handleRerollFrom({ handle_day: utcDay(ctx.now) }, ctx.now) }
   }, { touch: false })
 

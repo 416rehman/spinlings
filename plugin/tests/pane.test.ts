@@ -504,6 +504,26 @@ test('four tabs lead to Community sections without duplicate links or pushed nav
   }
 })
 
+test('Profile links private browser access only with confirmed server support, and has one public fallback', { timeoutMs: 60_000 }, async ($, on) => {
+  draws(on, p)
+  const base = demoSteps(NOW).find(x => x.title === 'Community · the hub')!.state
+  const cases = [
+    { world: 'online' as const, features: ['browser-account'], suffix: '/account' },
+    { world: 'online' as const, features: ['passkey', 'stats'], suffix: `/u/${encodeURIComponent(base.me!.player.handle)}` },
+    { world: 'online' as const, features: ['*'], suffix: `/u/${encodeURIComponent(base.me!.player.handle)}` },
+    { world: 'offline' as const, features: ['browser-account'], suffix: null },
+  ]
+  for (const surface of SURFACES) for (const c of cases) {
+    p.state = { ...base, account: { ...base.account, world: c.world, features: c.features } }
+    const ui = await $.ui.mount(MOUNT(24, surface))
+    gate(await ui.drawn(), 24, `browser access ${c.world} ${c.features} ${surface}`)
+    const links = (await ui.findAll({ type: 'Link' })).filter(l => String(l.props.href).includes('/account') || String(l.props.href).includes('/u/'))
+    expect(links.length).toBe(c.suffix ? 1 : 0)
+    if (c.suffix) expect(links[0]!.props.href).toBe(base.account.server + c.suffix)
+    await ui.unmount()
+  }
+})
+
 test('tiny Team, Collection, Discoveries, Today and Help panes explain their icons without duplicate footer shortcuts', { timeoutMs: 90_000 }, async ($, on) => {
   draws(on, p)
   const steps = demoSteps(NOW)

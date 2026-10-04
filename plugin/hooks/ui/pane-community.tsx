@@ -61,7 +61,9 @@ export function mineScreen(c: Ctx): Shown {
         !c.offline && hasFeature(c.state.account, 'passkey') ? btn(c, { key: 'profile-devices', label: 'Passkey & devices', on: () => c.actions.push({ kind: 'devices' }) }) : null,
         btn(c, { key: 'profile-privacy', label: 'Privacy & settings', on: () => c.actions.push({ kind: 'privacy' }) }),
       ]),
-      !c.offline ? <Link href={`${c.state.account.server}/account`}>Open in browser</Link> : null,
+      !c.offline ? c.state.account.features.includes('browser-account')
+        ? <Link href={`${c.state.account.server}/account`}>Open your collection</Link>
+        : <Link href={`${c.state.account.server}/u/${encodeURIComponent(p.handle)}`}>View public profile</Link> : null,
     ]),
     hints: ['esc Back'],
   }

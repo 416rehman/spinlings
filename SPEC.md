@@ -16,9 +16,9 @@ Spinlings is a creature card game that lives inside Claude Code. While Claude wo
    - The band is hidden unless something is live.
    - `/spin quiet` silences everything.
 4. **The server decides everything scarce:** rolls, card DNA, ownership, battle results, sparks, ratings and trades. The client only animates.
-5. **No free text.** Handles are generated, and there is no chat, so there is nothing to moderate.
+5. **No chat or bios.** Generated handles are the default. An optional public username is the only user-written public text, subject to the validation, filtering and rename rules in section 20.
 6. **No money.** No purchases, no paid currency and no crypto. Cards have no cash value.
-7. **Tone.** Names, traits, moves and messages are whimsical creature-world words, such as Pipkin, Fogmaw, Sturdy and Moonlit. There are no programming or developer puns anywhere in the game's text.
+7. **Tone.** Generated creature names, traits, moves and messages are whimsical creature-world words, such as Pipkin, Fogmaw, Sturdy and Moonlit. There are no programming or developer puns in the game's copy.
 
 ## 3. Families (types)
 
@@ -404,12 +404,12 @@ Community's sections use local ids `profile`, `market`, `boards` and `trades`. A
 
 | Community section | Shows |
 |---|---|
-| Profile | Handle, league, rating, sparks, win streak, live own stats, cards owned and species discovered, passkey and devices, privacy and settings, and a link to the active server's private `/account` browser view |
+| Profile | Handle, league, rating, sparks, win streak, live own stats, cards owned and species discovered, passkey and devices, privacy and settings, and one browser link: "Open your collection" to `/account` when `browser-account` is explicitly confirmed, otherwise "View public profile" to `/u/{encoded handle}`; no browser link offline |
 | Market | Everyone's listings as a grid of card tiles (art, rarity gem, family mark, finish, a price chip in sparks and the creature it wants in return), filter chips (family, rarity, kind, sort, shiny, foil), pages; your own listings with `l`. A listing's page is the confirm: the card in full, the seller with Challenge, recent prices, what you give and what you get, then `1` Buy. Selling starts from a card's page (`l`): a price stepper that starts from recent sales (or what crafting one costs), up to three suggested prices, and an optional card asked in return (a wishlist species, or the card's family at its rarity or better) |
 | Rankings | Six labelled board choices plus `n`/`p` where stats are supported (rating alone on older servers), all time or this season with `a`, the top rows with a league badge and the value, your own rank pinned, and from each row the player's profile or Challenge |
 | Trading | Offers, Trade board, Wandering Trader and Gifts, switched within Trading; offline, only the Trader |
 
-Each destination has one navigation home: Collection stays in the main tab bar; your Profile, Market, Rankings and Trading stay in Community's section bar. Profile groups private browser access, passkey and settings controls, and Privacy holds the board visibility toggle. Contextual actions remain where needed: pick a card for an empty team slot, sell or gift a specific card, inspect its listing, or open another player's profile from a board, trade or listing.
+Each destination has one navigation home: Collection stays in the main tab bar; your Profile, Market, Rankings and Trading stay in Community's section bar. Profile groups its browser link, passkey and settings controls, and Privacy holds the board visibility toggle. Contextual actions remain where needed: pick a card for an empty team slot, sell or gift a specific card, inspect its listing, or open another player's profile from a board, trade or listing.
 
 Pushed over the tabs and sections: card, fuse, species, listing and sell details; another player's profile (league, album count, stats as tiles, Challenge, their team and the offer builder); gift and reveal views; privacy and devices; Help; and Today, explaining the daily rule.
 
@@ -552,7 +552,7 @@ spinlings/
 
 ### Privacy
 Section 20 is the full privacy rule set and overrides this summary.
-- **What the server stores about a player:** id, session hashes, passkey public keys (if saved), the generated handle, game state, and day-granularity dates (join day, last-seen day).
+- **What the server stores about a player:** id, session hashes, passkey public keys (if saved), the generated or chosen public handle, game state, and day-granularity dates (join day, last-seen day).
 - **What it never stores:** IP addresses (only a daily-salted HMAC, for rate limits), user agents, timezones, emails or anything about the user's work.
 - **No analytics, no telemetry and no third-party requests,** on the client or the server.
 - **Deletion.** `DELETE /v1/me` deletes the account, its sessions, passkeys and cards (traded-away cards stay with their new owners). `/spin privacy` offers it, behind a 2-second hold.
@@ -884,10 +884,12 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 
 ## 20. Privacy hardening (highest priority; overrides anything above that conflicts)
 
-1. **No identity.**
-   - Each player is a random token and a random generated handle (`adjective-noun-NN`, server-chosen) that bears no relation to their Claude account, email, organization, machine, OS user, session id, model or anything else.
+1. **Generated identity by default; optional public username.**
+   - Each player starts with a random token and a random generated handle (`adjective-noun-NN`, server-chosen) that bears no relation to their Claude account, email, organization, machine, OS user, session id, model or anything else.
    - The client never sends any of those. It never calls `$.session.authorize`, `$.session.id` or `$.session.repo` for the server.
-   - A handle can be rerolled once a week.
+   - The signed-in browser page may choose a public username. It is 1–40 ASCII letters, digits, `_` or `-`, normalized to lowercase, unique across active players and names retired within the last 30 days. It passes the existing profanity and franchise name filter, and exact reserved names `admin`, `administrator`, `moderator`, `support`, `system` and `spinlings` are rejected.
+   - Chosen names and generated rerolls share the once-a-week pace. A retry of the current normalized name is a no-op. Every previous name stays held for 30 days, including after deletion. The username is public and may identify someone who reuses a name from elsewhere.
+   - `POST /v1/me/handle` accepts `{ handle?: string }`: a chosen name when present, or the existing generated reroll for `{}`. Ownership, uniqueness and retired-name checks are guarded in the same atomic write. It changes the existing handle field, never the player id, collection, sessions or passkeys. The server advertises `custom-handles` support.
 2. **No work and no usage data** leaves the machine, except the `family` of a pack charge or battle. That is needed for the game, but it is never shown to anyone else, never stored longer than its pack or battle row, and battle rows are deleted 7 days after settling, leaving only aggregate counters. Claude's effort setting stays in local view state and changes only the band's ink and the player's creature-frame glow. Low and max effort produce byte-identical requests at identical timestamps; `test/client/effort.test.ts` checks manual and waiting battles with motion on and off. All battle rounds stay at `ECONOMY.battle.roundMs`.
 3. **What other players see:**
 
@@ -900,7 +902,7 @@ Every row a player can change has a `version` column. One-shot actions (open a p
    | A market sale | The seller's notice names the buyer's handle, with the day only |
    | Defense notices | The other handle and the result, with the time rounded to "today" or "yesterday" |
 
-   Stats and board places are public game numbers under a random handle: counts of game events, with no time on any of them. Others see every such number, the album count and the league as they stood at the last UTC midnight, never as they move, so none of them tells that a player is playing right now. A player can hide them, all at once and at any time, with `/spin leaderboard off`.
+   Stats and board places are public game numbers under the player's generated or chosen handle: counts of game events, with no time on any of them. Others see every such number, the album count and the league as they stood at the last UTC midnight, never as they move, so none of them tells that a player is playing right now. A player can hide them, all at once and at any time, with `/spin leaderboard off`.
 
    Never visible: battle counts, join dates, last-seen, activity, the arena or model used, who beat whom, who bought what from whom (beyond the two sides of one sale), and timestamps.
 4. **What the server stores** is minimised:
@@ -1189,7 +1191,7 @@ The seam's blocklist (`isBlocked`) has the last word: a blocked species or fusio
 5. **No ambient authority:**
    - Auth is the `Authorization: Bearer` header only, with no cookies, so CSRF is not applicable.
    - The API sends no CORS headers.
-   - HTML pages are read-only and carry no tokens.
+   - Public HTML carries no tokens. The signed-in browser collection reads the game and may change the caller's public username using the same-origin bearer API (section 30).
 6. **Token reset.**
    - `POST /v1/me/token` returns `{ token }`. It revokes every session of the player atomically (section 27) and issues one new one; old tokens stop working immediately.
    - The mod offers this as "Reset access" in `/spin privacy`.
@@ -1226,7 +1228,7 @@ Section 30 removed link codes and recovery codes; a passkey is the only way to b
 | | Offline | Online |
 |---|---|---|
 | Network | **None, ever.** Zero requests. | The configured server only |
-| Identity | none | An anonymous session token and a random handle (section 27). No personal information. |
+| Identity | none | A random session token and generated handle by default; an optional chosen public username (sections 20 and 27) |
 | Storage | `$.store` on this machine only; never synced, uploaded or exported to the server | D1 on the server; the client keeps a cache |
 | Randomness | `crypto.getRandomValues` in the mod | the server |
 | Features | Wild encounters, catches, packs (presence), evolution, raised forms, fusion, album, daily rules, featured species, seasons, Mythics (labelled `Local mythic`, no "1 of 1" claim), Rival duels, sparks, crafting, the Wandering Trader | Everything |
@@ -1311,15 +1313,17 @@ GitHub sign-in was withdrawn (section 30): the game never asks who you are, and 
 - **Losing every device without a passkey loses the online account.** The UI states this honestly next to the passkey offer.
 
 ### Browser collection
-- `/account` is a read-only view of the same online account: team, cards and their stats, unopened-pack and listing counts, current personal stats and all six leaderboard places, all time or this season. Board places still use the midnight snapshot; private stats are current.
+- The server advertises `browser-account` only when `/account` is available. The mod's Profile requires that explicit feature before offering "Open your collection"; the optimistic unknown feature marker `*` is not confirmation. With absent or unknown support it offers the encoded public-profile URL instead; offline it offers neither.
+- `/account` shows the same online account: team, cards and their stats, unopened-pack and listing counts, current personal stats and all six leaderboard places, all time or this season. Board places still use the midnight snapshot; private stats are current. Game controls remain in the mod; the browser may change the public username when `custom-handles` is supported, using the existing authenticated handle endpoint and section 20's rules.
 - A press starts `POST /account/signin/start` with an empty body. It creates the normal short-lived sign-in poll and returns its ticket, poll id and WebAuthn options directly to this browser. The ticket and poll id never enter a URL. The existing assertion verifier and one-use `/v1/auth/poll/{pollId}` issue an ordinary session after verification.
 - `/static/account.js` keeps that session only in tab-scoped `sessionStorage` and uses bearer headers on same-origin reads. The public HTML shell carries no token or account data. No cookies, third-party calls or new stored game fields.
 - `DELETE /account/signout` removes only the authenticated caller's current session. Reset access and account deletion also remove browser sessions. Closing the tab clears its local token; server retention stays the same.
+- Passkeys are linked to the stable `player_id`, with a random WebAuthn user id. Renaming the public handle leaves every saved passkey and session usable for the same collection.
 - The existing public card representation also serves its 16×16 creature art at `/c/{id}/art.svg`, with no extra player fields.
 
 ### Stored
 - **Players:** a session hash per device, and passkey credential ids with their public keys.
-- **Never stored:** names, emails, GitHub or any other identity, IPs, user agents.
+- **Never stored:** Claude account identity, emails, GitHub identity, IPs or user agents. A chosen public username is stored as the existing handle; it is not used for authentication.
 - **Deletion:** `DELETE /v1/me` removes sessions and passkeys.
 
 ### Removed

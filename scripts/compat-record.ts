@@ -178,6 +178,11 @@ const FLOWS: FlowSpec[] = [
       await a.fails('rerollHandle', {}, 'rate_limited')
       await a.call('profile', { handle })
       await a.fails('profile', { handle: 'nobody-here-00' }, 'not_found')
+      r.w.tick(ECONOMY.handleRerollMs)
+      const chosen = await a.call('rerollHandle', { handle: 'moss_keeper' })
+      await a.call('rerollHandle', { handle: 'MOSS_KEEPER' })
+      await a.call('me', {})
+      await a.call('profile', { handle: chosen.handle })
       await a.call('setLeaderboard', { optIn: false })
     },
   },

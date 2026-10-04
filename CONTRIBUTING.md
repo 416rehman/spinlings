@@ -7,7 +7,7 @@ Thanks for wanting to help. [SPEC.md](SPEC.md) is the source of truth for every 
 A pull request that breaks one of these will not be merged, however nice it is.
 
 1. **Privacy first** (SPEC.md section 20).
-   - Nothing that identifies a player leaves their machine.
+   - No Claude account or device identity leaves the machine. A player may choose a public username under SPEC 20; generated handles remain the default.
    - No work or usage data leaves it either, except the model family of a pack charge or battle.
    - Other players see only the fields listed in PRIVACY.md.
    - The server keeps the minimum and deletes on schedule, and it never logs requests.
@@ -17,8 +17,8 @@ A pull request that breaks one of these will not be merged, however nice it is.
 4. **Never in the way.** Hooks always call `next(e)`. No injected context, no Claude-callable tools and no model calls. The band stays hidden unless something is live, and `/spin quiet` silences everything.
 5. **The server decides everything scarce.** The mod only animates. Never trust a client claim beyond the bounds in SPEC.md section 15, and keep the README's "Cheating" section true.
 6. **Playable alone.** Every social feature needs a solo fallback (SPEC.md section 19).
-7. **No free text and no money.** No chat, no user-written names, no purchases and no crypto.
-8. **Tone.** Names, traits, moves and messages are whimsical creature-world words like Pipkin, Fogmaw, Sturdy and Moonlit. There are no programming or developer puns anywhere in game text, and no names or mechanics borrowed from other games or franchises.
+7. **No chat and no money.** No chat, bios, purchases or crypto. The only user-written public text is an optional username: validated ASCII, filtered, unique and paced as specified in SPEC 20. Generated handles remain the default.
+8. **Tone.** Generated creature names, traits, moves and messages are whimsical creature-world words like Pipkin, Fogmaw, Sturdy and Moonlit. There are no programming or developer puns in game copy, and no creature names or mechanics borrowed from other games or franchises.
 
 ## Setup
 

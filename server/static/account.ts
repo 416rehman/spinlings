@@ -4,13 +4,14 @@ export const ACCOUNT_JS = String.raw`(function () {
 'use strict'
 var $ = function(id) { return document.getElementById(id) }
 if (!$('account')) return
-var key = 'spinlings-session', token = '', me = null, cards = [], next = null, version = null, generation = 0, rankGeneration = 0
+var key = 'spinlings-session', token = '', me = null, cards = [], next = null, version = null, generation = 0, rankGeneration = 0, usernameGeneration = 0, renaming = false
 var seasons = {}, colors = {common:'#9aa3ad',rare:'#4f8ff0',epic:'#b06ef3',legendary:'#f2b33d'}
 try { token = sessionStorage.getItem(key) || '' } catch (_) {}
 function say(message) { $('account-status').textContent = message }
 function store(value) { token = value; try { value ? sessionStorage.setItem(key,value) : sessionStorage.removeItem(key) } catch (_) {} }
 function clear(message) {
-  generation++; rankGeneration++; store(''); me = null; cards = []; next = null; version = null
+  generation++; rankGeneration++; usernameGeneration++; renaming = false; store(''); me = null; cards = []; next = null; version = null
+  closeUsername(); $('username-status').textContent = ''; $('username-note').textContent = ''
   $('dashboard').hidden = true; $('signout').hidden = true; $('signedout').hidden = false
   ;['teamcards','stats','mybalance','collection','myhandle','rank','inventory'].forEach(function(id) { $(id).replaceChildren() })
   $('refresh').disabled = false; say(message || '')
@@ -29,6 +30,19 @@ async function request(path, method, body, authenticated) {
 }
 function element(tag, text) { var node = document.createElement(tag); if (text !== undefined) node.textContent = String(text); return node }
 function capital(text) { return text.charAt(0).toUpperCase() + text.slice(1) }
+function closeUsername() {
+  $('username-form').hidden = true; $('username-change').setAttribute('aria-expanded','false')
+  $('username').value = ''; $('username').removeAttribute('aria-invalid')
+}
+function renderUsername() {
+  if (!me) return
+  var day = me.player.handleRerollFrom, locked = day && day > new Date().toISOString().slice(0,10), busy = renaming || $('refresh').disabled || $('signout').disabled
+  $('myhandle').textContent = me.player.handle
+  $('username-change').disabled = !!locked || busy
+  ;['username','username-save','username-cancel'].forEach(function(id){$(id).disabled = busy})
+  $('username-note').textContent = (locked ? 'Change again on '+day+' UTC. ' : 'Once a week. ')+'Your account and passkeys stay the same.'
+  if (locked) closeUsername()
+}
 function name(c) { var form = c.form || (seasons[c.species.split('-')[0].slice(1)] || []).find(function(s) {return s.id === c.species}); return form ? form.names[c.stage-1] : 'Spinling' }
 function stat(label,value) { var node = element('div'); node.className = 'accountstat'; node.append(element('b',value),element('span',label)); return node }
 async function loadSeasons(batch) {
@@ -67,22 +81,21 @@ async function rankings() {
   } catch(e) {if (revision === rankGeneration) $('rank').textContent = e.message}
 }
 async function refresh() {
-  if (!token) return
+  if (!token || renaming) return
   var revision = ++generation, held = token
-  $('refresh').disabled = true; say('Loading your collection…')
+  $('refresh').disabled = true; renderUsername(); say('Loading your collection…')
   try {
     var results = await Promise.all([request('/v1/me','GET',undefined,true),request('/v1/cards','GET',undefined,true)])
     await loadSeasons(results[1].cards)
     if (revision !== generation || held !== token) return
     me = results[0]; cards = results[1].cards; next = results[1].next || null; version = results[1].version
-    $('myhandle').textContent = me.player.handle
     $('mybalance').replaceChildren(stat('✦ Sparks · crafting & packs',me.player.sparks),stat('★ Duel rating',me.player.rating),stat('League',me.player.league),stat('Consecutive wins',me.player.streak))
     var labels = {duelWins:'⚔ Duel wins',duelLosses:'Duel losses',playersBeaten:'Players beaten',wildWins:'Wild wins',catches:'Catches',speciesCollected:'Species collected',firstFinds:'First discoveries',mythicsFound:'Mythics found',marketSales:'Market sales'}
     $('stats').replaceChildren.apply($('stats'),Object.keys(labels).map(function(k){return stat(labels[k],(me.player.stats || {})[k] || 0)}))
     renderCards(); $('dashboard').hidden = false; $('signout').hidden = false; $('signedout').hidden = true; say('')
     await rankings()
   } catch(e) {if (revision === generation) say(e.message)}
-  finally {if (revision === generation) $('refresh').disabled = false}
+  finally {if (revision === generation) {$('refresh').disabled = false; renderUsername()}}
 }
 function bytes(s) {var b = atob(s.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((s.length+3)%4)); return Uint8Array.from(b,function(c){return c.charCodeAt(0)})}
 function encoded(buf) {return btoa(Array.from(new Uint8Array(buf),function(b){return String.fromCharCode(b)}).join('')).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
@@ -106,10 +119,35 @@ $('signin').addEventListener('click',async function() {
   finally {$('signin').disabled = false}
 })
 $('signout').addEventListener('click',async function() {
-  $('signout').disabled = true
+  $('signout').disabled = true; usernameGeneration++; renaming = false; closeUsername(); renderUsername()
   try {await request('/account/signout','DELETE',undefined,true); clear(); say('Signed out of this browser tab.')}
   catch(e) {say(token ? 'Could not sign out. Try again to close this session.' : 'This browser session has expired. Sign in again to see your collection.')}
-  finally {$('signout').disabled = false}
+  finally {$('signout').disabled = false; if (!renaming) $('refresh').disabled = false; renderUsername()}
+})
+$('username-change').addEventListener('click',function() {
+  if (!me || $('username-change').disabled) return
+  $('username').value = me.player.handle; $('username-status').textContent = ''; $('username-form').hidden = false
+  $('username-change').setAttribute('aria-expanded','true'); $('username').focus(); $('username').select()
+})
+$('username-cancel').addEventListener('click',function() {if (!renaming) {closeUsername(); $('username-status').textContent = ''; $('username-change').focus()}})
+$('username').addEventListener('input',function() {$('username').removeAttribute('aria-invalid'); $('username-status').textContent = ''})
+$('username-form').addEventListener('submit',async function(event) {
+  event.preventDefault()
+  if (!token || !me || renaming || $('refresh').disabled || $('signout').disabled) return
+  var value = $('username').value.trim()
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(value)) {$('username-status').textContent = 'Use 1–40 letters, numbers, _ or -.'; $('username').setAttribute('aria-invalid','true'); $('username').focus(); return}
+  var revision = ++usernameGeneration, held = token
+  renaming = true; $('refresh').disabled = true; renderUsername(); $('username-status').textContent = 'Saving username…'
+  try {
+    var result = await request('/v1/me/handle','POST',{handle:value},true)
+    if (revision !== usernameGeneration || held !== token || !me) return
+    me.player.handle = result.handle; me.player.handleRerollFrom = result.handleRerollFrom
+    closeUsername(); $('username-status').textContent = 'Username saved.'
+  } catch(e) {
+    if (revision === usernameGeneration && held === token) {$('username-status').textContent = e.message; $('username').setAttribute('aria-invalid','true')}
+  } finally {
+    if (revision === usernameGeneration && held === token) {renaming = false; $('refresh').disabled = false; renderUsername(); if (!$('username-form').hidden) $('username').focus()}
+  }
 })
 $('more').addEventListener('click',async function() {
   if (!next) return

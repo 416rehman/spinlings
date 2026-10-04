@@ -179,7 +179,7 @@ export function privacyBody(): Raw {
 
 <h2>${heading('The short version')}</h2>
 <ul>
-<li><strong>The game does not know who you are.</strong> You are a random token and a random handle like soft-otter-42. Nothing about your Claude account, email, organization or machine is ever sent.</li>
+<li><strong>You start with a generated identity.</strong> Your account has a random token and a generated handle like soft-otter-42. You can choose a public username instead. Nothing about your Claude account, email, organization or machine is ever sent.</li>
 <li><strong>Nothing about your work leaves your machine.</strong> The mod never reads your prompts, Claude's answers, tool calls, files, paths, repository names or cost.</li>
 <li><strong>Nothing about your usage is shown to anyone.</strong> The only usage-related value the server receives is a model family (haiku, sonnet, opus or fable), when you join, a pack charges or a battle starts. Nobody else sees it, and it is deleted with that pack or battle.</li>
 <li><strong>No IP addresses, no request logs, no analytics,</strong> and no third-party requests, in the mod or on this server.</li>
@@ -187,10 +187,11 @@ export function privacyBody(): Raw {
 </ul>
 
 <h2>${heading('What the mod reads')}</h2>
-<p>Only the shape of your session: which model, whether Claude is working, how a turn ended, how many helpers are running, context fill and rate limits, and how long Claude Code has been open. It never hooks tool calls, prompt submissions or permission requests, and it never uses files, programs, models, prompts, tools, agents, MCP servers or environment variables.</p>
+<p>Only the shape of your session: which model, whether Claude is working, how a turn ended, how many helpers are running, context fill and rate limits, how long Claude Code has been open, and effort for local appearance. It never hooks tool calls, prompt submissions or permission requests, and it never uses files, programs, models, prompts, tools, agents, MCP servers or environment variables.</p>
 
 <h2>${heading('What the mod sends')}</h2>
 <p>Requests go only to the one server in the mod's settings, over https. Each body holds game choices and nothing else: the proof-of-work answer and a model family when you join, a model family for a pack charge or a battle, the round numbers on which you pressed 1, and the ids of the cards, packs, offers or codes you act on. <code>/spin privacy</code> shows the last 20 requests the mod sent, with your token hidden.</p>
+<p>Changing your public username in the browser sends only the name you choose to this server. Passkeys stay attached to the same account when your name changes.</p>
 
 <h2>${heading('What this server keeps')}</h2>
 <div class="tablewrap"><table class="table">

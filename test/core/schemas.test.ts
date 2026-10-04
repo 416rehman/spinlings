@@ -84,6 +84,8 @@ const samples: [string, Schema<unknown>, unknown, Kind][] = [
   ['AuthPollResponse (added)', V.authPollResponseSchema, { status: 'added' }, 'response'],
   ['AuthPollResponse (done)', V.authPollResponseSchema, { status: 'done', token, me }, 'response'],
   ['HandleResponse', V.handleResponseSchema, { handle: 'brave-wren-41', handleRerollFrom: '2026-10-11' }, 'response'],
+  ['HandleRequest (chosen)', V.handleRequestSchema, { handle: 'Fern_Keeper-42' }, 'request'],
+  ['HandleRequest (generated)', V.handleRequestSchema, {}, 'request'],
   ['LeaderboardOptRequest', V.leaderboardOptRequestSchema, { optIn: true }, 'request'],
   ['LeaderboardOptResponse', V.leaderboardOptResponseSchema, { leaderboard: true }, 'response'],
   ['CardsResponse', V.cardsResponseSchema, { cards: [c1, c2, hybrid, mythic, promo], version: 9 }, 'response'],

@@ -39,7 +39,7 @@ Spinlings is a Claude Code mod, so it needs Claude Code 2.1.287 or later (`claud
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
 
 ```sh
-git clone --branch v0.2.0 https://github.com/416rehman/spinlings
+git clone --branch v0.2.1 https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 
@@ -47,7 +47,9 @@ claude plugin validate spinlings/plugin
 
 **Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. To play entirely offline, where nothing leaves your machine, run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
 
-**Your collection in a browser.** Save a passkey from Community → Profile → Passkey & devices, then sign in at [Your collection](https://spinlings.dev/account) to see your cards, current stats and rankings. Browser access is read-only; opening packs, choosing a team and trading happen in Claude Code.
+**Your collection in a browser.** Save a passkey from Community → Profile → Passkey & devices, then use Open your collection to sign in and see your cards, current stats and rankings. The link appears when your server supports browser collections; older servers offer your public profile instead. You can choose a public username there. Opening packs, choosing a team and trading happen in Claude Code.
+
+**Your username.** Keep your generated handle, or choose a unique public username in the browser: 1–40 ASCII letters, numbers, `_` or `-`, saved in lowercase. Names pass the game's name filter, and names such as `admin` and `support` are reserved. Changes share the once-a-week limit; an old name stays unavailable for 30 days. Renaming keeps your account, collection and saved passkeys.
 
 `/spin quiet` silences everything. To leave for good, delete your account from `/spin privacy`, then run `claude plugin uninstall spinlings@spinlings`.
 
@@ -209,7 +211,7 @@ Claude's effort setting brightens the local band and your creature frame. It is 
 
 Privacy outranks every other rule in the game. In short:
 
-- **No identity.** You are a random token and a random handle (`adjective-noun-NN`) chosen by the server. The mod never sends your Claude account, email, organization, machine name, OS user, session id or model id. You can reroll your handle once a week.
+- **Generated identity by default.** You start with a random token and a server-generated handle (`adjective-noun-NN`). You can choose a public username in the browser or draw another generated handle, once a week. A chosen username is shown to other players, so reusing a name from elsewhere can identify you. The mod never sends your Claude account, email, organization, machine name, OS user, session id or model id.
 - **No work or usage data leaves your machine**, except the model *family* (haiku, sonnet, opus or fable) when you join, a pack charges or a battle starts. Nobody else ever sees it. It is kept no longer than that pack or battle, and battles are deleted 7 days after they end.
 - **Other players see only** your handle, your team, the cards you mark for trade, your album count and your league, your market listings, and your game stats and leaderboard places (counts such as duel wins and players beaten, as they stood at the last midnight), plus your handle on things you do with them, such as offers, gifts, sales and duels. They never see battle counts, when you joined or were last seen, your activity, which model you used, or any time. `/spin leaderboard off` takes you off every board and your stats off your profile.
 - **The server keeps the minimum**: dates instead of times wherever a rule allows, no IP addresses, no request logs. Old notices, offers and gifts are deleted after 30 days.
@@ -326,7 +328,7 @@ More in [SPEC.md](SPEC.md), sections 11, 12, 15, 16 and 20.
 
 **Can it see my code?** No. It never hooks tool calls or prompts, and never reads files, paths, answers or cost. The hook table above is the whole list, and `claude plugin validate` shows it.
 
-**Does the game know who I am?** No. Your handle is random and chosen by the server. The mod never sends your Claude account, email, organization or anything about your machine.
+**Does the game know who I am?** Your default handle is random and server-generated. An optional username is public and may identify you if you reuse it elsewhere. The mod never sends your Claude account, email, organization or anything about your machine.
 
 **What if nobody else is playing?** You can still do everything. Rivals take duels when no real player fits, the Wandering Trader trades when nobody else does, and wild creatures and packs never needed anyone else.
 
@@ -340,7 +342,7 @@ More in [SPEC.md](SPEC.md), sections 11, 12, 15, 16 and 20.
 
 **Is there anything to buy?** No. There are no purchases, no paid currency and no crypto of any kind: no coins, tokens or NFTs. Sparks are earned in the game and cannot be bought or cashed out. Anything claiming otherwise is not this project.
 
-**Can someone message me?** No. There is no chat and no free text anywhere; handles are generated.
+**Can someone message me?** No. There is no chat or bio. Your public username is the only name you can type; generated handles remain the default.
 
 **Does it work in the desktop app?** Yes, and that is where it looks best: in the Code tab of the Claude desktop app, sprites are crisp SVG and the ceremonies play as smooth SVG animation, in light and dark mode alike. In the terminal, sprites are drawn with half-block characters.
 

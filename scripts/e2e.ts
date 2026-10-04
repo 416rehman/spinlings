@@ -501,32 +501,55 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       const pairs: [Client, Client, string][] = [[p1, p2, handles.p2], [p2, p1, handles.p1]]
       let revenged = ''
       const met: string[] = []
+      const settledPair: number[] = []
       // the same two players meet again only once 5 other opponents (Rivals) have come between
       for (let round = 0; round < 30 && !revenged; round++) {
         for (const [att, def, defHandle] of pairs) {
           // a rested team, as a player who duels now and then has: every card that fainted is awake again
           boot.clock.tick(ECONOMY.battle.tiredMs)
           await whenAllowed(boot, att, 'duel')
+          const beforeNotices = (await def.me()).notices.filter(n => n.kind.startsWith('defense-'))
           const { start, fin } = await battle(boot, att, 'duel')
           if (start.opponent.kind !== 'player') continue // recently met: a Rival filled in
           met.push(`${att.name}:${fin.result}`)
+          const earlierPair = settledPair.filter(at => at > clock.now() - ECONOMY.battle.pairWindowMs)
+          const pairLimited = earlierPair.length >= ECONOMY.battle.pairLimit
+          settledPair.push(start.startedAt)
           assert.deepEqual(start.opponent, { kind: 'player', handle: defHandle, league: start.opponent.league }, 'the opponent shows a handle and a league, never a rating')
           const attHandle = defHandle === handles.p2 ? handles.p1 : handles.p2
-          const notices = (await def.me()).notices.filter(n => n.handle === attHandle && n.kind.startsWith('defense-'))
-          if (fin.result === 'draw') continue
-          const n = notices.find(x => x.kind === (fin.result === 'win' ? 'defense-loss' : 'defense-win'))
+          const notices = (await def.me()).notices.filter(n => n.kind.startsWith('defense-'))
+          if (pairLimited || fin.result === 'draw') {
+            assert.deepEqual(notices, beforeNotices, 'a draw or duel past the pair limit sends no defense notice')
+            if (pairLimited) {
+              assert.equal(fin.sparks, ECONOMY.battle.sparks.loss, 'a duel past the pair limit pays like a loss')
+              // A fresh reward window gives these two players another chance to open a revenge.
+              clock.until(Math.min(...earlierPair) + ECONOMY.battle.pairWindowMs + 1)
+            }
+            continue
+          }
+          const fresh = notices.filter(n => !beforeNotices.some(old => old.id === n.id))
+          assert.equal(fresh.length, 1, 'one new defense notice for a counted decisive duel')
+          const n = fresh.find(x => x.kind === (fin.result === 'win' ? 'defense-loss' : 'defense-win'))
           assert.ok(n, `${def.name} got a ${fin.result === 'win' ? 'defense-loss' : 'defense-win'} notice`)
+          assert.equal(n.handle, attHandle)
           assert.equal(n.day, utcDay(clock.now()), 'the notice carries the day only')
           assert.deepEqual(Object.keys(n).sort(), ['day', 'handle', 'id', 'kind', 'text'])
           assert.ok(!n.text.includes(attHandle), 'the text names nobody')
           if (fin.result !== 'win') continue
           // the defender takes its revenge: a duel against that player's current team, once
           await whenAllowed(boot, def, 'duel')
+          const beforeRevenge = (await def.me()).player
           const r = await battle(boot, def, 'duel', { revenge: attHandle })
           const foe = r.start.opponent
           assert.ok(foe.kind === 'player' && foe.handle === attHandle, 'a revenge is a duel against that very player')
           const won = r.fin.result === 'win'
-          assert.equal(r.fin.sparks, won ? ECONOMY.battle.sparks.duelWin + ECONOMY.battle.revengeBonus : r.fin.result === 'draw' ? ECONOMY.battle.sparks.draw : ECONOMY.battle.sparks.loss)
+          const earlier = settledPair.filter(at => at > clock.now() - ECONOMY.battle.pairWindowMs).length
+          const limited = earlier >= ECONOMY.battle.pairLimit
+          const full = won ? ECONOMY.battle.sparks.duelWin + ECONOMY.battle.revengeBonus : r.fin.result === 'draw' ? ECONOMY.battle.sparks.draw : ECONOMY.battle.sparks.loss
+          assert.equal(r.fin.sparks, limited ? Math.min(full, ECONOMY.battle.sparks.loss) : full,
+            limited ? 'revenge past the pair limit pays at most a loss' : 'a counted revenge pays its outcome reward and any win bonus')
+          if (limited) assert.deepEqual([r.fin.ratingDelta, r.fin.streak, r.fin.bounty, r.fin.streakPack, r.fin.dailyWinPack],
+            [0, beforeRevenge.streak, null, false, false], 'revenge past the pair limit moves no rating or streak and pays no bounty or packs')
           boot.clock.tick(ECONOMY.battle.tiredMs)
           await whenAllowed(boot, def, 'duel')
           await def.fails('startBattle', { kind: 'duel', family: def.family, revenge: attHandle }, 'not_found')
