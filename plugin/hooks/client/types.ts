@@ -187,6 +187,8 @@ export type Actions = {
   craft(speciesId: string, rarity: SpinRarity): Promise<void>
   buyPack(family?: Family): Promise<void>
   share(cardId?: string): Promise<void>
+  /** copies only the current online player's public profile URL */
+  shareProfile(): Promise<void>
   /** puts the update command on the clipboard (the footer's version chip); the pane says whether it took */
   copyUpdate(): Promise<void>
 

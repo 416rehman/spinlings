@@ -34,7 +34,7 @@ function fakeActions(p: Probe): Actions {
     pane: rec('pane', (f: (x: GameState['pane']) => GameState['pane']) => setPane(f)),
     flip: rec('flip', () => { const r = p.state.reveal; if (r) setPane(x => ({ ...x, flipped: Math.min(r.cards.length, x.flipped + 1) })) }),
     doneReveal: rec('doneReveal', () => { p.state = { ...p.state, reveal: null }; setPane(x => ({ ...x, flipped: 0, stack: x.stack.filter(v => v.kind !== 'reveal') })) }),
-    setTeam: rec('setTeam'), share: rec('share'),
+    setTeam: rec('setTeam'), share: rec('share'), shareProfile: rec('shareProfile'),
   }
 }
 

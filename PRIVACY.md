@@ -150,7 +150,7 @@ Cards other players see show the creature, its level, stats and traits, and noth
 
 **Public pages** (profiles, card pages at `{server}/c/{id}` and gift pages) show only what a profile shows, plus Mythic discoveries as handle and name. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. Passkey pages and the browser collection use `connect-src 'self'` to talk only to the same server; the collection shell contains no player data until you sign in.
 
-`/spin share` only copies text to your clipboard. Nothing is posted anywhere unless you paste it yourself.
+`/spin share` only copies text to your clipboard. Claude's Share profile copies only your public profile URL, or shows it for manual copying. Browser Share profile sends only that canonical public URL to your device's share sheet when you press it, with clipboard or manual-copy fallback. It never shares the private account URL, session or passkey data. Nothing is posted automatically.
 
 ### What someone could still guess
 

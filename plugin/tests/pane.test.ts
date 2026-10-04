@@ -40,7 +40,7 @@ function fakeActions(p: Probe, redraw: () => void): Actions {
     openPack: rec('openPack'),
     flip: rec('flip', () => { const r = p.state.reveal; if (r) setPane(x => ({ ...x, flipped: Math.min(r.cards.length, x.flipped + 1) })) }),
     doneReveal: rec('doneReveal', () => { p.state = { ...p.state, reveal: null }; setPane(x => ({ ...x, flipped: 0, stack: x.stack.filter(v => v.kind !== 'reveal') })) }),
-    setTeam: rec('setTeam'), setForTrade: rec('setForTrade'), craft: rec('craft'), buyPack: rec('buyPack'), share: rec('share'), copyUpdate: rec('copyUpdate'),
+    setTeam: rec('setTeam'), setForTrade: rec('setForTrade'), craft: rec('craft'), buyPack: rec('buyPack'), share: rec('share'), shareProfile: rec('shareProfile'), copyUpdate: rec('copyUpdate'),
     duel: rec('duel'), challenge: rec('challenge'), market: rec('market'), list: rec('list'), buy: rec('buy'), prices: rec('prices'),
     rankings: rec('rankings', (board: never, period: never) => setPane(x => ({ ...x, page: 0, boards: { board, period }, stack: x.stack.map(v => (v.kind === 'boards' ? { ...v, board, period } : v)) }))),
     marketFilter: rec('marketFilter', (change: object) => setPane(x => ({ ...x, page: 0, market: { ...(x.market ?? MARKET_DEFAULT), ...change } }))),
@@ -459,8 +459,10 @@ test('four tabs lead to Community sections without duplicate links or pushed nav
       expect(p.calls.some(([name]) => name === 'profile')).toBe(false)
       gate(await ui.drawn(), columns, `Your profile @${columns} ${surface}`)
       const links = await ui.findAll({ type: 'Link' })
-      expect(links.some(l => l.props.href === `${base.account.server}/account`)).toBe(true)
+      expect(links.some(l => l.props.href === `${base.account.server}/account`)).toBe(false)
       expect(links.some(l => String(l.props.href).includes('/u/'))).toBe(false)
+      await press(ui, 'profile-share')
+      expect(p.calls.at(-1)).toEqual(['shareProfile', []])
       expect(await ui.find({ key: 'profile-collection' })).toBeUndefined()
       expect(await ui.find({ key: 'my-profile' })).toBeUndefined()
       await press(ui, 'community-market')
@@ -504,22 +506,33 @@ test('four tabs lead to Community sections without duplicate links or pushed nav
   }
 })
 
-test('Profile links private browser access only with confirmed server support, and has one public fallback', { timeoutMs: 60_000 }, async ($, on) => {
+test('Profile shares publicly, while confirmed private browser access belongs only in Settings', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
   const base = demoSteps(NOW).find(x => x.title === 'Community · the hub')!.state
   const cases = [
-    { world: 'online' as const, features: ['browser-account'], suffix: '/account' },
-    { world: 'online' as const, features: ['passkey', 'stats'], suffix: `/u/${encodeURIComponent(base.me!.player.handle)}` },
-    { world: 'online' as const, features: ['*'], suffix: `/u/${encodeURIComponent(base.me!.player.handle)}` },
-    { world: 'offline' as const, features: ['browser-account'], suffix: null },
+    { world: 'online' as const, features: ['browser-account'], browser: true },
+    { world: 'online' as const, features: ['passkey', 'stats'], browser: false },
+    { world: 'online' as const, features: ['*'], browser: false },
+    { world: 'offline' as const, features: ['browser-account'], browser: false },
   ]
   for (const surface of SURFACES) for (const c of cases) {
     p.state = { ...base, account: { ...base.account, world: c.world, features: c.features } }
     const ui = await $.ui.mount(MOUNT(24, surface))
     gate(await ui.drawn(), 24, `browser access ${c.world} ${c.features} ${surface}`)
-    const links = (await ui.findAll({ type: 'Link' })).filter(l => String(l.props.href).includes('/account') || String(l.props.href).includes('/u/'))
-    expect(links.length).toBe(c.suffix ? 1 : 0)
-    if (c.suffix) expect(links[0]!.props.href).toBe(base.account.server + c.suffix)
+    expect((await ui.findAll({ type: 'Link' })).filter(l => String(l.props.href).includes('/account') || String(l.props.href).includes('/u/')).length).toBe(0)
+    expect(!!await ui.find({ key: 'profile-share' })).toBe(c.world === 'online')
+    if (c.world === 'online') {
+      await press(ui, 'profile-share')
+      expect(p.calls.at(-1)).toEqual(['shareProfile', []])
+    }
+    await press(ui, 'profile-privacy')
+    gate(await ui.drawn(), 24, `account settings ${c.world} ${c.features} ${surface}`)
+    const links = (await ui.findAll({ type: 'Link' })).filter(l => String(l.props.href).endsWith('/account'))
+    expect(links.length).toBe(c.browser ? 1 : 0)
+    if (c.browser) {
+      expect(links[0]!.props.href).toBe(base.account.server + '/account')
+      expect(textOf(links[0])).toBe('Manage account')
+    }
     await ui.unmount()
   }
 })

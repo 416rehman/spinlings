@@ -25,6 +25,21 @@ function copies() {
   }
 }
 
+/** Shares only the public camp, without this page's query or fragment. */
+function profiles() {
+  const b = $<HTMLButtonElement>('[data-profile-share]')
+  if (!b) return
+  const status = $<HTMLElement>('#profile-share-status')!
+  b.addEventListener('click', async () => {
+    const url = location.origin + b.dataset.profileShare!
+    try {
+      if (navigator.share) { await navigator.share({ url }); return }
+    } catch (e) { if ((e as Error).name === 'AbortError') return }
+    status.textContent = await copyText(url) ? 'Profile link copied.' : `Copy this profile link: ${url}`
+    if (status.textContent.startsWith('Copy this')) selectText(status)
+  })
+}
+
 /**
  * The footer's napper wakes with a hop when clicked, mumbles a secret (typing s-p-i-n anywhere spins
  * every creature in view), and nods off again after 3 s.
@@ -96,6 +111,7 @@ function boot() {
   keys.onEscape(() => { if (!isOpen()) return false; closePopover(); return true })
   keys.onSpin(spinAll)
   copies()
+  profiles()
   napper()
   if (W && $('#meet')) {
     startHero()

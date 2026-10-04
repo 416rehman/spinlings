@@ -1,7 +1,6 @@
 // First-party browser account access. The session stays in this tab, never in a URL, page,
 // cookie or localStorage. Every request stays on this origin and uses the mod's existing API.
 import { sha256Hex } from '../../plugin/hooks/core/sha256.ts'
-import { CARD_HELP } from '../src/card-guide.ts'
 
 export const ACCOUNT_JS = String.raw`(function () {
 'use strict'
@@ -9,9 +8,19 @@ var $ = function(id) { return document.getElementById(id) }
 if (!$('account')) return
 var key = 'spinlings-session', token = '', me = null, cards = [], team = [], next = null, version = null, generation = 0, rankGeneration = 0, usernameGeneration = 0, browseGeneration = 0, renaming = false, browsing = false, total = 0, matched = 0, currentQuery = '', hintId = 0, activeHint = null, section = 'collection'
 var seasons = {}, colors = {common:'#9aa3ad',rare:'#4f8ff0',epic:'#b06ef3',legendary:'#f2b33d'}, familyColors = {haiku:'#4da86f',sonnet:'#5b8def',opus:'#df714c',fable:'#a874e8'}, marks = {haiku:'✿',sonnet:'≈',opus:'☀',fable:'☾'}
-var help = ${JSON.stringify(CARD_HELP)}
+var help = JSON.parse($('account').getAttribute('data-card-help'))
 try { token = sessionStorage.getItem(key) || '' } catch (_) {}
 function say(message) { $('account-status').textContent = message }
+async function shareProfile() {
+  if (!me || renaming || $('signout').disabled) return
+  var handle = me.player.handle, url = location.origin+'/u/'+encodeURIComponent(handle)
+  try {
+    if (navigator.share) {await navigator.share({url:url}); return}
+  } catch(e) {if (e.name === 'AbortError') return}
+  var message = 'Copy your profile link: '+url
+  try {await navigator.clipboard.writeText(url); message = 'Profile link copied.'} catch (_) {}
+  if (me && me.player.handle === handle) say(message)
+}
 function store(value) { token = value; try { value ? sessionStorage.setItem(key,value) : sessionStorage.removeItem(key) } catch (_) {} }
 function clear(message) {
   generation++; rankGeneration++; usernameGeneration++; browseGeneration++; renaming = false; browsing = false; store(''); me = null; cards = []; team = []; next = null; version = null; total = matched = 0
@@ -240,6 +249,7 @@ $('filters-reset').addEventListener('click',function(){resetFilters(); return br
 ;['family','rarity','sort','trait','finish','scope'].forEach(function(id){$(id).addEventListener('change',function(){return browse(false)})})
 ;['board','period'].forEach(function(id){$(id).addEventListener('change',rankings)})
 $('refresh').addEventListener('click',refresh)
+$('profile-share').addEventListener('click',shareProfile)
 ;['collection','team','stats'].forEach(function(id,i){$('tab-'+id).addEventListener('click',function(){showSection(id)}); $('tab-'+id).addEventListener('keydown',function(e){var list = ['collection','team','stats'], index = e.key==='ArrowRight'?(i+1)%3:e.key==='ArrowLeft'?(i+2)%3:e.key==='Home'?0:e.key==='End'?2:-1; if (index>=0) {e.preventDefault(); showSection(list[index]); $('tab-'+list[index]).focus()}})})
 showSection(section)
 if (token) refresh()

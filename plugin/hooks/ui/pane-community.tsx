@@ -38,7 +38,7 @@ export function mineScreen(c: Ctx): Shown {
   const p = c.state.me!.player
   const next = ECONOMY.leagues.find(l => l.min > p.rating)
   const stats = p.stats
-  const { Box, Text, Link } = c.el
+  const { Box, Text } = c.el
   return {
     body: column(c, [
       heading(c, 'Your profile'),
@@ -59,12 +59,10 @@ export function mineScreen(c: Ctx): Shown {
       line(c, `${c.state.cards.length} cards · ${p.seen.length} species discovered`, { dim: true }),
       !c.offline ? para(c, p.leaderboard ? 'Your public stats and ranks update at midnight UTC.' : 'Your stats and ranks are hidden from other trainers.', { dim: true }) : null,
       actions(c, [
+        !c.offline && c.state.account.link !== 'signed-out' ? btn(c, { key: 'profile-share', label: 'Share profile', hotkey: 's', on: () => c.actions.shareProfile() }) : null,
         !c.offline && hasFeature(c.state.account, 'passkey') ? btn(c, { key: 'profile-devices', label: 'Passkey & devices', on: () => c.actions.push({ kind: 'devices' }) }) : null,
         btn(c, { key: 'profile-privacy', label: 'Privacy & settings', on: () => c.actions.push({ kind: 'privacy' }) }),
       ]),
-      !c.offline ? c.state.account.features.includes('browser-account')
-        ? <Link href={`${c.state.account.server}/account`}>Open your collection</Link>
-        : <Link href={`${c.state.account.server}/u/${encodeURIComponent(p.handle)}`}>View public profile</Link> : null,
     ]),
     hints: ['esc Back'],
   }

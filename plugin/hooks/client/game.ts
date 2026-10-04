@@ -2348,6 +2348,13 @@ export function createGame(o: GameOptions): Game {
         if (res) { await upd(fx, 'me', m => (m ? { ...m, packs: res.packs } : m)); await refresh(fx) }
       })()),
       share: cardId => after(share(fx, cardId ?? null, false)),
+      shareProfile: () => after((async () => {
+        const [a, me] = await Promise.all([get(fx, 'account'), get(fx, 'me')])
+        if (a.world !== 'online' || a.link === 'signed-out' || !me) return
+        const url = pageUrl(a.server, 'u', me.player.handle)
+        const copied = await fx.ui.copy(url)
+        await upd(fx, 'pane', p => ({ ...p, message: copied ? 'Profile link copied.' : '', tone: 'good', toCopy: copied ? '' : url, busy: null }))
+      })()),
       copyUpdate: () => after((async () => {
         const copied = await fx.ui.copy(UPDATE_COMMAND)
         if (copied) await message(fx, 'Copied. Run it in a terminal.', 'good')

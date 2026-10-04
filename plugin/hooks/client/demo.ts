@@ -35,7 +35,7 @@ export const INERT: Actions = {
   community: done,
   press: done, pickCatch: done, act: done, dismiss: done, open: done, close: done, tab: done, push: done, back: done,
   pane: done, hold: done, openPack: done, flip: done, doneReveal: done, setTeam: done, setForTrade: done, craft: done,
-  buyPack: done, share: done, copyUpdate: done, duel: done, challenge: done, market: done, list: done, buy: done, prices: done,
+  buyPack: done, share: done, shareProfile: done, copyUpdate: done, duel: done, challenge: done, market: done, list: done, buy: done, prices: done,
   rankings: done, marketFilter: done, profile: done, load: done, offer: done, respond: done, counter: done,
   claim: done, redeem: done, wishlist: done, trade: done, world: done, connect: done, passkey: done, rerollHandle: done,
   leaderboard: done, prefs: done,

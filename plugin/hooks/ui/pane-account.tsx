@@ -115,6 +115,7 @@ export function privacyScreen(c: Ctx): Shown {
         : 'Offline: your collection lives on this machine and nothing leaves it.', { dim: true }),
       p && online ? para(c, `You are ${safe(p.handle, 40)}${board ? (p.leaderboard ? ' · on the boards' : ' · hidden from the boards') : ''}`) : null,
       offer,
+      online && p && a.features.includes('browser-account') ? <c.el.Link href={`${a.server}/account`}>Manage account</c.el.Link> : null,
       actions(c, [
         reroll === '' ? btn(c, { key: 'reroll', label: 'Draw a new handle', hotkey: '2', on: () => c.actions.rerollHandle() }) : null,
         board ? btn(c, { key: 'leaderboard', label: c.columns < 26 ? (p!.leaderboard ? 'Hide my stats' : 'Show my stats') : (p!.leaderboard ? 'Hide me from the boards' : 'Show me on the boards'), hotkey: '3', on: () => c.actions.leaderboard(!p!.leaderboard) }) : null,

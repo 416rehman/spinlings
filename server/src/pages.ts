@@ -220,7 +220,8 @@ export function pages(api: Api): void {
 <section class="wrap profile">
 <p class="pennant">${p.league} league</p>
 <h1>${heading(`${handle}'s camp`)}</h1>
-<p class="chips"><span class="ptag">${p.seenCount} species in their album</span></p>
+<p class="chips"><span class="ptag">${p.seenCount} species in their album</span><button class="pbtn js-only" type="button" data-profile-share="/u/${encodeURIComponent(p.handle)}"><span class="face">↗ Share profile</span></button></p>
+<p id="profile-share-status" role="status" aria-live="polite" style="overflow-wrap:anywhere"></p>
 </section>
 ${p.team.length ? teamCamp(p.team) : html`<div class="wrap"><p class="empty doze">${raw(spriteSvg(spriteFor({ form: regulars()[2]!, stage: 1 }), { cls: 'shut' }))}<span>No team saved right now. Everyone's off in the grass.</span></p></div>`}
 <section class="wrap profile">

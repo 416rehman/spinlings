@@ -59,6 +59,7 @@ class Node {
   append(...nodes: Node[]) { this.children.push(...nodes) }
   replaceChildren(...nodes: Node[]) { this.ownText = ''; this.children = nodes }
   setAttribute(key: string, value: string) { this.attributes.set(key, value) }
+  getAttribute(key: string) { return this.attributes.get(key) ?? null }
   removeAttribute(key: string) { this.attributes.delete(key) }
   focus() { this.focused = true }
   select() { this.selected = true }
@@ -76,10 +77,13 @@ async function give(s: Server, p: Player, cards: NewCard[]) {
   return minted.cards
 }
 
-function browser(s: Server, auth: Authenticator, initialToken = '', after?: (path: string, response: Response) => Promise<void>) {
+type Sharing = { share?: (data: { url: string }) => Promise<void>; clipboard?: { writeText(text: string): Promise<void> } }
+
+function browser(s: Server, auth: Authenticator, initialToken = '', after?: (path: string, response: Response) => Promise<void>, sharing: Sharing = {}) {
   const nodes = new Map<string, Node>()
   const node = (id: string) => { if (!nodes.has(id)) nodes.set(id, new Node()); return nodes.get(id)! }
   node('board').value = 'rating'; node('period').value = 'all'; node('sort').value = 'newest'
+  node('account').setAttribute('data-card-help',JSON.stringify(CARD_HELP))
   const storage = new Map<string, string>()
   if (initialToken) storage.set('spinlings-session',initialToken)
   node('username-form').hidden = true
@@ -88,7 +92,8 @@ function browser(s: Server, auth: Authenticator, initialToken = '', after?: (pat
   const context = {
     document: { getElementById: node, createElement: (tag: string) => new Node(tag), addEventListener: document.addEventListener.bind(document) },
     window: { PublicKeyCredential: function () {} },
-    navigator: { credentials: { get: async ({publicKey}: any) => {
+    location: { origin: ORIGIN, href: ORIGIN+'/account?private=discarded#discarded' },
+    navigator: { ...sharing, credentials: { get: async ({publicKey}: any) => {
       assert.ok(ArrayBuffer.isView(publicKey.challenge))
       const body = await auth.get({ ...publicKey, challenge: b64urlEncode(publicKey.challenge) }, ORIGIN)
       return { id: body.id, response: { clientDataJSON: buf(body.clientData), authenticatorData: buf(body.authenticator), signature: buf(body.signature), userHandle: body.userHandle ? buf(body.userHandle) : null } }
@@ -133,12 +138,70 @@ describe('the private browser collection', () => {
     assert.match(page, /<label for="username">Username<\/label>/)
     assert.match(page, /id="username"[^>]*maxlength="40"[^>]*aria-describedby="username-rules username-note username-status"/)
     assert.match(page, /id="username-status" role="status" aria-live="polite"/)
+    assert.match(page, /id="profile-share">↗ Share profile<\/button>/)
+    assert.ok(page.includes('data-card-help="{&quot;stats&quot;:'), 'card help is safely escaped public data on the shell')
     assert.doesNotMatch(page, /Your account and passkeys stay the same|Once a week/)
     assert.match(page, /role="tablist" aria-label="Your collection"/)
     for (const id of ['collection','team','stats']) assert.ok(page.includes(`role="tabpanel" aria-labelledby="tab-${id}"`))
     assert.equal((await s.request('GET','/v1/me')).status, 401)
     assert.equal((await s.request('DELETE','/account/signout')).status, 401)
     assert.equal((await s.request('POST','/account/signin/start',{body:{playerId:p.id}})).status, 400)
+  })
+
+  it('shares only the current public profile URL, including after a username change, without requests or session details', async () => {
+    const s = server(); const p = await s.join(); const auth = await softAuthenticator(); await saved(s,p,auth)
+    const shares: {url:string}[] = [], copied: string[] = []
+    const view = browser(s,auth,'',undefined,{share:async data => {shares.push({...data})},clipboard:{writeText:async text => {copied.push(text)}}})
+    await view.node('profile-share').act()
+    assert.deepEqual(shares,[])
+    await view.node('signin').act()
+    const n = view.requests.length
+    await view.node('profile-share').act()
+    assert.equal(view.requests.length,n)
+    assert.deepEqual(shares,[{url:ORIGIN+'/u/'+encodeURIComponent(p.me.player.handle)}])
+    await view.node('username-change').act(); view.node('username').value = 'Share_Me-42'; await view.node('username-form').act('submit')
+    const afterRename = view.requests.length
+    await view.node('profile-share').act()
+    assert.equal(view.requests.length,afterRename)
+    assert.deepEqual(shares[1],{url:ORIGIN+'/u/share_me-42'})
+    assert.deepEqual(copied,[])
+    for (const share of shares) assert.ok(!JSON.stringify(share).includes(view.storage.get('spinlings-session')!))
+    await view.node('signout').act(); await view.node('profile-share').act()
+    assert.equal(shares.length,2)
+  })
+
+  for (const native of [false,true]) it(`copies the public profile when native sharing is ${native?'refused':'unavailable'}`, async () => {
+    const s = server(); const p = await s.join(); const auth = await softAuthenticator(); await saved(s,p,auth)
+    const copied: string[] = []
+    const view = browser(s,auth,'',undefined,{...(native?{share:async () => {throw new Error('Unavailable')}}:{}),clipboard:{writeText:async text => {copied.push(text)}}})
+    await view.node('signin').act(); const n = view.requests.length
+    await view.node('profile-share').act()
+    assert.deepEqual(copied,[ORIGIN+'/u/'+encodeURIComponent(p.me.player.handle)])
+    assert.equal(view.node('account-status').textContent,'Profile link copied.')
+    assert.equal(view.requests.length,n)
+  })
+
+  it('honors share cancellation and offers a public link when the clipboard is unavailable', async () => {
+    const s = server(); const p = await s.join(); const auth = await softAuthenticator(); await saved(s,p,auth)
+    let native = true, copies = 0
+    const view = browser(s,auth,'',undefined,{share:async () => {const e = new Error('Cancelled'); e.name = native?'AbortError':'NotAllowedError'; throw e},clipboard:{writeText:async () => {copies++; throw new Error('Refused')}}})
+    await view.node('signin').act(); await view.node('profile-share').act()
+    assert.equal(copies,0); assert.equal(view.node('account-status').textContent,'')
+    native = false; await view.node('profile-share').act()
+    assert.equal(copies,1)
+    assert.equal(view.node('account-status').textContent,'Copy your profile link: '+ORIGIN+'/u/'+encodeURIComponent(p.me.player.handle))
+  })
+
+  it('does not replace sign-out feedback when an earlier profile copy completes', async () => {
+    const s = server(); const p = await s.join(); const auth = await softAuthenticator(); await saved(s,p,auth)
+    let release!: () => void, reached!: () => void
+    const pending = new Promise<void>(resolve => {release = resolve}), copying = new Promise<void>(resolve => {reached = resolve})
+    const view = browser(s,auth,'',undefined,{clipboard:{writeText:async () => {reached(); await pending}}})
+    await view.node('signin').act()
+    const sharing = view.node('profile-share').act(); await copying
+    await view.node('signout').act(); release(); await sharing
+    assert.equal(view.node('account-status').textContent,'Signed out of this browser tab.')
+    assert.equal(view.node('dashboard').hidden,true)
   })
 
   it('starts in Collection and changes sections with keyboard tabs without losing collection filters or refreshing data', async () => {

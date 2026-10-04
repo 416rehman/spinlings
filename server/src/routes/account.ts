@@ -21,8 +21,8 @@ import { handleRerollFrom, nextChargeAt, nextDuelAt, nextWildAt, restedNow } fro
 import { statsOf } from '../game/stats.ts'
 
 /** This server's release, and the newest mod it knows of (SPEC 32). */
-export const SERVER_VERSION = '0.2.4'
-export const LATEST_CLIENT = '0.2.4'
+export const SERVER_VERSION = '0.2.5'
+export const LATEST_CLIENT = '0.2.5'
 
 const OFFERS_SHOWN = 50
 

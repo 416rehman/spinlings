@@ -2,6 +2,12 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.5 (2026-10-04)
+
+- **Share your profile.** Community's Profile copies your public profile link instead of sending you to another collection view. Browser account management moves into Privacy & settings. The browser account and public profile offer a share sheet where supported, with clipboard and manual-copy fallbacks.
+- **Keep sharing simple.** Shares use only the current public username's canonical URL. Cancelling a share stays quiet; narrow layouts wrap the actions and fallback link. The established website appearance and account layout are preserved.
+- **Compatibility and privacy.** API v1, rules 1, generator 2, minimum client, requests, stored game fields and public player fields are unchanged. No campaign, reward or referral rule changes. No marketing posts or automatic sharing. Released compatibility recordings remain immutable.
+
 ## 0.2.4 (2026-10-04)
 
 - **A clearer browser collection.** Collection, Team and Stats have their own views. Rankings sit with stats, filters stay close to the cards, and card details open when you need them. Username timing appears in the edit flow instead of a permanent account notice. The site's existing palette, fonts and public pages are preserved.
