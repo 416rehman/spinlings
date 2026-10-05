@@ -2,7 +2,7 @@
 
 Complete this checklist against the exact candidate. Follow [releasing.md](releasing.md) and every Check in [CONTRIBUTING.md](../CONTRIBUTING.md) before each commit. Marketing posts and outreach are a separate task.
 
-Status on 2026-10-04: **v0.2.9 has checked source and server delivery; marketplace delivery is pending.**
+Status on 2026-10-04: **v0.2.9 is released, deployed and officially installed.**
 
 ## Product and compatibility
 
@@ -24,9 +24,9 @@ Backlog 3 welcome-pack farming and Backlog 5 generic server content packs remain
 - [x] Existing website header, layout, palette and scenery preserved. Pack demo follows one card/no guarantee; private collection, stats, filters, trait help, username/passkeys and profile sharing remain covered.
 - [x] Fresh cropped native screenshots appear in README and the optional first-party website gallery. Four fresh native PNGs in README and the first-party website gallery; crop/source/hash provenance retained privately
 - [x] Requirements, badges/install links, social preview metadata, image budgets, same-origin media, staged secrets/private artifacts and released-history integrity reviewed.
-- [x] Production health/version, public pages/previews, account, robots/sitemap and screenshot routes: Production read-only verification: v0.2.9, 230/230 checks passed..
-- [x] Disposable production smoke covers one-card pack, passkey registration, chosen rename/fresh recovery to same account/team/stats, filters/Attack sort, sharing, browser-only signout, account deletion/revocation: Passed 19 mod/client requests in 10.2 seconds plus browser passkey, chosen rename/recovery, filters/sharing/signout and deletion/revocation flows..
-- [x] Cleanup removes only precisely verified smoke-owned discovery rows: Exactly two verified smoke-owned records removed; zero remained; other players untouched..
+- [x] Production health/version, public pages/previews, account, robots/sitemap and screenshot routes: Production read-only verification: v0.2.9, 230/230 checks passed.
+- [x] Disposable production smoke covers one-card pack, passkey registration, chosen rename/fresh recovery to same account/team/stats, filters/Attack sort, sharing, browser-only signout, account deletion/revocation: Passed 19 mod/client requests in 10.2 seconds plus browser passkey, chosen rename/recovery, filters/sharing/signout and deletion/revocation flows.
+- [x] Cleanup removes only precisely verified smoke-owned discovery rows: Exactly two verified smoke-owned records removed; zero remained; other players untouched.
 
 The README battle GIF/video/still remain real v0.2.3 Desktop footage. Pack/evolution/season SVGs and PNG posters are illustrations. New captures must retain version/source/hash provenance privately and exclude unrelated sessions, private notices and credentials. Marketing campaign copy/assets receive their own review in the next task.
 
@@ -34,10 +34,10 @@ The README battle GIF/video/still remain real v0.2.3 Desktop footage. Pack/evolu
 
 - [x] All pre-source Checks: 1043 Node tests, zero failures/skips; 199 isolated SDK tests, zero failures; strict plugin/marketplace validation; 364 HTTP requests across 24 steps; fresh site 208672 bytes; Worker dry-run passed.
 - [x] Source `358b50412cab00e423c9b3d70d738b0f6d506d51`; [CI 37267537474](https://github.com/416rehman/spinlings/actions/runs/37267537474); server-first migration/deploy and smoke verified.
-- [ ] Immutable [v0.2.9 release](https://github.com/416rehman/spinlings/releases/tag/v0.2.9) is on the exact checked source with sanitized strict-validator notes.
-- [ ] Marketplace exact tag/SHA pin, full pre-pin Checks and CI pending.
-- [ ] Fresh/user official installs pending; temporary preview restored before installing.
-- [ ] Only this release's redundant tag deployment will be cancelled after manual deploy.
+- [x] Immutable [v0.2.9 release](https://github.com/416rehman/spinlings/releases/tag/v0.2.9) is on the exact checked source with sanitized strict-validator notes.
+- [x] Marketplace `d9f6c9386576081fc3b9e4f2b583536ca636deda`; [CI 37268338346](https://github.com/416rehman/spinlings/actions/runs/37268338346); 1043 Node tests, zero failures/skips; 199 isolated SDK tests, zero failures; strict plugin/marketplace validation; 372 HTTP requests across 24 steps; fresh site 208672 bytes; Worker dry-run passed.
+- [x] Fresh/user official installs match all 98 tagged plugin files and strictly validate; temporary preview restored before installing.
+- [x] Only this release's redundant tag deployment 37268027210 confirmed cancelled.
 
 Final handoff SHA/Checks/CI are recorded privately after completion; this document never claims future proof for its own commit. Logs use `.dev/codex-launch-{final,pin,handoff}-0.2.9-*.log`.
 
