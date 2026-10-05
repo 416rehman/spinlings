@@ -19,8 +19,8 @@ const PLATE = '#1b1824'
 const INKS = { text: '#ece9f5', dim: '#a9a4bb', bad: INK.bad, good: INK.good, gold: INK.accent }
 const FONT = 'font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"'
 
-function doc(w: number, h: number, body: string, defs = ''): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${defs ? `<defs>${defs}</defs>` : ''}${body}</svg>`
+function doc(w: number, height: number, body: string, defs = ''): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${height}" width="${w}" height="${height}">${defs ? `<defs>${defs}</defs>` : ''}${body}</svg>`
 }
 
 /** Shown only during [from, to) of the timeline (ms; to null: from then on), resuming `start` ms in. */
@@ -42,9 +42,9 @@ const hidden = (inner: string, anim: string) => `<g visibility="hidden">${anim}$
 const shift = (values: string, begin: number, dur: number, o: { repeat?: boolean; freeze?: boolean } = {}) =>
   `<animateTransform attributeName="transform" type="translate" values="${values}" begin="${s3(begin)}" dur="${s3(dur)}" additive="sum"${o.repeat ? ' repeatCount="indefinite"' : ''}${o.freeze ? ' fill="freeze"' : ''}/>`
 
-function plate(w: number, h: number, stroke: string, o: { gold?: boolean; opacity?: number; width?: number } = {}): string {
+function plate(w: number, height: number, stroke: string, o: { gold?: boolean; opacity?: number; width?: number } = {}): string {
   const pulse = o.gold ? `<animate attributeName="stroke-opacity" values="0.4;1;0.4" dur="1.2s" repeatCount="indefinite"/>` : ''
-  return `<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="8" fill="${PLATE}" fill-opacity="0.94" stroke="${stroke}" stroke-opacity="${o.gold ? 1 : o.opacity ?? 0.55}" stroke-width="${o.gold ? 2 : o.width ?? 1}">${pulse}</rect>`
+  return `<rect x="1" y="1" width="${w - 2}" height="${height - 2}" rx="8" fill="${PLATE}" fill-opacity="0.94" stroke="${stroke}" stroke-opacity="${o.gold ? 1 : o.opacity ?? 0.55}" stroke-width="${o.gold ? 2 : o.width ?? 1}">${pulse}</rect>`
 }
 
 /** A sprite placed at (x, y) px at `k` px a pixel, crisp. */
@@ -69,8 +69,8 @@ const barWidth = (s: HudSize) => Math.round(s.info * 0.62)
  * and the special's charge, with the round's beats played by SMIL. `start` resumes the round that far in.
  */
 export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s: HudSize, o: { start?: number; motion: boolean; effort?: unknown }): string {
-  const { w, h } = hudSize(s)
-  if (!f) return doc(w, h, plate(w, h, '#3a3646'))
+  const { w, h: height } = hudSize(s)
+  if (!f) return doc(w, height, plate(w, height, '#3a3646'))
   const start = o.start ?? 0
   const mirror = side === 'd'
   const sp = 16 * s.k
@@ -184,8 +184,8 @@ export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s:
     })
   }
   const ready = f.charge >= f.need
-  const charge = `<text x="${tx}" y="${h - s.pad}" text-anchor="${anchor}" font-size="${s.font - 2}" fill="${ready ? INKS.gold : INKS.dim}" ${FONT}>${esc(f.special)} ${'●'.repeat(Math.min(f.need, f.charge))}${'○'.repeat(Math.max(0, f.need - f.charge))}</text>`
-  return doc(w, h, plate(w, h, rarity, side === 'a' ? effortLook(o.effort) : {}) + creature + popups + nameText + bar + digits + callouts + charge)
+  const charge = `<text x="${tx}" y="${height - s.pad}" text-anchor="${anchor}" font-size="${s.font - 2}" fill="${ready ? INKS.gold : INKS.dim}" ${FONT}>${esc(f.special)} ${'●'.repeat(Math.min(f.need, f.charge))}${'○'.repeat(Math.max(0, f.need - f.charge))}</text>`
+  return doc(w, height, plate(w, height, rarity, side === 'a' ? effortLook(o.effort) : {}) + creature + popups + nameText + bar + digits + callouts + charge)
 }
 
 /** The callouts one side shows through a round, in order (as lookAt picks them on the terminal). */

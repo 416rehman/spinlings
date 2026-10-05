@@ -193,11 +193,11 @@ export function artPixels(c: CardFace, mini = false, ghost = false): Pixels {
 }
 
 /** Clockwise position of a frame cell, for the rainbow's hue. */
-function ringIndex(x: number, y: number, w: number, h: number): number {
+function ringIndex(x: number, y: number, w: number, height: number): number {
   if (y === 0) return x
   if (x === w - 1) return w - 1 + y
-  if (y === h - 1) return w - 1 + h - 1 + (w - 1 - x)
-  return 2 * (w - 1) + h - 1 + (h - 1 - y)
+  if (y === height - 1) return w - 1 + height - 1 + (w - 1 - x)
+  return 2 * (w - 1) + height - 1 + (height - 1 - y)
 }
 
 /**

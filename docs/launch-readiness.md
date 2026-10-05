@@ -29,7 +29,7 @@ Existing main rules block deletion/force pushes; required PR/CI rules are not co
 
 ## Release gate
 
-- [x] All pre-source Checks: 1072 Node tests, zero failures/skips; 214 isolated SDK tests, zero failures/skips; both strict validators; 24 HTTP steps/357 requests; fresh 208672-byte site build; Worker dry-run.
+- [x] All pre-source Checks: 1072 Node tests, zero failures/skips; 214 isolated SDK tests, zero failures/skips; both strict validators; 24 HTTP steps/365 requests; fresh 208672-byte site build; Worker dry-run.
 - [ ] Source commit/CI pending; server-first deployment and production verification pending.
 - [ ] Immutable [v0.2.11 release](https://github.com/416rehman/spinlings/releases/tag/v0.2.11) on the checked source, with sanitized strict-validator notes.
 - [ ] Marketplace exact tag/SHA pin, all pre-pin Checks and CI pending.

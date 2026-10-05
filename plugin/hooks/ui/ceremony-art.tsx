@@ -26,8 +26,8 @@ export function backOf(c: CardFace, size: 16 | 8, glow: number, t = 0): Pixels {
   return cardBack(size, size, c.rarity, t * 1.2, { mythic: isMythic(c), glow })
 }
 
-const paint = (w: number, h: number, f: (x: number, y: number) => number): Pixels =>
-  Array.from({ length: h }, (_, y) => Array.from({ length: w }, (_, x) => f(x, y)))
+const paint = (w: number, height: number, f: (x: number, y: number) => number): Pixels =>
+  Array.from({ length: height }, (_, y) => Array.from({ length: w }, (_, x) => f(x, y)))
 
 // ---------- the pieces ----------
 

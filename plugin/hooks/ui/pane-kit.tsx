@@ -184,13 +184,13 @@ export function worldBadge(s: GameState): string {
 /** The pack meter's art on the desktop: a pack in the family's colour, filling from the bottom as presence adds up. */
 export function meterSvg(p: Presence, color: string, title: string): string {
   const f = p.blocked === 'bank' ? 1 : Math.min(1, Math.max(0, p.minutes / Math.max(1, p.need)))
-  const h = Math.round(12 * f)
+  const height = Math.round(12 * f)
   const esc = title.replace(/&/g, '&amp;').replace(/</g, '&lt;')
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 16" width="12" height="16" shape-rendering="crispEdges">'
     + `<title>${esc}</title>`
     + `<rect x="0.5" y="2.5" width="11" height="13" rx="1.5" fill="none" stroke="${color}" stroke-opacity="0.9"/>`
     + `<rect x="3" y="0.5" width="6" height="2" fill="${color}"/>`
-    + `<rect x="2" y="${14 - h}" width="8" height="${h}" fill="${color}"/>`
+    + `<rect x="2" y="${14 - height}" width="8" height="${height}" fill="${color}"/>`
     + '</svg>'
 }
 
@@ -434,7 +434,7 @@ export function hintsOf(c: Ctx, hints: readonly string[]): string[] {
   if (!updateOpen(c)) return items
   const esc = lastIndex(items, isEsc)
   const hide = `esc ${CHIP_HIDE}`
-  return esc < 0 ? [...items, hide] : items.map((h, i) => (i === esc ? hide : h))
+  return esc < 0 ? [...items, hide] : items.map((hint, i) => (i === esc ? hide : hint))
 }
 
 /**

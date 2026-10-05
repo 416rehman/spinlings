@@ -63,6 +63,7 @@ The docs are tested too: `test/docs/` fails on per-day quota wording, on a `/spi
 - Every relative import spells out its `.ts` extension, and types are imported with `import type`.
 - No enums, no namespaces and no parameter properties, because Node strips types and cannot compile them.
 - Every `$` call lives in `plugin/hooks/register.tsx`. Other files get plain data, element tables and callbacks.
+- Directory review has additional static checks beyond the CLI validator. Use plain `$.noun.method(...)` calls and pass `$` only as a whole argument to a top-level helper in the same file. Avoid bindings named `h` or `Fragment` in JSX files; Claude reserves them when compiling elements. Keep each Client module path literal. Validate the actual pushed source in the directory before submission; retain honest review notes for test fixtures and bundled assets.
 - Requests and responses are validated by the strict schemas in `plugin/hooks/core/schemas.ts`, which both sides use.
 - **Server handlers follow the D1 pattern** (SPEC.md section 16):
   1. Read what you need, including row versions.

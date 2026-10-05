@@ -216,7 +216,7 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
   if (c.surface !== 'terminal') {
     const size = kind === 'wide' ? HUD.wide : HUD.narrow
     const plan = log && r <= log.rounds.length && b.phase === 'fight' ? roundPlan(b, log, r, ROUND_MS) : null
-    const special = plan?.hits.find(h => h.actor === 'a' && h.action.move === 'special')
+    const special = plan?.hits.find(hit => hit.actor === 'a' && hit.action.move === 'special')
     const start = plan && b.inputs.includes(r) && special ? Math.max(0, special.at - 2 * TIMING.windup) : 0
     const hud = (side: Side) => svg(el, hudSvg(f[side], plan, side, size, { start, motion: c.motion, effort: env.state.signals.effort }), f[side] ? `${f[side]!.name}, ${Math.ceil(f[side]!.hp)} of ${f[side]!.maxHp} HP` : 'empty', hudSize(size), c.motion)
     if (kind === 'wide') {
