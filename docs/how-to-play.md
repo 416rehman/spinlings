@@ -10,7 +10,7 @@ There is nothing to set up either. After installing, the game starts on its own 
 
 - **The band** sits above the prompt and is hidden unless something is live: a battle, a result, a catch choice, a pack or a gift. `/spin pack` previews a waiting pack here. **Open** reveals its card, **Sidebar** moves the same opening into the pane, and **Close** dismisses it. Closing before Open keeps the pack unopened; closing after Open keeps the awarded card.
 - **The pane** opens with `/spin`. Its four tabs sit on hotkeys 1 to 4: **Team** (your three slots, resting timers, rating, sparks and notices), **Collection** (your cards and each card's details), **Discoveries** (this season's species and your Fusion Log) and **Community**. Team groups its waiting packs, **Open pack** and the filling pack meter with a labelled countdown such as `Next pack 18m`. The header's world button opens the chooser, and its daily-rule button explains the rule's effect. Press Help for a short field guide; Back or Close always has its own button.
-- **Spinlings below the input** opens your pane. A dot and pack count appear when packs are waiting. Offline, connection problems, battles, resting guidance and updates show beside it. Claude's own hint stays visible. Hosts without this control show the same information in a plain status line. `/spin quiet` hides both.
+- **Spinlings below the input** opens your pane. It shows one contextual cue: a small dot when a pack is ready, otherwise your last loaded online rating rank (such as `#23`) when available. Pack counts, world controls and updates stay in the pane. Claude's own controls stay visible. Older hosts without the button show only a passive pack-ready dot. `/spin quiet` hides the control and dot.
 
 Community opens on **Profile**, with your current stats, **Share profile**, passkey and settings controls. Share profile copies your public profile link; if the clipboard is unavailable, the link appears to copy by hand. **Privacy & settings → Manage account** opens browser account management when the server supports it. Its section bar switches between **Profile**, **Market**, **Rankings** and **Trading** in place. Market and Rankings appear where the online server supports them; Trading has offers, the trade board, the Wandering Trader and gifts. Offline, Profile and the Trader remain available, while public sharing and browser access stay hidden. Card, listing and player details open over the selected section, so Back returns you there.
 
@@ -29,7 +29,7 @@ Community opens on **Profile**, with your current stats, **Share profile**, pass
 - **Wild encounters find you while Claude works.** Once Claude's main turn has run for 20 seconds, each further 15 seconds has a 30% chance of an encounter, at most once every 8 minutes. You need at least one card that is not tired. A wild team has 1 to 3 creatures, common 78%, rare 18% and epic 4%, within 1 level of your team's average. Your very first encounter is guaranteed at 20 seconds and is a single gentle creature, and your first wild win always catches.
 - **Some of those are duels.** An encounter is a duel 40% of the time when an opponent is available and you have not dueled in the last 20 minutes.
 - **`/spin battle`** starts a duel any time, at most once every 2 minutes. There is no command for wild encounters.
-- **One at a time.** Starting a battle while another is unfinished settles the old one first, as if you never pressed.
+- **One at a time.** Wait until your current battle finishes before starting another.
 - **Rested bonus.** After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better.
 
 Battles never wait for Claude, and Claude never waits for a battle. Every round plays at 2.2 seconds.
@@ -232,12 +232,12 @@ New players start with 100 sparks. Sparks cannot be bought or cashed out for mon
 
 ## Streaks, leagues and seasons
 
-- **Streaks.** Wins in a row, wild or duel, build a streak; a loss or draw resets it. Every 3rd consecutive win pays a streak pack. During a battle the band shows `streak 2 · one more!`.
+- **Streaks.** Consecutive wins in wild battles and ordinary duels build a streak; a loss or draw resets it. Friendly challenges leave it unchanged. Every 3rd consecutive win pays a streak pack. The shared Desktop arena shows your round and streak in its footer; compact and terminal layouts use a short streak reminder.
 - **Leagues** come from your rating: Pebble from 0, Brook from 1100, Grove from 1300, Peak from 1500 and Star from 1700. Crossing a league line, either way, gets a short badge moment.
 - **Seasons** last 28 days; season 1 started on 2026-10-01. Each brings 36 new species: 8 regular and 1 legendary per family. Cards from past seasons stay yours and keep battling and trading; crafting covers the current season only.
 - **Season end.** On your first visit of a new season, you get reward packs by your final league (1 for Pebble, 2 for Brook, 3 for Grove, 4 for Peak and 5 for Star, which also brings a guaranteed foil legendary), and your rating moves halfway back toward 1000.
 - **Leaderboards.** Community → Rankings, or `/spin leaderboard`, shows the top players, all time or this season: by rating, players beaten, duel wins, species collected, Mythics found and market sales, with your own rank. Every player is on them unless they leave with `/spin leaderboard off`, which also takes their stats off their profile. Rivals never appear.
-- **Challenges.** You can duel a particular player's team by their handle, with the usual 2 minutes between duels. Only the first 3 duels between the same two players in any 24 hours move rating or count toward duel stats.
+- **Challenges.** You can duel a particular player's team by their handle, with the usual 2 minutes between duels. These are friendly challenges: they move no rating, count for no stat or leaderboard, and leave your streak unchanged. They pay XP and the sparks of a loss regardless of the result.
 
 ## The living world
 
