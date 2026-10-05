@@ -2,7 +2,7 @@
 
 Complete this checklist against the exact release being announced. Follow [releasing.md](releasing.md) and run every check in [CONTRIBUTING.md](../CONTRIBUTING.md) before each commit. Marketing posts and outreach require a separate maintainer instruction.
 
-Status on 2026-10-04: **v0.2.8 has passed source CI and production verification; marketplace delivery is pending. Native artwork/rarity interaction verification remains pending.** The maintainer confirmed footer v0.2.7: rarity, names and passive text open cards, but artwork fails and shows a Client error. The invisible artwork SVG had an empty accessibility label, which Desktop rejects. This supersedes the earlier pending native check. Earlier versions remain immutable.
+Status on 2026-10-04: **v0.2.8 is released, deployed and officially installed. Native artwork/rarity interaction verification remains pending.** The maintainer confirmed footer v0.2.7: rarity, names and passive text open cards, but artwork fails and shows a Client error. The invisible artwork SVG had an empty accessibility label, which Desktop rejects. This supersedes the earlier pending native check. Earlier versions remain immutable.
 
 ## Product and compatibility
 
@@ -38,8 +38,8 @@ README battle [GIF](media/desktop-duel.gif), [video](media/desktop-duel.mp4) and
 - [x] Four version constants, changelog and new compatibility recording agree; earlier fixtures, engines and generators unchanged.
 - [x] Server-first deploy, final production verification, disposable smoke and exact owned cleanup pass. Logs: `.dev/codex-{live,prod-smoke,smoke-cleanup}-pack-final-0.2.8.log`.
 - [x] Immutable [v0.2.8 tag/release](https://github.com/416rehman/spinlings/releases/tag/v0.2.8) points to the exact checked source with sanitized notes.
-- [ ] Marketplace pin, full pre-pin Checks and CI pending.
-- [ ] Fresh and actual user official installs pending.
+- [x] Marketplace `9af18f09dc868dc7b39c9fe527266b1459a7ab3a`; [CI 37259289513](https://github.com/416rehman/spinlings/actions/runs/37259289513); exact tag/SHA pin; 1006 Node tests/zero failures or skips, 171 isolated SDK tests/zero failures, both strict validators, 24 HTTP steps/320 requests, fresh site build 208686 bytes and Worker dry-run.
+- [x] Fresh and actual user official installs match all 92 tagged plugin files and pass strict validation.
 - [x] Only the redundant new tag deployment `37259080067` is confirmed completed/cancelled.
 - [ ] Native artwork/rarity clicks and loaded footer: pending.
 - [ ] Remaining navigation and actual fresh Desktop media are independently pending.
