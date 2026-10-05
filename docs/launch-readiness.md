@@ -2,7 +2,7 @@
 
 Follow [releasing.md](releasing.md) and every Check in [CONTRIBUTING.md](../CONTRIBUTING.md) before each commit. Marketing remains a separate task.
 
-Status: **v0.2.11 has passed local Checks; release delivery is pending.**
+Status: **v0.2.11 has checked source and server delivery; marketplace delivery is pending.**
 
 ## Product and compatibility
 
@@ -23,17 +23,17 @@ Seasons and ordinary generated species continue without a mod update; new famili
 
 - [x] Existing website appearance preserved. README images, install links, requirements, badges, preview metadata, media budgets, content blindness, privacy and staged artifacts reviewed. Plugin-folder README and unchanged MIT license meet directory source requirements.
 - [x] Four existing native v0.2.9 PNGs remain honestly versioned. Duel GIF/video/still remain real v0.2.3 footage; code-rendered pack/evolution/season art remains illustration. No new native screenshots are claimed.
-- [ ] Claude directory review submission explicitly requested by the maintainer. The actual source scan completed: main 98d95a3 passed with zero blockers, five warnings and nine policy holds; the new candidate still requires revalidation. Submission is held until the maintainer's fully green checklist is met; nothing has been submitted or published and automatic publishing is off.
-- [ ] Production read-only health/version, pages, account, previews, robots/sitemap and gallery routes: pending.
-- [ ] Disposable production smoke verifies one-card packs and browser passkey, chosen username, fresh same-account sign-in/team/stats, filters/Attack, sharing, signout and deletion/revocation: pending.
-- [ ] Strictly smoke-owned cleanup: pending; real players remain untouched.
+- [ ] Claude directory review submission explicitly requested by the maintainer. The actual source scan completed: main 20bfb0c passed with zero blockers, five warnings and seven policy holds; the permission and binary-audio holds cleared. Submission is held until the maintainer's fully green checklist is met; nothing has been submitted or published and automatic publishing is off.
+- [x] Production read-only health/version, pages, account, previews, robots/sitemap and gallery routes: Production read-only verification: v0.2.11, 230/230 checks passed.
+- [x] Disposable production smoke verifies one-card packs and browser passkey, chosen username, fresh same-account sign-in/team/stats, filters/Attack, sharing, signout and deletion/revocation: 19 mod/client requests in 11.7 seconds plus passkey registration, chosen rename and fresh same-account sign-in; disposable account deleted and revoked.
+- [x] Strictly smoke-owned cleanup: Exactly one verified smoke-owned record removed; zero remained; other players untouched.
 
 Existing main rules block deletion/force pushes; required PR/CI rules are not configured. This task keeps the established direct-main release workflow and does not claim that stricter setup is complete. No social posts, outreach or new platform accounts.
 
 ## Release gate
 
 - [x] All pre-source Checks: 1080 Node tests, zero failures/skips; 217 isolated SDK tests, zero failures/skips; both strict validators; 24 HTTP steps/364 requests; fresh 208672-byte site build; Worker dry-run.
-- [ ] Source commit/CI pending; server-first deployment and production verification pending.
+- [x] Source `20bfb0c61f52ebf686ecbebd8f218f8816311541`; [CI 37346985982](https://github.com/416rehman/spinlings/actions/runs/37346985982); server-first deployment and production verification passed.
 - [ ] Immutable [v0.2.11 release](https://github.com/416rehman/spinlings/releases/tag/v0.2.11) on the checked source, with sanitized strict-validator notes.
 - [ ] Marketplace exact tag/SHA pin, all pre-pin Checks and CI pending.
 - [ ] Fresh and actual user official installs pending. No candidate preview or saved-game files were edited for this task.
