@@ -1,5 +1,5 @@
 // The duel's static, local pixel worlds. Family and the authoritative day rule choose only their look.
-// The first 40 px stay quiet for the HUD; foreground creatures and their timelines belong to the caller.
+// The upper sky stays quiet for the HUD; foreground creatures and their timelines belong to the caller.
 import type { DailyRule, Family } from '../core/types.ts'
 
 export type ArenaTheme = {
@@ -14,10 +14,10 @@ export type ArenaTheme = {
 }
 
 const THEMES: Record<Family, ArenaTheme> = {
-  haiku: { name: 'Moss Grove', sky: '#102522', far: '#183b33', middle: '#245447', ground: '#132f2b', edge: '#407b5c', accent: '#83d4aa', glow: '#c5e5a8' },
-  sonnet: { name: 'Moonlit Water', sky: '#141f37', far: '#223552', middle: '#344c70', ground: '#1a2b44', edge: '#547fac', accent: '#9fc9ef', glow: '#d9e4f5' },
-  opus: { name: 'Ember Cliffs', sky: '#2b1a23', far: '#542931', middle: '#7a3b37', ground: '#352127', edge: '#a26047', accent: '#f7a675', glow: '#f7d391' },
-  fable: { name: 'Floating Isles', sky: '#201c38', far: '#393053', middle: '#57426e', ground: '#2d2542', edge: '#80629b', accent: '#c5a0ef', glow: '#e1c9f3' },
+  haiku: { name: 'Moss Grove', sky: '#102522', far: '#183b33', middle: '#2a5946', ground: '#132f2b', edge: '#5b8a60', accent: '#9adbb0', glow: '#e2e6a7' },
+  sonnet: { name: 'Moonlit Water', sky: '#141f37', far: '#223552', middle: '#3a5276', ground: '#1a2b44', edge: '#7599bb', accent: '#a8d4ec', glow: '#e3ebf8' },
+  opus: { name: 'Ember Cliffs', sky: '#2b1a23', far: '#542931', middle: '#7a3b37', ground: '#352127', edge: '#b66d4b', accent: '#ffb17a', glow: '#ffe1a0' },
+  fable: { name: 'Floating Isles', sky: '#201c38', far: '#393053', middle: '#60507e', ground: '#2d2542', edge: '#a086bc', accent: '#cfaff4', glow: '#eedafc' },
 }
 
 export const arenaTheme = (arena: Family): ArenaTheme => THEMES[arena]
@@ -118,11 +118,35 @@ function grove(p: Paint, w: number, h: number, t: ArenaTheme): void {
     [w * 0.83, horizon - 10], [w, horizon - 10], [w, h], [0, h]], t.far)
   for (const [x, height] of [[w * 0.1, 28], [w * 0.35, 24], [w * 0.62, 22], [w * 0.86, 30]] as const) tree(p, x, horizon + 6, height, t, true)
   p.rect(0, horizon + 12, w, h - horizon - 12, '#17352f')
-  p.rect(w * 0.34, horizon + 14, w * 0.32, h - horizon - 14, '#204741')
-  p.rect(w * 0.41, horizon + 20, w * 0.21, 2, '#447364', 0.45)
-  p.rect(w * 0.46, horizon + 26, w * 0.09, 2, '#70a592', 0.3)
-  p.rect(w * 0.39, horizon + 32, w * 0.17, 2, '#447364', 0.4)
-  p.rect(w * 0.53, horizon + 38, w * 0.1, 2, '#70a592', 0.2)
+  const center = snap(w * 0.5), reach = Math.min(108, w * 0.16)
+  // A winding stream opens into a luminous pool; each reflection is a distinct, crisp pixel band.
+  p.path([[center + 8, horizon + 8], [center + 28, horizon + 8], [center + 28, horizon + 16], [center + 4, horizon + 16],
+    [center + 4, horizon + 26], [center - 22, horizon + 26], [center - 22, horizon + 34], [center + reach * 0.55, horizon + 34],
+    [center + reach * 0.55, h - 10], [center + reach, h - 10], [center + reach, h], [center - reach, h], [center - reach, h - 12],
+    [center - reach * 0.64, h - 12], [center - reach * 0.64, horizon + 26], [center - 12, horizon + 26],
+    [center - 12, horizon + 14], [center + 8, horizon + 14]], '#245c4d')
+  p.rect(center - 34, horizon + 28, 34, 4, '#428f6d', 0.7)
+  p.rect(center - reach * 0.6, h - 10, reach * 1.35, 4, '#4b9675', 0.75)
+  p.rect(center - reach * 0.4, h - 4, reach * 0.94, 2, '#94c99a', 0.65)
+  p.rect(center - 8, horizon + 18, 20, 2, '#a9d2a4', 0.55)
+  p.rect(center + reach * 0.25, h - 12, 24, 2, '#b7dda9', 0.5)
+  p.rect(center - reach * 0.7, h - 6, 12, 2, '#b7dda9', 0.5)
+  // The ancient grove's lit crown and gnarled roots are the scene's centerpiece, outside both fighter zones.
+  const crown = Math.min(144, w * 0.24), root = floor - 14, top = 58
+  p.path([[center - 8, top + 16], [center + 12, top + 16], [center + 12, root - 12], [center + 30, root - 12],
+    [center + 30, root - 6], [center + 54, root - 6], [center + 54, root], [center + 14, root], [center + 14, root - 4],
+    [center - 4, root - 4], [center - 4, root], [center - 46, root], [center - 46, root - 4], [center - 22, root - 4],
+    [center - 22, root - 12], [center - 8, root - 12]], '#35573a')
+  p.path([[center - 6, top + 32], [center - 32, top + 20], [center - 32, top + 14], [center + 2, top + 26],
+    [center + 32, top + 12], [center + 40, top + 12], [center + 10, top + 34]], '#35573a')
+  p.rect(center + 4, top + 22, 4, root - top - 30, '#699568', 0.8)
+  canopy(p, center - crown / 2, top + 10, crown * 0.6, 22, '#326448', '#a2b86e')
+  canopy(p, center - 12, top + 2, crown * 0.57, 24, '#407451', '#c3cc8a')
+  canopy(p, center - crown * 0.25, top - 4, crown * 0.56, 18, '#4d8155', '#d8dda3')
+  for (const [x, y] of [[center - 30, top + 24], [center + 36, top + 16], [center + 16, top + 34]] as const) {
+    p.rect(x, y, 2, 2, '#dce9b3', 0.8)
+    p.rect(x - 4, y + 4, 2, 2, '#81bb80', 0.6)
+  }
   tree(p, -8, floor, Math.min(70, floor - 44), t)
   tree(p, w - 50, floor, Math.min(66, floor - 44), t)
   tree(p, w * 0.1, floor + 2, Math.min(52, floor - 44), t)
@@ -135,6 +159,11 @@ function grove(p: Paint, w: number, h: number, t: ArenaTheme): void {
   for (const [x, y] of [[w * 0.15, h - 6], [w * 0.36, h - 4], [w * 0.64, h - 6], [w * 0.89, h - 8]] as const) {
     p.rect(x, y, 14, 2, t.middle)
     p.rect(x + 4, y - 2, 4, 2, t.edge)
+  }
+  for (const x of [w * 0.12, w * 0.88]) {
+    p.rect(x + 2, floor - 4, 2, 6, '#8ca585')
+    p.rect(x - 2, floor - 6, 10, 2, '#80c9b5')
+    p.rect(x, floor - 8, 6, 2, '#bce5c3')
   }
 }
 
@@ -157,13 +186,28 @@ function arch(p: Paint, x: number, floor: number, t: ArenaTheme): void {
 
 function moonlit(p: Paint, w: number, h: number, t: ArenaTheme): void {
   const horizon = snap(h * 0.62), floor = snap(h * 0.88), moonX = snap(w * 0.5)
-  p.rect(moonX - 12, 46, 22, 12, t.glow, 0.32)
-  p.rect(moonX - 8, 42, 14, 20, t.glow, 0.32)
-  p.rect(moonX, 42, 12, 14, t.sky)
+  // Moonlight is built from stepped silhouettes and solid reflection bands, never a blurry filter.
+  p.rect(moonX - 34, 58, 68, 26, '#7796c1', 0.07)
+  p.rect(moonX - 24, 56, 48, 30, '#a3b9df', 0.09)
+  p.path([[moonX - 10, 60], [moonX + 10, 60], [moonX + 10, 64], [moonX + 16, 64], [moonX + 16, 78],
+    [moonX + 10, 78], [moonX + 10, 82], [moonX - 10, 82], [moonX - 10, 78], [moonX - 16, 78],
+    [moonX - 16, 64], [moonX - 10, 64]], '#d4e3f2')
+  p.rect(moonX + 2, 62, 6, 4, '#a9bfd8')
+  p.rect(moonX + 6, 68, 4, 4, '#b6c9df')
+  p.rect(moonX - 6, 76, 6, 2, '#a9bfd8')
+  p.rect(moonX - 10, 64, 4, 4, '#f0f4f9')
   p.path([[0, horizon - 8], [w * 0.13, horizon - 8], [w * 0.13, horizon - 2], [w * 0.37, horizon - 2],
     [w * 0.37, horizon + 4], [w * 0.67, horizon + 4], [w * 0.67, horizon - 2], [w * 0.84, horizon - 2],
     [w * 0.84, horizon - 10], [w, horizon - 10], [w, h], [0, h]], t.far)
   p.rect(0, horizon + 6, w, h - horizon - 6, '#1c344b')
+  p.rect(0, horizon + 6, w, 8, '#29475c')
+  p.rect(0, horizon + 14, w, 8, '#244052')
+  p.rect(moonX - 22, horizon + 6, 44, 4, '#a2bfd4', 0.55)
+  p.rect(moonX - 42, horizon + 14, 84, 2, '#84aabd', 0.5)
+  p.rect(moonX - 34, horizon + 20, 64, 4, '#a2bfd4', 0.35)
+  p.rect(moonX - 58, horizon + 28, 104, 2, '#92b8c9', 0.35)
+  p.rect(moonX - 46, h - 8, 82, 2, '#bdd7df', 0.4)
+  p.rect(moonX - 70, h - 2, 126, 2, '#6e9aaf', 0.5)
   for (const [x, y, width] of [[w * 0.45, horizon + 8, w * 0.1], [w * 0.48, horizon + 14, w * 0.05],
     [w * 0.41, horizon + 22, w * 0.16], [w * 0.46, horizon + 30, w * 0.1]] as const) p.rect(x, y, width, 2, t.glow, 0.16)
   for (let i = 0; i < 8; i++) {
@@ -173,6 +217,13 @@ function moonlit(p: Paint, w: number, h: number, t: ArenaTheme): void {
   }
   arch(p, w * 0.035, floor - 2, t)
   arch(p, w * 0.94 - 50, floor - 4, t)
+  for (const x of [w * 0.035, w * 0.94 - 50]) {
+    p.rect(x + 2, floor - 32, 2, 16, '#abc5d2', 0.7)
+    p.rect(x + 18, floor - 50, 14, 2, '#bcd0dd', 0.75)
+    p.rect(x + 42, floor - 26, 2, 12, '#abc5d2', 0.5)
+    p.rect(x - 6, floor + 6, 24, 2, '#86a7b9', 0.35)
+    p.rect(x + 34, floor + 10, 22, 2, '#86a7b9', 0.25)
+  }
   p.rect(w * 0.12, floor - 22, 12, 24, t.far)
   p.rect(w * 0.12 - 2, floor - 24, 16, 4, t.middle)
   p.rect(w * 0.12 + 2, floor - 18, 2, 14, t.edge, 0.3)
@@ -191,6 +242,25 @@ function cliffs(p: Paint, w: number, h: number, t: ArenaTheme): void {
   p.path([[0, horizon - 12], [w * 0.08, horizon - 12], [w * 0.08, 46], [w * 0.14, 46], [w * 0.14, horizon - 6],
     [w * 0.23, horizon - 6], [w * 0.23, horizon + 14], [w * 0.72, horizon + 14], [w * 0.72, horizon - 4],
     [w * 0.82, horizon - 4], [w * 0.82, 44], [w * 0.9, 44], [w * 0.9, horizon - 10], [w, horizon - 10], [w, h], [0, h]], t.far)
+  const center = snap(w * 0.51), spread = Math.min(110, w * 0.17)
+  // The distant volcano and its glowing seam provide depth in the open space between the creatures.
+  p.path([[center - spread, horizon + 22], [center - spread, horizon + 12], [center - spread * 0.68, horizon + 12],
+    [center - spread * 0.68, horizon + 2], [center - spread * 0.4, horizon + 2], [center - spread * 0.4, 68],
+    [center - 20, 68], [center - 20, 60], [center - 6, 60], [center - 6, 66], [center + 12, 66], [center + 12, 60],
+    [center + 28, 60], [center + 28, 70], [center + spread * 0.46, 70], [center + spread * 0.46, horizon + 4],
+    [center + spread * 0.72, horizon + 4], [center + spread * 0.72, horizon + 14], [center + spread, horizon + 14],
+    [center + spread, horizon + 28]], '#734039')
+  p.path([[center - 20, 62], [center - 6, 62], [center - 6, 66], [center + 12, 66], [center + 12, 62],
+    [center + 24, 62], [center + 24, 70], [center - 20, 70]], '#dc8152')
+  p.rect(center - 8, 68, 20, 2, '#ffe0a0')
+  p.path([[center + 2, 70], [center + 14, 70], [center + 14, 82], [center + 6, 82], [center + 6, 92],
+    [center + 22, 92], [center + 22, horizon + 28], [center + 4, horizon + 28], [center + 4, 94],
+    [center - 6, 94], [center - 6, 80], [center + 2, 80]], '#b96543')
+  p.rect(center + 4, 72, 4, 12, '#efaf6a')
+  p.rect(center, 84, 4, 8, '#e89459')
+  p.rect(center + 6, 94, 10, 2, '#efaf6a')
+  p.rect(center - 36, 60, 70, 2, '#d27350', 0.2)
+  p.rect(center - 12, 54, 26, 2, '#b76651', 0.18)
   p.path([[0, horizon + 8], [w * 0.09, horizon + 8], [w * 0.09, horizon + 18], [w * 0.15, horizon + 18],
     [w * 0.15, floor + 8], [w * 0.83, floor + 8], [w * 0.83, horizon + 18], [w * 0.9, horizon + 18],
     [w * 0.9, horizon + 4], [w, horizon + 4], [w, h], [0, h]], t.middle)
@@ -199,10 +269,18 @@ function cliffs(p: Paint, w: number, h: number, t: ArenaTheme): void {
     p.rect(x, y, width, 2, t.edge)
     p.rect(x + 8, y + 6, width * 0.6, 2, t.far, 0.7)
   }
-  // A thin river of embers stays beneath the combat stage, never between the health readouts.
-  p.rect(w * 0.34, h - 8, w * 0.31, 8, '#7d3d36')
-  p.rect(w * 0.41, h - 6, w * 0.13, 2, '#d67c4c', 0.6)
-  p.rect(w * 0.53, h - 2, w * 0.08, 2, '#f7b56b', 0.6)
+  // Broken crust and reflected lava light stay outside the fighters' low-detail silhouettes.
+  p.path([[center - 30, horizon + 24], [center + 16, horizon + 24], [center + 16, h - 14], [center + spread * 0.7, h - 14],
+    [center + spread * 0.7, h], [center - spread * 0.9, h], [center - spread * 0.9, h - 8], [center - 50, h - 8],
+    [center - 50, h - 20], [center - 30, h - 20]], '#8e4738')
+  p.rect(center - 34, h - 16, 52, 4, '#d5834a')
+  p.rect(center - 60, h - 8, 110, 4, '#e99b56')
+  p.rect(center - 26, h - 6, 54, 2, '#ffe0a0')
+  p.rect(center + 34, h - 10, 18, 2, '#f4bd74')
+  for (const [x, y, width] of [[center - 58, h - 8, 16], [center + 6, h - 14, 20], [center + 50, h - 4, 14]] as const) {
+    p.rect(x, y, width, 4, t.ground)
+    p.rect(x + 2, y, width - 4, 2, '#d68e58', 0.45)
+  }
   for (const [x, y] of [[w * 0.34, horizon + 10], [w * 0.63, horizon + 26], [w * 0.71, horizon + 4], [w * 0.45, floor - 6]] as const) {
     p.rect(x, y, 2, 2, t.glow, 0.55)
     p.rect(x + 4, y - 6, 2, 2, t.accent, 0.25)
@@ -222,18 +300,47 @@ function island(p: Paint, x: number, y: number, width: number, t: ArenaTheme): v
 function isles(p: Paint, w: number, h: number, t: ArenaTheme): void {
   const horizon = snap(h * 0.59), floor = snap(h * 0.88)
   p.rect(0, horizon + 6, w, h - horizon - 6, t.far, 0.35)
-  p.rect(w * 0.34, horizon + 14, w * 0.32, 6, t.middle, 0.25)
-  p.rect(w * 0.29, horizon + 24, w * 0.45, 4, t.middle, 0.22)
-  p.rect(w * 0.37, horizon + 36, w * 0.25, 2, t.edge, 0.2)
+  // Three cloud shelves separate the near platforms from the distant suspended world.
+  p.path([[w * 0.32, horizon + 16], [w * 0.39, horizon + 16], [w * 0.39, horizon + 12], [w * 0.52, horizon + 12],
+    [w * 0.52, horizon + 16], [w * 0.63, horizon + 16], [w * 0.63, horizon + 20], [w * 0.7, horizon + 20],
+    [w * 0.7, horizon + 24], [w * 0.32, horizon + 24]], '#71618e', 0.28)
+  p.path([[0, h - 16], [w * 0.08, h - 16], [w * 0.08, h - 20], [w * 0.15, h - 20], [w * 0.15, h - 14],
+    [w * 0.35, h - 14], [w * 0.35, h - 8], [w * 0.43, h - 8], [w * 0.43, h], [0, h]], '#8d7da1', 0.3)
+  p.path([[w * 0.56, h - 8], [w * 0.7, h - 8], [w * 0.7, h - 16], [w * 0.85, h - 16], [w * 0.85, h - 22],
+    [w * 0.94, h - 22], [w * 0.94, h - 16], [w, h - 16], [w, h], [w * 0.56, h]], '#8d7da1', 0.3)
+  p.rect(w * 0.1, h - 18, w * 0.1, 2, '#b3a2c8', 0.2)
+  p.rect(w * 0.71, h - 10, w * 0.15, 2, '#b3a2c8', 0.2)
+  const edgeTop = Math.max(68, horizon - 12)
   island(p, w * 0.04, horizon - 14, Math.min(70, w * 0.12), t)
-  island(p, w * 0.86, horizon - 22, Math.min(80, w * 0.13), t)
-  island(p, w * 0.47, horizon + 10, Math.min(36, w * 0.06), { ...t, middle: t.far, edge: t.middle })
+  island(p, w * 0.86, edgeTop, Math.min(80, w * 0.13), t)
+  const center = snap(w * 0.5), crown = Math.min(116, w * 0.22), sanctuary = floor - 26
+  island(p, center - crown / 2, sanctuary, crown, { ...t, middle: '#524665', edge: '#9a7eb2' })
+  // A luminous crystal shrine, large enough to read as a landmark even in the compact strip.
+  const crystalTop = 60, crystalBase = sanctuary - 2
+  p.path([[center - 8, crystalTop + 4], [center - 4, crystalTop + 4], [center - 4, crystalTop], [center + 4, crystalTop],
+    [center + 4, crystalTop + 4], [center + 8, crystalTop + 4], [center + 8, crystalBase - 4],
+    [center + 4, crystalBase - 4], [center + 4, crystalBase], [center - 4, crystalBase],
+    [center - 4, crystalBase - 4], [center - 8, crystalBase - 4]], '#d3b1ed')
+  p.rect(center - 6, crystalTop + 6, 4, crystalBase - crystalTop - 12, '#f0d7f7')
+  p.rect(center + 2, crystalTop + 6, 4, crystalBase - crystalTop - 12, '#9276c2')
+  p.rect(center - 18, crystalBase - 2, 36, 4, '#8068a4')
+  p.rect(center - 12, crystalBase, 24, 2, '#c3a4d7')
+  for (const dx of [-30, 30]) {
+    p.rect(center + dx - 4, sanctuary - 16, 8, 16, '#716084')
+    p.rect(center + dx - 6, sanctuary - 18, 12, 4, '#a08bad')
+    p.rect(center + dx - 2, sanctuary - 12, 2, 8, '#c0a2d5', 0.55)
+  }
+  glint(p, center - 22, crystalTop + 8, '#edd5f5', 0.7)
+  glint(p, center + 20, crystalTop + 20, '#d8bfee', 0.6)
+  p.rect(center - 12, sanctuary + 14, 22, 2, '#c6a2de', 0.65)
+  p.rect(center - 4, sanctuary + 16, 8, 10, '#9271b6', 0.6)
+  p.rect(center - 2, sanctuary + 28, 4, 4, '#c6a2de', 0.6)
   // A small ancient pillar and a crystalline sapling give the far islands their own silhouettes.
   p.rect(w * 0.07, horizon - 30, 8, 16, t.middle)
   p.rect(w * 0.07 - 2, horizon - 32, 12, 4, t.edge)
   p.rect(w * 0.07 + 2, horizon - 26, 2, 10, t.accent, 0.35)
-  const sx = w * 0.9, sy = Math.max(40, horizon - 46)
-  p.rect(sx, sy + 6, 4, horizon - 28 - sy, t.edge)
+  const sx = w * 0.9, sy = Math.max(58, horizon - 36)
+  p.rect(sx, sy + 6, 4, edgeTop - sy - 6, t.edge)
   p.path([[sx - 8, sy + 10], [sx - 8, sy + 4], [sx - 2, sy + 4], [sx - 2, sy],
     [sx + 4, sy], [sx + 4, sy + 4], [sx + 10, sy + 4], [sx + 10, sy + 10]], t.middle)
   p.rect(sx - 2, sy + 2, 4, 2, t.accent, 0.6)

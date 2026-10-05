@@ -1,6 +1,6 @@
 // The band's quality gate (SPEC 21): every band state mounts on the terminal and the desktop at 40, 80 and 120
-// columns with no refused tree, no overflow, at most four rows, art wherever art belongs, and every button on a digit
-// (the only keys an empty prompt hands the band), the primary one on 1. Then each state's own words and presses.
+// columns with no refused tree, four terminal rows or the advertised Desktop budget, and art wherever it fits.
+// Every button uses a digit (the only keys an empty prompt hands the band), the primary one on 1.
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { BattleLog, Card, Family, Rarity } from '../../plugin/hooks/core/types.ts'
@@ -133,9 +133,10 @@ const calls: [string, unknown[]][] = []
 const actions = new Proxy({}, { get: (_t, k) => (...args: unknown[]) => { calls.push([String(k), args]); return Promise.resolve() } }) as Actions
 
 /** The band from this file's fixture (an inline plugin cannot close over this file's imports); null draws the engine's. */
-function draws(on: On): void {
+function draws(on: On, rowOverride?: { value: number | undefined }): void {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e) => band({
-    el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns, rows: e.props.maxRows,
+    el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns,
+    rows: rowOverride ? rowOverride.value as number : e.props.maxRows,
     now: current.now, actions, isWorking: e.props.isWorking, state: current.state,
   }) ?? { type: 'Text', props: {}, children: ['engine band'] })
 }
@@ -143,7 +144,7 @@ function draws(on: On): void {
 const LONG = { timeoutMs: 120_000 }
 const MOUNT = { plugin: 'spinlings', component: 'AbovePrompt', requestId: 'band' } as const
 
-const props = (columns: number, maxRows = 8) => ({ hasSurvey: false, isWorking: true, maxRows, bodyColumns: columns, scroll: { offset: 0, bodyRows: maxRows }, view: {} })
+const props = (columns: number, maxRows = 12) => ({ hasSurvey: false, isWorking: true, maxRows, bodyColumns: columns, scroll: { offset: 0, bodyRows: maxRows }, view: {} })
 
 // ---------- measuring a drawn tree (the terminal's cells) ----------
 
@@ -358,6 +359,74 @@ test('desktop arena sizes retain pixel bounds and reachable native actions, with
       await ui.press({ key: 'now', plugin: 'test' })
       expect(calls).toEqual([['press', []]])
     } else expect(calls).toEqual([])
+    await ui.unmount()
+  }
+})
+
+test('desktop battles respect the advertised height and keep the primary action first when the arena cannot fit', LONG, async ($, on) => {
+  draws(on)
+  const ordinary = duelLog.rounds.findIndex(r => !r.actions.some(a => a.side === 'a' && a.move === 'special'))
+  expect(ordinary).toBeGreaterThanOrEqual(0)
+  const rounds = [
+    { phase: 'fight' as const, shown: ordinary, ready: false },
+    { phase: 'fight' as const, shown: perfectAt - 1, ready: true },
+    { phase: 'finishing' as const, shown: duelLog.rounds.length, ready: false },
+  ]
+  for (const { phase, shown, ready } of rounds) for (const columns of [40, 120]) for (const rows of [1, 2, 4, 8, 11, 12]) {
+    current = { state: at({ battle: battle({ kind: 'duel', phase, shown }) }), now: NOW }
+    calls.length = 0
+    const ui = await $.ui.mount({ ...MOUNT, surface: 'desktop', props: props(columns, rows) })
+    const tree = await ui.drawn(), problems: string[] = []
+    const size = measure(tree, columns, problems), buttons = walk(tree).filter(n => n.type === 'Button')
+    const svgs = await ui.findAll({ type: 'Svg' })
+    const day = await ui.find({ key: 'battle-today' })
+    expect(svgs.length).toBe(rows >= 12 ? 1 : 0)
+    expect(!!day).toBe(rows >= 12)
+    expect(buttons.filter(n => n.props?.variant === 'primary').map(n => n.props?.label)).toEqual(ready ? ['Now!'] : [])
+    if (rows < 12) {
+      expect(problems).toEqual([])
+      expect(size.w).toBeLessThanOrEqual(columns)
+      expect(size.h).toBeLessThanOrEqual(Math.min(2, rows))
+      expect(size.h).toBeLessThanOrEqual(Math.min(4, rows))
+      expect(buttons.map(n => n.props?.label)).toEqual(ready ? ['Now!'] : [])
+      if (ready && isNode(tree)) expect(walk(tree.children?.[0]).find(n => n.type === 'Button')?.props?.label).toBe('Now!')
+    } else {
+      // Include real SVG pixels: a 124/144px scene plus three/two native 20px lines fits the verified 184px cap.
+      const pixels = size.h * 20 + svgs.reduce((sum, svg) => sum + Number(svg.props.height), 0)
+      expect(pixels).toBeLessThanOrEqual(184)
+      expect(day!.props.hotkey).toBe('2')
+      await ui.press({ key: 'battle-today', plugin: 'test' })
+      expect(calls).toEqual([['open', [{ view: { kind: 'today', rule: 'calm' } }]]])
+      calls.length = 0
+    }
+    if (ready) {
+      const now = await ui.find({ key: 'now' })
+      expect(now!.props).toMatchObject({ label: 'Now!', hotkey: '1', variant: 'primary' })
+      await ui.press({ key: 'now', plugin: 'test' })
+      expect(calls).toEqual([['press', []]])
+    } else expect(calls).toEqual([])
+    await ui.unmount()
+  }
+})
+
+test('missing or invalid app-level row budgets fall back to compact desktop battle words', LONG, async ($, on) => {
+  // The SDK receives valid host props; only the view function's input exercises an older or malformed host value.
+  const override: { value: number | undefined } = { value: undefined }
+  draws(on, override)
+  for (const rows of [undefined, Number.NaN, 0, -1, Number.POSITIVE_INFINITY]) for (const columns of [40, 120]) {
+    override.value = rows
+    current = { state: at({ battle: battle({ kind: 'duel', shown: perfectAt - 1 }) }), now: NOW }
+    calls.length = 0
+    const ui = await $.ui.mount({ ...MOUNT, surface: 'desktop', props: props(columns) })
+    const tree = await ui.drawn(), problems: string[] = []
+    const size = measure(tree, columns, problems)
+    expect((await ui.findAll({ type: 'Svg' })).length).toBe(0)
+    expect(!!(await ui.find({ key: 'battle-today' }))).toBe(false)
+    expect(problems).toEqual([])
+    expect(size.h).toBeLessThanOrEqual(2)
+    if (isNode(tree)) expect(walk(tree.children?.[0]).find(n => n.type === 'Button')?.props?.label).toBe('Now!')
+    await ui.press({ key: 'now', plugin: 'test' })
+    expect(calls).toEqual([['press', []]])
     await ui.unmount()
   }
 })

@@ -95,7 +95,8 @@ test('first run: joins silently, keeps the session per origin, and welcomes with
 
   for (const surface of ['terminal', 'desktop'] as const) {
     for (const columns of [40, 80, 120]) {
-      const band = await $.ui.mount({ ...BAND(columns), surface })
+      const where = BAND(columns)
+      const band = await $.ui.mount({ ...where, surface, props: surface === 'desktop' ? { ...where.props, maxRows: 12, scroll: { offset: 0, bodyRows: 12 } } : where.props })
       expect(await band.find({ text: /A Spinling hatched!/ })).toBeDefined()
       expect(await band.find({ key: 'act-welcome' })).toBeDefined()
       await band.unmount()
@@ -247,7 +248,8 @@ test('a duel plays in the band, minis and all, then settles into a result', { ti
   await settle(clock)
   for (const surface of ['terminal', 'desktop'] as const) {
     for (const columns of [40, 80, 120]) {
-      const band = await $.ui.mount({ ...BAND(columns), surface })
+      const where = BAND(columns)
+      const band = await $.ui.mount({ ...where, surface, props: surface === 'desktop' ? { ...where.props, maxRows: 12, scroll: { offset: 0, bodyRows: 12 } } : where.props })
       if (surface === 'terminal') expect(await band.find({ text: /Rival Thistlewick/ })).toBeDefined()
       else {
         const scene = (await band.findAll({ type: 'Svg' }))[0]!

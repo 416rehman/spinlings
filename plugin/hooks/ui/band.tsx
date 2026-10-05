@@ -32,7 +32,7 @@ import { FAMILY_COLOR, FAMILY_MARK, INK, MARK, MYTHIC_COLOR, RARITY_COLOR, RARIT
 import { arenaSize, arenaSvg } from './arena-duel.ts'
 
 type Env = Parameters<BandView>[0]
-/** `rows`: the band's window on the terminal (maxRows, at most 4); below 4 each moment draws its compact form. */
+/** `rows`: the host's height budget; the terminal caps it at 4 and small windows keep actions first. */
 type Ctx = { el: El; surface: Surface; columns: number; rows: number; actions: Actions; motion: boolean; now: number }
 
 /** Columns a desktop plate takes, as text beside it counts them. */
@@ -126,7 +126,8 @@ export const band: BandView = env => {
   noteLayout(env.columns, env.surface)
   const { state } = env
   const motion = state.prefs.motion && !state.prefs.quiet
-  const rows = env.surface === 'terminal' && Number.isFinite(env.rows) && env.rows >= 1 ? Math.min(4, Math.floor(env.rows)) : 4
+  const budget = Number.isFinite(env.rows) && env.rows >= 1 ? Math.floor(env.rows) : 4
+  const rows = env.surface === 'terminal' ? Math.min(4, budget) : budget
   const c: Ctx = { el: env.el, surface: env.surface, columns: Math.max(20, env.columns), rows, actions: env.actions, motion, now: env.now }
   if (state.battle) return battleBand(c, env, state.battle)
   const choice = state.moments.find(m => m.kind === 'outcome' && m.outcome.catch.status === 'choose')
@@ -216,7 +217,7 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
     : blankRow(el)
   const kind = bandKind(c.columns)
   if (c.surface !== 'terminal') {
-    if (c.columns < 40) return compactBattle(c, env, words)
+    if (c.columns < 40 || c.rows < 12) return compactBattle(c, env, words)
     const plan = log && r <= log.rounds.length && b.phase === 'fight' ? roundPlan(b, log, r, ROUND_MS) : null
     const special = plan?.hits.find(hit => hit.actor === 'a' && hit.action.move === 'special')
     const start = plan && b.inputs.includes(r) && special ? Math.max(0, special.at - 2 * TIMING.windup) : 0
