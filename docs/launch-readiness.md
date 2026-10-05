@@ -2,18 +2,18 @@
 
 Complete this checklist against the exact release being announced. Follow [releasing.md](releasing.md) and run every check in [CONTRIBUTING.md](../CONTRIBUTING.md) before each commit. Marketing posts and outreach require a separate maintainer instruction.
 
-Status on 2026-10-04: **v0.2.7 is the active candidate; checks and delivery are pending. Native artwork/rarity interaction verification remains pending.** The maintainer reports that names, family/level and Leads/slot open cards, while artwork and rarity do not. This report supersedes the earlier all-card failure. Earlier versions remain immutable.
+Status on 2026-10-04: **v0.2.7 has passed source CI and production verification; marketplace delivery is pending. Native artwork/rarity interaction verification remains pending.** The maintainer reports that names, family/level and Leads/slot open cards, while artwork and rarity do not. This report supersedes the earlier all-card failure. Earlier versions remain immutable.
 
 ## Product and compatibility
 
-- [ ] Packs open into exactly two cards; the second is rare or better. Price, pacing, welcome-pack count, binding and trading rules stay unchanged. Existing cards stay owned, and unopened packs use two cards when opened. Supported older online mods read the new server result; installed older offline worlds retain their bundled rules.
-- [ ] Artwork regions measure their full pixel size, and family/level and rarity/finish use separate passive text regions. Native names, controls, keyboard actions and stale-click guards remain exposed. SDK results establish source behavior, not physical Desktop clicks.
+- [x] Packs open into exactly two cards; the second is rare or better. Price, pacing, welcome-pack count, binding and trading rules stay unchanged. Existing cards stay owned, and unopened packs use two cards when opened. Supported older online mods read the new server result; installed older offline worlds retain their bundled rules.
+- [x] Artwork regions measure their full pixel size, and family/level and rarity/finish use separate passive text regions. Native names, controls, keyboard actions and stale-click guards remain exposed. SDK results establish source behavior, not physical Desktop clicks.
 - [ ] Restart the verified installation and observe footer v0.2.7 in Claude Desktop.
 - [ ] Confirm creature artwork and rarity/finish clicks open the same creature as its name in the loaded pane.
 - [ ] Recheck family/level, Leads/slot, wrapped names, Back and root Close in the loaded pane.
 - [ ] Recheck Share profile and Manage account in that loaded release.
-- [ ] Replay every supported immutable released reader/flow and record the new version. Variable collection lengths are resolved from observed eligible cards without manufacturing cards, changing outcomes or editing historical fixtures.
-- [ ] API v1, minimum mod 0.1.0, rules 1, generator 2 and offline save format 1 remain unchanged; no new migrations, dependencies, request fields, stored fields or public fields.
+- [x] Replay every supported immutable released reader/flow and record the new version. Variable collection lengths are resolved from observed eligible cards without manufacturing cards, changing outcomes or editing historical fixtures.
+- [x] API v1, minimum mod 0.1.0, rules 1, generator 2 and offline save format 1 remain unchanged; no new migrations, dependencies, request fields, stored fields or public fields.
 
 Claude Code requires 2.1.287 or later. Desktop needs a compatible bundled engine. Seasons and current generation rules continue without updates; arbitrary future families, artwork primitives or mechanics still require a defined compatibility contract. See [compatibility.md](compatibility.md).
 
@@ -23,10 +23,10 @@ Welcome-pack farming restrictions (Backlog 3) and server-delivered content packs
 
 The established public website appearance is preserved. Its pack demo and summary follow the two-card count. Account Collection/Team/Stats, passkey identity across username changes, canonical profile sharing and privacy controls remain supported.
 
-- [ ] Production health/version, public pages/previews, private account, robots and sitemap: pending.
-- [ ] Disposable production smoke: pack count and rare-or-better final card, passkey registration, rename/recovery to the same collection, team/stats/filter/Attack sort, canonical sharing, browser-only signout, deletion and revocation. Pending.
-- [ ] Restricted cleanup matches each smoke-owned discovery ID before removing it. Pending; real players must remain untouched.
-- [ ] Review requirements, install links, public preview metadata, generated two-card illustrations and staged secrets/private-artifact audit.
+- [x] Production health/version, public pages/previews, private account, robots and sitemap: 158/158 passed in `.dev/codex-live-pack-final-0.2.7.log`.
+- [x] Disposable production smoke: pack count and rare-or-better final card, passkey registration, rename/recovery to the same collection, team/stats/filter/Attack sort, canonical sharing, browser-only signout, deletion and revocation. Passed: 19 mod/client requests over 8.6 seconds plus direct browser flows; disposable account deleted and revoked.
+- [x] Restricted cleanup matches each smoke-owned discovery ID before removing it. Verified the recorded smoke IDs; zero orphan records remained. Other players were untouched.
+- [x] Review requirements, install links, public preview metadata, generated two-card illustrations and staged secrets/private-artifact audit.
 - [ ] Capture fresh exact-release Team, Collection, Community Profile, Market, Rankings and Pack panes with observed footer and timestamp/hash provenance. Review crops for unrelated sessions, personal data and credentials.
 - [ ] Approve final marketing assets in the separate marketing task.
 
@@ -34,13 +34,13 @@ README battle [GIF](media/desktop-duel.gif), [video](media/desktop-duel.mp4) and
 
 ## Release gate — v0.2.7
 
-- [ ] Checked source commit/CI pending; all pre-source Checks: pending.
-- [ ] Four version constants, changelog and new compatibility recording agree; earlier fixtures, engines and generators unchanged.
-- [ ] Server-first deploy, final production verification, disposable smoke and exact owned cleanup pass. Logs: `.dev/codex-{live,prod-smoke,smoke-cleanup}-pack-final-0.2.7.log`.
-- [ ] Immutable [v0.2.7 tag/release](https://github.com/416rehman/spinlings/releases/tag/v0.2.7) points to the exact checked source with sanitized notes.
+- [x] Checked source `e4456c69b1c0f47b9f7d0845f138874797beb6ac`; [CI 37256751359](https://github.com/416rehman/spinlings/actions/runs/37256751359); all pre-source Checks: 993 Node tests/zero failures or skips, 170 isolated SDK tests/zero failures, both strict validators, 24 HTTP steps/323 requests, fresh site build 208686 bytes and Worker dry-run.
+- [x] Four version constants, changelog and new compatibility recording agree; earlier fixtures, engines and generators unchanged.
+- [x] Server-first deploy, final production verification, disposable smoke and exact owned cleanup pass. Logs: `.dev/codex-{live,prod-smoke,smoke-cleanup}-pack-final-0.2.7.log`.
+- [x] Immutable [v0.2.7 tag/release](https://github.com/416rehman/spinlings/releases/tag/v0.2.7) points to the exact checked source with sanitized notes.
 - [ ] Marketplace pin, full pre-pin Checks and CI pending.
 - [ ] Fresh and actual user official installs pending.
-- [ ] Only the redundant new tag deployment will be cancelled after manual deployment.
+- [x] Only the redundant new tag deployment `37257046994` is confirmed completed/cancelled.
 - [ ] Native artwork/rarity clicks, loaded footer, remaining navigation and actual fresh Desktop media are independently pending.
 
 The final readiness commit's SHA, all pre-commit Checks and CI proof belong in the private handoff after completion; this document does not claim future evidence for its own commit. Source/pin/final Check logs use `.dev/codex-pack-{final,pin,handoff}-0.2.7-*.log`.
