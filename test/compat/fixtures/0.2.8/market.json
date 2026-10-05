@@ -1,0 +1,3028 @@
+{
+  "client": "0.2.8",
+  "flow": "market",
+  "about": "the market (listed, browsed, bought for sparks and for a card, refused, cancelled), a challenge by handle and the leaderboards",
+  "steps": [
+    {
+      "op": "challenge",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/challenge",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"challenge":"<challenge:1>","difficulty":8}
+      }
+    },
+    {
+      "op": "join",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/join",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","content-type":"application/json"},
+        "body": {"challenge":"<challenge:1>","nonce":"<pow>","family":"opus"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "token": "<token:1>",
+          "me": {
+            "player": {
+              "handle": "<handle:1>",
+              "handleRerollFrom": "2026-10-02",
+              "sparks": 100,
+              "rating": 1000,
+              "league": "Pebble",
+              "leaderboard": true,
+              "joinedDay": "2026-10-02",
+              "battles": 0,
+              "canTrade": true,
+              "team": ["<card:1>","<card:2>","<card:3>"],
+              "wishlist": [],
+              "cardsVersion": 1,
+              "streak": 0,
+              "seen": ["s1-fable-0","s1-haiku-7","s1-sonnet-3"],
+              "rested": false,
+              "nextWildAt": 0,
+              "nextDuelAt": 0,
+              "nextChargeAt": 1790945100000,
+              "stats": {
+                "duelWins": 0,
+                "duelLosses": 0,
+                "playersBeaten": 0,
+                "wildWins": 0,
+                "catches": 0,
+                "speciesCollected": 3,
+                "firstFinds": 3,
+                "mythicsFound": 0,
+                "marketSales": 0
+              }
+            },
+            "packs": [
+              {"id":"<pack:1>","family":"fable","source":"welcome","day":"2026-10-02"},
+              {"id":"<pack:2>","family":"opus","source":"welcome","day":"2026-10-02"}
+            ],
+            "notices": [
+              {
+                "id": "<notice:1>",
+                "day": "2026-10-02",
+                "kind": "notice",
+                "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+              }
+            ],
+            "offers": {"incoming":[],"outgoing":[]},
+            "gifts": [],
+            "listings": [],
+            "now": 1790942400000
+          }
+        }
+      }
+    },
+    {
+      "op": "challenge",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/challenge",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"challenge":"<challenge:2>","difficulty":8}
+      }
+    },
+    {
+      "op": "join",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/join",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","content-type":"application/json"},
+        "body": {"challenge":"<challenge:2>","nonce":"<pow>","family":"haiku"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "token": "<token:2>",
+          "me": {
+            "player": {
+              "handle": "<handle:2>",
+              "handleRerollFrom": "2026-10-02",
+              "sparks": 100,
+              "rating": 1000,
+              "league": "Pebble",
+              "leaderboard": true,
+              "joinedDay": "2026-10-02",
+              "battles": 0,
+              "canTrade": true,
+              "team": ["<card:4>","<card:5>","<card:6>"],
+              "wishlist": [],
+              "cardsVersion": 1,
+              "streak": 0,
+              "seen": ["s1-fable-6","s1-opus-1","s1-sonnet-3"],
+              "rested": false,
+              "nextWildAt": 0,
+              "nextDuelAt": 0,
+              "nextChargeAt": 1790945100000,
+              "stats": {
+                "duelWins": 0,
+                "duelLosses": 0,
+                "playersBeaten": 0,
+                "wildWins": 0,
+                "catches": 0,
+                "speciesCollected": 3,
+                "firstFinds": 2,
+                "mythicsFound": 0,
+                "marketSales": 0
+              }
+            },
+            "packs": [
+              {"id":"<pack:3>","family":"haiku","source":"welcome","day":"2026-10-02"},
+              {"id":"<pack:4>","family":"opus","source":"welcome","day":"2026-10-02"}
+            ],
+            "notices": [
+              {
+                "id": "<notice:2>",
+                "day": "2026-10-02",
+                "kind": "notice",
+                "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+              }
+            ],
+            "offers": {"incoming":[],"outgoing":[]},
+            "gifts": [],
+            "listings": [],
+            "now": 1790942400000
+          }
+        }
+      }
+    },
+    {"setup":"trust","player":"a","at":1790942400000},
+    {"setup":"trust","player":"b","at":1790942400000},
+    {
+      "op": "buyPack",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/buy",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"family":"sonnet"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "packs": [
+            {"id":"<pack:5>","family":"sonnet","source":"bought","day":"2026-10-02"},
+            {"id":"<pack:1>","family":"fable","source":"welcome","day":"2026-10-02"},
+            {"id":"<pack:2>","family":"opus","source":"welcome","day":"2026-10-02"}
+          ]
+        }
+      }
+    },
+    {
+      "op": "buyPack",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/buy",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"family":"sonnet"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "packs": [
+            {"id":"<pack:5>","family":"sonnet","source":"bought","day":"2026-10-02"},
+            {"id":"<pack:6>","family":"sonnet","source":"bought","day":"2026-10-02"},
+            {"id":"<pack:1>","family":"fable","source":"welcome","day":"2026-10-02"},
+            {"id":"<pack:2>","family":"opus","source":"welcome","day":"2026-10-02"}
+          ]
+        }
+      }
+    },
+    {
+      "op": "buyPack",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/buy",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {"family":"fable"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "packs": [
+            {"id":"<pack:3>","family":"haiku","source":"welcome","day":"2026-10-02"},
+            {"id":"<pack:7>","family":"fable","source":"bought","day":"2026-10-02"},
+            {"id":"<pack:4>","family":"opus","source":"welcome","day":"2026-10-02"}
+          ]
+        }
+      }
+    },
+    {
+      "op": "me",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:1>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 4700,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-09-29",
+            "battles": 10,
+            "canTrade": true,
+            "team": ["<card:1>","<card:2>","<card:3>"],
+            "wishlist": [],
+            "cardsVersion": 1,
+            "streak": 0,
+            "seen": ["s1-fable-0","s1-haiku-7","s1-sonnet-3"],
+            "rested": true,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 3,
+              "firstFinds": 3,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [
+            {"id":"<pack:5>","family":"sonnet","source":"bought","day":"2026-10-02"},
+            {"id":"<pack:6>","family":"sonnet","source":"bought","day":"2026-10-02"},
+            {"id":"<pack:1>","family":"fable","source":"welcome","day":"2026-10-02"},
+            {"id":"<pack:2>","family":"opus","source":"welcome","day":"2026-10-02"}
+          ],
+          "notices": [
+            {
+              "id": "<notice:1>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942400000
+        }
+      }
+    },
+    {
+      "op": "openPack",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/open",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"packId":"<pack:5>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:7>",
+              "species": "s1-sonnet-7",
+              "season": 1,
+              "family": "sonnet",
+              "rarity": "common",
+              "shiny": false,
+              "foil": true,
+              "dna": 845240967,
+              "genes": [0,0,4,11],
+              "traits": ["showoff"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":36,"atk":16,"def":13,"spd":11},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:8>",
+              "species": "s1-sonnet-0",
+              "season": 1,
+              "family": "sonnet",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 3240131536,
+              "genes": [3,0,14,10],
+              "traits": ["ambush"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":44,"atk":19,"def":15,"spd":16},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "openPack",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/open",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"packId":"<pack:6>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:9>",
+              "species": "s1-sonnet-0",
+              "season": 1,
+              "family": "sonnet",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 3980889695,
+              "genes": [3,6,5,15],
+              "traits": ["showoff"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":44,"atk":21,"def":13,"spd":17},
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:10>",
+              "species": "s1-sonnet-2",
+              "season": 1,
+              "family": "sonnet",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 1854081981,
+              "genes": [2,8,1,4],
+              "traits": ["mimic"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":53,"atk":17,"def":15,"spd":12},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "openPack",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/open",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"packId":"<pack:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:11>",
+              "species": "s1-fable-3",
+              "season": 1,
+              "family": "fable",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 4133686154,
+              "genes": [3,15,14,4],
+              "traits": ["ambush"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":41,"atk":18,"def":18,"spd":15},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:12>",
+              "species": "s1-fable-1",
+              "season": 1,
+              "family": "fable",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 2842247608,
+              "genes": [8,11,12,0],
+              "traits": ["mimic"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":48,"atk":20,"def":17,"spd":12},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "openPack",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/open",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"packId":"<pack:2>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:13>",
+              "species": "s1-opus-2",
+              "season": 1,
+              "family": "opus",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 2487128748,
+              "genes": [4,7,4,2],
+              "traits": ["sleepy"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":63,"atk":22,"def":11,"spd":9},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:14>",
+              "species": "s1-opus-4",
+              "season": 1,
+              "family": "opus",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 513613722,
+              "genes": [9,6,1,8],
+              "traits": ["guardian"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":60,"atk":21,"def":13,"spd":8},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "me",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:2>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:2>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 4850,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-09-29",
+            "battles": 10,
+            "canTrade": true,
+            "team": ["<card:4>","<card:5>","<card:6>"],
+            "wishlist": [],
+            "cardsVersion": 1,
+            "streak": 0,
+            "seen": ["s1-fable-6","s1-opus-1","s1-sonnet-3"],
+            "rested": true,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 3,
+              "firstFinds": 2,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [
+            {"id":"<pack:3>","family":"haiku","source":"welcome","day":"2026-10-02"},
+            {"id":"<pack:7>","family":"fable","source":"bought","day":"2026-10-02"},
+            {"id":"<pack:4>","family":"opus","source":"welcome","day":"2026-10-02"}
+          ],
+          "notices": [
+            {
+              "id": "<notice:2>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942400000
+        }
+      }
+    },
+    {
+      "op": "openPack",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/open",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {"packId":"<pack:3>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:15>",
+              "species": "s1-haiku-2",
+              "season": 1,
+              "family": "haiku",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 3019067939,
+              "genes": [2,10,3,9],
+              "traits": ["quickCharge"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":37,"atk":15,"def":8,"spd":16},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:16>",
+              "species": "s1-haiku-7",
+              "season": 1,
+              "family": "haiku",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 1607459517,
+              "genes": [9,7,10,1],
+              "traits": ["mimic"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":45,"atk":17,"def":10,"spd":13},
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "openPack",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/open",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {"packId":"<pack:7>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:17>",
+              "species": "s1-fable-0",
+              "season": 1,
+              "family": "fable",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 3892098404,
+              "genes": [5,8,10,8],
+              "traits": ["swift"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":41,"atk":22,"def":16,"spd":17},
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:18>",
+              "species": "s1-fable-1",
+              "season": 1,
+              "family": "fable",
+              "rarity": "epic",
+              "shiny": false,
+              "dna": 4237975555,
+              "genes": [5,9,2,7],
+              "traits": ["moonlit","ambush"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":50,"atk":21,"def":16,"spd":15},
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "openPack",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/packs/open",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {"packId":"<pack:4>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:19>",
+              "species": "s1-opus-6",
+              "season": 1,
+              "family": "opus",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 55621441,
+              "genes": [10,2,3,10],
+              "traits": ["underdog"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":63,"atk":20,"def":18,"spd":10},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:20>",
+              "species": "s1-opus-0",
+              "season": 1,
+              "family": "opus",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 1825971336,
+              "genes": [5,13,11,15],
+              "traits": ["thickHide"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":62,"atk":25,"def":17,"spd":13},
+              "firstFind": true,
+              "xp": 0,
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "me",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:1>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 4700,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-09-29",
+            "battles": 10,
+            "canTrade": true,
+            "team": ["<card:1>","<card:2>","<card:3>"],
+            "wishlist": [],
+            "cardsVersion": 5,
+            "streak": 0,
+            "seen": [
+              "s1-fable-0",
+              "s1-fable-1",
+              "s1-fable-3",
+              "s1-haiku-7",
+              "s1-opus-2",
+              "s1-opus-4",
+              "s1-sonnet-0",
+              "s1-sonnet-2",
+              "s1-sonnet-3",
+              "s1-sonnet-7"
+            ],
+            "rested": true,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 10,
+              "firstFinds": 10,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [],
+          "notices": [
+            {
+              "id": "<notice:1>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942400000
+        }
+      }
+    },
+    {
+      "op": "cards",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/cards",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:7>",
+              "species": "s1-sonnet-7",
+              "genes": [0,0,4,11],
+              "traits": ["showoff"],
+              "rarity": "common",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "sonnet",
+              "shiny": false,
+              "foil": true,
+              "dna": 845240967,
+              "xp": 0,
+              "stats": {"hp":36,"atk":16,"def":13,"spd":11},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:10>",
+              "species": "s1-sonnet-2",
+              "genes": [2,8,1,4],
+              "traits": ["mimic"],
+              "rarity": "rare",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "sonnet",
+              "shiny": false,
+              "dna": 1854081981,
+              "xp": 0,
+              "stats": {"hp":53,"atk":17,"def":15,"spd":12},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:12>",
+              "species": "s1-fable-1",
+              "genes": [8,11,12,0],
+              "traits": ["mimic"],
+              "rarity": "rare",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "fable",
+              "shiny": false,
+              "dna": 2842247608,
+              "xp": 0,
+              "stats": {"hp":48,"atk":20,"def":17,"spd":12},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:1>",
+              "species": "s1-fable-0",
+              "genes": [15,5,3,5],
+              "traits": ["swift"],
+              "rarity": "common",
+              "level": 3,
+              "stage": 1,
+              "season": 1,
+              "family": "fable",
+              "shiny": false,
+              "dna": 1120059523,
+              "xp": 100,
+              "stats": {"hp":55,"atk":24,"def":16,"spd":18},
+              "bound": true,
+              "forTrade": false,
+              "origin": "starter",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:14>",
+              "species": "s1-opus-4",
+              "genes": [9,6,1,8],
+              "traits": ["guardian"],
+              "rarity": "rare",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "opus",
+              "shiny": false,
+              "dna": 513613722,
+              "xp": 0,
+              "stats": {"hp":60,"atk":21,"def":13,"spd":8},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:9>",
+              "species": "s1-sonnet-0",
+              "genes": [3,6,5,15],
+              "traits": ["showoff"],
+              "rarity": "rare",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "sonnet",
+              "shiny": false,
+              "dna": 3980889695,
+              "xp": 0,
+              "stats": {"hp":44,"atk":21,"def":13,"spd":17},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:13>",
+              "species": "s1-opus-2",
+              "genes": [4,7,4,2],
+              "traits": ["sleepy"],
+              "rarity": "common",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "opus",
+              "shiny": false,
+              "dna": 2487128748,
+              "xp": 0,
+              "stats": {"hp":63,"atk":22,"def":11,"spd":9},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:11>",
+              "species": "s1-fable-3",
+              "genes": [3,15,14,4],
+              "traits": ["ambush"],
+              "rarity": "rare",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "fable",
+              "shiny": false,
+              "dna": 4133686154,
+              "xp": 0,
+              "stats": {"hp":41,"atk":18,"def":18,"spd":15},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:8>",
+              "species": "s1-sonnet-0",
+              "genes": [3,0,14,10],
+              "traits": ["ambush"],
+              "rarity": "rare",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "sonnet",
+              "shiny": false,
+              "dna": 3240131536,
+              "xp": 0,
+              "stats": {"hp":44,"atk":19,"def":15,"spd":16},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:2>",
+              "species": "s1-sonnet-3",
+              "genes": [2,8,2,2],
+              "traits": ["moonlit"],
+              "rarity": "common",
+              "level": 3,
+              "stage": 1,
+              "season": 1,
+              "family": "sonnet",
+              "shiny": false,
+              "dna": 2116005610,
+              "xp": 100,
+              "stats": {"hp":55,"atk":15,"def":12,"spd":11},
+              "bound": true,
+              "forTrade": false,
+              "origin": "starter",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:3>",
+              "species": "s1-haiku-7",
+              "genes": [8,0,11,13],
+              "traits": ["luckyStar"],
+              "rarity": "common",
+              "level": 3,
+              "stage": 1,
+              "season": 1,
+              "family": "haiku",
+              "shiny": false,
+              "dna": 1640025553,
+              "xp": 100,
+              "stats": {"hp":47,"atk":16,"def":10,"spd":16},
+              "bound": true,
+              "forTrade": false,
+              "origin": "starter",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            }
+          ],
+          "version": 5
+        }
+      }
+    },
+    {
+      "op": "me",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:2>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:2>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 4850,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-09-29",
+            "battles": 10,
+            "canTrade": true,
+            "team": ["<card:4>","<card:5>","<card:6>"],
+            "wishlist": [],
+            "cardsVersion": 4,
+            "streak": 0,
+            "seen": [
+              "s1-fable-0",
+              "s1-fable-1",
+              "s1-fable-6",
+              "s1-haiku-2",
+              "s1-haiku-7",
+              "s1-opus-0",
+              "s1-opus-1",
+              "s1-opus-6",
+              "s1-sonnet-3"
+            ],
+            "rested": true,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 9,
+              "firstFinds": 5,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [],
+          "notices": [
+            {
+              "id": "<notice:2>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942400000
+        }
+      }
+    },
+    {
+      "op": "cards",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/cards",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:2>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:6>",
+              "species": "s1-sonnet-3",
+              "genes": [15,15,0,13],
+              "traits": ["thickHide"],
+              "rarity": "common",
+              "level": 3,
+              "stage": 1,
+              "season": 1,
+              "family": "sonnet",
+              "shiny": false,
+              "dna": 2212577629,
+              "xp": 100,
+              "stats": {"hp":68,"atk":17,"def":12,"spd":13},
+              "bound": true,
+              "forTrade": false,
+              "origin": "starter",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:5>",
+              "species": "s1-fable-6",
+              "genes": [11,11,7,6],
+              "traits": ["guardian"],
+              "rarity": "common",
+              "level": 3,
+              "stage": 1,
+              "season": 1,
+              "family": "fable",
+              "shiny": false,
+              "dna": 3145135143,
+              "xp": 100,
+              "stats": {"hp":51,"atk":18,"def":16,"spd":13},
+              "bound": true,
+              "forTrade": false,
+              "origin": "starter",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:15>",
+              "species": "s1-haiku-2",
+              "genes": [2,10,3,9],
+              "traits": ["quickCharge"],
+              "rarity": "common",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "haiku",
+              "shiny": false,
+              "dna": 3019067939,
+              "xp": 0,
+              "stats": {"hp":37,"atk":15,"def":8,"spd":16},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:4>",
+              "species": "s1-opus-1",
+              "genes": [1,13,2,4],
+              "traits": ["thickHide"],
+              "rarity": "common",
+              "level": 3,
+              "stage": 1,
+              "season": 1,
+              "family": "opus",
+              "shiny": false,
+              "dna": 3282270237,
+              "xp": 100,
+              "stats": {"hp":49,"atk":27,"def":16,"spd":10},
+              "bound": true,
+              "forTrade": false,
+              "origin": "starter",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:19>",
+              "species": "s1-opus-6",
+              "genes": [10,2,3,10],
+              "traits": ["underdog"],
+              "rarity": "rare",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "opus",
+              "shiny": false,
+              "dna": 55621441,
+              "xp": 0,
+              "stats": {"hp":63,"atk":20,"def":18,"spd":10},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:17>",
+              "species": "s1-fable-0",
+              "genes": [5,8,10,8],
+              "traits": ["swift"],
+              "rarity": "common",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "fable",
+              "shiny": false,
+              "dna": 3892098404,
+              "xp": 0,
+              "stats": {"hp":41,"atk":22,"def":16,"spd":17},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:16>",
+              "species": "s1-haiku-7",
+              "genes": [9,7,10,1],
+              "traits": ["mimic"],
+              "rarity": "rare",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "haiku",
+              "shiny": false,
+              "dna": 1607459517,
+              "xp": 0,
+              "stats": {"hp":45,"atk":17,"def":10,"spd":13},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:18>",
+              "species": "s1-fable-1",
+              "genes": [5,9,2,7],
+              "traits": ["moonlit","ambush"],
+              "rarity": "epic",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "fable",
+              "shiny": false,
+              "dna": 4237975555,
+              "xp": 0,
+              "stats": {"hp":50,"atk":21,"def":16,"spd":15},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned"
+            },
+            {
+              "id": "<card:20>",
+              "species": "s1-opus-0",
+              "genes": [5,13,11,15],
+              "traits": ["thickHide"],
+              "rarity": "rare",
+              "level": 1,
+              "stage": 1,
+              "season": 1,
+              "family": "opus",
+              "shiny": false,
+              "dna": 1825971336,
+              "xp": 0,
+              "stats": {"hp":62,"atk":25,"def":17,"spd":13},
+              "bound": false,
+              "forTrade": false,
+              "origin": "pack",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            }
+          ],
+          "version": 4
+        }
+      }
+    },
+    {
+      "op": "listCard",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"cardId":"<card:7>","price":25}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "listing": {
+            "id": "<listing:1>",
+            "seller": "<handle:1>",
+            "card": {
+              "id": "<card:7>",
+              "species": "s1-sonnet-7",
+              "season": 1,
+              "family": "sonnet",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 845240967,
+              "genes": [0,0,4,11],
+              "traits": ["showoff"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":36,"atk":16,"def":13,"spd":11},
+              "foil": true,
+              "firstFind": true
+            },
+            "price": 25,
+            "day": "2026-10-02",
+            "state": "open"
+          }
+        }
+      }
+    },
+    {
+      "op": "listCard",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"cardId":"<card:7>","price":25}
+      },
+      "response": {
+        "status": 403,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"not_allowed","message":"That card is held for a trade, a gift or the market"}}
+      }
+    },
+    {
+      "op": "listCard",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"cardId":"<card:10>","want":{"family":"haiku"}}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "listing": {
+            "id": "<listing:2>",
+            "seller": "<handle:1>",
+            "card": {
+              "id": "<card:10>",
+              "species": "s1-sonnet-2",
+              "season": 1,
+              "family": "sonnet",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 1854081981,
+              "genes": [2,8,1,4],
+              "traits": ["mimic"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":53,"atk":17,"def":15,"spd":12},
+              "firstFind": true
+            },
+            "price": 0,
+            "want": {"family":"haiku"},
+            "day": "2026-10-02",
+            "state": "open"
+          }
+        }
+      }
+    },
+    {
+      "op": "me",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:1>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 4700,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-09-29",
+            "battles": 10,
+            "canTrade": true,
+            "team": ["<card:1>","<card:2>","<card:3>"],
+            "wishlist": [],
+            "cardsVersion": 7,
+            "streak": 0,
+            "seen": [
+              "s1-fable-0",
+              "s1-fable-1",
+              "s1-fable-3",
+              "s1-haiku-7",
+              "s1-opus-2",
+              "s1-opus-4",
+              "s1-sonnet-0",
+              "s1-sonnet-2",
+              "s1-sonnet-3",
+              "s1-sonnet-7"
+            ],
+            "rested": true,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 10,
+              "firstFinds": 10,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [],
+          "notices": [
+            {
+              "id": "<notice:1>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [
+            {
+              "id": "<listing:2>",
+              "seller": "<handle:1>",
+              "card": {
+                "id": "<card:10>",
+                "species": "s1-sonnet-2",
+                "season": 1,
+                "family": "sonnet",
+                "rarity": "rare",
+                "shiny": false,
+                "dna": 1854081981,
+                "genes": [2,8,1,4],
+                "traits": ["mimic"],
+                "level": 1,
+                "stage": 1,
+                "stats": {"hp":53,"atk":17,"def":15,"spd":12},
+                "firstFind": true
+              },
+              "price": 0,
+              "want": {"family":"haiku"},
+              "day": "2026-10-02",
+              "state": "open"
+            },
+            {
+              "id": "<listing:1>",
+              "seller": "<handle:1>",
+              "card": {
+                "id": "<card:7>",
+                "species": "s1-sonnet-7",
+                "season": 1,
+                "family": "sonnet",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 845240967,
+                "genes": [0,0,4,11],
+                "traits": ["showoff"],
+                "level": 1,
+                "stage": 1,
+                "stats": {"hp":36,"atk":16,"def":13,"spd":11},
+                "foil": true,
+                "firstFind": true
+              },
+              "price": 25,
+              "day": "2026-10-02",
+              "state": "open"
+            }
+          ],
+          "now": 1790942400000
+        }
+      }
+    },
+    {
+      "op": "market",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/market?sort=cheapest",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:2>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "listings": [
+            {
+              "id": "<listing:2>",
+              "seller": "<handle:1>",
+              "card": {
+                "id": "<card:10>",
+                "species": "s1-sonnet-2",
+                "season": 1,
+                "family": "sonnet",
+                "rarity": "rare",
+                "shiny": false,
+                "dna": 1854081981,
+                "genes": [2,8,1,4],
+                "traits": ["mimic"],
+                "level": 1,
+                "stage": 1,
+                "stats": {"hp":53,"atk":17,"def":15,"spd":12},
+                "firstFind": true
+              },
+              "price": 0,
+              "want": {"family":"haiku"},
+              "day": "2026-10-02",
+              "state": "open"
+            },
+            {
+              "id": "<listing:1>",
+              "seller": "<handle:1>",
+              "card": {
+                "id": "<card:7>",
+                "species": "s1-sonnet-7",
+                "season": 1,
+                "family": "sonnet",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 845240967,
+                "genes": [0,0,4,11],
+                "traits": ["showoff"],
+                "level": 1,
+                "stage": 1,
+                "stats": {"hp":36,"atk":16,"def":13,"spd":11},
+                "foil": true,
+                "firstFind": true
+              },
+              "price": 25,
+              "day": "2026-10-02",
+              "state": "open"
+            }
+          ],
+          "prices": []
+        }
+      }
+    },
+    {
+      "op": "buyListing",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market/<listing:1>/buy",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 403,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"not_allowed","message":"That listing is yours: take it off the market instead"}}
+      }
+    },
+    {
+      "op": "buyListing",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market/<listing:1>/buy",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "listing": {
+            "id": "<listing:1>",
+            "seller": "<handle:1>",
+            "card": {
+              "id": "<card:7>",
+              "species": "s1-sonnet-7",
+              "season": 1,
+              "family": "sonnet",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 845240967,
+              "genes": [0,0,4,11],
+              "traits": ["showoff"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":36,"atk":16,"def":13,"spd":11},
+              "foil": true,
+              "firstFind": true
+            },
+            "price": 25,
+            "day": "2026-10-02",
+            "state": "sold"
+          },
+          "card": {
+            "id": "<card:7>",
+            "species": "s1-sonnet-7",
+            "genes": [0,0,4,11],
+            "traits": ["showoff"],
+            "rarity": "common",
+            "level": 1,
+            "stage": 1,
+            "season": 1,
+            "family": "sonnet",
+            "shiny": false,
+            "foil": true,
+            "dna": 845240967,
+            "xp": 0,
+            "stats": {"hp":36,"atk":16,"def":13,"spd":11},
+            "bound": false,
+            "forTrade": false,
+            "origin": "gift",
+            "mintedAt": 1790899200000,
+            "lockedUntil": 0,
+            "tiredUntil": 0,
+            "state": "owned",
+            "firstFind": true
+          },
+          "sparks": 4825
+        }
+      }
+    },
+    {
+      "op": "buyListing",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market/<listing:1>/buy",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 409,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"conflict","message":"Already sold"}}
+      }
+    },
+    {
+      "op": "buyListing",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market/<listing:2>/buy",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 400,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"bad_request","message":"Pick a card of yours that fits this listing"}}
+      }
+    },
+    {
+      "op": "buyListing",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market/<listing:2>/buy",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {"cardId":"<card:15>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "listing": {
+            "id": "<listing:2>",
+            "seller": "<handle:1>",
+            "card": {
+              "id": "<card:10>",
+              "species": "s1-sonnet-2",
+              "season": 1,
+              "family": "sonnet",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 1854081981,
+              "genes": [2,8,1,4],
+              "traits": ["mimic"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":53,"atk":17,"def":15,"spd":12},
+              "firstFind": true
+            },
+            "price": 0,
+            "want": {"family":"haiku"},
+            "day": "2026-10-02",
+            "state": "sold"
+          },
+          "card": {
+            "id": "<card:10>",
+            "species": "s1-sonnet-2",
+            "genes": [2,8,1,4],
+            "traits": ["mimic"],
+            "rarity": "rare",
+            "level": 1,
+            "stage": 1,
+            "season": 1,
+            "family": "sonnet",
+            "shiny": false,
+            "dna": 1854081981,
+            "xp": 0,
+            "stats": {"hp":53,"atk":17,"def":15,"spd":12},
+            "bound": false,
+            "forTrade": false,
+            "origin": "gift",
+            "mintedAt": 1790899200000,
+            "lockedUntil": 0,
+            "tiredUntil": 0,
+            "state": "owned",
+            "firstFind": true
+          },
+          "sparks": 4825
+        }
+      }
+    },
+    {
+      "op": "listCard",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"cardId":"<card:12>","price":3}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "listing": {
+            "id": "<listing:3>",
+            "seller": "<handle:1>",
+            "card": {
+              "id": "<card:12>",
+              "species": "s1-fable-1",
+              "season": 1,
+              "family": "fable",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 2842247608,
+              "genes": [8,11,12,0],
+              "traits": ["mimic"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":48,"atk":20,"def":17,"spd":12},
+              "firstFind": true
+            },
+            "price": 3,
+            "day": "2026-10-02",
+            "state": "open"
+          }
+        }
+      }
+    },
+    {
+      "op": "cancelListing",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market/<listing:3>/cancel",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 404,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"not_found","message":"No such listing"}}
+      }
+    },
+    {
+      "op": "cancelListing",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/market/<listing:3>/cancel",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "listing": {
+            "id": "<listing:3>",
+            "seller": "<handle:1>",
+            "card": {
+              "id": "<card:12>",
+              "species": "s1-fable-1",
+              "season": 1,
+              "family": "fable",
+              "rarity": "rare",
+              "shiny": false,
+              "dna": 2842247608,
+              "genes": [8,11,12,0],
+              "traits": ["mimic"],
+              "level": 1,
+              "stage": 1,
+              "stats": {"hp":48,"atk":20,"def":17,"spd":12},
+              "firstFind": true
+            },
+            "price": 3,
+            "day": "2026-10-02",
+            "state": "cancelled"
+          }
+        }
+      }
+    },
+    {
+      "op": "rankings",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/leaderboards?board=sales&period=season",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"board":"sales","period":"season","season":1,"top":[]}
+      }
+    },
+    {
+      "op": "me",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:2>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:2>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 4825,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-09-29",
+            "battles": 10,
+            "canTrade": true,
+            "team": ["<card:4>","<card:5>","<card:6>"],
+            "wishlist": [],
+            "cardsVersion": 6,
+            "streak": 0,
+            "seen": [
+              "s1-fable-0",
+              "s1-fable-1",
+              "s1-fable-6",
+              "s1-haiku-2",
+              "s1-haiku-7",
+              "s1-opus-0",
+              "s1-opus-1",
+              "s1-opus-6",
+              "s1-sonnet-2",
+              "s1-sonnet-3",
+              "s1-sonnet-7"
+            ],
+            "rested": true,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 11,
+              "firstFinds": 5,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [],
+          "notices": [
+            {
+              "id": "<notice:2>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942400000
+        }
+      }
+    },
+    {
+      "op": "startBattle",
+      "player": "b",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {"kind":"duel","family":"haiku","handle":"<handle:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "id": "<battle:1>",
+          "setup": {
+            "seed": "2c1e197ae4f319608392096ab8cc9825",
+            "kind": "duel",
+            "arena": "haiku",
+            "rule": "opusDay",
+            "rules": 1,
+            "attacker": [
+              {
+                "id": "<card:4>",
+                "species": "s1-opus-1",
+                "season": 1,
+                "family": "opus",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 3282270237,
+                "genes": [1,13,2,4],
+                "traits": ["thickHide"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":49,"atk":27,"def":16,"spd":10},
+                "firstFind": true
+              },
+              {
+                "id": "<card:5>",
+                "species": "s1-fable-6",
+                "season": 1,
+                "family": "fable",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 3145135143,
+                "genes": [11,11,7,6],
+                "traits": ["guardian"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":51,"atk":18,"def":16,"spd":13},
+                "firstFind": true
+              },
+              {
+                "id": "<card:6>",
+                "species": "s1-sonnet-3",
+                "season": 1,
+                "family": "sonnet",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 2212577629,
+                "genes": [15,15,0,13],
+                "traits": ["thickHide"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":68,"atk":17,"def":12,"spd":13}
+              }
+            ],
+            "defender": [
+              {
+                "id": "<card:1>",
+                "species": "s1-fable-0",
+                "season": 1,
+                "family": "fable",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 1120059523,
+                "genes": [15,5,3,5],
+                "traits": ["swift"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":55,"atk":24,"def":16,"spd":18},
+                "firstFind": true
+              },
+              {
+                "id": "<card:2>",
+                "species": "s1-sonnet-3",
+                "season": 1,
+                "family": "sonnet",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 2116005610,
+                "genes": [2,8,2,2],
+                "traits": ["moonlit"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":55,"atk":15,"def":12,"spd":11},
+                "firstFind": true
+              },
+              {
+                "id": "<card:3>",
+                "species": "s1-haiku-7",
+                "season": 1,
+                "family": "haiku",
+                "rarity": "common",
+                "shiny": false,
+                "dna": 1640025553,
+                "genes": [8,0,11,13],
+                "traits": ["luckyStar"],
+                "level": 3,
+                "stage": 1,
+                "stats": {"hp":47,"atk":16,"def":10,"spd":16},
+                "firstFind": true
+              }
+            ]
+          },
+          "opponent": {"kind":"player","handle":"<handle:1>","league":"Pebble"},
+          "subs": [],
+          "firstPossible": [false,false,false],
+          "startedAt": 1790942400000,
+          "finishAfter": 1790942427000
+        }
+      }
+    },
+    {
+      "op": "finishBattle",
+      "player": "b",
+      "at": 1790942427000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/battles/<battle:1>/finish",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.8",
+          "authorization": "Bearer <token:2>",
+          "content-type": "application/json"
+        },
+        "body": {"inputs":[9,12,15]}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "result": "win",
+          "sparks": 3,
+          "xp": [
+            {"cardId":"<card:4>","xp":20,"levelsGained":1,"evolved":true,"stage":2},
+            {"cardId":"<card:5>","xp":20,"levelsGained":1,"evolved":true,"stage":2},
+            {"cardId":"<card:6>","xp":20,"levelsGained":1,"evolved":true,"stage":2}
+          ],
+          "rating": 1000,
+          "ratingDelta": 0,
+          "catchOptions": [],
+          "dailyWinPack": false,
+          "streak": 0,
+          "streakPack": false,
+          "tired": [],
+          "log": {
+            "rounds": [
+              {
+                "round": 1,
+                "actions": [
+                  {
+                    "round": 1,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 17,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["thickHide"]
+                  },
+                  {
+                    "round": 1,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 20,
+                    "crit": true,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[32,51,68],"d":[35,55,47]},
+                "charge": {"a":[1,0,0],"d":[1,0,0]},
+                "active": {"a":0,"d":0},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 2,
+                "actions": [
+                  {
+                    "round": 2,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 17,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["thickHide"]
+                  },
+                  {
+                    "round": 2,
+                    "side": "a",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 13,
+                    "crit": false,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[15,51,68],"d":[22,55,47]},
+                "charge": {"a":[2,0,0],"d":[2,0,0]},
+                "active": {"a":0,"d":0},
+                "attackerSpecialReady": true
+              },
+              {
+                "round": 3,
+                "actions": [
+                  {
+                    "round": 3,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 0,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 30,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": ["thickHide"],
+                    "special": "twist"
+                  }
+                ],
+                "hp": {"a":[0,51,68],"d":[22,55,47]},
+                "charge": {"a":[2,0,0],"d":[0,0,0]},
+                "active": {"a":1,"d":0},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 4,
+                "actions": [
+                  {
+                    "round": 4,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 14,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 4,
+                    "side": "a",
+                    "slot": 1,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 9,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[0,37,68],"d":[13,55,47]},
+                "charge": {"a":[2,1,0],"d":[1,0,0]},
+                "active": {"a":1,"d":0},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 5,
+                "actions": [
+                  {
+                    "round": 5,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 12,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 5,
+                    "side": "a",
+                    "slot": 1,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 8,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[0,25,68],"d":[5,55,47]},
+                "charge": {"a":[2,2,0],"d":[2,0,0]},
+                "active": {"a":1,"d":0},
+                "attackerSpecialReady": true
+              },
+              {
+                "round": 6,
+                "actions": [
+                  {
+                    "round": 6,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 1,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 32,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": ["guardian"],
+                    "special": "twist"
+                  }
+                ],
+                "hp": {"a":[0,0,68],"d":[5,55,47]},
+                "charge": {"a":[2,2,0],"d":[0,0,0]},
+                "active": {"a":2,"d":0},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 7,
+                "actions": [
+                  {
+                    "round": 7,
+                    "side": "d",
+                    "slot": 0,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 13,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["thickHide"]
+                  },
+                  {
+                    "round": 7,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 0,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 9,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[0,0,55],"d":[0,55,47]},
+                "charge": {"a":[2,2,1],"d":[1,0,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 8,
+                "actions": [
+                  {
+                    "round": 8,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 9,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 8,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 7,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["thickHide"]
+                  }
+                ],
+                "hp": {"a":[0,0,48],"d":[0,46,47]},
+                "charge": {"a":[2,2,2],"d":[1,1,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": true
+              },
+              {
+                "round": 9,
+                "actions": [
+                  {
+                    "round": 9,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 18,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 10,
+                    "targetFainted": false,
+                    "traits": [],
+                    "special": "couplet",
+                    "perfect": true
+                  },
+                  {
+                    "round": 9,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 7,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["thickHide"]
+                  }
+                ],
+                "hp": {"a":[0,0,51],"d":[0,28,47]},
+                "charge": {"a":[2,2,0],"d":[1,2,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 10,
+                "actions": [
+                  {
+                    "round": 10,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 9,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 10,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 10,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 11,
+                    "targetFainted": false,
+                    "traits": ["thickHide","moonlit"],
+                    "special": "couplet"
+                  }
+                ],
+                "hp": {"a":[0,0,41],"d":[0,30,47]},
+                "charge": {"a":[2,2,1],"d":[1,0,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 11,
+                "actions": [
+                  {
+                    "round": 11,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 9,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  },
+                  {
+                    "round": 11,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 7,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["thickHide"]
+                  }
+                ],
+                "hp": {"a":[0,0,34],"d":[0,21,47]},
+                "charge": {"a":[2,2,2],"d":[1,1,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": true
+              },
+              {
+                "round": 12,
+                "actions": [
+                  {
+                    "round": 12,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 17,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 10,
+                    "targetFainted": false,
+                    "traits": [],
+                    "special": "couplet",
+                    "perfect": true
+                  },
+                  {
+                    "round": 12,
+                    "side": "d",
+                    "slot": 1,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 6,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["thickHide"]
+                  }
+                ],
+                "hp": {"a":[0,0,38],"d":[0,4,47]},
+                "charge": {"a":[2,2,0],"d":[1,2,0]},
+                "active": {"a":2,"d":1},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 13,
+                "actions": [
+                  {
+                    "round": 13,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 1,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 8,
+                    "crit": false,
+                    "effect": "normal",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[0,0,38],"d":[0,0,47]},
+                "charge": {"a":[2,2,1],"d":[1,2,0]},
+                "active": {"a":2,"d":2},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 14,
+                "actions": [
+                  {
+                    "round": 14,
+                    "side": "d",
+                    "slot": 2,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 5,
+                    "crit": false,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["thickHide"]
+                  },
+                  {
+                    "round": 14,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 15,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[0,0,33],"d":[0,0,32]},
+                "charge": {"a":[2,2,2],"d":[1,2,1]},
+                "active": {"a":2,"d":2},
+                "attackerSpecialReady": true
+              },
+              {
+                "round": 15,
+                "actions": [
+                  {
+                    "round": 15,
+                    "side": "d",
+                    "slot": 2,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 5,
+                    "crit": false,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["thickHide"]
+                  },
+                  {
+                    "round": 15,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 2,
+                    "move": "special",
+                    "hits": 1,
+                    "dmg": 30,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 10,
+                    "targetFainted": false,
+                    "traits": [],
+                    "special": "couplet",
+                    "perfect": true
+                  }
+                ],
+                "hp": {"a":[0,0,38],"d":[0,0,2]},
+                "charge": {"a":[2,2,0],"d":[1,2,2]},
+                "active": {"a":2,"d":2},
+                "attackerSpecialReady": false
+              },
+              {
+                "round": 16,
+                "actions": [
+                  {
+                    "round": 16,
+                    "side": "d",
+                    "slot": 2,
+                    "targetSlot": 2,
+                    "move": "special",
+                    "hits": 2,
+                    "dmg": 10,
+                    "crit": false,
+                    "effect": "weak",
+                    "heal": 0,
+                    "targetFainted": false,
+                    "traits": ["thickHide"],
+                    "special": "flurry"
+                  },
+                  {
+                    "round": 16,
+                    "side": "a",
+                    "slot": 2,
+                    "targetSlot": 2,
+                    "move": "attack",
+                    "hits": 1,
+                    "dmg": 14,
+                    "crit": false,
+                    "effect": "super",
+                    "heal": 0,
+                    "targetFainted": true,
+                    "traits": []
+                  }
+                ],
+                "hp": {"a":[0,0,28],"d":[0,0,0]},
+                "charge": {"a":[2,2,1],"d":[1,2,0]},
+                "active": {"a":2,"d":-1},
+                "attackerSpecialReady": false
+              }
+            ],
+            "result": "win",
+            "maxHp": {"a":[49,51,68],"d":[55,55,47]},
+            "fainted": {"a":[0,1],"d":[0,1,2]}
+          },
+          "bounty": null
+        }
+      }
+    },
+    {
+      "op": "profile",
+      "player": "b",
+      "at": 1790942427000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/players/<handle:1>",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:2>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "handle": "<handle:1>",
+          "league": "Pebble",
+          "team": [
+            {
+              "id": "<card:1>",
+              "species": "s1-fable-0",
+              "season": 1,
+              "family": "fable",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 1120059523,
+              "genes": [15,5,3,5],
+              "traits": ["swift"],
+              "level": 3,
+              "stage": 1,
+              "stats": {"hp":55,"atk":24,"def":16,"spd":18},
+              "firstFind": true
+            },
+            {
+              "id": "<card:2>",
+              "species": "s1-sonnet-3",
+              "season": 1,
+              "family": "sonnet",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 2116005610,
+              "genes": [2,8,2,2],
+              "traits": ["moonlit"],
+              "level": 3,
+              "stage": 1,
+              "stats": {"hp":55,"atk":15,"def":12,"spd":11},
+              "firstFind": true
+            },
+            {
+              "id": "<card:3>",
+              "species": "s1-haiku-7",
+              "season": 1,
+              "family": "haiku",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 1640025553,
+              "genes": [8,0,11,13],
+              "traits": ["luckyStar"],
+              "level": 3,
+              "stage": 1,
+              "stats": {"hp":47,"atk":16,"def":10,"spd":16},
+              "firstFind": true
+            }
+          ],
+          "forTrade": [],
+          "seenCount": 3,
+          "stats": {
+            "duelWins": 0,
+            "duelLosses": 0,
+            "playersBeaten": 0,
+            "wildWins": 0,
+            "catches": 0,
+            "speciesCollected": 3,
+            "firstFinds": 3,
+            "mythicsFound": 0,
+            "marketSales": 0
+          }
+        }
+      }
+    },
+    {
+      "op": "leaderboard",
+      "player": "b",
+      "at": 1790942427000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/leaderboard",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.8","authorization":"Bearer <token:2>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "top": [
+            {"handle":"<handle:1>","league":"Pebble","rating":1000},
+            {"handle":"<handle:2>","league":"Pebble","rating":1000}
+          ]
+        }
+      }
+    }
+  ]
+}

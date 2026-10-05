@@ -51,9 +51,10 @@ function regionsLeaveButtonsExposed(tree: unknown): number {
     const region = parents.at(-2)!
     expect(node.props).toMatchObject({ width: '100%', flexGrow: 1 })
     expect(node.props?.height).toBeUndefined()
-    expect(overlay.props).toMatchObject({ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, flexDirection: 'column' })
     expect(region.props).toMatchObject({ position: 'relative', flexDirection: 'column', overflow: 'hidden' })
     const content = region.children![0] as Node
+    const edge = content.type === 'Svg' ? -1 : 0
+    expect(overlay.props).toMatchObject({ position: 'absolute', top: 0, bottom: edge, left: 0, right: edge, flexDirection: 'column' })
     if (content.type === 'Svg') expect((node.props?.props as { size: unknown }).size).toEqual({ pixels: { width: content.props!.width, height: content.props!.height } })
     const controls: string[] = []
     nodes(region, n => { if (['Button', 'Input', 'Select', 'Link'].includes(n.type)) controls.push(n.type) })
@@ -62,14 +63,30 @@ function regionsLeaveButtonsExposed(tree: unknown): number {
   return count
 }
 
+/** Desktop Ds differs from the headless reader: SVG alt is trimmed and must be nonempty. */
+function nativeSvgSupported(node: Node): boolean {
+  const p = node.props ?? {}
+  return node.type === 'Svg' && node.children === undefined
+    && typeof p.source === 'string' && p.source.length > 0 && p.source.length <= 131072
+    && typeof p.alt === 'string' && p.alt.trim().length > 0
+    && ['width', 'height'].every(k => typeof p[k] === 'number' && Number.isFinite(p[k]) && (p[k] as number) > 0 && (p[k] as number) <= 4096)
+    && (p.isInteractive === undefined || typeof p.isInteractive === 'boolean')
+}
+
 async function intrinsicExtent(ui: Mounted, key: string): Promise<void> {
   const size = ((await ui.find({ key }))!.props.props as { size: { pixels?: { width: number; height: number }; rows?: number } }).size
   if (size.pixels) {
     const spacers = await ui.findAll({ type: 'Svg', in: key })
     expect(spacers).toHaveLength(1)
-    expect(spacers[0]!.props).toMatchObject({ ...size.pixels, alt: '' })
-    // No painted shapes or hidden duplicate art: only the exact intrinsic viewport establishes the hit region.
+    expect(spacers[0]!.props).toMatchObject({ ...size.pixels, alt: 'Select creature' })
+    expect(nativeSvgSupported({ type: 'Svg', props: spacers[0]!.props })).toBe(true)
+    for (const alt of ['', ' \n\t ']) expect(nativeSvgSupported({ type: 'Svg', props: { ...spacers[0]!.props, alt } })).toBe(false)
+    expect(nativeSvgSupported({ type: 'Svg', props: spacers[0]!.props, children: [] })).toBe(false)
+    // No painted shapes or duplicate art: the exact viewport plus one clipped Text line establishes the height.
     expect(spacers[0]!.props.source).toBe(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size.pixels.width} ${size.pixels.height}"/>`)
+    const padding = await ui.findAll({ type: 'Text', in: key })
+    expect(padding).toHaveLength(1)
+    expect(padding[0]!.text).toBe(' ')
   } else {
     const spacers = await ui.findAll({ type: 'Text', in: key })
     expect(spacers).toHaveLength(1)
@@ -102,6 +119,50 @@ test('desktop team and collection keep distinct artwork, family and rarity regio
       expect(probe.state.pane.stack[0]?.kind).toBe('card')
       await ui.unmount()
     }
+  }
+})
+
+test('clipped artwork padding covers partial right and bottom cells without relaxing captured-release bounds', { timeoutMs: 30_000 }, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  engine(on)
+  const probe = stateProbe(on)
+  for (const columns of [24, 80]) {
+    probe.state = sample('Team · slots, resting, notices with Revenge')
+    const id = probe.state.me!.player.team[0]
+    const ui = await $.ui.mount(PANE(columns, 'desktop'))
+    const key = await hitKey(ui, 'team-0-pick')
+    const size = ((await ui.find({ key }))!.props.props as { size: { pixels: { width: number; height: number } } }).size.pixels
+    await intrinsicExtent(ui, key)
+    expect(regionsLeaveButtonsExposed(await ui.drawn())).toBeGreaterThan(0)
+    // Native Gr measures ch/lh; se floors holder size, le floors pointer position. These varied units
+    // exercise that contract, not a font conversion or a claim that headless resize proves DOM geometry.
+    for (const [ch, lh] of [[7.5, 17], [11, 19], [9.25, 22.5]]) {
+      const x = Math.floor((size.width - .01) / ch), y = Math.floor((size.height - .01) / lh)
+      const measuredColumns = Math.floor((size.width + ch) / ch)
+      const measuredRows = Math.floor((size.height + lh) / lh)
+      expect(x).toBe(Math.floor(size.width / ch))
+      expect(y).toBe(Math.floor(size.height / lh))
+      expect(x).toBeLessThan(measuredColumns)
+      expect(y).toBeLessThan(measuredRows)
+    }
+    const ch = 7.5, lh = 17
+    const measuredColumns = Math.floor((size.width + ch) / ch), measuredRows = Math.floor((size.height + lh) / lh)
+    const x = Math.floor((size.width - .01) / ch), y = Math.floor((size.height - .01) / lh)
+    await ui.resize({ in: key, columns: measuredColumns, rows: measuredRows })
+    await ui.pointer({ in: key, type: 'down', x, y, button: 'left' })
+    await ui.pointer({ in: key, type: 'up', x: measuredColumns, y, button: 'left' })
+    await ui.advance(16)
+    await settle(clock)
+    expect(probe.state.pane.stack).toEqual([])
+    await ui.pointer({ in: key, type: 'down', x, y, button: 'left' })
+    await ui.pointer({ in: key, type: 'up', x, y: measuredRows, button: 'left' })
+    await ui.advance(16)
+    await settle(clock)
+    expect(probe.state.pane.stack).toEqual([])
+    await click(ui, key, x, y, measuredColumns, measuredRows)
+    await settle(clock)
+    expect(probe.state.pane.stack).toEqual([{ kind: 'card', cardId: id }])
+    await ui.unmount()
   }
 })
 

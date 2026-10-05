@@ -19,16 +19,17 @@ const CardHit: ClientModule<{ intent: string; size: Size }, Held> = (props, surf
         && Math.abs(e.x - held.x) <= 1 && Math.abs(e.y - held.y) <= 1) surface.post(null)
     }
   })
-  // The host measures this Client's own tree, not the visible sibling it covers. Give it the same intrinsic extent.
+  // The host measures this Client's own tree, not the visible sibling it covers.
   const size = props.size
   // Svg trees validate here, but the surface's element table has no Svg factory; Svg must omit children entirely.
   const spacer: RenderElement = 'pixels' in size
     ? { type: 'Svg', props: {
       source: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size.pixels.width} ${size.pixels.height}"/>`,
-      alt: '', width: size.pixels.width, height: size.pixels.height,
+      alt: 'Select creature', width: size.pixels.width, height: size.pixels.height,
     } }
     : <Text>{'\n'.repeat(Math.max(1, size.rows) - 1) + ' '}</Text>
-  return <Box width="100%" flexDirection="column">{spacer}</Box>
+  // One clipped blank line keeps the final partial pixel row inside the host's floored size report.
+  return <Box width="100%" flexDirection="column">{spacer}{'pixels' in size ? <Text>{' '}</Text> : null}</Box>
 }
 
 export default CardHit

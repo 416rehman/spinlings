@@ -27,7 +27,9 @@ export function cardHit(el: El, enabled: boolean, key: string, on: (() => unknow
   if (!enabled || !on || !el.Client) return null
   const hit = `${key}${target ? `-${target}` : ''}-hit`
   registerCardHit(hit, button, intent, on)
-  return <el.Box position="absolute" top={0} bottom={0} left={0} right={0} flexDirection="column">
+  // Native sizes floor to cells; art needs one extra cell behind its clipped region for partial edges.
+  const edge = 'pixels' in size ? -1 : 0
+  return <el.Box position="absolute" top={0} bottom={edge} left={0} right={edge} flexDirection="column">
     <el.Client key={hit} module="./card-hit.tsx" props={{ intent, size }} width="100%" flexGrow={1} />
   </el.Box>
 }

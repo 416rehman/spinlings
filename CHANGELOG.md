@@ -2,6 +2,11 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.8 (2026-10-04)
+
+- **Repair artwork selection in Claude Desktop.** The invisible artwork selection region now includes the accessibility text Desktop requires. This prevents Desktop from rejecting the region and showing a `Client hooks` error over the creature. A clipped margin keeps the artwork's bottom and right edges clickable. Rarity, family, names and native controls keep their existing behavior.
+- **Compatibility and privacy.** Packs still contain two cards, with the second rare or better. API v1, rules 1, generator 2, minimum client, request fields, stored game fields and public player fields are unchanged. Website appearance, existing cards and released compatibility recordings are preserved.
+
 ## 0.2.7 (2026-10-04)
 
 - **Artwork and rarity clicks:** Claude's pointer regions now measure the artwork's full pixel size. Family/level and rarity/finish each have their own text region, so both rows open the same card as its name. Native buttons and keyboard controls remain exposed.
