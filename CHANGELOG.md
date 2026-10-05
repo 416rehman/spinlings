@@ -2,6 +2,12 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.6 (2026-10-04)
+
+- **Restore card selection in Claude.** Artwork and passive card text use separate pointer regions, leaving names and other native buttons exposed. A first click no longer depends on receiving a resize event, and a queued click survives a redraw of the same card. Changing cards, views or panes still cancels stale selections.
+- **Keep existing controls.** Team slots, packs and Discoveries use the same arrangement. Keyboard shortcuts and caller-provided actions remain native controls outside the pointer regions.
+- **Compatibility and privacy.** API v1, rules 1, generator 2, minimum client, request fields, stored game fields and public player fields are unchanged. Pointer coordinates remain local and the renderer sends only a null payload. Website appearance and profile sharing are preserved. Released compatibility recordings remain immutable.
+
 ## 0.2.5 (2026-10-04)
 
 - **Share your profile.** Community's Profile copies your public profile link instead of sending you to another collection view. Browser account management moves into Privacy & settings. The browser account and public profile offer a share sheet where supported, with clipboard and manual-copy fallbacks.

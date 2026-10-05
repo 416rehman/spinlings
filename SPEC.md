@@ -413,7 +413,7 @@ Each destination has one navigation home: Collection stays in the main tab bar; 
 
 Pushed over the tabs and sections: card, fuse, species, listing and sell details; another player's profile (league, album count, stats as tiles, Challenge, their team and the offer builder); gift and reveal views; privacy and devices; Help; and Today, explaining the daily rule.
 
-**Visuals are the controls.** Every card tile, team slot, pack, listing and board row is pressable: its button sits under its art, lights up while the pointer is anywhere over the tile, takes Tab focus and, where it matters, a hotkey. A name is never cut: what does not fit a tile's column goes on a line below, and the card's page shows everything whole. On the desktop the art carries the full name as its tooltip.
+**Visuals are the controls.** Every card tile, team slot, pack, listing and board row is pressable. Its native name or action button takes Tab focus and, where it matters, a hotkey. Desktop artwork and passive card text have separate local pointer regions that select the same item; these regions never cover a native button or another control. A queued selection survives a cosmetic redraw of the same item, but changing the item, action, view or active pane cancels it. A name is never cut: what does not fit a tile's column goes on a line below, and the card's page shows everything whole. On the desktop the art carries the full name as its tooltip.
 
 ### Sprites
 - **Terminal:** a `Raster` of half-blocks. Cards are 16×16 pixels (16 columns × 8 rows). Minis are 8×8 (8 × 4).

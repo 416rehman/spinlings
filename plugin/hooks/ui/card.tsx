@@ -16,7 +16,7 @@ import type { Pixels, SpriteSource } from '../core/sprite.ts'
 import { DEFAULT_COLOR, T, encodeGrid, grid, putPixels } from '../client/anim.ts'
 import type { El, Surface } from '../client/types.ts'
 import { bar, cells, dots, fit, safe, span } from '../client/text.ts'
-import { cardHit } from './card-hit-area.tsx'
+import { cardHitRegion } from './card-hit-area.tsx'
 import {
   ART, FAMILY_COLOR, FAMILY_MARK, FOIL_STEP, INK, MARK, MYTHIC_COLOR, RAINBOW_STOPS, RARITY_COLOR, RARITY_INITIAL, RARITY_WORD,
   SPACE, SPRITE, SVG_SCALE, hex6, hexInt, hslInt, pixelRects,
@@ -324,28 +324,28 @@ export function card(el: El, surface: Surface, c: CardFace, size: CardSize, o: C
   if (size === 'full') return full(el, surface, c, o)
   const { Box, Text } = el
   const width = size === 'tile' ? CARD_WIDTH.tile : size === 'mini' ? CARD_WIDTH.mini : Math.max(10, (o.width ?? 40) - SPRITE.mini.columns - SPACE.loose)
+  const region = (part: string, content: RenderElement) => cardHitRegion(el, content, surface === 'desktop' && !!o.hitArea,
+    `${o.key}-${part}`, o.on, `${o.key}-pick`, `${o.hitIntent ?? ''}:${c.id}`, c.id)
+  const picture = region('art', art(el, surface, c, size, o))
   const words = [
-    ...name(el, c, width, o),
-    meta(el, c, width),
+    ...name(el, c, width, o).map((line, i) => i === 0 ? line : region('name', line)),
+    region('meta', meta(el, c, width)),
     o.extra ?? null,
     // a note (a slot, a handle) wraps rather than cut: it may be the only place a seller's handle shows
-    (size === 'tile' ? o.note !== undefined : !!o.note) ? <Text dimColor wrap="wrap">{o.note || ' '}</Text> : null,
+    (size === 'tile' ? o.note !== undefined : !!o.note) ? region('note', <Text dimColor wrap="wrap">{o.note || ' '}</Text>) : null,
   ].filter((x): x is RenderElement => !!x)
-  const hit = cardHit(el, surface === 'desktop' && !!o.hitArea, o.key, o.on, `${o.key}-pick`, `${o.hitIntent ?? ''}:${c.id}`, c.id)
   if (size === 'row') {
     return (
       <Box key={o.key} position="relative" flexDirection="row" columnGap={SPACE.loose} width={o.width ?? 40}>
-        <Box flexShrink={0}>{art(el, surface, c, size, o)}</Box>
+        <Box flexShrink={0}>{picture}</Box>
         <Box flexDirection="column" width={width}>{...words}</Box>
-        {hit}
       </Box>
     )
   }
   return (
     <Box key={o.key} position="relative" flexDirection="column" width={width} flexShrink={0}>
-      {art(el, surface, c, size, o)}
+      {picture}
       {...words}
-      {hit}
     </Box>
   )
 }

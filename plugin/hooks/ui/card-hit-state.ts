@@ -15,9 +15,14 @@ export function registerCardHit(key: string, button: string, intent: string, on:
 export function prepareCardHit(key: string, data: unknown): ((focus: (button: string) => Promise<unknown>) => Promise<void>) | null {
   const pick = data === null ? picks.get(key) : undefined
   if (!pick) return null
+  const current = () => {
+    const live = picks.get(key)
+    return pick.fence === fence && live !== undefined && live.fence === pick.fence
+      && live.button === pick.button && live.intent === pick.intent
+  }
   return async focus => {
-    if (picks.get(key) !== pick) return
+    if (!current()) return
     try { await focus(pick.button) } catch { /* a host may have no focus route */ }
-    if (pick.fence === fence && picks.get(key)?.intent === pick.intent) await pick.on()
+    if (current()) await pick.on()
   }
 }

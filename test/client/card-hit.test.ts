@@ -22,6 +22,48 @@ test('queued stale messages never run a replacement registration under the same 
   assert.equal(calls, 0)
 })
 
+test('a cosmetic redraw before the deferred callback focuses the original name and runs its captured action once', async () => {
+  clearCardHits(true)
+  const calls: string[] = []
+  registerCardHit('card-one-hit', 'card-one-pick', 'team:one', () => { calls.push('original') })
+  const press = prepareCardHit('card-one-hit', null)!
+  clearCardHits()
+  registerCardHit('card-one-hit', 'card-one-pick', 'team:one', () => { calls.push('redrawn') })
+  await press(async button => { calls.push(button) })
+  assert.deepEqual(calls, ['card-one-pick', 'original'])
+})
+
+test('closing and reopening the same intent before the deferred callback rejects the captured click without focusing', async () => {
+  clearCardHits(true)
+  const calls: string[] = []
+  registerCardHit('card-one-hit', 'card-one-pick', 'team:one', () => { calls.push('original') })
+  const press = prepareCardHit('card-one-hit', null)!
+  clearCardHits(true)
+  registerCardHit('card-one-hit', 'card-one-pick', 'team:one', () => { calls.push('reopened') })
+  await press(async () => { assert.fail('a click from the closed pane never focuses') })
+  assert.deepEqual(calls, [])
+})
+
+for (const duringFocus of [false, true]) {
+  test(`changing the name Button ${duringFocus ? 'during focus' : 'before the deferred callback'} rejects the captured action`, async () => {
+    clearCardHits(true)
+    const calls: string[] = []
+    registerCardHit('card-one-hit', 'card-one-pick', 'team:one', () => { calls.push('original') })
+    const press = prepareCardHit('card-one-hit', null)!
+    const redraw = () => {
+      clearCardHits()
+      registerCardHit('card-one-hit', 'card-other-pick', 'team:one', () => { calls.push('replacement') })
+    }
+    if (!duringFocus) redraw()
+    await press(async button => {
+      assert.ok(duringFocus, 'a replaced Button never receives stale focus')
+      assert.equal(button, 'card-one-pick')
+      redraw()
+    })
+    assert.deepEqual(calls, [])
+  })
+}
+
 test('a cosmetic focus redraw preserves the intended captured action instead of calling a new closure', async () => {
   clearCardHits(true)
   const calls: string[] = []

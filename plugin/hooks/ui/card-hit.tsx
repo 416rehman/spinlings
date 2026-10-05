@@ -5,7 +5,8 @@ type Held = { x: number; y: number; intent: string } | null
 const CardHit: ClientModule<{ intent: string }, Held> = (props, surface) => {
   const { Box } = surface.elements
   surface.onPointer(e => {
-    const inside = e.x >= 0 && e.y >= 0 && e.x < surface.columns && e.y < surface.rows
+    // A host can deliver its first click before reporting size. Positive dimensions still bound captured releases.
+    const inside = e.x >= 0 && e.y >= 0 && (surface.columns <= 0 || e.x < surface.columns) && (surface.rows <= 0 || e.y < surface.rows)
     if (e.type === 'down') {
       surface.setState(inside && e.button === 'left' && !e.shift && !e.ctrl && !e.alt ? { x: e.x, y: e.y, intent: props.intent } : null)
     } else if (e.type === 'move' && surface.state && (!inside || Math.abs(e.x - surface.state.x) > 1 || Math.abs(e.y - surface.state.y) > 1)) {

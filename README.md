@@ -46,7 +46,7 @@ The Code tab in Claude Desktop needs a bundled Claude Code version that supports
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
 
 ```sh
-git clone --branch v0.2.5 https://github.com/416rehman/spinlings
+git clone --branch v0.2.6 https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 

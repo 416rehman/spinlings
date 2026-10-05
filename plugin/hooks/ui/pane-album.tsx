@@ -10,7 +10,7 @@ import { dots, fit, plural, safe } from '../client/text.ts'
 import { albumCount, albumEntries, craftChoices, cycle, fusionLog, parentsLine, perRow } from '../client/viewmodels.ts'
 import type { AlbumEntry } from '../client/viewmodels.ts'
 import { formArt } from './card.tsx'
-import { cardHit } from './card-hit-area.tsx'
+import { cardHitRegion } from './card-hit-area.tsx'
 import type { Ctx, Shown } from './pane-kit.tsx'
 import { CHIP, TILE, actions, btn, cardRow, column, formMini, grid, heading, line, para, tabsHint } from './pane-kit.tsx'
 import { ECONOMY } from '../core/economy.ts'
@@ -26,10 +26,11 @@ function entryChip(c: Ctx, e: AlbumEntry): RenderElement {
   const open = () => c.actions.push({ kind: 'species', speciesId: s.id })
   return (
     <Box key={`album-${s.id}`} position="relative" flexDirection="column" width={CHIP} flexShrink={0}>
-      {formMini(c, `album-${s.id}`, s, e.seen)}
+      {cardHitRegion(c.el, formMini(c, `album-${s.id}`, s, e.seen), c.hitAreas, `album-${s.id}-art`, open,
+        `album-${s.id}-pick`, `${c.hitIntent}:${s.id}`)}
       {btn(c, { key: `album-${s.id}-pick`, label: fit(name, CHIP), dim: !e.seen, lit: true, on: open })}
-      <Text dimColor wrap="truncate-end" {...(s.legendary && e.seen ? { color: RARITY_COLOR.legendary } : {})}>{fit(note || ' ', CHIP)}</Text>
-      {cardHit(c.el, c.hitAreas, `album-${s.id}`, open, `album-${s.id}-pick`, `${c.hitIntent}:${s.id}`)}
+      {cardHitRegion(c.el, <Text dimColor wrap="truncate-end" {...(s.legendary && e.seen ? { color: RARITY_COLOR.legendary } : {})}>{fit(note || ' ', CHIP)}</Text>,
+        c.hitAreas, `album-${s.id}-note`, open, `album-${s.id}-pick`, `${c.hitIntent}:${s.id}`)}
     </Box>
   )
 }
