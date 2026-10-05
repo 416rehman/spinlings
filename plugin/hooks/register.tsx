@@ -11,6 +11,7 @@ import type {
   Slots, StateKey, Surface,
 } from './client/types.ts'
 import { INITIAL, createGame, spinnerSuffix } from './client/game.ts'
+import { chimeClip } from './client/chimes.ts'
 import { createLocalBackend } from './client/local/index.ts'
 import { momentDriver, playBattle } from './client/scheduler.ts'
 import { band } from './ui/band.tsx'
@@ -29,14 +30,6 @@ const REVEAL_DRIVER: RevealDriver = ceremony
 const LOCAL: LocalBackendFactory = createLocalBackend
 
 const SLOTS: Slots = { local: LOCAL, battle: BATTLE_DRIVER, reveal: REVEAL_DRIVER, moments: MOMENT_DRIVER }
-
-/** The chimes scripts/chimes.ts writes: the plugin's own files, nothing fetched (SPEC 13.12). */
-const CHIMES: Record<Chime, string> = {
-  rare: 'assets/chime-rare.wav',
-  legendary: 'assets/chime-legendary.wav',
-  evolve: 'assets/chime-evolve.wav',
-  first: 'assets/chime-first.wav',
-}
 
 const PANE_ID = 'spinlings'
 
@@ -109,8 +102,8 @@ async function update<T>($: Engine, target: Atom<T>, change: (value: T) => T): P
   for (let tries = 0; tries < 64; tries += 1) {
     const held = await stateRead($, target.ref.key as StateKey)
     const current = held.value === undefined ? target.initial : held.value as T
-    const next = change(current)
-    if (await stateWrite($, target.ref.key as StateKey, next, held.version)) return next
+    const changed = change(current)
+    if (await stateWrite($, target.ref.key as StateKey, changed, held.version)) return changed
   }
   throw new Error('update: the value was written by another every time it was read, up ' +
     'to the bound on tries; nothing was written')
@@ -183,7 +176,7 @@ async function chime($: Engine, cue: Chime): Promise<void> {
   try {
     const prefs = await read($, prefsAtom)
     if (!prefs.sound || prefs.quiet) return
-    await $.audio.play({ asset: CHIMES[cue] }, { gain: 0.8 })
+    await $.audio.play(chimeClip(cue), { gain: 0.8 })
   } catch {
     // no player on this machine, or the clip could not play
   }
@@ -306,10 +299,10 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('agent.spawn', async ($, e, next) => {
-    const r = await next(e)
-    if ('agentId' in r && typeof r.agentId === 'string') { const id = r.agentId; await quietly($, 'agent', () => game.agentStarted(fxOf($), id)) }
-    return r
+  on('agent.spawn', async ($, spawnEvent, continueSpawn) => {
+    const spawnResult = await continueSpawn(spawnEvent)
+    if ('agentId' in spawnResult && typeof spawnResult.agentId === 'string') { const id = spawnResult.agentId; await quietly($, 'agent', () => game.agentStarted(fxOf($), id)) }
+    return spawnResult
   })
 
   on('session.measure', async ($, e, next) => {

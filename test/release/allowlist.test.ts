@@ -35,6 +35,13 @@ const FIELDS = new Set([
   'props.placement', 'props.suffix', 'props.mode',
 ])
 
+// Recognize only the plain callback signatures this module uses. A different signature must be reviewed rather
+// than silently escaping the content-blind check when its event parameter has a different name.
+const hookHeads = [...register.matchAll(/\bon\(\s*(['"`])([\w.]+)\1/g)]
+const callbacks = [...register.matchAll(/\bon\(\s*(['"`])([\w.]+)\1\s*,\s*(?:\{[^{}]*\}\s*,\s*)?async\s+(?:function\s*\*\s*)?\(\s*\$\s*,\s*([A-Za-z_$][\w$]*)\s*(?:,\s*[A-Za-z_$][\w$]*\s*)?\)/g)]
+const eventBindings = [...new Set(callbacks.map(m => m[3]!))]
+const escaped = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 describe('the content-blind allowlist (SPEC 10, 12)', () => {
   it('the mod is one module, register.tsx', () => {
     assert.deepEqual(JSON.parse(readFileSync(`${HOOKS_DIR}hooks.json`, 'utf8')), { modules: ['./register.tsx'] })
@@ -61,16 +68,23 @@ describe('the content-blind allowlist (SPEC 10, 12)', () => {
   })
 
   it('register.tsx reads only the shape of the session from its events', () => {
-    assert.doesNotMatch(register, /\be\s*\[/, 'event fields are read by name')
-    assert.doesNotMatch(register, /\}\s*=\s*e\b/, 'events are never destructured')
-    // `...e.props` hands the spinner's props on to next unread
-    const reads = [...register.replaceAll('...e.props', '').matchAll(/\be\.((?:\w+\.)*\w+)/g)].map(m => m[1]!)
+    assert.equal(callbacks.length, hookHeads.length, 'every registered hook must have an unambiguously checked event binding')
+    const reads: string[] = []
+    for (const name of eventBindings) {
+      const token = `(?<![\\w$])${escaped(name)}`
+      assert.doesNotMatch(register, new RegExp(`${token}\\s*\\[`), 'event fields are read by name')
+      assert.doesNotMatch(register, new RegExp(`\\}\\s*=\\s*${token}(?![\\w$])`), 'events are never destructured')
+      // Passing the spinner's props on to next leaves them unread.
+      const source = register.replaceAll(`...${name}.props`, '')
+      const fields = [...source.matchAll(new RegExp(`${token}\\.((?:\\w+\\.)*\\w+)`, 'g'))].map(m => m[1]!)
+      reads.push(...fields)
+      for (const path of fields) assert.ok(FIELDS.has(path), `register.tsx reads ${name}.${path}`)
+    }
     assert.ok(reads.length > 0)
-    for (const path of reads) assert.ok(FIELDS.has(path), `register.tsx reads e.${path}`)
   })
 
   it('the prompt launcher composes Claude\'s drawing without reading prompt hint or draft content', () => {
     assert.match(register, /on\('ui\.render', \{ component: 'PromptHint' \}/)
-    assert.doesNotMatch(register, /\be\.props\.(hint|tail|isDraft)\b/)
+    for (const name of eventBindings) assert.doesNotMatch(register, new RegExp(`(?<![\\w$])${escaped(name)}\\.props\\.(hint|tail|isDraft)\\b`))
   })
 })

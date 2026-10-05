@@ -61,7 +61,13 @@ export function engine(on: On, server: FakeServer = fakeServer()): Engine {
       return { deny: 'no network' }
     }
   })
-  on('audio.play', (_$, e) => { w.sounds.push(e.clip.asset ?? ''); return { value: undefined } })
+  on('audio.play', (_$, e) => {
+    if (typeof e.clip.base64 !== 'string' || e.clip.mime !== 'audio/wav' || e.clip.asset !== undefined || e.clip.url !== undefined) {
+      throw new Error('Game sound must use a locally synthesized WAV, without a file or URL')
+    }
+    w.sounds.push(e.clip.base64)
+    return { value: undefined }
+  })
   on('ui.status', (_$, e) => { w.status.push(e.text); return { value: undefined } })
   on('ui.log', (_$, e) => { if (e.to !== 'debug') w.logs.push(e.text); return { value: undefined } })
   on('ui.toast', (_$, e) => { w.toasts.push(e.text); return { value: undefined } })

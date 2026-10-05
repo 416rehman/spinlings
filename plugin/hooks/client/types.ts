@@ -76,7 +76,7 @@ export type LocalBackendFactory = (deps: LocalDeps) => Backend
 // ---------- effects ----------
 
 export type Timer = { cancel(): void }
-/** The four chimes (SPEC 13.12), small WAVs scripts/chimes.ts writes into plugin/assets. */
+/** The four original chimes (SPEC 13.12), synthesized locally from the notes in client/chimes.ts. */
 export type Chime = 'rare' | 'legendary' | 'evolve' | 'first'
 export type HttpInit = { method: string; headers: Record<string, string>; body?: string }
 export type HttpAnswer = { status: number; ok: boolean; headers: Record<string, string>; text: string }

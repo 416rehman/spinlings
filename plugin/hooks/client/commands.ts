@@ -59,7 +59,7 @@ const onOff = (v: string | undefined): boolean | null => (v === 'on' ? true : v 
 export function parseCommand(args: string): SpinCommand {
   const words = args.trim().split(/\s+/).filter(w => w !== '')
   const [sub, ...rest] = words
-  const help = (why: string): SpinCommand => ({ kind: 'help', text: why ? `${why}\n${USAGE}` : USAGE })
+  const help = (why: string): SpinCommand => ({ kind: 'help', text: why ? [why, USAGE].join('\n') : USAGE })
   const arg = (rest[0] ?? '').toLowerCase()
   switch ((sub ?? '').toLowerCase()) {
     case '': return { kind: 'open' }

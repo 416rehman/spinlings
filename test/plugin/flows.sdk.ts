@@ -10,6 +10,7 @@ import { BAND, PANE, RUN, SESSION, engine, settle, textOf, walk } from './engine
 import type { Engine } from './engine.ts'
 import type { Card } from '../../plugin/hooks/core/types.ts'
 import { parseResponse } from '../../plugin/hooks/core/schemas.ts'
+import { chimeClip } from '../../plugin/hooks/client/chimes.ts'
 
 const LONG = { timeoutMs: 120_000 }
 
@@ -199,7 +200,7 @@ test('chimes play only with sound on, for rare and better, and never while quiet
   expect(w.sounds).toEqual([])
   await openAll()
   expect(w.sounds.length).toBeGreaterThan(0)
-  expect(w.sounds.every(s => s === 'assets/chime-rare.wav')).toBe(true)
+  expect(w.sounds.every(s => s === chimeClip('rare').base64)).toBe(true)
   const heard = w.sounds.length
   await $.command.run(RUN('quiet on'))
   const cards = w.server.cards.length
