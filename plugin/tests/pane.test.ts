@@ -134,6 +134,66 @@ function gate(tree: unknown, columns: number, where: string): void {
 // The probe plugin draws from this; each test sets the state it needs.
 const p: Probe = { state: INITIAL, calls: [] }
 
+test('pack art, waiting count, Open and countdown stay together in Team at narrow and wide sizes', { timeoutMs: 60_000 }, async ($, on) => {
+  draws(on, p)
+  const base = demoSteps(NOW).find(s => s.title === 'Team · slots, resting, notices with Revenge')!.state
+  for (const surface of SURFACES) for (const columns of [24, 32, 80]) {
+    p.state = base
+    p.calls = []
+    const ui = await $.ui.mount(MOUNT(columns, surface))
+    const tree = await ui.drawn()
+    gate(tree, columns, `grouped packs @${columns} ${surface}`)
+    const group = all(tree, 'Box').find(n => n.props?.key === 'team-packs')!
+    expect(textOf(group)).toContain(`Packs · ${base.me!.packs.length} ready`)
+    expect(all(group, 'Button').some(n => n.props?.key === 'open-pack')).toBe(true)
+    expect(all(group, 'Box').some(n => n.props?.key === 'pack-meter')).toBe(true)
+    expect(all(tree, 'Button').filter(n => n.props?.key === 'open-pack')).toHaveLength(1)
+    expect(all(group, surface === 'desktop' ? 'Svg' : 'Raster').length).toBeGreaterThan(0)
+    await press(ui, 'open-pack')
+    expect(p.calls.at(-1)).toEqual(['openPack', []])
+    await press(ui, 'tab-cards')
+    const collectionTree = await ui.drawn()
+    expect(all(collectionTree, 'Button').some(n => n.props?.key === 'open-pack')).toBe(false)
+    expect(all(collectionTree, 'Box').some(n => n.props?.key === 'pack-meter')).toBe(false)
+    await ui.unmount()
+    p.state = { ...base, me: { ...base.me!, packs: [] } }
+    const emptyUi = await $.ui.mount(MOUNT(columns, surface))
+    const emptyGroup = all(await emptyUi.drawn(), 'Box').find(n => n.props?.key === 'team-packs')!
+    expect(textOf(emptyGroup)).toContain('Next pack')
+    expect(await emptyUi.find({ key: 'open-pack' })).toBeUndefined()
+    await emptyUi.unmount()
+  }
+})
+
+test('the world control opens its chooser and wraps full community addresses at 24 columns', { timeoutMs: 60_000 }, async ($, on) => {
+  draws(on, p)
+  const base = demoSteps(NOW).find(s => s.title === 'Team · slots, resting, notices with Revenge')!.state
+  const host = 'a-very-long-community-name.example.org'
+  const accounts = [
+    base.account,
+    { ...base.account, community: true, host, server: `https://${host}` },
+    { ...base.account, community: true, host, server: `https://${host}`, link: 'unreachable' as const },
+    { ...base.account, world: 'offline' as const, community: false, link: 'ready' as const },
+  ]
+  for (const surface of SURFACES) for (const account of accounts) {
+    p.state = { ...base, account }
+    p.calls = []
+    const ui = await $.ui.mount(MOUNT(24, surface))
+    const tree = await ui.drawn()
+    gate(tree, 24, `world ${account.world} ${account.link} ${surface}`)
+    const problems: string[] = []
+    expect(measure(tree, 24, problems).w <= 24).toBe(true)
+    expect(problems).toEqual([])
+    const badge = all(tree, 'Box').find(n => n.props?.key === 'world-control')!
+    if (account.world === 'online') expect(textOf(badge)).toContain(account.host)
+    else expect(textOf(badge)).toContain('Offline')
+    await press(ui, 'world-picker')
+    expect(p.calls.at(-1)).toEqual(['push', [{ kind: 'world' }]])
+    expect(p.state.pane.stack.at(-1)?.kind).toBe('world')
+    await ui.unmount()
+  }
+})
+
 test('every screen of /spin demo draws at 50, 80 and 120 columns on the terminal and the desktop', { timeoutMs: 240_000 }, async ($, on) => {
   draws(on, p)
   const steps = demoSteps(NOW)

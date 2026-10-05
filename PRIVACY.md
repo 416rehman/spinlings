@@ -38,7 +38,7 @@ The mod reads only the shape of your Claude Code session:
 | Session open | `session.start`, `session.end`, a once-a-minute clock tick | Presence minutes for packs |
 | A session started over | `classic.SessionStart`, for `clear`, `resume` and `fork` only | Picking the game back up |
 | The band and the pane | `ui.render` and `ui.close` (their size, focus, and that you pressed esc) | Drawing them, and going back one view |
-| A Desktop card click | `ui.message` from the Spinlings pane's own card regions: an element key and a null payload | Selecting that currently displayed card; pointer coordinates remain local to the renderer |
+| A Desktop card or world-control click | `ui.message` from the Spinlings pane's own registered regions: an element key and a null payload | Selecting the displayed card or opening the world chooser; pointer coordinates remain local to the renderer |
 | The `/spin` command | `command.run` (the command's arguments) | The game's one command |
 
 It never hooks `tool.call`, `prompt.submit` or `classic.PermissionRequest`.
@@ -179,7 +179,7 @@ Uninstalling the mod does not delete your account, so delete it first. Otherwise
 
 ## Community servers
 
-The promises on this page describe this code. Whoever runs a server controls it, and a modified server could keep more. The default server is run by the maintainer of this repository. You can point the mod at any server with `/spin server <url>`, including one you run yourself. The mod shows a one-time notice before it connects to any server other than `https://spinlings.dev`.
+The promises on this page describe this code. Whoever runs a server controls it, and a modified server could keep more. The default server is run by the maintainer of this repository. `/spin world` opens the world chooser; `/spin world <url>` points the mod at a community server, including one you run yourself. `/spin world online` returns to `https://spinlings.dev`, and `/spin world offline` uses the local save. The existing `/spin server [url|default]` command remains a supported alias. The mod shows a one-time notice before it connects to any server other than `https://spinlings.dev`.
 
 ## Changes
 

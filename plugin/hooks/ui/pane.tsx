@@ -12,6 +12,7 @@ import { band } from './band.tsx'
 import { hello, screenOf, withTop } from '../client/viewmodels.ts'
 import { ceremonyScreen } from './ceremony.tsx'
 import { privacyScreen, devicesScreen } from './pane-account.tsx'
+import { worldScreen } from './pane-world.tsx'
 import { albumScreen, speciesScreen } from './pane-album.tsx'
 import { cardScreen, cardsScreen, fuseScreen, teamSlotScreen } from './pane-cards.tsx'
 import type { Ctx, Shown } from './pane-kit.tsx'
@@ -30,7 +31,7 @@ type Env = Parameters<PaneView>[0]
  */
 function startsHere(s: GameState): boolean {
   const top = screenOf(s.pane).kind
-  return !playable(s) && top !== 'privacy' && top !== 'devices'
+  return !playable(s) && top !== 'privacy' && top !== 'devices' && top !== 'world'
 }
 
 function ctxOf(env: Env, inDemo = false): Ctx {
@@ -99,7 +100,7 @@ function helloBanner(c: Ctx): RenderElement | null {
       {day.featured ? <Box flexShrink={0}>{formMini(c, 'hello-featured', day.featured, true)}</Box> : null}
       {column(inner, [
         line(inner, `Today: ${day.rule}`, { color: INK.accent }),
-        para(inner, `${day.text}.${name ? ` Featured: ${name}.` : ''}`, { dim: true }),
+        para(inner, `${day.rule === 'Shiny Hour' ? day.text.replace('shinies', 'Alt colour cards') : day.text}.${name ? ` Featured: ${name}.` : ''}`, { dim: true }),
         actions(inner, [btn(inner, { key: 'hello-ok', label: 'Got it', dim: true, on: () => c.actions.pane(p => ({ ...p, hello: false })) })]),
       ], SPACE.none)}
     </Box>
@@ -139,6 +140,7 @@ function route(c: Ctx): Shown {
     case 'gift': return giftScreen(c, top.code)
     case 'privacy': return privacyScreen(c)
     case 'devices': return devicesScreen(c)
+    case 'world': return worldScreen(c, top)
     case 'trades': return communityScreen(c, { section: 'trades' })
     case 'mine': return communityScreen(c, { section: 'profile' })
     case 'help': return helpScreen(c)

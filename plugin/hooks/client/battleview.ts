@@ -472,7 +472,7 @@ const rarityColorOf = (c: Pick<BattleCard, 'species' | 'rarity'>) => (c.species 
 
 export function rarityWords(c: Pick<BattleCard, 'species' | 'rarity' | 'shiny' | 'foil'>): string {
   const word = c.species === 'mythic' ? 'Mythic' : RARITY_WORD[c.rarity]
-  return dots(word, c.shiny && c.foil ? 'Shiny Foil' : c.shiny ? 'Shiny' : c.foil ? 'Foil' : '')
+  return dots(word, c.shiny ? 'Alt colour' : '', c.foil ? 'Foil' : '')
 }
 
 /** What the rustle foreshadows (SPEC 13.2): rare twinkles, epic shimmers, shiny glints, the roamer turns the air gold. */

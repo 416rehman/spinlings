@@ -167,7 +167,7 @@ function trader(c: Ctx): { body: RenderElement; hints: string[] } {
     body: column(c, [
       heading(c, 'The Wandering Trader', 'new deals every day'),
       ...blocks,
-      para(c, 'The Trader picks your plainest spare cards: never your team, shinies, foils or cards marked for trade.', { dim: true }),
+      para(c, 'The Trader picks your plainest spare cards: never your team, Alt colour or Foil cards, or cards marked for trade.', { dim: true }),
     ]),
     hints: ['Tab Pick a deal'],
   }

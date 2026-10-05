@@ -70,8 +70,9 @@ export function mineScreen(c: Ctx): Shown {
 
 export function todayScreen(c: Ctx): Shown {
   const day = hello(c.now, catalogOf(c.state.account))
+  const text = day.rule === 'Shiny Hour' ? day.text.replace('shinies', 'Alt colour cards') : day.text
   return {
-    body: column(c, [heading(c, day.rule), para(c, `${day.text}.`), para(c, 'A different meadow rule arrives each day at midnight UTC.', { dim: true })]),
+    body: column(c, [heading(c, day.rule), para(c, `${text}.`), para(c, 'A different meadow rule arrives each day at midnight UTC.', { dim: true })]),
     hints: ['esc Back'],
   }
 }
@@ -88,7 +89,7 @@ export function helpScreen(c: Ctx): Shown {
       ...FAMILIES.map(f => line(c, `${FAMILY_MARK[f]} ${FAMILY_INFO[f].name} · ${SPECIALS[FAMILY_INFO[f].special].text} · strong against ${FAMILY_INFO[FAMILY_INFO[f].beats].name}`, { color: FAMILY_COLOR[f] })),
       para(c, 'Families are creature types. Your Claude model selects the family of charged packs and the battle arena.', { dim: true }),
       para(c, 'Claude effort brightens the battle band; battles keep the same pace.', { dim: true }),
-      para(c, 'Rarity: Common, Rare, Epic, Legendary. A Mythic is one of a kind. Shiny changes colours; Foil adds a rainbow finish.'),
+      para(c, 'Rarity: Common, Rare, Epic, Legendary. A Mythic is one of a kind. Alt colour (shiny) changes the palette; Foil adds a rainbow frame and shimmer. Neither gives a battle-stat bonus.'),
       para(c, 'First Discovered means the first trainer globally to find that species in its season.', { dim: true }),
       para(c, 'Card stats: HP is health, Atk attack, Def defense, Spd speed. Genes show its individual stat potential. Battles raise its level.', { dim: true }),
       heading(c, 'Where to go'),

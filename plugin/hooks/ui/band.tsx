@@ -131,7 +131,9 @@ export const band: BandView = env => {
   if (choice?.kind === 'outcome') return outcomeBand(c, env, choice)
   if (state.reveal?.inline && !state.prefs.quiet) return packBand(c, env, state.reveal)
   // quiet silences the band except the result of a battle the player started themselves
-  const moments = state.prefs.quiet ? state.moments.filter(m => m.kind === 'outcome') : state.moments
+  const top = state.pane?.stack.at(-1)
+  const moments = state.moments.filter(m => (!state.prefs.quiet || m.kind === 'outcome')
+    && !(m.kind === 'server' && top?.kind === 'world' && top.origin === m.origin))
   const m = headMoment(moments)
   if (m) return momentBand(c, env, m)
   if (!state.prefs.quiet && state.account.link === 'joining' && !state.me) return hatching(c, env)

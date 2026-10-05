@@ -217,6 +217,8 @@ function steps(now: number): DemoStep[] {
     { title: 'Community · the hub', state: pane(s, { tab: 'trade' }) },
     { title: 'Community · your profile', state: view(s, { kind: 'mine' }, { tab: 'trade' }) },
     { title: 'Help · the field guide', state: view(s, { kind: 'help' }) },
+    { title: 'World · choose where to play', state: view(s, { kind: 'world' }) },
+    { title: 'World · review a community address', state: { ...view(s, { kind: 'world', address: 'https://cats.example', origin: 'https://cats.example' }), moments: [{ kind: 'server', id: 'server:https://cats.example', origin: 'https://cats.example', until: null }] } },
     { title: 'Today · the meadow rule', state: view(s, { kind: 'today' }) },
     { title: 'Trade · inbox', state: view(s, { kind: 'trades' }, { tab: 'trade', page: 0 }) },
     { title: 'Trade · empty inbox', state: { ...view(s, { kind: 'trades' }, { tab: 'trade', page: 0 }), me: { ...s.me!, offers: { incoming: [], outgoing: [] } } } },

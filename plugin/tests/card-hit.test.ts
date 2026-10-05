@@ -198,12 +198,13 @@ test('wrapping family and rarity rows retain their own multirow intrinsic region
     Object.assign(c, { family: 'sonnet', level: 100, rarity: 'legendary', shiny: true, foil: true })
     const ui = await $.ui.mount({ ...PANE(24, 'desktop'), viewport: { columns: 0, rows: 0 } })
     const key = await hitKey(ui, 'team-0-pick', part)
-    expect(((await ui.find({ key }))!.props.props as { size: unknown }).size).toEqual({ rows: 2 })
+    const rows = part === 'rarity' ? 3 : 2
+    expect(((await ui.find({ key }))!.props.props as { size: unknown }).size).toEqual({ rows })
     await intrinsicExtent(ui, key)
     expect(regionsLeaveButtonsExposed(await ui.drawn())).toBeGreaterThan(0)
-    // No resize act: the second row belongs to this passive line and remains a completed local selection.
-    await ui.pointer({ in: key, type: 'down', x: 1, y: 1, button: 'left' })
-    await ui.pointer({ in: key, type: 'up', x: 1, y: 1, button: 'left' })
+    // No resize act: the last wrapped row belongs to this passive line and remains a completed local selection.
+    await ui.pointer({ in: key, type: 'down', x: 1, y: rows - 1, button: 'left' })
+    await ui.pointer({ in: key, type: 'up', x: 1, y: rows - 1, button: 'left' })
     await ui.advance(16)
     await settle(clock)
     expect(probe.state.pane.stack).toEqual([{ kind: 'card', cardId: id }])

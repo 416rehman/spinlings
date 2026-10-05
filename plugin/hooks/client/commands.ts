@@ -18,7 +18,7 @@ export type SpinCommand =
   | { kind: 'claim'; code: string }
   | { kind: 'share'; ref: string | null }
   | { kind: 'redeem'; code: string }
-  | { kind: 'world'; world: World | null }
+  | { kind: 'world'; world: World | null; url?: string }
   | { kind: 'devices' }
   | { kind: 'quiet'; on: boolean | null }
   | { kind: 'motion'; on: boolean }
@@ -43,7 +43,7 @@ export const USAGE = [
   '/spin claim <code>      claim a gift',
   '/spin share [card]      copy a card to share',
   '/spin redeem <code>     redeem a drop code',
-  '/spin world online|offline   switch worlds (each keeps its own collection)',
+  '/spin world [online|offline|url]   choose a world (each keeps its own collection)',
   '/spin devices           devices and passkey',
   '/spin quiet [on|off]    silence everything',
   '/spin motion on|off     animations',
@@ -92,8 +92,9 @@ export function parseCommand(args: string): SpinCommand {
     }
     case 'world':
       if (rest.length === 0) return { kind: 'world', world: null }
+      if (rest.length !== 1) return help('Choose online, offline, or one community-server address.')
       if (arg === 'online' || arg === 'offline') return { kind: 'world', world: arg }
-      return help('Use /spin world online or /spin world offline.')
+      return { kind: 'world', world: null, url: rest[0]! }
     case 'devices': return { kind: 'devices' }
     case 'quiet': {
       if (rest.length === 0) return { kind: 'quiet', on: null }

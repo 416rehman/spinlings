@@ -110,7 +110,7 @@ When the server creates a card, it rolls a 32-bit `dna`, and everything individu
 | Genes | 4 values from 0 to 15 (hp, atk, def, spd). Each scales its stat by `0.88 + 0.016 * gene` (±12%). The **gene score** is `sum / 60` as a percentage. |
 | Traits | 1 trait (2 for epic and legendary), drawn without repeats from the trait pool |
 
-A shiny card (1 in 100) keeps its family's colours but moves its hue to the other half of the family's band, with deeper colour, gold accents, silver accessories and a bronze outline. It always shows a twinkle (a star in a free corner, or two specks of light on its body when no corner is free), and its frame sparkles.
+An **Alt colour** card (1 in 100) keeps its family's colours but moves its hue to the other half of the family's band, with deeper colour, gold accents, silver accessories and a bronze outline. It always shows a twinkle (a star in a free corner, or two specks of light on its body when no corner is free), and its frame sparkles. This is the existing `shiny` flag: the mod's card labels use Alt colour, while the wire field, odds and website terminology stay unchanged. Neither Alt colour nor Foil gives a battle-stat bonus; rarity is separate.
 
 ### Traits (whimsical names only)
 | Trait | Effect |
@@ -390,11 +390,11 @@ Everything here works while the other player is away. **No account limits:** any
 | Welcome | 2 rows, once ever | See "First run" in section 6 |
 
 ### Pane (`/spin`)
-Four tabs, hotkeys 1–4, online and offline: Team, Collection, Discoveries and Community. Their saved ids are `team`, `cards`, `album` and `trade`; the legacy `market` tab maps to Community's Market section. A header shows the tabs, then `[o] Open pack (n)`, the pack meter as a small pack filling in the family's colour with a labelled countdown (`Next pack 18m`), the daily rule as a button that opens its effect, the world as a dot and the host, and, until a passkey is saved, a `Not backed up` marker that opens the passkey steps. Every piece shows whole; the header wraps rather than cut one.
+Four tabs, hotkeys 1–4, online and offline: Team, Collection, Discoveries and Community. Their saved ids are `team`, `cards`, `album` and `trade`; the legacy `market` tab maps to Community's Market section. A header shows the tabs, the daily rule as a button that opens its effect, the world as a button with a dot and the host that opens the world chooser, and, until a passkey is saved, a `Not backed up` marker that opens the passkey steps. Team groups its waiting-pack count, `[o] Open pack`, waiting pack art and the pack meter in one pack section. The meter is a small pack filling in the family's colour with a labelled countdown (`Next pack 18m`); each waiting pack has its family label, such as `Haiku pack`, and opens when pressed. Every piece shows whole; the header and pack section wrap rather than cut one.
 
 | Tab | Shows |
 |---|---|
-| Team | 3 slots with resting timers (an empty slot is a button to pick one), labelled league, rating, sparks and win streak, Duel, packs waiting as art to open, defense notices. Slots stack as card rows when three tiles do not fit |
+| Team | 3 slots with resting timers (an empty slot is a button to pick one), labelled league, rating, sparks and win streak, Duel, a pack section with waiting pack art, Open pack and the next-pack meter, defense notices. Slots stack as card rows when three tiles do not fit |
 | Collection | Your cards as a grid with family and rarity filters; card detail (stats, genes, traits, origin) with set in team, for trade, fuse, sell, recycle and gift |
 | Discoveries | The season's 4 families × 9 species with silhouettes for unseen ones, plus craft; also the Fusion Log. Counts describe species discovered, separate from cards owned |
 | Community | Opens on your Profile. A consistent local section bar switches between Profile, Market, Rankings and Trading, with only the supported sections shown |
@@ -404,7 +404,7 @@ Community's sections use local ids `profile`, `market`, `boards` and `trades`. A
 | Community section | Shows |
 |---|---|
 | Profile | Handle, league, rating, sparks, win streak, live own stats, cards owned and species discovered, Share profile, passkey and devices, privacy and settings. Share profile copies only `/u/{encoded current handle}`, with manual-copy fallback; it is hidden offline. Browser account management belongs in Settings |
-| Market | Everyone's listings as a grid of card tiles (art, rarity gem, family mark, finish, a price chip in sparks and the creature it wants in return), filter chips (family, rarity, kind, sort, shiny, foil), pages; your own listings with `l`. A listing's page is the confirm: the card in full, the seller with Challenge, recent prices, what you give and what you get, then `1` Buy. Selling starts from a card's page (`l`): the seller chooses an exact whole-spark price with an explicit Apply action, a stepper or up to three suggestions, and may ask for a card in return (a wishlist species, or the card's family at its rarity or better). Suggestions use only matching species, rarity, shiny and foil from the last five observed sales: the last matching price, and an average with a sample count when at least two match. A plain crafting cost is also available as a reference |
+| Market | Everyone's listings as a grid of card tiles (art, rarity gem, family mark, finish, a price chip in sparks and the creature it wants in return), filter chips (family, rarity, kind, sort, Alt colour, Foil), pages; your own listings with `l`. A listing's page is the confirm: the card in full, the seller with Challenge, recent prices, what you give and what you get, then `1` Buy. Selling starts from a card's page (`l`): the seller chooses an exact whole-spark price with an explicit Apply action, a stepper or up to three suggestions, and may ask for a card in return (a wishlist species, or the card's family at its rarity or better). Suggestions use only matching species, rarity, shiny and foil from the last five observed sales: the last matching price, and an average with a sample count when at least two match. A plain crafting cost is also available as a reference |
 | Rankings | Six labelled board choices plus `n`/`p` where stats are supported (rating alone on older servers), all time or this season with `a`, the top rows with a league badge and the value, your own rank pinned, and from each row the player's profile or Challenge |
 | Trading | Offers, Trade board, Wandering Trader and Gifts, switched within Trading; offline, only the Trader |
 
@@ -415,6 +415,8 @@ Pushed over the tabs and sections: card, fuse, species, listing and sell details
 **Visuals are the controls.** Every card tile, team slot, pack, listing and board row is pressable. Its native name or action button takes Tab focus and, where it matters, a hotkey. Desktop artwork has a pointer region measured from the art's pixel dimensions; family/level, rarity/finish, notes and wrapped names each have their own passive-text region. These regions select the same item and never cover a native button or another control. A queued selection survives a cosmetic redraw of the same item, but changing the item, action, view or active pane cancels it. A name is never cut: what does not fit a tile's column goes on a line below, and the card's page shows everything whole. On the desktop the art carries the full name as its tooltip.
 
 **Team placement is explicit.** A card offers Set in team, or Change slot when already on the team. Its picker names all three slots and current occupants: Replace keeps the previous card in the collection, Swap exchanges existing teammates, and Add here fills the first empty slot. Dense team order forbids gaps. The chooser keeps its origin for Back, waits for the authoritative team, and confirms the selected slot with Done. Pack summaries use this same picker for their card, never automatic strongest/weakest replacement.
+
+**Card appearances are explained on request.** Alt colour and Foil are separate labels, so a card with both reads `Rare · Alt colour · Foil`. A finished card offers `? Looks` (`a`) to show what its appearance means, then `Hide looks` to collapse it. Alt colour means a different palette and a sparkle; Foil means a rainbow frame and shimmer, with a still frame when motion is off. The explanation says neither gives a battle-stat bonus and that rarity is separate. An unbound card also shows its actual combined recycling multiplier. Plain cards add no appearance control or explanation.
 
 **Inline packs.** `/spin pack` and a welcome-pack invitation create a sealed band preview without sending an open request. Open consumes it once and reveals its card. Close before opening preserves the pack; after opening it preserves the awarded card. Sidebar transfers the same reveal and progress into the pane without another open request. Quiet and narrow-band fallbacks retain the explicit pane flow; invoking pack with none waiting opens its existing empty-state message and countdown.
 
@@ -434,17 +436,17 @@ Pushed over the tabs and sections: card, fuse, species, listing and sell details
   - `gift <card>`, `claim <code>`
   - `share [card]`
   - `redeem <code>`
-  - `world online|offline`
+  - `world [online|offline|url]` (no argument opens the chooser; online means `https://spinlings.dev`, offline means the local save, a URL selects a community server)
   - `devices`
   - `quiet [on|off]`, `motion on|off`, `sound on|off`
   - `privacy`
-  - `server [url|default]`
+  - `server [url|default]` (no argument reports the current host; URL and default are supported switching aliases, default means the default online world)
   - `version`
   - `demo`
 - Every command answers `{}`. Output that is text goes to `$.ui.log`, so the model never reads it.
 
 ### Shares
-- `/spin share [card]` copies a short text: an 8×8 emoji mosaic of the sprite, the card's name, family, rarity and shiny status, and the card page link `{server}/c/{id}`.
+- `/spin share [card]` copies a short text: an 8×8 emoji mosaic of the sprite, the card's name, family, rarity and appearance status, and the card page link `{server}/c/{id}`.
 - Card pages carry an `og:image` (a PNG of the pixel art), so links unfurl with the creature.
 - Profiles live at `{server}/u/{handle}`.
 
@@ -461,7 +463,7 @@ Pushed over the tabs and sections: card, fuse, species, listing and sell details
 | Context fill, rate limits | `session.measure` | Status line comfort note only ("your team is napping until 3:40 PM" at a 100% limit) |
 | Compaction | `session.compact` `trigger` | A one-line reaction only |
 | Session open | `session.start`, `session.end`, a `$.clock.every(60s)` heartbeat with a `$.store` lease | Presence minutes for pack charging |
-| Desktop card selection | `ui.message`, filtered to the Spinlings Pane and its card-hit module; `e.element` and `e.data` only (`null`) | Dispatch the existing card action for a key in the currently rendered pane; reject other payloads, unknown keys and terminal messages. Pointer coordinates stay in the renderer, never saved or sent. |
+| Desktop card or world-control selection | `ui.message`, filtered to the Spinlings Pane and its card-hit module; `e.element` and `e.data` only (`null`) | Dispatch the registered card action or open the world chooser for a key in the currently rendered pane; reject other payloads, unknown keys and terminal messages. Pointer coordinates stay in the renderer, never saved or sent. |
 
 **Never hooked:** `tool.call`, `prompt.submit`, `classic.PermissionRequest`.
 
@@ -619,7 +621,7 @@ Section 20 is the full privacy rule set and overrides this summary.
    - **Flipping:** `[f]` flips the next card, and cards auto-flip every 1.2 s with no input.
      - Commons flip fast.
      - Rare and better flip slower and add a flash.
-     - Shiny cards add sparkles around the card.
+     - Alt colour cards add sparkles around the card.
      - A legendary turns the pane border gold and shows a `LEGENDARY!` banner.
    - **Each revealed card** shows:
      - its name and rarity;
@@ -637,7 +639,7 @@ Section 20 is the full privacy rule set and overrides this summary.
    - **Global:** the first player in the world to obtain a species in a season gets a permanent `First Discovered` stamp on that card. The album shows "first found by {handle}" to everyone. The moment is a gold banner: "You are the first trainer in the world to find Gloamkin!".
    - Stored server-side (`firsts`: season, species, player, card, at). The card carries `firstFind: true`.
 8. **Pack charge meter.**
-   - The pane header always shows progress toward the next pack as a small pack filling in the family's colour, then the time left (`18m`, `now`, or `full` while the bank waits); on the desktop the pack is art with `next pack ███░░ 18 min` as its tooltip.
+   - Team's pack section shows progress toward the next pack as a small pack filling in the family's colour, then the time left (`18m`, `now`, or `full` while the bank waits); on the desktop the pack is art with `next pack ███░░ 18 min` as its tooltip. It sits beside the waiting-pack count and Open pack control.
    - When a pack charges, the band shows for 6 s: "A pack is ready! [o] Open". It never nags after that.
 9. **Gifts and received trades.** The band shows a wrapped present once: "quiet-otter-42 sent you a gift! [o] Open". Opening it is a 1-card version of the pack ceremony.
 10. **Fusion hatch (pane).** The two parents' sprites interleave into an egg. The egg wobbles for 3 beats and cracks, then the hybrid is revealed with "Nobody has ever seen this creature."
@@ -667,7 +669,7 @@ The rule for every moment in section 13: **build up, pause, pay off, celebrate i
   - a rare adds a flash and sparkle;
   - an epic adds a burst and a shimmering border;
   - a legendary gets a gold banner, a border pulse and a longer hold;
-  - each extra layer (`NEW`, `FIRST IN THE WORLD`, foil, shiny, a high gene score, a trinket) gets its own short beat, not one crowded frame.
+  - each extra layer (`NEW`, `FIRST IN THE WORLD`, Foil, Alt colour, a high gene score, a trinket) gets its own short beat, not one crowded frame.
 - **Never punish a look away:** everything auto-advances, and the pane keeps the last reveal to re-read.
 
 ### Animation engine (client)
@@ -709,7 +711,7 @@ The rule for every moment in section 13: **build up, pause, pay off, celebrate i
 - **Desktop look:**
   - A rainbow `linearGradient`, masked to the sprite with `mix-blend-mode: color-dodge` at 40%, translated across with `animateTransform`.
   - The border stroke is a rotating rainbow gradient.
-- **Label:** the rarity line reads `Rare · Foil`, and `Rare · Shiny Foil` when both apply. The reveal gives foil its own beat: the sheen sweeps once before the name appears.
+- **Label:** the mod's rarity line reads `Rare · Foil`, and `Rare · Alt colour · Foil` when both apply. The reveal gives foil its own beat: the sheen sweeps once before the name appears. The existing `shiny` and `foil` flags remain independent.
 
 ### Streaks
 - The server tracks consecutive wins, wild or duel. A loss or draw resets the count to 0.
@@ -937,12 +939,12 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 6. **Instant feedback.** Every press changes something visible within 100 ms (optimistic state, then reconcile with the server). Every wait over 300 ms shows a dim placeholder, never a frozen screen.
 7. **Smart defaults.** The handle is pre-filled, the best pick is pre-selected in pickers, and the album opens at the count you already have, never at 0.
 8. **Safety for destructive actions.** Recycle, fuse, gift, cancel and delete account need a 2-second hold, with a one-line consequence ("Pipkin will be gone. You get 25 sparks."). Nothing else asks for confirmation.
-9. **Never color alone.** Rarity always shows its word or initial too, and foil and shiny show labels.
+9. **Never color alone.** Rarity always shows its word or initial too, and Foil and Alt colour show separate labels.
 
 ### One card component, three sizes
 | Size | Used in | Contents |
 |---|---|---|
-| Full | Card detail, reveals | 16×16 sprite, name, rarity word and color, family mark, level and XP bar, gene score bar, traits (name and one-line effect), stamps (foil, shiny, first, mythic, raised under), origin |
+| Full | Card detail, reveals | 16×16 sprite, name, rarity word and color, family mark, level and XP bar, gene score bar, traits (name and one-line effect), stamps (Foil, Alt colour, first, mythic, raised under), origin; optional appearance explanation for finished cards |
 | Tile | Collection grid, offers, the market | Sprite, name (never cut: words that do not fit go on a line below), full family and rarity names in their colors, level and finishes; a listing adds its price chip and the card it wants |
 | Mini | Band, battle | 8×8 sprite, name, HP bar |
 
@@ -978,7 +980,7 @@ The same card always looks the same everywhere: same colors, same marks, same or
 - **The band** fits in 40 columns at minimum, and adapts at 40, 80 and 120+ columns. It never wraps a word mid-line; long names truncate with an ellipsis.
 - **The pane** adapts to `bodyColumns`. Grids reduce their tile count, headers and action groups wrap, and team slots become stacked rows in narrow panes. Home, Community and your profile also have tiny-pane checks at 24 and 32 columns.
 - **Pane structure:**
-  - header row: the tab bar on the left, then the daily rule and pack meter on the right;
+  - header row: the tab bar, then the daily-rule and world-chooser buttons, wrapping as needed;
   - body, with the same section bar on every Community section;
   - Back or Close, Help and version/update controls at the bottom.
 
@@ -1245,8 +1247,9 @@ Section 30 removed link codes and recovery codes; a passkey is the only way to b
 
 ### Choosing a world (no wall, smart default)
 - **First run** asks nothing: the world is online (section 34). Either way the welcome flow (section 6) starts in that world.
-- **`/spin world online|offline`** switches the active world at any time. Each world keeps its own collection; switching never deletes anything. Going online for the first time creates a fresh online account with the normal starter team and welcome packs.
-- **Always visible:** the pane header and the status line show the active world (`Offline` / `Online`).
+- **`/spin world`** opens an interactive chooser for the default online world, the offline save or a community URL. Opening the chooser does not change worlds or contact a proposed community server.
+- **`/spin world online`** returns to the online world on `https://spinlings.dev`, even from a community server. **`/spin world offline`** returns to the local save. **`/spin world <url>`** selects a community server under section 33's confirmation rules. Each world keeps its own collection; switching never deletes anything. Visiting an online server for the first time creates its own account with the normal starter team and welcome packs.
+- **Always visible:** the pane header and the status line show the active world (`Offline` / `Online`). The header's world button opens the same chooser.
 - **Online-only actions in offline mode** show one line instead: `This needs the online world · [1] Join online (fresh collection) · esc Stay offline`.
 
 ### One rulebook, two backends (mod architecture)
@@ -1345,7 +1348,7 @@ Passkeys are bound to `rp.id` forever. The production domain must be final befor
 
 - **Single origin.** The production server is `https://spinlings.dev`, served by the Worker as a Cloudflare custom domain on the account's `spinlings.dev` zone. The API, every page, the passkey pages and all share links (`/c/:id`, `/g/:code`, `/d/:code`, `/u/:handle`) live on this one origin.
 - **Passkeys.** `rp.id` is `spinlings.dev`, and the passkey pages check that the origin is exactly `https://spinlings.dev` (a self-hosted server uses its own configured origin through the `ORIGIN` environment variable). This must never change.
-- **The mod's default** server is `https://spinlings.dev`; `/spin server` changes it.
+- **The mod's default** server is `https://spinlings.dev`; `/spin world online` returns to it and `/spin world <url>` chooses a community server. `/spin server` remains a supported alias.
 - **workers.dev is off** (`workers_dev: false`) once the custom domain serves, so there is exactly one origin.
 - **`.dev` is HSTS-preloaded,** so HTTPS is mandatory, which suits passkeys.
 - **Deploy.** `wrangler.jsonc` declares `routes: [{ "pattern": "spinlings.dev", "custom_domain": true }]`. If the deploy token lacks zone permission, an admin attaches the custom domain once in the dashboard: Workers, then spinlings, then Settings, then Domains & Routes.
@@ -1432,12 +1435,12 @@ A `Dockerfile` is provided, built from a `node:22-alpine` image pinned by digest
 - **Drops** use `node scripts/admin/drop.ts --local --db <path>` on Node, or `--d1 <name>` on Cloudflare.
 
 ### Mod behaviour
-- **`/spin server <url>`:**
+- **`/spin world <url>`** (also accepted as `/spin server <url>`):
   - normalises the URL to its origin (https only, except localhost);
   - makes no request to an unapproved community origin before confirmation;
   - shows a one-time notice for any origin other than `https://spinlings.dev`: "This is a community server run by someone else. It receives the same anonymous game data as spinlings.dev, and never anything about your work. [1] Connect · esc Cancel".
   - **Connect enters the chosen server's online world immediately**, including from offline, then checks `GET /v1/version` and resumes that origin's session or joins. Cancel keeps the current world and server and sends nothing to the proposed origin. An already approved origin connects directly.
-- **Online accounts are kept per server origin.** Sessions, cache and settings live under a `server:{origin}` prefix in `$.store`, so switching servers never mixes or deletes anything. `/spin server default` explicitly returns to the online world on `https://spinlings.dev`, resuming its account. Connecting preserves the offline save; `/spin world offline` returns to it.
+- **Online accounts are kept per server origin.** Sessions, cache and settings live under a `server:{origin}` prefix in `$.store`, so switching servers never mixes or deletes anything. `/spin world online` (also `/spin server default`) explicitly returns to the online world on `https://spinlings.dev`, resuming its account. Connecting preserves the offline save; `/spin world offline` returns to it. `/spin world` opens the chooser; `/spin server` without an argument reports the current host.
 - **Always visible:** the pane header and the privacy view always show the active server's host.
 - **No cross-server movement** of cards, accounts or ratings. Each server is a sealed world.
 

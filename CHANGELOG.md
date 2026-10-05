@@ -2,6 +2,14 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.10 (2026-10-05)
+
+- **Choose a world in one place.** `/spin world` opens the chooser, `/spin world offline` resumes the local collection, `/spin world online` returns to spinlings.dev, and `/spin world <server>` reviews a community address before connecting. The header's world indicator opens the same chooser. Old `/spin server` commands remain supported; each server's session and the offline save stay separate. Cancelled or outdated choices cannot switch worlds later.
+- **Keep packs together.** The Team pane groups the ready count, Open pack, pack artwork and next-pack countdown below your creatures. The header has the daily rule and world control. Narrow panes wrap full community addresses without cutting them off.
+- **Explain card finishes.** Alternate creature colours read `Alt colour`; rainbow frames read `Foil`. Both stay separate from rarity. An optional Looks control explains them, their existing recycling values and that they add no battle stats. Appearance odds, card records and mechanics are unchanged.
+- **Directory source documentation.** The plugin folder includes its own setup/gameplay README and the unchanged MIT license for source review. Claude Code 2.1.287 or later remains required; compatible Desktop Code sessions use the same mod.
+- **Compatibility and privacy.** API v1, rules 1, generator 2, offline format 1, minimum client, request fields, stored game fields and public player fields remain unchanged. No migration or runtime dependency added; released readers, fixtures, engines and generators remain immutable. Website appearance and honestly versioned screenshots are preserved.
+
 ## 0.2.9 (2026-10-04)
 
 - **Connect in one step.** Confirming a community server joins its online world immediately, including from offline. Cancel keeps the current world, and no request goes to a new community server before Connect. `/spin server default` resumes the default online account; each server's collection and the offline save stay separate.

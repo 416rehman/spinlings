@@ -28,7 +28,7 @@ import type { ServerMeta, StoredPrefs, StoredPresence } from './store.ts'
 import { KEYS, cacheRecord, readCache, readMeta, readOfflineMeta, readPrefs, readPresence, serverKeys } from './store.ts'
 import type {
   Account, Actions, Backend, Battle, BattleControl, BoardName, BoardPeriod, Catch, Chime, Fx, GameState, HoldAction, MarketQuery,
-  MarketWant, Moment, Outcome, PaneUi, Reveal, RevealControl, Sent, SignIn, Slots, StateKey, Tab, Timer, View, World, CommunitySection,
+  MarketWant, Moment, Outcome, PaneUi, Reveal, RevealControl, Sent, SignIn, Slots, StateKey, Tab, Timer, View, World, WorldChoice, CommunitySection,
 } from './types.ts'
 import { BackendError, isBackendError, isUnreachable } from './types.ts'
 import { dayLabel, dots, plural, safe, title } from './text.ts'
@@ -313,7 +313,7 @@ export function shareText(card: Card, world: World, origin: string): string {
   } catch {
     mosaic = ''
   }
-  const finish = dots(card.shiny && 'Shiny', card.foil && 'Foil')
+  const finish = dots(card.shiny && 'Alt colour', card.foil && 'Foil')
   const line = dots(nameOf(card), FAMILY_INFO[card.family].name, title(card.rarity), finish)
   const link = world === 'online' ? pageUrl(origin, 'c', card.id) : `offline save · ${DEFAULT_SERVER}`
   return [mosaic, line, link].filter(s => s !== '').join('\n')
@@ -434,6 +434,9 @@ export function createGame(o: GameOptions): Game {
     openingPack: null as (() => boolean) | null,
     /** Same-server sign-in/reset also invalidates a pending pack action. */
     packAccount: 0,
+    /** New world choices and cancelled notices invalidate earlier asynchronous choices. */
+    worldChoice: 0,
+    worldPreparing: null as { seq: number; origin: string | null; chooser: boolean } | null,
     /** the band's moment driver runs once per load of the module */
     animating: false,
     /**
@@ -474,15 +477,22 @@ export function createGame(o: GameOptions): Game {
   // ---------- state ----------
 
   const get = <K extends StateKey>(fx: Fx, k: K) => fx.state.get(k)
-  const upd = <K extends StateKey>(fx: Fx, k: K, fn: (v: GameState[K]) => GameState[K]) => fx.state.update(k, value => {
-    const next = fn(value)
-    if (k === 'reveal') {
-      const before = (value as Reveal | null)?.id ?? null
-      rt.revealId = (next as Reveal | null)?.id ?? null
-      if (before !== rt.revealId) rt.revealEpoch++
-    }
-    return next
-  })
+  const upd = <K extends StateKey>(fx: Fx, k: K, fn: (v: GameState[K]) => GameState[K]) => {
+    return fx.state.update(k, value => {
+      const next = fn(value)
+      if (k === 'pane' && rt.worldPreparing?.chooser && rt.worldPreparing.seq === rt.worldChoice
+        && (value as PaneUi).stack.at(-1)?.kind === 'world' && (next as PaneUi).stack.at(-1)?.kind !== 'world') {
+        rt.worldChoice++
+        rt.worldPreparing = null
+      }
+      if (k === 'reveal') {
+        const before = (value as Reveal | null)?.id ?? null
+        rt.revealId = (next as Reveal | null)?.id ?? null
+        if (before !== rt.revealId) rt.revealEpoch++
+      }
+      return next
+    })
+  }
   const put = <K extends StateKey>(fx: Fx, k: K, v: GameState[K]) => upd(fx, k, () => v)
   const sleep = (fx: Fx, ms: number) => new Promise<void>(r => { fx.after(Math.max(0, ms), r) })
   /**
@@ -932,26 +942,40 @@ export function createGame(o: GameOptions): Game {
   /** Online with a stored server address Spinlings can't use (setAccount without an origin): no server is asked anything. */
   const badAddress = (a: Account) => a.link === 'unreachable' && a.note.startsWith('The server address')
 
-  async function setAccount(fx: Fx, world: World, origin: string | null): Promise<void> {
+  async function setAccount(fx: Fx, world: World, origin: string | null, intent?: WorldIntent): Promise<boolean> {
     const current = await get(fx, 'account')
+    if (intent && !intent.before()) return false
     const server = origin ?? current.server
     // offline, the server is only where going online will go: the world in play stays as it is
     const moving = current.world !== world || (world === 'online' && current.server !== server)
     // work for the place being left stops now, and again once the account says so, for any that read it just before
-    if (moving) rt.place++
+    if (moving && !intent) rt.place++
+    const here = stays()
     // a usable address where prefs held one that isn't: the link starts over, even on the same server
     const kept = (a: Account) => a.world === world && !(origin && badAddress(a))
-    await upd(fx, 'account', a => ({
-      ...a, world, server, host: hostOf(server), community: server !== DEFAULT_SERVER,
-      link: world === 'online' && !origin ? 'unreachable' : kept(a) && (world === 'offline' || a.server === server) ? a.link : 'starting',
-      note: world === 'online' && !origin ? 'The server address in settings is not one Spinlings can use (https only)' : kept(a) ? a.note : '',
-      features: world === 'offline' ? OFFLINE_FEATURES : a.world === 'offline' || a.server !== server ? [ONLINE_FEATURES_UNKNOWN] : a.features,
-      species: world === 'offline' || a.server !== server ? undefined : a.species,
-      readOnly: world === 'offline' ? false : a.readOnly,
-      // what a server said about newer mods holds for that server alone; the handshake says it again
-      latest: world === 'offline' || a.server !== server ? null : a.latest ?? null,
-    }))
-    if (moving) rt.place++
+    let accepted = false
+    let fence: number | null = null
+    await upd(fx, 'account', a => {
+      accepted = !intent || intent.current() && (fence === null ? here() : rt.place === fence)
+      if (accepted && intent) {
+        if (moving && fence === null) { rt.place++; fence = rt.place }
+        intent.commit(rt.place)
+      }
+      return !accepted ? a : ({
+        ...a, world, server, host: hostOf(server), community: server !== DEFAULT_SERVER,
+        link: world === 'online' && !origin ? 'unreachable' : kept(a) && (world === 'offline' || a.server === server) ? a.link : 'starting',
+        note: world === 'online' && !origin ? 'The server address in settings is not one Spinlings can use (https only)' : kept(a) ? a.note : '',
+        features: world === 'offline' ? OFFLINE_FEATURES : a.world === 'offline' || a.server !== server ? [ONLINE_FEATURES_UNKNOWN] : a.features,
+        species: world === 'offline' || a.server !== server ? undefined : a.species,
+        readOnly: world === 'offline' ? false : a.readOnly,
+        // what a server said about newer mods holds for that server alone; the handshake says it again
+        latest: world === 'offline' || a.server !== server ? null : a.latest ?? null,
+      })
+    })
+    if (intent && (!accepted || !intent.current())) return false
+    if (moving && accepted) rt.place++
+    if (intent) intent.commit(rt.place)
+    return accepted
   }
 
   async function reseed(fx: Fx): Promise<void> {
@@ -1132,8 +1156,10 @@ export function createGame(o: GameOptions): Game {
     if (cards.length > 0) await ensureSeasons(fx, cards)
   }
 
-  async function clearWorldState(fx: Fx): Promise<void> {
+  async function clearWorldState(fx: Fx, intent?: WorldIntent): Promise<void> {
+    if (intent && !intent.current()) return
     rt.packAccount++
+    intent?.accountCleared(rt.packAccount)
     // a passkey flow belongs to the account it began for: its poll stops, and its page is no longer offered
     rt.poll?.cancel()
     rt.poll = null
@@ -1142,13 +1168,16 @@ export function createGame(o: GameOptions): Game {
     await put(fx, 'battle', null)
     await put(fx, 'reveal', null)
     await put(fx, 'social', INITIAL.social)
-    await upd(fx, 'moments', list => list.filter(m => m.kind === 'update'))
+    await upd(fx, 'moments', list => list.filter(m => m.kind === 'update' || !!intent && m.kind === 'server'
+      && rt.worldPreparing?.seq === rt.worldChoice && m.origin === rt.worldPreparing.origin))
     await upd(fx, 'pane', p => ({ ...p, stack: [], hold: null, busy: null, message: '', toCopy: '' }))
     await upd(fx, 'account', a => {
       const { backedUp: _, ...rest } = a
       return { ...rest, signIn: null, devices: null }
     })
+    if (intent && !intent.current()) return
     rt.packAccount++
+    intent?.accountCleared(rt.packAccount)
   }
 
   // ---------- signals (SPEC 10) ----------
@@ -1789,6 +1818,7 @@ export function createGame(o: GameOptions): Game {
     }
     if (byPerson && p.stack.length > 0) {
       const top = p.stack[p.stack.length - 1]!
+      if (top.kind === 'world' && top.origin) await dismiss(fx, `server:${top.origin}`)
       if (top.kind === 'reveal') await doneReveal(fx)
       else await upd(fx, 'pane', x => ({ ...x, stack: x.stack.slice(0, -1), hold: null, message: '', toCopy: '' }))
       return true
@@ -1912,51 +1942,69 @@ export function createGame(o: GameOptions): Game {
 
   // ---------- worlds and servers ----------
 
-  async function switchWorld(fx: Fx, world: World): Promise<void> {
-    const account = await get(fx, 'account')
-    if (account.world === world) {
-      if (world === 'online' && account.link !== 'ready') {
-        // a session the server no longer knows only signs out again: this starts fresh with a new one (SPEC 29)
-        if (account.link === 'signed-out') {
-          await forgetToken(fx.store, account.server)
-          await fx.store.delete(KEYS.cache(account.server))
-          await clearWorldState(fx)
-        }
-        await saveMeta(fx, account.server, { deleted: false })
-        await connect(fx, { firstRun: false, explicit: true, fallback: false })
-      } else fx.ui.log(`Already in the ${world} world.`)
-      return
-    }
-    await savePrefs(fx, { world })
-    // the switch itself first: from here, whatever is still on its way from the world left behind is dropped
-    await setAccount(fx, world, account.server)
-    await clearWorldState(fx)
-    await unblock(fx, 'any')
-    if (world === 'online') await saveMeta(fx, account.server, { deleted: false })
-    await connect(fx, { firstRun: false, explicit: true, fallback: world === 'online' })
-    const now = (await get(fx, 'account')).world
-    fx.ui.log(now === 'online' ? `Online on ${account.host}.` : 'Offline: nothing leaves this machine.')
+  type WorldIntent = { before(): boolean; current(): boolean; commit(place: number): void; accountCleared(account: number): void }
+
+  async function worldIntent(fx: Fx, choice?: WorldChoice, valid: () => boolean = () => true, origin: string | null = null): Promise<WorldIntent | null> {
+    const here = packStays()
+    const [account, pane] = await Promise.all([get(fx, 'account'), get(fx, 'pane')])
+    const top = pane.stack.at(-1)
+    if (!here() || !valid() || choice && (account.world !== choice.world || account.server !== choice.server
+      || top?.kind !== 'world' || top.origin !== choice.origin)) return null
+    const seq = ++rt.worldChoice
+    let acceptedPlace: number | null = null
+    let acceptedAccount = rt.packAccount
+    rt.worldPreparing = { seq, origin, chooser: !!choice }
+    return { before: () => here() && valid() && rt.worldChoice === seq,
+      current: () => acceptedPlace === null ? here() && valid() && rt.worldChoice === seq : rt.place === acceptedPlace && rt.packAccount === acceptedAccount,
+      commit: place => { acceptedPlace = place; acceptedAccount = rt.packAccount; if (rt.worldPreparing?.seq === seq) rt.worldPreparing = null },
+      accountCleared: account => { acceptedAccount = account } }
   }
 
-  async function setServer(fx: Fx, url: string | null): Promise<void> {
+  async function switchWorld(fx: Fx, target: string, choice?: WorldChoice, valid?: () => boolean): Promise<void> {
+    if (target !== 'offline') return setServer(fx, target === 'online' ? 'default' : target, choice, valid)
+    const intent = await worldIntent(fx, choice, valid)
+    if (!intent) return
+    const account = await get(fx, 'account')
+    if (!intent.before()) return
+    if (account.world === 'offline') { fx.ui.log('Already in the offline world.'); return }
+    if (!await setAccount(fx, 'offline', account.server, intent)) return
+    if (!intent.current()) return
+    const place = stays(), current = () => intent.current() && place()
+    const active = packFx(fx, current)
+    await savePrefs(active, { world: 'offline' })
+    await clearWorldState(active, intent)
+    await unblock(active, 'any')
+    if (!current()) return
+    await connect(active, { firstRun: false, explicit: true, fallback: false })
+    if (current()) fx.ui.log('Offline: nothing leaves this machine.')
+  }
+
+  async function setServer(fx: Fx, url: string | null, choice?: WorldChoice, valid?: () => boolean): Promise<void> {
     const account = await get(fx, 'account')
     if (url === null) {
       fx.ui.log(`Server: ${account.host}${account.community ? ' (a community server)' : ''}`)
       return
     }
     const origin = url.toLowerCase() === 'default' ? DEFAULT_SERVER : serverOrigin(url)
+    const intent = await worldIntent(fx, choice, valid, origin)
+    if (!intent) return
     if (!origin) {
       fx.ui.log('That is not a server address Spinlings can use (https only; http for localhost).')
+      if (choice) await message(packFx(fx, intent.before), 'Use an https address, or http://localhost for a local server.')
       return
     }
     const prefs = await prefsRecord(fx)
+    if (!intent.before()) return
     if (origin !== DEFAULT_SERVER && !prefs.communityOk.includes(origin)) {
       // Naming a community server is only a local notice: Connect is the permission to ask it anything.
-      await pushMoment(fx, { kind: 'server', id: `server:${origin}`, origin, until: null })
+      const f = packFx(fx, intent.before)
+      await pushMoment(f, { kind: 'server', id: `server:${origin}`, origin, until: null })
+      if (choice) await upd(f, 'pane', p => ({ ...p, message: '', stack: p.stack.map((v, i) => i === p.stack.length - 1 && v.kind === 'world' ? { ...v, address: origin, origin } : v) }))
+      if (!intent.before()) return
       fx.ui.log(`${hostOf(origin)} is a community server run by someone else. See the band to connect online.`)
       return
     }
-    await useServer(fx, origin)
+    await useServer(fx, origin, intent)
   }
 
   /**
@@ -1991,24 +2039,45 @@ export function createGame(o: GameOptions): Game {
     await publish(fx)
   }
 
-  async function useServer(fx: Fx, origin: string): Promise<void> {
+  async function useServer(fx: Fx, origin: string, intent: WorldIntent): Promise<void> {
     const prefs = await prefsRecord(fx)
-    await savePrefs(fx, { world: 'online', server: origin, communityOk: origin === DEFAULT_SERVER ? prefs.communityOk : [...new Set([...prefs.communityOk, origin])] })
-    await dropMoment(fx, `server:${origin}`)
+    if (!intent.before()) return
     const account = await get(fx, 'account')
-    if (account.world === 'online' && account.server === origin && account.link === 'ready') return
-    if (account.world === 'online' && account.server === origin && account.link === 'signed-out') {
-      await forgetToken(fx.store, origin)
-      await fx.store.delete(KEYS.cache(origin))
-    }
+    if (!intent.before()) return
     // Connect explicitly enters online; the local save and every origin's session remain in their own keys.
-    await setAccount(fx, 'online', origin)
-    await clearWorldState(fx)
-    await unblock(fx, 'any')
-    await saveMeta(fx, origin, { deleted: false })
-    await connect(fx, { firstRun: false, explicit: true, fallback: false })
+    if (!await setAccount(fx, 'online', origin, intent)) return
+    if (!intent.current()) return
+    const place = stays(), ok = () => intent.current() && place()
+    const active = packFx(fx, ok)
+    await savePrefs(active, { world: 'online', server: origin, communityOk: origin === DEFAULT_SERVER ? prefs.communityOk : [...new Set([...prefs.communityOk, origin])] })
+    await dropMoment(active, `server:${origin}`)
+    if (account.world === 'online' && account.server === origin && account.link === 'ready') {
+      await upd(active, 'pane', p => ({ ...p, stack: p.stack.map(v => v.kind === 'world' && v.origin === origin ? { kind: 'world', address: origin } : v) }))
+      return
+    }
+    if (account.world === 'online' && account.server === origin && account.link === 'signed-out') {
+      await forgetToken(active.store, origin)
+      await active.store.delete(KEYS.cache(origin))
+    }
+    await clearWorldState(active, intent)
+    await unblock(active, 'any')
+    await saveMeta(active, origin, { deleted: false })
+    if (!ok()) return
+    await connect(active, { firstRun: false, explicit: true, fallback: false })
+    if (!ok()) return
     fx.ui.log(`Online on ${hostOf(origin)}.`)
-    await publish(fx)
+    await publish(active)
+  }
+
+  async function confirmServer(fx: Fx, origin: string, choice?: WorldChoice, valid?: () => boolean): Promise<void> {
+    if (serverOrigin(origin) !== origin) return
+    const intent = await worldIntent(fx, choice, valid, origin)
+    if (!intent) return
+    const prefs = await prefsRecord(fx)
+    const moments = await get(fx, 'moments')
+    if (!intent.before() || origin !== DEFAULT_SERVER && !prefs.communityOk.includes(origin)
+      && !moments.some(m => m.kind === 'server' && m.origin === origin)) return
+    await useServer(fx, origin, intent)
   }
 
   // ---------- passkeys (SPEC 29, 30) ----------
@@ -2130,8 +2199,10 @@ export function createGame(o: GameOptions): Game {
       case 'share': return share(fx, cmd.ref, true)
       case 'redeem': return redeem(fx, cmd.code, true)
       case 'world': {
-        if (cmd.world === null) { fx.ui.log(`World: ${account.world}${account.world === 'online' ? ' on ' + account.host : ''}`); return }
-        return switchWorld(fx, cmd.world)
+        if (!packHere()) return
+        if (cmd.url) return setServer(fx, cmd.url, undefined, packHere)
+        if (cmd.world === null) return openPane(packFx(fx, packHere), { view: { kind: 'world' } })
+        return switchWorld(fx, cmd.world, undefined, packHere)
       }
       case 'devices': {
         await openPane(fx, { view: { kind: 'devices' } })
@@ -2155,7 +2226,7 @@ export function createGame(o: GameOptions): Game {
         return
       }
       case 'privacy': return openPane(fx, { view: { kind: 'privacy' } })
-      case 'server': return setServer(fx, cmd.url)
+      case 'server': return setServer(fx, cmd.url, undefined, packHere)
       case 'version': return versionCommand(fx)
       case 'demo': return openPane(fx, { view: { kind: 'demo', step: 0 } })
       case 'leaderboard': return leaderboardCommand(fx, cmd.on)
@@ -2628,8 +2699,8 @@ export function createGame(o: GameOptions): Game {
           await refresh(fx)
         }
       })()),
-      world: w => after(switchWorld(fx, w)),
-      connect: origin => after(useServer(fx, origin)),
+      world: (target, choice) => after(switchWorld(fx, target, choice)),
+      connect: (origin, choice) => after(confirmServer(fx, origin, choice)),
       passkey: kind => after(passkey(fx, kind)),
       rerollHandle: () => after((async () => {
         const res = await run(fx, 'rerollHandle', {}, 'Finding a new name')
@@ -2684,7 +2755,7 @@ export function createGame(o: GameOptions): Game {
       case 'needs-online':
         await dropMoment(fx, id)
         return switchWorld(fx, 'online')
-      case 'server': return useServer(fx, m.origin)
+      case 'server': return confirmServer(fx, m.origin, undefined, packHere)
       case 'update':
       case 'line':
         return dropMoment(fx, id)
@@ -2694,6 +2765,10 @@ export function createGame(o: GameOptions): Game {
   async function dismiss(fx: Fx, id: string): Promise<void> {
     const m = (await get(fx, 'moments')).find(x => x.id === id)
     if (!m) return
+    if (m.kind === 'server' && rt.worldPreparing?.seq === rt.worldChoice && rt.worldPreparing.origin === m.origin) {
+      rt.worldChoice++
+      rt.worldPreparing = null
+    }
     if (m.kind === 'outcome' && m.outcome.catch.status === 'choose') return pickCatch(fx, rarestIndex(m.outcome.catch.options))
     if (m.kind === 'welcome') await markWelcomed(fx)
     await dropMoment(fx, id)

@@ -73,6 +73,32 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     return (await cards(who)).filter(x => !x.bound && x.state === 'owned' && x.lockedUntil <= boot.clock.now() && !team.includes(x.id))
   }
 
+  // Trader payouts and one-card packs need not leave enough stock for the later wire exercises.
+  // Provision only missing, real cards through the same strict client; never alias a consumed card.
+  async function regularStock(who: Client, count: number, excludeSpecies: ReadonlySet<string> = new Set()) {
+    const usable = async () => (await freeCards(who)).filter(k => k.species.startsWith('s') && !excludeSpecies.has(k.species))
+    let pool = await usable()
+    const missing = Math.max(0, count - pool.length)
+    if (missing) {
+      assert.ok((await who.me()).player.sparks >= missing * ECONOMY.craft.common, 'fixture has enough sparks for missing common cards')
+      const season = seasonOf(boot.clock.now())
+      const species = (['opus', 'haiku', 'sonnet', 'fable'] as const)
+        .flatMap(family => familySpecies(season, family)).find(s => !s.legendary && !excludeSpecies.has(s.id))
+      assert.ok(species, 'a current regular species outside the other collection is available')
+      const seen = new Set((await cards(who)).map(k => k.id))
+      for (let i = 0; i < missing; i++) {
+        const { card } = await who.call('craft', { speciesId: species.id, rarity: 'common' })
+        assert.ok(!seen.has(card.id), 'each provisioned card has a new observed identity')
+        seen.add(card.id)
+        pool = await usable()
+        assert.ok(pool.some(k => k.id === card.id), 'each crafted card is reread as owned, unbound, rested and outside the team')
+      }
+    }
+    assert.ok(pool.length >= count, `fixture requires ${count} usable regular cards`)
+    assert.equal(new Set(pool.map(k => k.id)).size, pool.length, 'usable stock has distinct live identities')
+    return pool
+  }
+
   before(async () => {
     boot = await bootServer({ difficulty: 8 })
     a = connect(boot, 'a', 'opus')
@@ -179,11 +205,35 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     assert.ok(paid, 'a deal could be paid within a week')
   })
 
+  it('wire fixtures can provision distinct usable stock from an empty free collection', async () => {
+    const stock = connect(boot, 'contract-stock', 'opus')
+    everyone.push(stock)
+    handles.set(stock, (await stock.join()).player.handle)
+    try {
+      const original = await cards(stock)
+      const team = (await stock.me()).player.team
+      assert.equal((await freeCards(stock)).length, 0, 'the new account has only bound team starters')
+      await trust(stock)
+      const pool = await regularStock(stock, 4)
+      assert.equal(pool.length, 4)
+      assert.equal((await cards(stock)).length, original.length + 4)
+      assert.deepEqual((await stock.me()).player.team, team)
+      assert.ok(pool.every(k => !original.some(c => c.id === k.id)))
+      const again = await regularStock(stock, 4)
+      assert.deepEqual(again.map(k => k.id), pool.map(k => k.id), 'sufficient stock causes no extra crafting')
+    } finally {
+      assert.deepEqual(await stock.call('deleteMe', {}), { deleted: true })
+      handles.delete(stock)
+    }
+  })
+
   it('players: profile, board, offers (decline, cancel, counter, accept, expire), gifts and claims', async () => {
-    const mine = (await freeCards(a)).filter(k => k.species.startsWith('s'))
-    const theirs = (await freeCards(b)).filter(k => k.species.startsWith('s') && !mine.some(m => m.species === k.species))
+    const mine = await regularStock(a, 4)
+    const theirs = await regularStock(b, 1, new Set(mine.map(m => m.species)))
     const [m1, m2, m3] = mine
     const [t1] = theirs
+    assert.ok(m1 && m2 && m3 && t1, 'offer, expiry and gift fixtures have distinct usable cards')
+    assert.ok(!mine.some(m => m.species === t1.species), 'wishlist matching uses a species absent from the other collection')
     await b.call('setForTrade', { cardId: t1!.id, forTrade: true })
     await a.call('setForTrade', { cardId: m1!.id, forTrade: true })
     await a.call('setWishlist', { species: [t1!.species] })
@@ -222,10 +272,12 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
   })
 
   it('the market, a challenge and the leaderboards: list, browse, buy, swap, cancel, every board', async () => {
-    const [x, y, w] = (await freeCards(a)).filter(k => k.species.startsWith('s'))
+    const [x, y, w] = await regularStock(a, 3)
+    assert.ok(x && y && w, 'market buy, swap and cancel fixtures have three usable cards')
     const sparks = (await a.call('listCard', { cardId: x!.id, price: 25 })).listing
     await refused(a, 'listCard', { cardId: x!.id, price: 25 }, 'not_allowed', 403)
-    const fit = (await freeCards(b)).find(k => k.species.startsWith('s'))!
+    const [fit] = await regularStock(b, 1)
+    assert.ok(fit, 'the buyer owns a usable swap card')
     const swap = (await a.call('listCard', { cardId: y!.id, want: { family: fit.family } })).listing
     assert.deepEqual((await a.me()).listings!.map(l => l.id).sort(), [sparks.id, swap.id].sort())
     const page = await b.call('market', { sort: 'cheapest', family: x!.family, minPrice: 1 })

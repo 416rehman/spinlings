@@ -3,6 +3,7 @@
 // first press and need a second press after 2 seconds, with their consequence in one line.
 import type { RenderElement } from 'claude-code'
 import { recycleValue } from '../core/cards.ts'
+import { ECONOMY } from '../core/economy.ts'
 import { FAMILY_INFO } from '../core/families.ts'
 import { dailyRule, fusionCost } from '../core/world.ts'
 import { nameOf } from '../client/game.ts'
@@ -82,9 +83,22 @@ export function cardScreen(c: Ctx, cardId: string): Shown {
     })
   const value = recycleValue(x)
   const sellNote = can.sell && me ? sellProblem(x, me.player.team, c.state.cards) : ''
+  const view = c.state.pane.stack.at(-1)
+  const looks = view?.kind === 'card' && view.cardId === x.id && !!view.looks
+  const finished = x.shiny || !!x.foil
+  const multiplier = (x.shiny ? ECONOMY.recycleShiny : 1) * (x.foil ? ECONOMY.recycleFoil : 1)
   const rows = column(c, [
     para(c, `Cards › ${name}`, { dim: true }),
     card(c.el, c.surface, x, 'full', { key: 'detail', width: c.columns, motion: c.motion, offline: c.offline, now: c.now }),
+    finished ? actions(c, [btn(c, { key: 'card-looks', label: looks ? 'Hide looks' : '? Looks', hotkey: 'a', dim: true,
+      on: () => c.actions.pane(p => withTop(p, v => v.kind === 'card' && v.cardId === x.id ? { ...v, looks: !v.looks } : v)),
+    })]) : null,
+    finished && looks ? column(c, [
+      x.shiny ? para(c, 'Alt colour: a different palette and a sparkle.', { dim: true }) : null,
+      x.foil ? para(c, 'Foil: a rainbow frame and shimmer. Motion off keeps the frame still.', { dim: true }) : null,
+      para(c, 'These looks give no battle-stat bonus. Rarity is separate.', { dim: true }),
+      !x.bound ? para(c, `The finishes multiply recycle value by ${multiplier}×.`, { dim: true }) : null,
+    ], SPACE.none) : null,
     at >= 0 ? line(c, at === 0 ? 'Leads your team' : `On your team · slot ${at + 1}`, { dim: true }) : null,
     actions(c, [
       team,

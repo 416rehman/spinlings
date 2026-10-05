@@ -8,7 +8,7 @@ import { teamSlots, today } from '../client/viewmodels.ts'
 import type { Slot } from '../client/viewmodels.ts'
 import type { Ctx, Shown } from './pane-kit.tsx'
 import { cardHitRegion } from './card-hit-area.tsx'
-import { TILE, actions, btn, cardRow, column, heading, line, packArt, para, tabsHint, tile } from './pane-kit.tsx'
+import { TILE, actions, btn, cardRow, column, heading, line, meter, packArt, para, tabsHint, tile } from './pane-kit.tsx'
 import { ART, INK, MARK, SPACE, SVG_SCALE } from './tokens.ts'
 
 const NOTICES = 2
@@ -61,7 +61,7 @@ function packStrip(c: Ctx): RenderElement | null {
         <Box key={`pack-${p.id}`} position="relative" flexDirection="column" flexShrink={0} width={12}>
           {cardHitRegion(c.el, packArt(c, p.family, `pack-${p.id}-art`), c.hitAreas, `pack-${p.id}-art`,
             () => c.actions.openPack(p.id), `pack-${p.id}`, `${c.hitIntent}:${p.id}`)}
-          {btn(c, { key: `pack-${p.id}`, label: `Open ${FAMILY_INFO[p.family].name}`, lit: true, on: () => c.actions.openPack(p.id) })}
+          {btn(c, { key: `pack-${p.id}`, label: `${FAMILY_INFO[p.family].name} pack`, lit: true, on: () => c.actions.openPack(p.id) })}
         </Box>
       ))}
       {packs.length > shown.length ? <Text dimColor>{`+${packs.length - shown.length}`}</Text> : null}
@@ -104,7 +104,7 @@ export function teamScreen(c: Ctx): Shown {
   const { Box, Text } = c.el
   const standing = (
     <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
-      <Text>Your team</Text>
+      <Text bold>Your team</Text>
       <Text color={INK.muted}>{`${p.league} league`}</Text>
       <Text><Text color={INK.accent}>{MARK.rank}</Text><Text bold>{` ${p.rating} rating`}</Text></Text>
       <Text><Text color={INK.accent}>{MARK.spark}</Text><Text>{` ${p.sparks} sparks`}</Text></Text>
@@ -112,18 +112,29 @@ export function teamScreen(c: Ctx): Shown {
     </Box>
   )
   const body = column(c, [
-    standing,
-    filled.length === 0
-      ? para(c, 'Your team forms as your first cards arrive. Open a pack, then set your favourites from Collection.', { dim: true })
-      : wide ? <Box flexDirection="row" columnGap={SPACE.tight}>{...shown}</Box> : column(c, shown, SPACE.none),
-    actions(c, [
-      duel ? btn(c, { key: 'duel', label: 'Duel', hotkey: 'b', on: () => c.actions.duel() }) : null,
+    column(c, [
+      standing,
+      filled.length === 0
+        ? para(c, 'Your team forms as your first cards arrive. Open a pack, then set your favourites from Collection.', { dim: true })
+        : wide ? <Box flexDirection="row" columnGap={SPACE.tight}>{...shown}</Box> : column(c, shown, SPACE.none),
+      actions(c, [
+        duel ? btn(c, { key: 'duel', label: 'Duel', hotkey: 'b', on: () => c.actions.duel() }) : null,
+      ]),
     ]),
-    packStrip(c),
-    heading(c, 'Notices'),
-    rows.length > 0 ? column(c, rows, SPACE.none) : line(c, 'Nothing yet. When someone duels your team, you will see it here.', { dim: true }),
-    me.notices.length > NOTICES ? line(c, `and ${me.notices.length - NOTICES} older`, { dim: true }) : null,
-  ])
+    <Box key="team-packs" flexDirection="column" rowGap={SPACE.tight} width={c.columns}>
+      {actions(c, [
+        <Text bold>{me.packs.length ? `Packs · ${me.packs.length} ready` : 'Packs'}</Text>,
+        me.packs.length ? btn(c, { key: 'open-pack', label: 'Open pack', hotkey: c.root ? 'o' : undefined, primary: c.root, on: () => c.actions.openPack() }) : null,
+      ])}
+      {meter(c)}
+      {packStrip(c)}
+    </Box>,
+    column(c, [
+      heading(c, 'Notices'),
+      rows.length > 0 ? column(c, rows, SPACE.none) : line(c, 'Nothing yet. When someone duels your team, you will see it here.', { dim: true }),
+      me.notices.length > NOTICES ? line(c, `and ${me.notices.length - NOTICES} older`, { dim: true }) : null,
+    ]),
+  ], SPACE.loose)
   return {
     body,
     hints: [tabsHint(c.state), me.packs.length > 0 ? 'o Open pack' : '', duel ? 'b Duel' : '', revenge ? 'r Revenge' : '', filled.length > 0 ? 'Tab Pick a card' : '', 'esc Close'],

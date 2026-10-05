@@ -41,7 +41,7 @@ function rowsFor(c: Ctx, each: number): number {
 function wantArt(c: Ctx, w: MarketWant, key: string, big = false): RenderElement {
   const { Box, Text } = c.el
   const s = wantSpecies(w, catalogOf(c.state.account))
-  const finish = dots(w.shiny ? 'shiny' : '', w.foil ? 'foil' : '')
+  const finish = dots(w.shiny ? 'Alt colour' : '', w.foil ? 'Foil' : '')
   const mark = (
     <Box flexDirection="row" columnGap={SPACE.tight} flexShrink={0}>
       <Text color={INK.accent}>{MARK.swap}</Text>
@@ -87,7 +87,7 @@ function chips(c: Ctx): RenderElement | null {
     filterChip(c, 'chip-rarity', rarLabel, q.rarity !== 'all', 'y', () => set({ rarity: cycle(RARITY_CHIPS, q.rarity) })),
     filterChip(c, 'chip-kind', KIND_LABEL[q.kind], q.kind !== 'all', 'k', () => set({ kind: cycle(KINDS, q.kind) })),
     filterChip(c, 'chip-sort', SORT_LABEL[q.sort], q.sort !== 'newest', 's', () => set({ sort: cycle(SORTS, q.sort) })),
-    filterChip(c, 'chip-shiny', 'Shiny', q.shiny, undefined, () => set({ shiny: !q.shiny })),
+    filterChip(c, 'chip-shiny', 'Alt colour', q.shiny, undefined, () => set({ shiny: !q.shiny })),
     filterChip(c, 'chip-foil', 'Foil', q.foil, undefined, () => set({ foil: !q.foil })),
   ])
 }

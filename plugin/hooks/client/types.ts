@@ -152,6 +152,8 @@ export type Fx = {
 export type El = Elements['terminal'] & Pick<Elements['desktop'], 'Svg'>
 
 /** Everything the views can do; each returns once its work settled, errors already shown (pane message or a band line). */
+export type WorldChoice = { world: SpinWorld; server: string; origin?: string }
+
 export type Actions = {
   // band
   /** [1] Now!: makes the special firing in the round being animated a Perfect one */
@@ -225,9 +227,10 @@ export type Actions = {
   trade(dealId: string, cardIds: string[]): Promise<void>
 
   // world, account, privacy
-  world(world: SpinWorld): Promise<void>
+  /** online always means spinlings.dev; an address first gets the community notice. */
+  world(target: string, choice?: WorldChoice): Promise<void>
   /** connects to a community server after its one-time notice */
-  connect(origin: string): Promise<void>
+  connect(origin: string, choice?: WorldChoice): Promise<void>
   passkey(kind: 'add' | 'signin'): Promise<void>
   rerollHandle(): Promise<void>
   leaderboard(optIn: boolean): Promise<void>

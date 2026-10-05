@@ -52,7 +52,7 @@ claude plugin validate spinlings/plugin
 
 **First run.** The mod joins [spinlings.dev](https://spinlings.dev) on its own. You get a starter team of three, two welcome packs and 100 sparks. The band says it once: `✦ A Spinling hatched!`, with `[1] Open your welcome pack`. Then creatures find you while Claude works, and `/spin` opens your collection whenever you like.
 
-**Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. To play entirely offline, where nothing leaves your machine, run `/spin world offline` at any time. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
+**Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. `/spin world` opens a chooser; `/spin world offline` plays entirely on your machine, and `/spin world online` returns to spinlings.dev. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
 
 **Your collection in a browser.** Save a passkey from Community → Profile → Passkey & devices, then [open your collection](https://spinlings.dev/account) to sign in and see your cards, current stats and rankings. Search and filters cover your whole collection; sort by level, genes or combat stats to compare creatures. Hover, focus or tap a stat or trait for its effect. The mod's link appears when your server supports browser collections; older servers offer your public profile instead. You can choose a public username there. Opening packs, choosing a team and trading happen in Claude Code.
 
@@ -158,9 +158,11 @@ Hitting a rate limit is neither rewarded nor punished: packs keep charging as us
 
 There is one command, `/spin`. On its own it opens the pane, with four tabs (Team, Collection, Discoveries, Community) on hotkeys 1 to 4. Collection holds your cards; Discoveries tracks species you have found.
 
-Community opens on your Profile, with a section bar for Profile, Market, Rankings and Trading. Market and Rankings appear on online servers that support them; offline, Profile and the Wandering Trader remain available. Open a card, listing or player for details, then Back returns to the section you were using. Every card, pack and board row is a button: press it (or Tab to it) to open it. Press the daily rule to see its effect, or Help for a short field guide.
+Community opens on your Profile, with a section bar for Profile, Market, Rankings and Trading. Market and Rankings appear on online servers that support them; offline, Profile and the Wandering Trader remain available. Open a card, listing or player for details, then Back returns to the section you were using. Every card, pack and board row is a button: press it (or Tab to it) to open it. Team groups waiting packs, Open pack and the next-pack countdown together. Press the world's name in the header to choose a world, the daily rule to see its effect, or Help for a short field guide.
 
 Open a card and choose **Set in team** or **Change slot**, then choose the teammate to replace or the slot to swap. A replaced creature stays in your collection. When selling, you choose the exact spark price; recent matching sales provide a reference.
+
+**Alt colour** means a different palette and a sparkle; **Foil** means a rainbow frame and shimmer. A card can have both. Finished card details offer **? Looks** for an explanation, including their recycling value. Neither appearance changes battle stats.
 
 | Command | What it does |
 |---|---|
@@ -174,7 +176,7 @@ Open a card and choose **Set in team** or **Change slot**, then choose the teamm
 | `/spin gift <card>` / `/spin claim <code>` | Make a gift code, or claim one |
 | `/spin share [card]` | Copy a short text with an emoji mosaic of the card and a link |
 | `/spin redeem <code>` | Redeem a drop code, such as `FOUNDERS` |
-| `/spin world online\|offline` | Switch worlds; each keeps its own collection |
+| `/spin world [online\|offline\|url]` | Choose a world; online returns to spinlings.dev, offline uses your local save, a URL selects a community server |
 | `/spin devices` | Your devices, and saving a passkey to play on another computer |
 | `/spin leaderboard [on\|off]` | Open Community → Rankings (rating, players beaten, duel wins, species, Mythics, sales; all time or this season), or hide or show yourself on them (every player is on them unless they hide) |
 | `/spin handle [new]` | Show your handle, or draw a new one (once a week) |
@@ -182,7 +184,7 @@ Open a card and choose **Set in team** or **Change slot**, then choose the teamm
 | `/spin sound on\|off` | Tiny chimes for big moments (off by default) |
 | `/spin motion on\|off` | Make every animation instant, or bring them back |
 | `/spin privacy` | See exactly what the mod has sent, and delete your account |
-| `/spin server [url\|default]` | Show or change the server |
+| `/spin server [url\|default]` | Report the current host; URL and default remain aliases for community and default online switching |
 | `/spin version` | This mod's version, and whether an update is out |
 | `/spin demo` | Step through every screen of the game |
 
@@ -205,7 +207,7 @@ The game runs on the rhythm of your session, never its content. This is everythi
 | `session.compact` | `trigger` | A one-line reaction |
 | `ui.render` | the spinner's `mode`; the band's and pane's size | A spinner suffix during a battle, and drawing the band and pane |
 | `ui.close` | that you pressed esc in the pane | Going back one view |
-| `ui.message` (Spinlings pane card regions only) | the current card region's element key and a null payload | Selecting a card when you click its artwork in Desktop |
+| `ui.message` (Spinlings pane regions only) | the current registered region's element key and a null payload | Selecting a card or opening the world chooser from its mark or host in Desktop |
 | `command.run` | `/spin` and its arguments | The game's one command |
 
 **Never hooked:** `tool.call`, `prompt.submit`, `classic.PermissionRequest`. The mod never sees a tool name, a shell command, a file or a path.
@@ -282,7 +284,7 @@ If you find a way past these limits, that is a security bug. Please report it th
 
 The default server is [`https://spinlings.dev`](https://spinlings.dev), run by the maintainer of this repository. Anyone can run another one from the same code, on Cloudflare (a Worker with a D1 database) or on plain Node. Each server is its own world: cards, accounts, ratings and trades never move between servers.
 
-**Playing on one.** `/spin server https://their.host` switches to it after a one-time notice that someone else runs it, and `/spin server default` comes back. Your account on each server is kept apart, so switching never mixes or deletes anything, and the pane always shows which server you are on.
+**Playing on one.** `/spin world https://their.host` switches to it after a one-time notice that someone else runs it, and `/spin world online` comes back to spinlings.dev. `/spin world` opens the chooser. Your account on each server is kept apart, so switching never mixes or deletes anything, and the pane always shows which world you are in. The existing `/spin server <url>` and `/spin server default` forms remain supported aliases.
 
 **Running one on Cloudflare:**
 
@@ -304,7 +306,7 @@ SECRET="$(node -e "console.log(crypto.randomBytes(32).toString('base64url'))")" 
 
 For other people, also set `ORIGIN` to the https address players reach it at (it is the passkey domain, and every link is built from it). A `Dockerfile` runs the same Node server as a non-root user with its data in `/data`.
 
-Then point the mod at it with `/spin server https://your.host`. The mod allows plain http only for `localhost` and `127.0.0.1`, so a server for other people needs https.
+Then point the mod at it with `/spin world https://your.host`. The mod allows plain http only for `localhost` and `127.0.0.1`, so a server for other people needs https.
 
 The details, including reverse proxies, updates and what you owe your players' privacy, are in [docs/self-hosting.md](docs/self-hosting.md).
 

@@ -1,4 +1,4 @@
-// The pane's building blocks (SPEC 21): the header on every screen (tabs left; daily rule, pack meter, world and
+// The pane's building blocks (SPEC 21): the header on every screen (tabs left; daily rule, world and
 // server right), the one button, the card at the pane's sizes, the 2-second hold line, feedback and the hint row, whose
 // hints fit whole (the way out always stays) and whose right end carries the mod's version where there is room and,
 // when the server names a newer one, the chip that gives the update command.
@@ -19,6 +19,7 @@ import type { StatTile } from '../client/viewmodels.ts'
 import { CARD_WIDTH, card, formArt } from './card.tsx'
 import type { CardFace, CardOptions } from './card.tsx'
 import { svgHold } from './ceremony-art.tsx'
+import { cardHitRegion } from './card-hit-area.tsx'
 import { FAMILY_COLOR, INK, LEAGUE_COLOR, MARK, SPACE, STAT, pixelRects } from './tokens.ts'
 
 /** Everything a pane screen draws from. */
@@ -215,15 +216,33 @@ export function meter(c: Ctx): RenderElement {
   )
 }
 
-/** The world as a dot and the host: green online, hollow offline, amber when the server is out of reach. */
+/** The current world opens its chooser: green online, hollow offline, amber when unreachable. */
 function worldDot(c: Ctx): RenderElement {
-  const { Text } = c.el
+  const { Box, Text } = c.el
   const a = c.state.account
   const out = a.link === 'unreachable' || a.link === 'signed-out'
   const dot = a.world === 'offline' ? MARK.away : MARK.dot
   const color = out ? INK.warn : a.world === 'offline' ? INK.muted : INK.good
-  const words = a.world === 'offline' ? 'Offline' : out ? `${a.host} · not connected` : a.community ? `${a.host} · community` : a.host
-  return <Text wrap="wrap"><Text color={color}>{dot}</Text><Text dimColor>{` ${words}`}</Text></Text>
+  const words = out && a.world === 'online' ? `${a.host} · not connected` : worldBadge(c.state)
+  const on = () => c.actions.push({ kind: 'world' } as const)
+  const mark = cardHitRegion(c.el, <Text color={color}>{dot}</Text>, c.hitAreas, 'world-mark', on, 'world-picker', c.hitIntent + ':' + a.host)
+  if (cells(words) + 4 > c.columns) {
+    const mode = a.world === 'offline' ? 'Offline' : a.community ? 'Community' : 'Online'
+    const host = <Text dimColor wrap="wrap">{a.host + (out ? ' · not connected' : '')}</Text>
+    return <Box key="world-control" flexDirection="column" width={c.columns}>
+      <Box flexDirection="row" columnGap={SPACE.tight}>
+        {mark}
+        {btn(c, { key: 'world-picker', label: `${mode} ▾`, dim: true, on })}
+      </Box>
+      {a.world === 'online' ? cardHitRegion(c.el, host, c.hitAreas, 'world-host', on, 'world-picker', c.hitIntent + ':' + a.host, undefined, c.columns) : null}
+    </Box>
+  }
+  return (
+    <Box key="world-control" flexDirection="row" columnGap={SPACE.tight}>
+      {mark}
+      {btn(c, { key: 'world-picker', label: `${words} ▾`, dim: true, on })}
+    </Box>
+  )
 }
 
 /**
@@ -244,26 +263,22 @@ export function unsavedMarker(c: Ctx): RenderElement | null {
 }
 
 /**
- * The header on every screen (SPEC 21): the tabs; then Open pack, the pack meter, the daily rule, the world and, until
+ * The header on every screen (SPEC 21): the tabs; then the daily rule, the world chooser and, until
  * a passkey is saved, the "Not backed up" marker. Every piece is whole and the row wraps rather than cut one.
  */
 export function header(c: Ctx): RenderElement {
-  const { Box, Text } = c.el
+  const { Box } = c.el
   const s = c.state
-  const packs = playable(s) ? s.me!.packs.length : 0
   const rule = RULE_INFO[dailyRule(c.now)].name
   const tabs = (
     <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.tight} flexShrink={0}>
       {tabsOf(s).map(t => btn(c, { key: `tab-${t.tab}`, label: t.label, hotkey: c.root ? t.hotkey : undefined, dim: t.tab !== (s.pane.tab === 'market' ? 'trade' : s.pane.tab), on: () => c.actions.tab(t.tab) }))}
     </Box>
   )
-  const open = packs > 0 ? btn(c, { key: 'open-pack', label: `Open pack (${packs})`, hotkey: c.root ? 'o' : undefined, primary: c.root, on: () => c.actions.openPack() }) : null
   return (
     <Box flexDirection="column" width={c.columns}>
       {tabs}
       <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
-        {open}
-        {meter(c)}
         {btn(c, { key: 'today', label: rule, dim: true, on: () => c.actions.push({ kind: 'today' }) })}
         {worldDot(c)}
         {unsavedMarker(c)}

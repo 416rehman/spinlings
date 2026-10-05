@@ -1,0 +1,1230 @@
+{
+  "client": "0.2.10",
+  "flow": "account",
+  "about": "the handshake, a join, and the player's own settings",
+  "steps": [
+    {
+      "op": "version",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/version",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "api": 1,
+          "server": "0.2.10",
+          "rules": 1,
+          "generator": 2,
+          "minClient": "0.1.0",
+          "latestClient": "0.2.10",
+          "features": [
+            "rivals",
+            "trader",
+            "redeem",
+            "passkey",
+            "leaderboard",
+            "handle-reroll",
+            "mythics",
+            "seasons",
+            "market",
+            "challenge",
+            "stats",
+            "browser-account",
+            "custom-handles"
+          ]
+        }
+      }
+    },
+    {
+      "op": "world",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/world",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "day": "2026-10-02",
+          "season": 1,
+          "rule": "opusDay",
+          "featured": "s1-haiku-7",
+          "roamer": "s1-opus-8",
+          "players": 0
+        }
+      }
+    },
+    {
+      "op": "season",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/season/1",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "season": 1,
+          "generator": 2,
+          "species": [
+            {
+              "id": "s1-haiku-0",
+              "season": 1,
+              "index": 0,
+              "family": "haiku",
+              "body": "bird",
+              "hue": 135,
+              "pattern": "none",
+              "accessory": "crown",
+              "base": {"hp":49,"atk":13.5,"def":13,"spd":16.5},
+              "names": ["Mossnewt","Mossatkin","Mossorikeet"],
+              "legendary": false
+            },
+            {
+              "id": "s1-haiku-1",
+              "season": 1,
+              "index": 1,
+              "family": "haiku",
+              "body": "critter",
+              "hue": 93,
+              "pattern": "mask",
+              "accessory": "horns",
+              "base": {"hp":41,"atk":15.5,"def":9.5,"spd":18.5},
+              "names": ["Seedeft","Seedennec","Seedossamer"],
+              "legendary": false
+            },
+            {
+              "id": "s1-haiku-2",
+              "season": 1,
+              "index": 2,
+              "family": "haiku",
+              "body": "blob",
+              "hue": 155,
+              "pattern": "mask",
+              "accessory": "spikes",
+              "base": {"hp":41,"atk":14,"def":8.5,"spd":16},
+              "names": ["Firkid","Firaurel","Firalpaca"],
+              "legendary": false
+            },
+            {
+              "id": "s1-haiku-3",
+              "season": 1,
+              "index": 3,
+              "family": "haiku",
+              "body": "bird",
+              "hue": 95,
+              "pattern": "stripes",
+              "accessory": "horns",
+              "base": {"hp":50,"atk":16.5,"def":11,"spd":19.5},
+              "names": ["Beanwasp","Beanunlin","Beaniculet"],
+              "legendary": false
+            },
+            {
+              "id": "s1-haiku-4",
+              "season": 1,
+              "index": 4,
+              "family": "haiku",
+              "body": "bird",
+              "hue": 94,
+              "pattern": "stripes",
+              "accessory": "antennae",
+              "base": {"hp":52,"atk":16,"def":11,"spd":18},
+              "names": ["Leafnut","Leafinnow","Leafovebird"],
+              "legendary": false
+            },
+            {
+              "id": "s1-haiku-5",
+              "season": 1,
+              "index": 5,
+              "family": "haiku",
+              "body": "ghost",
+              "hue": 109,
+              "pattern": "mask",
+              "accessory": "spikes",
+              "base": {"hp":42,"atk":16,"def":12,"spd":17},
+              "names": ["Plumdove","Plumillet","Plumarigold"],
+              "legendary": false
+            },
+            {
+              "id": "s1-haiku-6",
+              "season": 1,
+              "index": 6,
+              "family": "haiku",
+              "body": "ghost",
+              "hue": 145,
+              "pattern": "belly",
+              "accessory": "wings",
+              "base": {"hp":48,"atk":15,"def":14.5,"spd":13},
+              "names": ["Oatbud","Oatelver","Oatapricot"],
+              "legendary": false
+            },
+            {
+              "id": "s1-haiku-7",
+              "season": 1,
+              "index": 7,
+              "family": "haiku",
+              "body": "bug",
+              "hue": 95,
+              "pattern": "none",
+              "accessory": "crown",
+              "base": {"hp":41,"atk":15.5,"def":8.5,"spd":13},
+              "names": ["Lupmite","Lupatnip","Luperbera"],
+              "legendary": false
+            },
+            {
+              "id": "s1-haiku-8",
+              "season": 1,
+              "index": 8,
+              "family": "haiku",
+              "body": "critter",
+              "hue": 104,
+              "pattern": "none",
+              "accessory": "halo",
+              "base": {"hp":41.4,"atk":18.4,"def":18.4,"spd":17.25},
+              "names": ["Satinhill","Satinhill","Satinhill"],
+              "legendary": true
+            },
+            {
+              "id": "s1-sonnet-0",
+              "season": 1,
+              "index": 0,
+              "family": "sonnet",
+              "body": "bird",
+              "hue": 231,
+              "pattern": "none",
+              "accessory": "antennae",
+              "base": {"hp":44,"atk":20,"def":12.5,"spd":14},
+              "names": ["Inkcarp","Inkodwit","Inkundine"],
+              "legendary": false
+            },
+            {
+              "id": "s1-sonnet-1",
+              "season": 1,
+              "index": 1,
+              "family": "sonnet",
+              "body": "bug",
+              "hue": 201,
+              "pattern": "none",
+              "accessory": "wings",
+              "base": {"hp":46,"atk":21,"def":14.5,"spd":8.5},
+              "names": ["Flowlark","Flowarpon","Flowandango"],
+              "legendary": false
+            },
+            {
+              "id": "s1-sonnet-2",
+              "season": 1,
+              "index": 2,
+              "family": "sonnet",
+              "body": "ghost",
+              "hue": 216,
+              "pattern": "belly",
+              "accessory": "antennae",
+              "base": {"hp":54,"atk":15.5,"def":16,"spd":12},
+              "names": ["Foamcoot","Foamantey","Foamalypso"],
+              "legendary": false
+            },
+            {
+              "id": "s1-sonnet-3",
+              "season": 1,
+              "index": 3,
+              "family": "sonnet",
+              "body": "bug",
+              "hue": 221,
+              "pattern": "spots",
+              "accessory": "spikes",
+              "base": {"hp":53,"atk":13,"def":11.5,"spd":10.5},
+              "names": ["Snowtern","Snowelkie","Snowaravel"],
+              "legendary": false
+            },
+            {
+              "id": "s1-sonnet-4",
+              "season": 1,
+              "index": 4,
+              "family": "sonnet",
+              "body": "bug",
+              "hue": 208,
+              "pattern": "spots",
+              "accessory": "horns",
+              "base": {"hp":52,"atk":19.5,"def":19,"spd":15.5},
+              "names": ["Rainshad","Rainulpin","Rainusalka"],
+              "legendary": false
+            },
+            {
+              "id": "s1-sonnet-5",
+              "season": 1,
+              "index": 5,
+              "family": "sonnet",
+              "body": "blob",
+              "hue": 197,
+              "pattern": "mask",
+              "accessory": "horns",
+              "base": {"hp":48,"atk":18,"def":15,"spd":14.5},
+              "names": ["Reedray","Reedorca","Reedoriole"],
+              "legendary": false
+            },
+            {
+              "id": "s1-sonnet-6",
+              "season": 1,
+              "index": 6,
+              "family": "sonnet",
+              "body": "critter",
+              "hue": 236,
+              "pattern": "spots",
+              "accessory": "spikes",
+              "base": {"hp":51,"atk":18,"def":18,"spd":13},
+              "names": ["Lyrteal","Lyrugong","Lyravocet"],
+              "legendary": false
+            },
+            {
+              "id": "s1-sonnet-7",
+              "season": 1,
+              "index": 7,
+              "family": "sonnet",
+              "body": "ghost",
+              "hue": 230,
+              "pattern": "mask",
+              "accessory": "horns",
+              "base": {"hp":41,"atk":18.5,"def":13.5,"spd":10.5},
+              "names": ["Swanpike","Swanimpet","Swanaurora"],
+              "legendary": false
+            },
+            {
+              "id": "s1-sonnet-8",
+              "season": 1,
+              "index": 8,
+              "family": "sonnet",
+              "body": "blob",
+              "hue": 229,
+              "pattern": "stripes",
+              "accessory": "crown",
+              "base": {"hp":59.8,"atk":23.58,"def":14.37,"spd":10.35},
+              "names": ["Wavechime","Wavechime","Wavechime"],
+              "legendary": true
+            },
+            {
+              "id": "s1-opus-0",
+              "season": 1,
+              "index": 0,
+              "family": "opus",
+              "body": "critter",
+              "hue": 21,
+              "pattern": "mask",
+              "accessory": "horns",
+              "base": {"hp":60,"atk":21,"def":15,"spd":11},
+              "names": ["Sootwolf","Sootaptor","Sootinotaur"],
+              "legendary": false
+            },
+            {
+              "id": "s1-opus-1",
+              "season": 1,
+              "index": 1,
+              "family": "opus",
+              "body": "ghost",
+              "hue": 7,
+              "pattern": "belly",
+              "accessory": "horns",
+              "base": {"hp":48,"atk":21.5,"def":15.5,"spd":9.5},
+              "names": ["Biselk","Bisurus","Bisinnabar"],
+              "legendary": false
+            },
+            {
+              "id": "s1-opus-2",
+              "season": 1,
+              "index": 2,
+              "family": "opus",
+              "body": "critter",
+              "hue": 351,
+              "pattern": "stripes",
+              "accessory": "halo",
+              "base": {"hp":58,"atk":22.5,"def":12,"spd":10.5},
+              "names": ["Drumdog","Drumaboon","Drumilodon"],
+              "legendary": false
+            },
+            {
+              "id": "s1-opus-3",
+              "season": 1,
+              "index": 3,
+              "family": "opus",
+              "body": "critter",
+              "hue": 12,
+              "pattern": "stripes",
+              "accessory": "halo",
+              "base": {"hp":56,"atk":18.5,"def":12,"spd":4.5},
+              "names": ["Peakape","Peakoryx","Peakargali"],
+              "legendary": false
+            },
+            {
+              "id": "s1-opus-4",
+              "season": 1,
+              "index": 4,
+              "family": "opus",
+              "body": "wyrm",
+              "hue": 26,
+              "pattern": "stripes",
+              "accessory": "horns",
+              "base": {"hp":54,"atk":19.5,"def":13.5,"spd":7.5},
+              "names": ["Boombuck","Boomoyote","Boomiorite"],
+              "legendary": false
+            },
+            {
+              "id": "s1-opus-5",
+              "season": 1,
+              "index": 5,
+              "family": "opus",
+              "body": "bird",
+              "hue": 20,
+              "pattern": "none",
+              "accessory": "halo",
+              "base": {"hp":54,"atk":16,"def":18.5,"spd":8},
+              "names": ["Oakram","Oakoucan","Oakallion"],
+              "legendary": false
+            },
+            {
+              "id": "s1-opus-6",
+              "season": 1,
+              "index": 6,
+              "family": "opus",
+              "body": "blob",
+              "hue": 29,
+              "pattern": "spots",
+              "accessory": "crown",
+              "base": {"hp":56,"atk":20,"def":18,"spd":9},
+              "names": ["Coalgoat","Coalougar","Coalonolith"],
+              "legendary": false
+            },
+            {
+              "id": "s1-opus-7",
+              "season": 1,
+              "index": 7,
+              "family": "opus",
+              "body": "blob",
+              "hue": 21,
+              "pattern": "none",
+              "accessory": "wings",
+              "base": {"hp":48,"atk":16.5,"def":19,"spd":9},
+              "names": ["Gritmole","Gritackal","Gritocodile"],
+              "legendary": false
+            },
+            {
+              "id": "s1-opus-8",
+              "season": 1,
+              "index": 8,
+              "family": "opus",
+              "body": "wyrm",
+              "hue": 10,
+              "pattern": "belly",
+              "accessory": "crown",
+              "base": {"hp":69,"atk":20.13,"def":18.97,"spd":4.02},
+              "names": ["Summitmound","Summitmound","Summitmound"],
+              "legendary": true
+            },
+            {
+              "id": "s1-fable-0",
+              "season": 1,
+              "index": 0,
+              "family": "fable",
+              "body": "critter",
+              "hue": 288,
+              "pattern": "spots",
+              "accessory": "antennae",
+              "base": {"hp":43,"atk":22,"def":15.5,"spd":14.5},
+              "names": ["Nookfox","Nookaugur","Nookalisman"],
+              "legendary": false
+            },
+            {
+              "id": "s1-fable-1",
+              "season": 1,
+              "index": 1,
+              "family": "fable",
+              "body": "critter",
+              "hue": 314,
+              "pattern": "stripes",
+              "accessory": "antennae",
+              "base": {"hp":44,"atk":17.5,"def":14.5,"spd":13},
+              "names": ["Toadmist","Toadelpie","Toadoggart"],
+              "legendary": false
+            },
+            {
+              "id": "s1-fable-2",
+              "season": 1,
+              "index": 2,
+              "family": "fable",
+              "body": "ghost",
+              "hue": 266,
+              "pattern": "none",
+              "accessory": "horns",
+              "base": {"hp":49,"atk":22,"def":13.5,"spd":14},
+              "names": ["Rookrat","Rookecret","Rookalmanac"],
+              "legendary": false
+            },
+            {
+              "id": "s1-fable-3",
+              "season": 1,
+              "index": 3,
+              "family": "fable",
+              "body": "critter",
+              "hue": 273,
+              "pattern": "spots",
+              "accessory": "halo",
+              "base": {"hp":41,"atk":14.5,"def":15.5,"spd":15},
+              "names": ["Owlfey","Owlaipan","Owlaugury"],
+              "legendary": false
+            },
+            {
+              "id": "s1-fable-4",
+              "season": 1,
+              "index": 4,
+              "family": "fable",
+              "body": "blob",
+              "hue": 265,
+              "pattern": "mask",
+              "accessory": "crown",
+              "base": {"hp":54,"atk":20.5,"def":14,"spd":9},
+              "names": ["Wickmote","Wickummer","Wickomovoi"],
+              "legendary": false
+            },
+            {
+              "id": "s1-fable-5",
+              "season": 1,
+              "index": 5,
+              "family": "fable",
+              "body": "bird",
+              "hue": 294,
+              "pattern": "none",
+              "accessory": "horns",
+              "base": {"hp":47,"atk":15.5,"def":13,"spd":16},
+              "names": ["Moonwisp","Moonantom","Moonurchin"],
+              "legendary": false
+            },
+            {
+              "id": "s1-fable-6",
+              "season": 1,
+              "index": 6,
+              "family": "fable",
+              "body": "blob",
+              "hue": 293,
+              "pattern": "stripes",
+              "accessory": "crown",
+              "base": {"hp":42,"atk":15,"def":14,"spd":12},
+              "names": ["Bogbat","Bogorrow","Bogolaris"],
+              "legendary": false
+            },
+            {
+              "id": "s1-fable-7",
+              "season": 1,
+              "index": 7,
+              "family": "fable",
+              "body": "bug",
+              "hue": 294,
+              "pattern": "mask",
+              "accessory": "crown",
+              "base": {"hp":42,"atk":19.5,"def":12.5,"spd":14.5},
+              "names": ["Hushasp","Hushadder","Hushullahan"],
+              "legendary": false
+            },
+            {
+              "id": "s1-fable-8",
+              "season": 1,
+              "index": 8,
+              "family": "fable",
+              "body": "critter",
+              "hue": 267,
+              "pattern": "none",
+              "accessory": "halo",
+              "base": {"hp":52.9,"atk":23.58,"def":17.25,"spd":10.93},
+              "names": ["Witherhex","Witherhex","Witherhex"],
+              "legendary": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "season",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/season/2",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10"}
+      },
+      "response": {
+        "status": 404,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"not_found","message":"No such season"}}
+      }
+    },
+    {
+      "op": "challenge",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/challenge",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"challenge":"<challenge:1>","difficulty":8}
+      }
+    },
+    {
+      "op": "join",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/join",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10","content-type":"application/json"},
+        "body": {"challenge":"<challenge:1>","nonce":"<pow>","family":"opus"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "token": "<token:1>",
+          "me": {
+            "player": {
+              "handle": "<handle:1>",
+              "handleRerollFrom": "2026-10-02",
+              "sparks": 100,
+              "rating": 1000,
+              "league": "Pebble",
+              "leaderboard": true,
+              "joinedDay": "2026-10-02",
+              "battles": 0,
+              "canTrade": true,
+              "team": ["<card:1>","<card:2>","<card:3>"],
+              "wishlist": [],
+              "cardsVersion": 1,
+              "streak": 0,
+              "seen": ["s1-fable-5","s1-haiku-2","s1-opus-0"],
+              "rested": false,
+              "nextWildAt": 0,
+              "nextDuelAt": 0,
+              "nextChargeAt": 1790945100000,
+              "stats": {
+                "duelWins": 0,
+                "duelLosses": 0,
+                "playersBeaten": 0,
+                "wildWins": 0,
+                "catches": 0,
+                "speciesCollected": 3,
+                "firstFinds": 3,
+                "mythicsFound": 0,
+                "marketSales": 0
+              }
+            },
+            "packs": [
+              {"id":"<pack:1>","family":"opus","source":"welcome","day":"2026-10-02"},
+              {"id":"<pack:2>","family":"fable","source":"welcome","day":"2026-10-02"}
+            ],
+            "notices": [
+              {
+                "id": "<notice:1>",
+                "day": "2026-10-02",
+                "kind": "notice",
+                "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+              }
+            ],
+            "offers": {"incoming":[],"outgoing":[]},
+            "gifts": [],
+            "listings": [],
+            "now": 1790942400000
+          }
+        }
+      }
+    },
+    {
+      "op": "me",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:1>",
+            "handleRerollFrom": "2026-10-02",
+            "sparks": 100,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-10-02",
+            "battles": 0,
+            "canTrade": true,
+            "team": ["<card:1>","<card:2>","<card:3>"],
+            "wishlist": [],
+            "cardsVersion": 1,
+            "streak": 0,
+            "seen": ["s1-fable-5","s1-haiku-2","s1-opus-0"],
+            "rested": false,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 3,
+              "firstFinds": 3,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [
+            {"id":"<pack:1>","family":"opus","source":"welcome","day":"2026-10-02"},
+            {"id":"<pack:2>","family":"fable","source":"welcome","day":"2026-10-02"}
+          ],
+          "notices": [
+            {
+              "id": "<notice:1>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1790942400000
+        }
+      }
+    },
+    {
+      "op": "cards",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/cards",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "cards": [
+            {
+              "id": "<card:1>",
+              "species": "s1-fable-5",
+              "genes": [1,13,5,10],
+              "traits": ["swift"],
+              "rarity": "common",
+              "level": 3,
+              "stage": 1,
+              "season": 1,
+              "family": "fable",
+              "shiny": false,
+              "dna": 1767000457,
+              "xp": 100,
+              "stats": {"hp":48,"atk":19,"def":14,"spd":22},
+              "bound": true,
+              "forTrade": false,
+              "origin": "starter",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:2>",
+              "species": "s1-opus-0",
+              "genes": [10,8,5,7],
+              "traits": ["showoff"],
+              "rarity": "common",
+              "level": 3,
+              "stage": 1,
+              "season": 1,
+              "family": "opus",
+              "shiny": false,
+              "dna": 1893169590,
+              "xp": 100,
+              "stats": {"hp":71,"atk":24,"def":16,"spd":12},
+              "bound": true,
+              "forTrade": false,
+              "origin": "starter",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            },
+            {
+              "id": "<card:3>",
+              "species": "s1-haiku-2",
+              "genes": [2,7,0,7],
+              "traits": ["homebody"],
+              "rarity": "common",
+              "level": 3,
+              "stage": 1,
+              "season": 1,
+              "family": "haiku",
+              "shiny": false,
+              "dna": 130482928,
+              "xp": 100,
+              "stats": {"hp":43,"atk":16,"def":9,"spd":18},
+              "bound": true,
+              "forTrade": false,
+              "origin": "starter",
+              "mintedAt": 1790899200000,
+              "lockedUntil": 0,
+              "tiredUntil": 0,
+              "state": "owned",
+              "firstFind": true
+            }
+          ],
+          "version": 1
+        }
+      }
+    },
+    {
+      "op": "devices",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me/devices",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"sessions":1,"passkeys":0}
+      }
+    },
+    {
+      "op": "setTeam",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "PUT",
+        "path": "/v1/team",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.10",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"cardIds":["<card:3>","<card:2>","<card:1>"]}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"team":["<card:3>","<card:2>","<card:1>"]}
+      }
+    },
+    {
+      "op": "setWishlist",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "PUT",
+        "path": "/v1/wishlist",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.10",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"species":["s1-fable-0","s1-fable-1"]}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"wishlist":["s1-fable-0","s1-fable-1"]}
+      }
+    },
+    {
+      "op": "setLeaderboard",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "PUT",
+        "path": "/v1/me/leaderboard",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.10",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"optIn":true}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"leaderboard":true}
+      }
+    },
+    {
+      "op": "leaderboard",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/leaderboard",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10","authorization":"Bearer <token:1>"}
+      },
+      "response": {"status":200,"headers":{"content-type":"application/json; charset=utf-8"},"body":{"top":[]}}
+    },
+    {
+      "op": "rerollHandle",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/me/handle",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.10",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"handle":"<handle:2>","handleRerollFrom":"2026-10-09"}
+      }
+    },
+    {
+      "op": "rerollHandle",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/me/handle",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.10",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 429,
+        "headers": {"content-type":"application/json; charset=utf-8","retry-after":"561600"},
+        "body": {"error":{"code":"rate_limited","message":"A new handle once a week"}}
+      }
+    },
+    {
+      "op": "profile",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/players/<handle:2>",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "handle": "<handle:2>",
+          "league": "Pebble",
+          "team": [
+            {
+              "id": "<card:3>",
+              "species": "s1-haiku-2",
+              "season": 1,
+              "family": "haiku",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 130482928,
+              "genes": [2,7,0,7],
+              "traits": ["homebody"],
+              "level": 3,
+              "stage": 1,
+              "stats": {"hp":43,"atk":16,"def":9,"spd":18},
+              "firstFind": true
+            },
+            {
+              "id": "<card:2>",
+              "species": "s1-opus-0",
+              "season": 1,
+              "family": "opus",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 1893169590,
+              "genes": [10,8,5,7],
+              "traits": ["showoff"],
+              "level": 3,
+              "stage": 1,
+              "stats": {"hp":71,"atk":24,"def":16,"spd":12},
+              "firstFind": true
+            },
+            {
+              "id": "<card:1>",
+              "species": "s1-fable-5",
+              "season": 1,
+              "family": "fable",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 1767000457,
+              "genes": [1,13,5,10],
+              "traits": ["swift"],
+              "level": 3,
+              "stage": 1,
+              "stats": {"hp":48,"atk":19,"def":14,"spd":22},
+              "firstFind": true
+            }
+          ],
+          "forTrade": [],
+          "seenCount": 3,
+          "stats": {
+            "duelWins": 0,
+            "duelLosses": 0,
+            "playersBeaten": 0,
+            "wildWins": 0,
+            "catches": 0,
+            "speciesCollected": 3,
+            "firstFinds": 3,
+            "mythicsFound": 0,
+            "marketSales": 0
+          }
+        }
+      }
+    },
+    {
+      "op": "profile",
+      "player": "a",
+      "at": 1790942400000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/players/nobody-here-00",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 404,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"error":{"code":"not_found","message":"No such player"}}
+      }
+    },
+    {
+      "op": "rerollHandle",
+      "player": "a",
+      "at": 1791547200000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/me/handle",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.10",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"handle":"moss_keeper"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"handle":"<handle:3>","handleRerollFrom":"2026-10-16"}
+      }
+    },
+    {
+      "op": "rerollHandle",
+      "player": "a",
+      "at": 1791547200000,
+      "request": {
+        "method": "POST",
+        "path": "/v1/me/handle",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.10",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"handle":"MOSS_KEEPER"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"handle":"<handle:3>","handleRerollFrom":"2026-10-16"}
+      }
+    },
+    {
+      "op": "me",
+      "player": "a",
+      "at": 1791547200000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/me",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "player": {
+            "handle": "<handle:3>",
+            "handleRerollFrom": "2026-10-16",
+            "sparks": 110,
+            "rating": 1000,
+            "league": "Pebble",
+            "leaderboard": true,
+            "joinedDay": "2026-10-02",
+            "battles": 0,
+            "canTrade": true,
+            "team": ["<card:3>","<card:2>","<card:1>"],
+            "wishlist": ["s1-fable-0","s1-fable-1"],
+            "cardsVersion": 1,
+            "streak": 0,
+            "seen": ["s1-fable-5","s1-haiku-2","s1-opus-0"],
+            "rested": false,
+            "nextWildAt": 0,
+            "nextDuelAt": 0,
+            "nextChargeAt": 1790945100000,
+            "stats": {
+              "duelWins": 0,
+              "duelLosses": 0,
+              "playersBeaten": 0,
+              "wildWins": 0,
+              "catches": 0,
+              "speciesCollected": 3,
+              "firstFinds": 3,
+              "mythicsFound": 0,
+              "marketSales": 0
+            }
+          },
+          "packs": [
+            {"id":"<pack:1>","family":"opus","source":"welcome","day":"2026-10-02"},
+            {"id":"<pack:2>","family":"fable","source":"welcome","day":"2026-10-02"}
+          ],
+          "notices": [
+            {
+              "id": "<notice:1>",
+              "day": "2026-10-02",
+              "kind": "notice",
+              "text": "You are on the leaderboards, with stats on your profile. To stay off them: /spin leaderboard off"
+            }
+          ],
+          "offers": {"incoming":[],"outgoing":[]},
+          "gifts": [],
+          "listings": [],
+          "now": 1791547200000
+        }
+      }
+    },
+    {
+      "op": "profile",
+      "player": "a",
+      "at": 1791547200000,
+      "request": {
+        "method": "GET",
+        "path": "/v1/players/<handle:3>",
+        "headers": {"accept":"application/json","x-spinlings-client":"0.2.10","authorization":"Bearer <token:1>"}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {
+          "handle": "<handle:3>",
+          "league": "Pebble",
+          "team": [
+            {
+              "id": "<card:3>",
+              "species": "s1-haiku-2",
+              "season": 1,
+              "family": "haiku",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 130482928,
+              "genes": [2,7,0,7],
+              "traits": ["homebody"],
+              "level": 3,
+              "stage": 1,
+              "stats": {"hp":43,"atk":16,"def":9,"spd":18},
+              "firstFind": true
+            },
+            {
+              "id": "<card:2>",
+              "species": "s1-opus-0",
+              "season": 1,
+              "family": "opus",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 1893169590,
+              "genes": [10,8,5,7],
+              "traits": ["showoff"],
+              "level": 3,
+              "stage": 1,
+              "stats": {"hp":71,"atk":24,"def":16,"spd":12},
+              "firstFind": true
+            },
+            {
+              "id": "<card:1>",
+              "species": "s1-fable-5",
+              "season": 1,
+              "family": "fable",
+              "rarity": "common",
+              "shiny": false,
+              "dna": 1767000457,
+              "genes": [1,13,5,10],
+              "traits": ["swift"],
+              "level": 3,
+              "stage": 1,
+              "stats": {"hp":48,"atk":19,"def":14,"spd":22},
+              "firstFind": true
+            }
+          ],
+          "forTrade": [],
+          "seenCount": 3,
+          "stats": {
+            "duelWins": 0,
+            "duelLosses": 0,
+            "playersBeaten": 0,
+            "wildWins": 0,
+            "catches": 0,
+            "speciesCollected": 3,
+            "firstFinds": 3,
+            "mythicsFound": 0,
+            "marketSales": 0
+          }
+        }
+      }
+    },
+    {
+      "op": "setLeaderboard",
+      "player": "a",
+      "at": 1791547200000,
+      "request": {
+        "method": "PUT",
+        "path": "/v1/me/leaderboard",
+        "headers": {
+          "accept": "application/json",
+          "x-spinlings-client": "0.2.10",
+          "authorization": "Bearer <token:1>",
+          "content-type": "application/json"
+        },
+        "body": {"optIn":false}
+      },
+      "response": {
+        "status": 200,
+        "headers": {"content-type":"application/json; charset=utf-8"},
+        "body": {"leaderboard":false}
+      }
+    }
+  ]
+}

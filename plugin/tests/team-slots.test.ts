@@ -122,7 +122,7 @@ test('cancel preserves the team, empty places explain their order, and pending o
     expect(await ui.find({ key: `team-slot-${slot}` })).toBeUndefined()
     expect(await ui.find({ key: `team-choice-${slot}-card-pick` })).toBeUndefined()
   }
-  expect(await ui.findAll({ type: 'Client' })).toHaveLength(0)
+  expect((await ui.findAll({ type: 'Client' })).filter(n => n.key?.startsWith('team-choice-'))).toHaveLength(0)
   p.state.pane.busy = null
   p.state.cards = p.state.cards.filter(c => c.id !== cardIdOf(p.state))
   await ui.redraw()

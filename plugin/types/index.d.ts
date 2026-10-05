@@ -425,7 +425,7 @@ export type SpinSocial = {
 export type SpinTab = 'team' | 'cards' | 'album' | 'market' | 'trade'
 /** Views stacked over the tabs; esc pops one. */
 export type SpinView =
-  | { kind: 'card'; cardId: string }
+  | { kind: 'card'; cardId: string; looks?: boolean }
   | { kind: 'team-slot'; cardId: string; chosenSlot?: number }
   | { kind: 'fuse'; cardId: string; otherId: string | null }
   | { kind: 'species'; speciesId: string }
@@ -434,6 +434,7 @@ export type SpinView =
   | { kind: 'reveal' }
   | { kind: 'privacy' }
   | { kind: 'devices' }
+  | { kind: 'world'; address?: string; origin?: string }
   | { kind: 'trades' }
   | { kind: 'mine' }
   | { kind: 'help' }

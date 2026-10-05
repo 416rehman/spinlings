@@ -79,11 +79,10 @@ export function rarityColor(c: Pick<CardFace, 'species' | 'rarity'>): string {
   return isMythic(c) ? MYTHIC_COLOR : RARITY_COLOR[c.rarity]
 }
 
-/** `Rare`, `Rare · Foil`, `Rare · Shiny Foil`, `Mythic · Foil` (SPEC 14). */
+/** Rarity stays separate from optional colour and foil finishes. */
 export function rarityLabel(c: Pick<CardFace, 'species' | 'rarity' | 'shiny' | 'foil'>): string {
   const word = isMythic(c) ? 'Mythic' : RARITY_WORD[c.rarity]
-  const finish = c.shiny && c.foil ? 'Shiny Foil' : c.shiny ? 'Shiny' : c.foil ? 'Foil' : ''
-  return dots(word, finish)
+  return dots(word, c.shiny ? 'Alt colour' : '', c.foil ? 'Foil' : '')
 }
 
 export function rarityInitial(c: Pick<CardFace, 'species' | 'rarity'>): string {
@@ -387,7 +386,7 @@ function full(el: El, surface: Surface, c: CardFace, o: CardOptions): RenderElem
   const s = c.stats
   const lines: RenderElement[] = [
     <Text bold wrap="wrap">{o.ghost ? '???' : displayName(c, 32)}</Text>,
-    <Text wrap="truncate-end" color={rarityColor(c)}>{fit(rarityLabel(c), w)}</Text>,
+    <Text wrap="wrap" color={rarityColor(c)}>{rarityLabel(c)}</Text>,
     <Text wrap="truncate-end">
       {familyMark(el, c.family)}
       <Text>{` ${FAMILY_INFO[c.family].name} · Lv ${c.level} `}</Text>

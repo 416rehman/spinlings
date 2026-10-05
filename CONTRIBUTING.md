@@ -38,7 +38,7 @@ npm run dev:server                      # the server on Node, with node:sqlite
 claude --plugin-dir plugin              # Claude Code with the mod loaded from this checkout
 ```
 
-The mod reloads when you save. In that session, `/spin server http://localhost:8787` points it at your local server. To run the Worker itself against a local D1 database instead, put `SECRET=<32+ random characters>` in `.dev.vars` and run `npm run dev:worker`.
+The mod reloads when you save. In that session, `/spin world http://localhost:8787` points it at your local server after the community-server notice. `/spin world` opens the world chooser, `/spin world offline` uses the local save, and `/spin world online` returns to `https://spinlings.dev`. The existing `/spin server [url|default]` command remains a supported alias. To run the Worker itself against a local D1 database instead, put `SECRET=<32+ random characters>` in `.dev.vars` and run `npm run dev:worker`.
 
 ## Checks
 

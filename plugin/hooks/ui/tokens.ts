@@ -29,7 +29,7 @@ export const FAMILY_MARK: Record<Family, string> = {
 
 /**
  * Marks for stamps and celebrations; a stamp's mark always carries its word (never colour or a glyph alone, SPEC
- * 21.9), and finishes show as words (`Shiny`, `Foil`, or `S` and `F` where a column is narrow), never as a glyph.
+ * 21.9), and finishes show as words (`Alt colour`, `Foil`), never as a glyph.
  */
 export const MARK = {
   first: '✪',

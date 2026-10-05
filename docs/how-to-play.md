@@ -9,7 +9,7 @@ There is nothing to set up either. After installing, the game starts on its own 
 ## Where the game lives
 
 - **The band** sits above the prompt and is hidden unless something is live: a battle, a result, a catch choice, a pack or a gift. `/spin pack` previews a waiting pack here. **Open** reveals its card, **Sidebar** moves the same opening into the pane, and **Close** dismisses it. Closing before Open keeps the pack unopened; closing after Open keeps the awarded card.
-- **The pane** opens with `/spin`. Its four tabs sit on hotkeys 1 to 4: **Team** (your three slots, resting timers, rating, sparks and notices), **Collection** (your cards and each card's details), **Discoveries** (this season's species and your Fusion Log) and **Community**. Its header shows waiting packs, a pack that fills with a labelled countdown such as `Next pack 18m`, and the daily rule: press that rule to see its effect. Press Help for a short field guide; Back or Close always has its own button.
+- **The pane** opens with `/spin`. Its four tabs sit on hotkeys 1 to 4: **Team** (your three slots, resting timers, rating, sparks and notices), **Collection** (your cards and each card's details), **Discoveries** (this season's species and your Fusion Log) and **Community**. Team groups its waiting packs, **Open pack** and the filling pack meter with a labelled countdown such as `Next pack 18m`. The header's world button opens the chooser, and its daily-rule button explains the rule's effect. Press Help for a short field guide; Back or Close always has its own button.
 - **The status line** shows which world you are in (`spinlings · Online` or `spinlings · Offline`), any packs waiting (`spinlings · Online · 2 packs`), and the battle while one is on (`spinlings · vs soft-otter-42`, `spinlings · wild Fogmaw`). It never shows sparks, and `/spin quiet` empties it.
 
 Community opens on **Profile**, with your current stats, **Share profile**, passkey and settings controls. Share profile copies your public profile link; if the clipboard is unavailable, the link appears to copy by hand. **Privacy & settings → Manage account** opens browser account management when the server supports it. Its section bar switches between **Profile**, **Market**, **Rankings** and **Trading** in place. Market and Rankings appear where the online server supports them; Trading has offers, the trade board, the Wandering Trader and gifts. Offline, Profile and the Trader remain available, while public sharing and browser access stay hidden. Card, listing and player details open over the selected section, so Back returns you there.
@@ -94,7 +94,7 @@ The server rolls each card's DNA when it is made. From that come:
 - **Genes:** four values from 0 to 15 that nudge hp, attack, defense and speed by up to 12% either way. The **gene score** is their total as a percentage.
 - **Traits:** one, or two for epic and legendary cards.
 
-**Shiny** cards (1 in 100) take the other half of their family's colours, with gold accents and a twinkle, and their frame sparkles. **Foil** is a separate holographic finish, rolled at 1 in 16 on any card: a rainbow band sweeps across the creature and the border cycles through the rainbow. Every legendary and every Mythic is foil. Foil never changes stats. A card can be both: `Rare · Shiny Foil`.
+**Alt colour** cards (1 in 100) take the other half of their family's colours, with gold accents and a twinkle, and their frame sparkles. This is the appearance previously called shiny; the website still uses that name. **Foil** is a separate holographic finish, rolled at 1 in 16 on any card: a rainbow band sweeps across the creature and the border cycles through the rainbow. Every legendary and every Mythic is foil. Neither appearance changes battle stats. A card can be both: `Rare · Alt colour · Foil`. **? Looks** on a finished card explains its appearance and recycling value; motion off keeps its frame still.
 
 ### Traits
 
@@ -148,7 +148,7 @@ A pack holds 1 card, with no guaranteed rarity.
 |---|---|---|---|---|
 | 1 | 70% | 22% | 7% | 1% |
 
-A legendary roll gives the family's legendary species; any other roll picks one of the family's 8 regular species. Each card also rolls shiny (1 in 100) and foil (1 in 16) on its own.
+A legendary roll gives the family's legendary species; any other roll picks one of the family's 8 regular species. Each card also rolls alt colour (1 in 100) and foil (1 in 16) on its own.
 
 **Charging.** Every 50 minutes that Claude Code is open on your machine, idle time included, a pack charges in the family you used most in that stretch. Charges are at least 45 minutes apart (90 minutes beyond 16 charges in any 24 hours, which no person reaches). You can hold 12 unopened packs; when the bank is full, the game says "Open some packs to make room".
 
@@ -172,7 +172,7 @@ Fuse any two of your cards into one brand-new hybrid. Both parents are used up.
 ## Crafting and recycling
 
 - **Craft** any current-season species from the Album with fresh DNA: 50, 200, 800 or 3200 sparks for common, rare, epic or legendary.
-- **Recycle** a card for 4, 15, 60 or 250 sparks by rarity. Shiny doubles it, foil pays 1.5x, and a Mythic doubles once more. Bound cards cannot be recycled. A pack's worth of cards recycles for well under the 150 sparks a pack costs.
+- **Recycle** a card for 4, 15, 60 or 250 sparks by rarity. Alt colour doubles it, foil pays 1.5x, and a Mythic doubles once more. Bound cards cannot be recycled. A pack's worth of cards recycles for well under the 150 sparks a pack costs.
 
 ## Trading, the market and gifts
 
@@ -189,10 +189,10 @@ Trading, the market and gifts are online only. Any online account can use them f
 
 - Open Community → Market, or use `/spin market`. Your listings has its own filter within the market.
 - **Sell a card** for sparks, for a card you want, or both. The card waits on the market, off your team, until someone buys it, you take it back, or 14 days pass. Your last team card cannot go on the market.
-- **What you can ask for:** a price in sparks, and/or a card: a species, or a family and a lowest rarity, and if you like only shiny or only foil.
+- **What you can ask for:** a price in sparks, and/or a card: a species, or a family and a lowest rarity, and if you like only alt colour or only foil.
 - **You choose the price.** Enter a whole number of sparks and press **Apply**, or use a suggested price, then confirm the listing. Recent sales of the same species, rarity and finishes show the last matching price, and an average with a sample count when at least two match. A plain crafting cost is also available as a reference.
 - **Buying** works any time, even while the seller is away. You pay the price and, if the listing wants a card, hand over one of yours that fits. Every spark goes to the seller; there is no fee. If two players buy at once, one gets it and the other is told it is already sold.
-- **Browse** by family, rarity, species, shiny, foil, kind and price, newest first, cheapest or priciest. Each species shows its last 5 sale prices, with the day and no names.
+- **Browse** by family, rarity, species, alt colour, foil, kind and price, newest first, cheapest or priciest. Each species shows its last 5 sale prices, with the day and no names.
 - You can have up to 100 cards on the market at once. A listing shows your handle, the card, the price, what you want and the day you listed it.
 
 ### The trade board
@@ -219,7 +219,7 @@ A non-player trader with 3 deals each UTC day, picked by the date. For example: 
 | A failed attack on your team | 4 (the first 3 duels between the same two players in any 24 hours) |
 | Your first visit of the UTC day | 10 |
 | A revenge win | 5 extra |
-| Recycling a card | 4 / 15 / 60 / 250 by rarity; shiny doubles, foil 1.5x, a Mythic doubles again |
+| Recycling a card | 4 / 15 / 60 / 250 by rarity; alt colour doubles, foil 1.5x, a Mythic doubles again |
 
 | Spend | |
 |---|---|
@@ -254,7 +254,7 @@ Every UTC day has one rule for every battle, the same for everyone:
 | Long Day | Battles run to 30 rounds |
 | Gentle Day | All damage is 15% lower |
 | Wild Bloom | Catches succeed 80% of the time |
-| Shiny Hour | From 18:00 to 19:00 UTC, shinies are 1 in 25 |
+| Shiny Hour | From 18:00 to 19:00 UTC, alt colour cards are 1 in 25 |
 | Fusion Fair | Fusion costs 20 sparks |
 | Calm Day | No rule |
 
@@ -271,7 +271,7 @@ Now and then a code such as `FOUNDERS` is posted. `/spin redeem <code>` hatches 
 - **Online** is the default, on [spinlings.dev](https://spinlings.dev). The mod joins on its own the first time you open Claude Code and gives you a random handle such as `soft-otter-42`. `/spin handle` shows your handle, and `/spin handle new` draws a new one once a week. Generated handles remain the default.
 - **Your public username.** Save a passkey, then use Community → Profile → Privacy & settings → Manage account to sign in to the browser page. You can choose a unique name of 1–40 ASCII letters, numbers, `_` or `-`; it is saved in lowercase and passes the game's name filter, with names such as `admin` and `support` reserved. Choosing a name and drawing a generated handle share the once-a-week limit. Old names are held for 30 days. Your account, cards and passkeys stay the same. The browser otherwise shows your game; open packs, change your team and trade in Claude Code. Your chosen name is public, so reusing a name from elsewhere can identify you. Share profile uses your current username; an old profile link does not follow a rename.
 - **Offline** sends nothing, ever: wild encounters, catches, packs, evolution, fusion, crafting, Mythics (as a `Local mythic`), Rivals and the Trader all work from a save on your machine. Duels with real players, trading, gifts, drops, the leaderboard and First Discovered need the online world.
-- **Picking a world.** You start online. If the first run cannot reach the server, the game starts you offline and says so. After that, `/spin world online` or `/spin world offline` switches at any time. Each world keeps its own collection; cards never move between them, and switching deletes nothing.
+- **Picking a world.** You start online. If the first run cannot reach the server, the game starts you offline and says so. `/spin world` or the header's world button opens the chooser. `/spin world online` returns to spinlings.dev, and `/spin world offline` returns to your local save. Each world keeps its own collection; cards never move between them, and switching deletes nothing.
 - **Another computer.** `/spin devices` saves a passkey, and another computer signs in with it. Without a passkey, losing every device loses the online account.
-- **Community servers.** `/spin server <url>` shows a one-time notice for a server someone else runs. Connect enters its online world immediately, even from offline; Cancel keeps your current world. Nothing is sent to a new community server before Connect. Each server keeps its own account and collection, and `/spin server default` returns online to spinlings.dev. Your offline save stays saved; `/spin world offline` returns to it. [self-hosting.md](self-hosting.md) shows how to run one.
+- **Community servers.** `/spin world <url>` shows a one-time notice for a server someone else runs. Connect enters its online world immediately, even from offline; Cancel keeps your current world. Nothing is sent to a new community server before Connect. Each server keeps its own account and collection, and `/spin world online` returns online to spinlings.dev. Your offline save stays saved; `/spin world offline` returns to it. `/spin server <url>` and `/spin server default` remain supported aliases; `/spin server` without an argument reports the current host. [self-hosting.md](self-hosting.md) shows how to run one.
 - `/spin privacy` shows what the mod has sent, resets access on every device, and deletes your account. See [PRIVACY.md](../PRIVACY.md).

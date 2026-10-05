@@ -325,10 +325,10 @@ export function wantSpecies(w: MarketWant | undefined | null, catalog?: SeasonCa
   }
 }
 
-/** A want in a few plain words: `Fogmaw`, `any Haiku · Rare+`, `any shiny`. */
+/** A want in a few plain words: `Fogmaw`, `any Haiku · Rare+`, `any · Alt colour`. */
 export function wantWords(w: MarketWant, catalog?: SeasonCatalog): string {
   const s = wantSpecies(w, catalog)
-  const finish = dots(w.shiny ? 'shiny' : '', w.foil ? 'foil' : '')
+  const finish = dots(w.shiny ? 'Alt colour' : '', w.foil ? 'Foil' : '')
   if (s) return dots(safe(s.names[s.legendary ? 2 : 0], 24), finish)
   return dots(`any${w.family ? ' ' + FAMILY_INFO[w.family].name : ''}`, w.rarity ? `${title(w.rarity)}+` : '', finish)
 }

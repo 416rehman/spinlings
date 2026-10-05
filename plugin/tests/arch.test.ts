@@ -228,7 +228,11 @@ test('commands answer {} and talk through the log, never the model', { timeoutMs
   expect(await $.command.run(RUN('wild'))).toEqual({})
   expect(w.logs.at(-1)).toMatch(/There is no \/spin wild/)
   expect(await $.command.run(RUN('world'))).toEqual({})
-  expect(w.logs.at(-1)).toBe('World: online on spinlings.dev')
+  await settle(clock)
+  const chooser = await $.ui.mount({ ...PANE(40), surface: 'terminal' })
+  expect(await chooser.find({ text: /Choose a world/ })).toBeDefined()
+  expect(await chooser.find({ key: 'world-address' })).toBeDefined()
+  await chooser.unmount()
 })
 
 test('a duel plays in the band, minis and all, then settles into a result', { timeoutMs: 60_000 }, async ($, on) => {
@@ -266,7 +270,7 @@ test('the card shows at full size and as tiles on both surfaces: starters, shiny
   await settle(clock)
   const expectations: [string, RegExp[]][] = [
     ['starter-0', [/Common/, /Your starter/]],
-    ['shiny-foil', [/Common · Shiny Foil/, /First Discovered/]],
+    ['shiny-foil', [/Common · Alt colour · Foil/, /First Discovered/]],
     ['mythic-1', [/Mythic · Foil/, /Mythic · 1 of 1/, /Final form/]],
   ]
   for (const [id, texts] of expectations) {
