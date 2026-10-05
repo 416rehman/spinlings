@@ -60,15 +60,17 @@ if ('skip' in local) {
       for (let i = 0; i < 9; i++) await p.call('buyPack', { family: 'haiku' })
       assert.equal((await p.fails('chargePack', { family: 'opus' })).code, 'cap_reached')
       const free = (await p.call('openPack', { packId: (await p.call('me')).packs.find(k => k.source === 'bought')!.id })).cards
-      assert.equal(free.length, 2)
+      assert.equal(free.length, 1)
       assert.ok(free.every(x => x.origin === 'pack' && x.family === 'haiku' && x.lockedUntil === 0 && !x.bound))
       assert.equal((await p.fails('chargePack', { family: 'opus' })).code, 'rate_limited')
       s.tick(DAY)
       assert.equal((await p.call('chargePack', { family: 'opus' })).packs.length, 12, 'the bank guard passes on D1 with room')
-      // Two current packs supply distinct cards for marking, fusion (including team removal), and recycling.
-      const extra = (await p.call('openPack', { packId: (await p.call('me')).packs.find(k => k.source === 'bought')!.id })).cards
-      assert.equal(extra.length, 2)
-      free.push(...extra)
+      // Four current packs supply distinct cards for marking, fusion (including team removal), and recycling.
+      while (free.length < 4) {
+        const extra = (await p.call('openPack', { packId: (await p.call('me')).packs.find(k => k.source === 'bought')!.id })).cards
+        assert.equal(extra.length, 1)
+        free.push(...extra)
+      }
       assert.equal((await p.call('setForTrade', { cardId: free[0]!.id, forTrade: true })).card.forTrade, true)
       await p.call('setTeam', { cardIds: [free[1]!.id] })
       const fused = await p.call('fuse', { cardId: free[1]!.id, otherId: free[2]!.id })

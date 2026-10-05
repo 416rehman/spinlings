@@ -27,6 +27,7 @@ import {
 } from './pages-scene.ts'
 import { maskPath, shadowSvg, spriteSvg } from './pages-sprite.ts'
 import type { SiteFacts } from './pages-world.ts'
+import { desktopGallery } from './pages-media.ts'
 
 export type LandingData = {
   w: SiteFacts
@@ -211,6 +212,7 @@ ${raw(spriteSvg(spriteFor({ form: featured, stage: 1 })))}
 </div>
 </div>
 <p class="foot1">Win, and you might catch one. You never lose a card.</p>
+${desktopGallery()}
 </div>
 </section>`
 }
@@ -949,6 +951,13 @@ html.js .foot1{display:none}
 .result .caught .spr{width:40px;height:40px;flex:none}
 .result a{color:#ffe2a0}
 .foot1{margin-top:var(--s3);color:#cfdccb}
+.desktop-shots{margin-top:var(--s4)}
+.desktop-shots summary{width:fit-content;min-height:44px;padding:var(--s2) 0;cursor:pointer;color:#ffe2a0}
+.desktop-shot-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:var(--s4);margin-top:var(--s3)}
+.desktop-shot-grid figure{min-width:0;margin:0;display:grid;gap:var(--s2);align-content:start}
+.desktop-shot-grid a{min-width:0}
+.desktop-shot-grid img{display:block;width:auto;max-width:100%;height:auto;margin-inline:auto;border:1px solid #2a3040;border-radius:8px}
+.desktop-shot-grid figcaption{font-size:.875rem;color:#b7c0d8}
 
 /* ---- den: rooms dug into the soil under the clearing ---- */
 .den{position:relative;background:#2a1d18;color:#f4e9dc;padding-bottom:var(--s6);content-visibility:auto;contain-intrinsic-size:auto 1900px;--cw:152px;--ch:208px}

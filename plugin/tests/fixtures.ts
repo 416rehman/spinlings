@@ -113,7 +113,7 @@ export function fakeServer(o: { now?: number; family?: Family; difficulty?: numb
         return json(200, { team: body.cardIds })
       }
       if (method === 'POST' && (path === '/v1/claim' || path === '/v1/redeem')) {
-        const got = withIds(rollPack('sonnet', seasonOf(now), rngFromSeed(String(body.code)), now).slice(4), `gift-${server.cards.length}-`)
+        const got = withIds(rollPack('sonnet', seasonOf(now), rngFromSeed(String(body.code)), now).slice(-1), `gift-${server.cards.length}-`)
         server.cards = [...server.cards, ...got]
         server.me = { ...server.me, player: { ...server.me.player, cardsVersion: server.me.player.cardsVersion + 1 } }
         return json(200, path === '/v1/claim' ? { card: got[0] } : { cards: got, packs: [] })

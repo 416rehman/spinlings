@@ -104,13 +104,13 @@ async function readAll($: $): Promise<GameState> {
   return { account, me, cards, signals, battle, moments, reveal, social, pane, prefs, presence, privacy, clock } as GameState
 }
 
-/** What the band draws from: it redraws when one of these moves, never for the pane's own state. */
+/** The band also watches the inline reveal and its shared flip progress. */
 async function readBand($: $): Promise<BandState & { clock: number }> {
-  const [account, me, cards, signals, battle, moments, prefs, clock] = await Promise.all([
+  const [account, me, cards, signals, battle, moments, prefs, clock, reveal, pane] = await Promise.all([
     read($, accountAtom), read($, meAtom), read($, cardsAtom), read($, signalsAtom), read($, battleAtom), read($, momentsAtom),
-    read($, prefsAtom), read($, clockAtom),
+    read($, prefsAtom), read($, clockAtom), read($, revealAtom), read($, paneAtom),
   ])
-  return { account, me, cards, signals, battle, moments, prefs, clock } as BandState & { clock: number }
+  return { account, me, cards, signals, battle, moments, prefs, clock, reveal, pane } as BandState & { clock: number }
 }
 
 // ---------- effects: the only door from the game to $ ----------

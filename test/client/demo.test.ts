@@ -5,24 +5,25 @@ import { revealSummary } from '../../plugin/hooks/client/viewmodels.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12)
 
-it('pack demo states contain two cards and stop at their actual reveal count', () => {
+it('pack demo states contain one card and stop at their actual reveal count', () => {
   const scenes = demoSteps(NOW).filter(s => s.title.startsWith('Pack ·'))
   assert.equal(scenes.length, 4)
   for (const scene of scenes) {
     const r = scene.state.reveal!
     assert.equal(r.kind, 'pack')
-    assert.equal(r.cards.length, 2)
-    assert.equal(r.cards[0]!.rarity, 'common')
-    assert.equal(r.cards[1]!.rarity, 'legendary')
-    assert.equal(r.cards[1]!.foil, true)
+    assert.equal(r.cards.length, 1)
+    if (scene.title.includes('gold') || scene.title.includes('legendary')) {
+      assert.equal(r.cards[0]!.rarity, 'legendary')
+      assert.equal(r.cards[0]!.foil, true)
+    } else assert.equal(r.cards[0]!.rarity, 'common')
     assert.ok(scene.state.pane.flipped <= r.cards.length)
     assert.deepEqual(r.fresh, r.cards.map(c => c.species))
   }
-  const waiting = scenes.find(s => s.title === 'Pack · one turned, a gold back waiting')!
-  assert.equal(waiting.state.pane.flipped, 1)
+  const waiting = scenes.find(s => s.title === 'Pack · a gold back waiting')!
+  assert.equal(waiting.state.pane.flipped, 0)
   const summary = scenes.find(s => s.title === 'Pack · the summary')!
-  assert.equal(summary.state.pane.flipped, 2)
-  assert.equal(revealSummary(summary.state.reveal!), '2 cards · 2 new species · Album 14/36 (+2)')
+  assert.equal(summary.state.pane.flipped, 1)
+  assert.equal(revealSummary(summary.state.reveal!), '1 card · 1 new species · Album 13/36 (+1)')
 })
 
 it('collection, fusion and market examples keep valid cards outside the shortened pack', () => {

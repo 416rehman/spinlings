@@ -118,7 +118,7 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     await trust(a)
     await trust(b)
     for (let i = 0; i < 3; i++) await a.call('buyPack', { family: 'sonnet' })
-    for (const p of (await a.me()).packs) assert.equal((await a.call('openPack', { packId: p.id })).cards.length, 2)
+    for (const p of (await a.me()).packs) assert.equal((await a.call('openPack', { packId: p.id })).cards.length, 1)
     for (const p of (await b.me()).packs) await b.call('openPack', { packId: p.id })
     for (let i = 0; i < 2; i++) await b.call('buyPack', { family: 'fable' })
     for (const p of (await b.me()).packs) await b.call('openPack', { packId: p.id })

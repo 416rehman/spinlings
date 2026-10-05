@@ -39,7 +39,7 @@ function paintPack() {
 }
 
 /**
- * The opening (SPEC 13.5): the top crimp tears off in 3 frames, two backs fly out of the pack into
+ * The opening (SPEC 13.5): the top crimp tears off in 3 frames, the card flies out of the pack into
  * the slots on the plank, each glowing in its rarity's colour, and they turn over one by one.
  */
 async function openPack() {
@@ -184,7 +184,7 @@ function done() {
   const kinds = new Set(slots.map(s => ('card' in s ? cardName(s.card) : s.unfound.id))).size
   const summary = $('[data-summary]')!
   summary.replaceChildren(
-    el('p', 'big', `${slots.length} cards${parts.length ? `: ${parts.join(', ')}.` : ', all common.'} ${kinds} different creatures.`),
+    el('p', 'big', `${slots.length} ${slots.length === 1 ? 'card' : 'cards'}${parts.length ? `: ${parts.join(', ')}.` : slots.length === 1 ? ': common.' : ', all common.'}${kinds > 1 ? ` ${kinds} different creatures.` : ''}`),
     el('p', 'soft', 'Tap one, or drag it onto the nest below, to fuse it. In the game, a pack charges for every 50 minutes Claude Code is open.'),
   )
   summary.hidden = false

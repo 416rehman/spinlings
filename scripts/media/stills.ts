@@ -164,19 +164,18 @@ function unique(W: number, H: number): Canvas {
   return c
 }
 
-/** Product Hunt 3: a two-card pack, common and legendary foil. */
+/** Product Hunt 3: an example one-card pack revealing a legendary foil. */
 function pack(W: number, H: number): Canvas {
   const c = frame(W, H)
   const w = mediaWorld(dayWith('calm'), 'spinlings/media/pack')
-  heading(c, W, 'Packs glow before they flip', 'Two cards in every pack. Rarer cards build up longer.')
-  const s = 12, side = 18 * s, gap = 132
-  const x0 = Math.round((W - (2 * side + gap)) / 2), y = 318
+  heading(c, W, 'Packs glow before they flip', 'One card in every pack. Rarer cards build up longer.')
+  const s = 12, side = 18 * s
+  const x0 = Math.round((W - side) / 2), y = 318
   const faces: Card[] = [
-    w.mint('opus', 2, 'common', {}, 1, 2718281828),
     w.mint('opus', 8, 'legendary', { foil: true }, 1, 3141592653),
   ]
   faces.forEach((card, i) => {
-    const x = x0 + i * (side + gap)
+    const x = x0
     const legendary = card.rarity === 'legendary'
     let px = spriteFor(card)
     if (legendary) px = sparkles(foil(px, 1.1), 0.3, 'pack', { count: 4, color: 0xfff0a8, reach: 1 })
@@ -188,7 +187,7 @@ function pack(W: number, H: number): Canvas {
     text(c, x + centre(side, label, 2), y + side + 48, label, legendary ? GOLD : SOFT, 2)
   })
   // the legendary's rim runs the foil rainbow
-  const lx = x0 + side + gap
+  const lx = x0
   for (let k = 0; k < side; k += 6) {
     const col = hex(foilHue(k / side))
     c.fillRect(lx + k, y, 6, 6, col)

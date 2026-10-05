@@ -250,12 +250,11 @@ The arena is the family of the attacker's current model at battle start. It is s
 ## 6. Packs and the economy
 
 ### Packs
-- A pack holds 2 cards.
+- A pack holds 1 card, with no guaranteed rarity.
 
   | Slots | Common | Rare | Epic | Legendary |
   |---|---|---|---|---|
   | 1 | 70% | 22% | 7% | 1% |
-  | 2 | – | 75% | 21% | 4% |
 
 - A legendary roll gives the pack family's legendary species. Every other rarity picks uniformly from the family's 8 regular species.
 - Each card rolls shiny independently at 1/100.
@@ -405,7 +404,7 @@ Community's sections use local ids `profile`, `market`, `boards` and `trades`. A
 | Community section | Shows |
 |---|---|
 | Profile | Handle, league, rating, sparks, win streak, live own stats, cards owned and species discovered, Share profile, passkey and devices, privacy and settings. Share profile copies only `/u/{encoded current handle}`, with manual-copy fallback; it is hidden offline. Browser account management belongs in Settings |
-| Market | Everyone's listings as a grid of card tiles (art, rarity gem, family mark, finish, a price chip in sparks and the creature it wants in return), filter chips (family, rarity, kind, sort, shiny, foil), pages; your own listings with `l`. A listing's page is the confirm: the card in full, the seller with Challenge, recent prices, what you give and what you get, then `1` Buy. Selling starts from a card's page (`l`): a price stepper that starts from recent sales (or what crafting one costs), up to three suggested prices, and an optional card asked in return (a wishlist species, or the card's family at its rarity or better) |
+| Market | Everyone's listings as a grid of card tiles (art, rarity gem, family mark, finish, a price chip in sparks and the creature it wants in return), filter chips (family, rarity, kind, sort, shiny, foil), pages; your own listings with `l`. A listing's page is the confirm: the card in full, the seller with Challenge, recent prices, what you give and what you get, then `1` Buy. Selling starts from a card's page (`l`): the seller chooses an exact whole-spark price with an explicit Apply action, a stepper or up to three suggestions, and may ask for a card in return (a wishlist species, or the card's family at its rarity or better). Suggestions use only matching species, rarity, shiny and foil from the last five observed sales: the last matching price, and an average with a sample count when at least two match. A plain crafting cost is also available as a reference |
 | Rankings | Six labelled board choices plus `n`/`p` where stats are supported (rating alone on older servers), all time or this season with `a`, the top rows with a league badge and the value, your own rank pinned, and from each row the player's profile or Challenge |
 | Trading | Offers, Trade board, Wandering Trader and Gifts, switched within Trading; offline, only the Trader |
 
@@ -414,6 +413,10 @@ Each destination has one navigation home: Collection stays in the main tab bar; 
 Pushed over the tabs and sections: card, fuse, species, listing and sell details; another player's profile (league, album count, stats as tiles, Challenge, their team and the offer builder); gift and reveal views; privacy and devices; Help; and Today, explaining the daily rule.
 
 **Visuals are the controls.** Every card tile, team slot, pack, listing and board row is pressable. Its native name or action button takes Tab focus and, where it matters, a hotkey. Desktop artwork has a pointer region measured from the art's pixel dimensions; family/level, rarity/finish, notes and wrapped names each have their own passive-text region. These regions select the same item and never cover a native button or another control. A queued selection survives a cosmetic redraw of the same item, but changing the item, action, view or active pane cancels it. A name is never cut: what does not fit a tile's column goes on a line below, and the card's page shows everything whole. On the desktop the art carries the full name as its tooltip.
+
+**Team placement is explicit.** A card offers Set in team, or Change slot when already on the team. Its picker names all three slots and current occupants: Replace keeps the previous card in the collection, Swap exchanges existing teammates, and Add here fills the first empty slot. Dense team order forbids gaps. The chooser keeps its origin for Back, waits for the authoritative team, and confirms the selected slot with Done. Pack summaries use this same picker for their card, never automatic strongest/weakest replacement.
+
+**Inline packs.** `/spin pack` and a welcome-pack invitation create a sealed band preview without sending an open request. Open consumes it once and reveals its card. Close before opening preserves the pack; after opening it preserves the awarded card. Sidebar transfers the same reveal and progress into the pane without another open request. Quiet and narrow-band fallbacks retain the explicit pane flow; invoking pack with none waiting opens its existing empty-state message and countdown.
 
 ### Sprites
 - **Terminal:** a `Raster` of half-blocks. Cards are 16×16 pixels (16 columns × 8 rows). Minis are 8×8 (8 × 4).
@@ -610,9 +613,9 @@ Section 20 is the full privacy rule set and overrides this summary.
    - **Success:** "Gotcha! Fogmaw joined your collection" with a sparkle burst.
    - **Failure:** "It slipped away!" as the card unspins.
    - The server has already decided the outcome; the animation only adds suspense.
-5. **Pack opening ceremony (pane overlay).**
+5. **Pack opening ceremony (inline band or pane).**
    - **Open:** the pack shows as a pixel package in its family colour. Pressing `[o] Open` plays a 3-frame tear.
-   - **Glowing backs:** two face-down cards appear, and each back glows in its rarity colour before it flips: blue for rare, purple for epic, pulsing gold for legendary. That way you see "one is glowing gold" before you know what it is.
+   - **Glowing back:** one face-down card appears, and its back glows in its rarity colour before it flips: blue for rare, purple for epic, pulsing gold for legendary. A common card is an ordinary result; no pack guarantees a rarity.
    - **Flipping:** `[f]` flips the next card, and cards auto-flip every 1.2 s with no input.
      - Commons flip fast.
      - Rare and better flip slower and add a flash.
@@ -624,7 +627,7 @@ Section 20 is the full privacy rule set and overrides this summary.
      - its gene score counting up from 0 to its value;
      - its trait stamps;
      - its trinket, if any ("wears a tiny hat").
-   - **Summary:** "2 cards · 2 new species · Album 14/36 (+2)" with `[t] Set team` and `[d] Done`.
+   - **Summary:** "1 card · 1 new species · Album 13/36 (+1)" with a slot picker for Set in team and Done. Older saved reveals keep every card they contain.
 6. **Evolution ceremony** (at level 4 and again at level 8, section 22).
    - The band shows "What? Pipkin is evolving!".
    - The current sprite then alternates with a white silhouette of the next stage, getting faster over 3 s, and ends in a flash.
@@ -857,6 +860,7 @@ Every row a player can change has a `version` column. One-shot actions (open a p
   - name, two generated words, e.g. "Hollowmere Duskwing";
   - stats at 1.1x the legendary base.
 - **Catching:** the normal catch roll applies.
+- **Named online Mythics:** Dario, Marshmallow Menace, Noodle Knight and Soggy Emperor are curated names for the world's next unreserved ordinary Mythic encounters. Dario is the maintainer's requested reference to Dario Amodei. Only the embedded form's names change: the existing roll, parts, palette, stats and catch odds remain. The server atomically reserves each roster id with the battle start, so each name appears once worldwide, even if the encounter is lost, abandoned or its account is deleted. After the roster is exhausted, generated names continue. Offline keeps its existing local Mythics. These forms fit every supported reader and require no mod update.
 - **Fleeing:** a lost or abandoned Mythic is gone forever. The band says "It vanished into the static. Nobody will ever see it again."
 - **Stamps and listing:** a caught Mythic carries `Mythic · 1 of 1` and `Discovered by {handle}`. Mythics appear on a public "Mythics found" list on the landing page, showing handle and name only.
 - **Data:** Mythic cards use `species: 'mythic'` with the creature's own embedded `form`, the same mechanism as fusions and drop promos. The card `form` field is `{ kind: 'fusion' | 'mythic' | 'promo', ...Form, parents?, seed?, discoveredBy?, stamp? }`: `parents` for fusions, `seed` (the parts seed) for Mythics and promos, `discoveredBy` for caught Mythics online, `stamp` for promos. It replaces the old `fusion` field.
@@ -913,9 +917,10 @@ Every row a player can change has a `version` column. One-shot actions (open a p
    - The public numbers as they stood at midnight sit on the player row for the day, as one saved copy that is replaced the next day.
    - Challenges are deleted on use or expiry.
    - Join counters are deleted after 24 hours.
+   - Used named-Mythic roster ids are permanent world markers. They contain no player id, handle, date or time; deleting an account does not make a named encounter happen again.
 5. **IP addresses** are never stored. Join limiting uses `HMAC(SECRET, utcDate + ip)` truncated to 16 bytes, kept at most 24 hours. `SECRET` is a Worker secret.
 6. **No request logging.** Cloudflare Workers observability and logpush stay off. The server logs only error codes, never URLs, bodies, tokens, handles or IPs.
-7. **Deletion is total.** `DELETE /v1/me` removes the player, their cards, packs, battles, offers, gifts, market listings, notices, wishlist, firsts credit, stats and board places, and every pair of players beaten or of seller and buyer that names them. The handle is freed after 30 days. Cards already traded away or sold stay with their new owners, and sale prices stay, naming nobody.
+7. **Deletion is total for player data.** `DELETE /v1/me` removes the player, their cards, packs, battles, offers, gifts, market listings, notices, wishlist, firsts credit, stats and board places, and every pair of players beaten or of seller and buyer that names them. The handle is freed after 30 days. Cards already traded away or sold stay with their new owners, and sale prices stay, naming nobody. Owner-free named-Mythic world markers remain.
 8. **Public pages** expose only what the profile shows, and Mythic discoveries as handle plus name.
 9. **CI asserts privacy:** tests fail if any response visible to another player contains a field outside the lists above, and if the client sends anything not in the documented request shapes.
 
@@ -1076,7 +1081,7 @@ Each stage has its own name, and a line keeps a recognisable root as it grows, e
 
   Root pools contain only plain English nature and whimsy words: no brands and no developer or programming words.
 - **Evolution lines** share a recognisable root, while the ending changes stage by stage. Endings grow in sound weight: stage 1 is short and soft, stage 2 fuller, stage 3 grand and weighty. Endings are generated per species, not taken from a fixed shared list, so lines do not all end alike.
-- **Legendaries** get stately two- or three-syllable names. **Mythics** get two pronounceable words (e.g. "Hollowmere Duskwing"). **Fusions** blend their parents' names at a natural junction.
+- **Legendaries** get stately two- or three-syllable names. **Generated Mythics** get two pronounceable words (e.g. "Hollowmere Duskwing"); section 18's curated online roster is an explicit exception. **Fusions** blend their parents' names at a natural junction.
 
 ### Quality gate
 - **Best of 24.** Each species name is the best-scoring of 24 candidates by `pronounceability`. Candidates are rejected if they hit any of:
@@ -1429,9 +1434,10 @@ A `Dockerfile` is provided, built from a `node:22-alpine` image pinned by digest
 ### Mod behaviour
 - **`/spin server <url>`:**
   - normalises the URL to its origin (https only, except localhost);
-  - fetches `GET /v1/version`;
+  - makes no request to an unapproved community origin before confirmation;
   - shows a one-time notice for any origin other than `https://spinlings.dev`: "This is a community server run by someone else. It receives the same anonymous game data as spinlings.dev, and never anything about your work. [1] Connect · esc Cancel".
-- **Online accounts are kept per server origin.** Sessions, cache and settings live under a `server:{origin}` prefix in `$.store`, so switching servers never mixes or deletes anything. `/spin server default` returns to `https://spinlings.dev`.
+  - **Connect enters the chosen server's online world immediately**, including from offline, then checks `GET /v1/version` and resumes that origin's session or joins. Cancel keeps the current world and server and sends nothing to the proposed origin. An already approved origin connects directly.
+- **Online accounts are kept per server origin.** Sessions, cache and settings live under a `server:{origin}` prefix in `$.store`, so switching servers never mixes or deletes anything. `/spin server default` explicitly returns to the online world on `https://spinlings.dev`, resuming its account. Connecting preserves the offline save; `/spin world offline` returns to it.
 - **Always visible:** the pane header and the privacy view always show the active server's host.
 - **No cross-server movement** of cards, accounts or ratings. Each server is a sealed world.
 

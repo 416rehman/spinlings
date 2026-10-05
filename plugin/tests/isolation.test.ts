@@ -2,7 +2,7 @@
 // duel), then the online world, then offline and online again. Offline sends nothing and never reads a server's keys;
 // online never reads the offline save; and nothing RemoteBackend sends, in any URL, header or body, carries a value
 // from the offline save: no card id, no DNA, no name, no count. Every body is one the strict request schemas accept.
-// Naming a community server offline asks it nothing either: it is first asked once play goes online.
+// Naming a community server asks it nothing: confirming Connect explicitly enters its online world.
 import { expect, mock, test } from 'claude-code/testing'
 import type { ApiOp } from '../hooks/core/api.ts'
 import { API_ROUTES } from '../hooks/core/api.ts'
@@ -37,7 +37,7 @@ function offlineValues(w: Engine): { strings: string[]; numbers: number[]; spark
   return { strings: [...strings], numbers: s.cards.map(c => c.dna).filter(d => d >= 1000), sparks: s.sparks }
 }
 
-test('offline, /spin server for a community server sends nothing; the server is first asked once play goes online', { timeoutMs: 120_000 }, async ($, on) => {
+test('offline, naming a community server sends nothing; Connect enters online and first asks that server', { timeoutMs: 120_000 }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   const w = engine(on)
   // offline from the start: the world a player chose with /spin world, as the store keeps it
@@ -48,17 +48,15 @@ test('offline, /spin server for a community server sends nothing; the server is 
   await $.command.run(RUN(`server ${COMMUNITY}`))
   await settle(clock)
   expect(w.requests).toEqual([])
-  expect(w.logs.at(-1)).toBe('cards.example.org is a community server run by someone else. See the band to use it when you play online.')
+  expect(w.logs.at(-1)).toBe('cards.example.org is a community server run by someone else. See the band to connect online.')
   const band = await $.ui.mount(BAND(80))
-  expect((await band.find({ key: `act-server:${COMMUNITY}` }))?.props.label).toBe('Use it online')
+  expect((await band.find({ key: `act-server:${COMMUNITY}` }))?.props.label).toBe('Connect')
+  const offline = JSON.stringify(w.store.get('offline:v1'))
   await band.press({ key: `act-server:${COMMUNITY}` })
   await settle(clock)
   await band.unmount()
-  for (let i = 0; i < 10; i++) await clock.advance(60_000)
-  await settle(clock)
-  expect(w.requests).toEqual([])
-  await $.command.run(RUN('world online'))
-  await settle(clock)
+  expect(w.store.get('prefs')).toMatchObject({ world: 'online', server: COMMUNITY })
+  expect(JSON.stringify(w.store.get('offline:v1'))).toBe(offline)
   expect(w.requests.length).toBeGreaterThan(0)
   expect(w.requests.every(r => r.url.startsWith(`${COMMUNITY}/v1/`))).toBe(true)
   expect(new URL(w.requests[0]!.url).pathname).toBe('/v1/version')
@@ -74,15 +72,34 @@ test('an offline session, then online: nothing from the offline save reaches the
     for (let i = 0; i < seconds && !done(); i++) await clock.advance(1000)
     await settle(clock)
   }
+  const openPack = async () => {
+    const before = w.requests.filter(r => r.url.endsWith('/v1/packs/open')).length
+    await $.command.run(RUN('pack'))
+    await settle(clock)
+    const preview = await $.ui.mount(BAND(80))
+    expect((await preview.find({ key: 'inline-pack-open' }))?.props.label).toBe('Open')
+    expect(w.requests.filter(r => r.url.endsWith('/v1/packs/open'))).toHaveLength(before)
+    await preview.press({ key: 'inline-pack-open' })
+    await until(() => false, 20)
+    await preview.redraw()
+    await preview.press({ key: 'inline-pack-close' })
+    await settle(clock)
+    await preview.unmount()
+  }
 
   // ---------- offline: the welcome, both packs, a wild encounter and its catch, a Rival duel ----------
   await $.session.start(SESSION)
   await settle(clock)
   expect(status()).toBe('spinlings · Offline · 2 packs')
-  await $.command.run(RUN('pack'))
-  await until(() => false, 20)
-  await $.command.run(RUN('pack'))
-  await until(() => false, 20)
+  const initial = openSave(w.store.get('offline:v1'))
+  if (initial.kind !== 'ok') throw new Error(`the initial offline save is ${initial.kind}`)
+  await openPack()
+  await openPack()
+  const opened = openSave(w.store.get('offline:v1'))
+  if (opened.kind !== 'ok') throw new Error(`the opened offline save is ${opened.kind}`)
+  expect(opened.state.packs).toEqual([])
+  expect(opened.state.cards).toHaveLength(initial.state.cards.length + 2)
+  expect(opened.state.cards.filter(c => !initial.state.cards.some(s => s.id === c.id))).toHaveLength(2)
   expect(status()).toBe('spinlings · Offline')
   await $.turn.start({ text: 'x', turnId: 't1' } as never)
   await until(() => /wild/.test(status()), 30)
@@ -99,7 +116,10 @@ test('an offline session, then online: nothing from the offline save reaches the
   expect(w.requests).toEqual([])
   expect(w.reads.filter(k => k.startsWith('server:'))).toEqual([])
   const offline = offlineValues(w)
-  expect(offline.strings.length).toBeGreaterThan(12)
+  // Every actually acquired card is included in the wire-leak audit, regardless of pack size or duplicate names.
+  for (const c of opened.state.cards) expect(offline.strings).toContain(c.id)
+  // A battle may evolve a creature and change its name: audit the earlier names too.
+  offline.strings = [...new Set([...offline.strings, ...opened.state.cards.map(cardName)])]
   const saved = JSON.stringify(w.store.get('offline:v1'))
 
   // ---------- online: a fresh account, its welcome pack, a duel ----------
@@ -107,8 +127,7 @@ test('an offline session, then online: nothing from the offline save reaches the
   await $.command.run(RUN('world online'))
   await settle(clock)
   expect(status()).toBe('spinlings · Online · 2 packs')
-  await $.command.run(RUN('pack'))
-  await until(() => false, 20)
+  await openPack()
   await clock.advance(3 * 60_000)
   await $.command.run(RUN('battle'))
   await settle(clock)

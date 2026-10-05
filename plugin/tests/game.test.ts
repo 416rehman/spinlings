@@ -374,15 +374,20 @@ test('a community server chosen through the server_url option of 0.1.0, with no 
   expect(w.store.get('prefs')).toMatchObject({ worldOption: 'online', server: null, serverOption: COMMUNITY })
 })
 
-test('offline, /spin server for a community server asks it nothing: the band keeps it for when play goes online', async () => {
+test('offline, naming a community server asks it nothing; confirming Connect enters its online world', async () => {
   const w = world({})
   w.store.set('prefs', { world: 'offline', worldOption: 'online' })
+  w.store.set(`server:${COMMUNITY}:session`, TOKEN)
   const asked: string[] = []
   const logs: string[] = []
   w.fx.ui.log = text => { logs.push(text) }
   const game = createGame({
     slots: both,
-    remote: (deps: RemoteDeps) => backend({ version: async () => { asked.push(deps.origin); return VERSION } }),
+    remote: (deps: RemoteDeps) => backend({
+      version: async () => { asked.push(deps.origin); return VERSION },
+      me: async () => server.me,
+      cards: async () => ({ cards: server.cards, version: server.me.player.cardsVersion }),
+    }),
   })
   await game.boot(w.fx, { model: null })
   await w.advance(100)
@@ -390,11 +395,13 @@ test('offline, /spin server for a community server asks it nothing: the band kee
   await game.command(w.fx, `server ${COMMUNITY}`)
   expect(asked).toEqual([])
   expect(w.state.moments.map(m => m.id)).toContain(`server:${COMMUNITY}`)
-  expect(logs.at(-1)).toBe('cards.example.org is a community server run by someone else. See the band to use it when you play online.')
+  expect(logs.at(-1)).toBe('cards.example.org is a community server run by someone else. See the band to connect online.')
+  const offline = JSON.stringify(w.store.get('offline:v1'))
   await game.actions(w.fx).act(`server:${COMMUNITY}`)
-  expect(asked).toEqual([])
-  expect(w.state.account).toMatchObject({ world: 'offline', server: COMMUNITY, link: 'ready' })
-  expect((w.store.get('prefs') as { server: string }).server).toBe(COMMUNITY)
+  expect(asked).toEqual([COMMUNITY])
+  expect(w.state.account).toMatchObject({ world: 'online', server: COMMUNITY, link: 'ready' })
+  expect(w.store.get('prefs')).toMatchObject({ world: 'online', server: COMMUNITY })
+  expect(JSON.stringify(w.store.get('offline:v1'))).toBe(offline)
 })
 
 test('a pane action answered after play went offline is dropped: the account deleted online never signs out the offline world', async () => {
@@ -446,7 +453,7 @@ test('/spin server default connects play held back by a stored 0.1.0 server addr
   expect(w.state.account).toMatchObject({ server: ORIGIN, link: 'unreachable' })
   expect(w.state.account.note).toMatch(/^The server address/)
   await game.command(w.fx, 'server default')
-  expect(logs.at(-1)).toBe('Server: spinlings.dev')
+  expect(logs.at(-1)).toBe('Online on spinlings.dev.')
   await w.advance(100)
   expect(asked).toEqual([ORIGIN])
   expect(w.state.account).toMatchObject({ server: ORIGIN, link: 'ready', note: '' })

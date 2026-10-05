@@ -22,7 +22,7 @@ import { hostOf } from '../client/net.ts'
 import { UPDATE_COMMAND } from '../client/remote.ts'
 import { fit, plural, safe } from '../client/text.ts'
 import { grouped } from '../client/viewmodels.ts'
-import type { Actions, Battle, BandView, El, Moment, Surface } from '../client/types.ts'
+import type { Actions, Battle, BandView, El, Moment, Reveal, Surface } from '../client/types.ts'
 import {
   ART_K, HUD, artSide, catchSvg, creatureSvg, evolveSvg, fledSvg, hatchSvg, hudSize, hudSvg, optionSvg, packSvg, presentSvg,
   revealSvg, rustleSvg,
@@ -127,12 +127,40 @@ export const band: BandView = env => {
   const rows = env.surface === 'terminal' && Number.isFinite(env.rows) && env.rows >= 1 ? Math.min(4, Math.floor(env.rows)) : 4
   const c: Ctx = { el: env.el, surface: env.surface, columns: Math.max(20, env.columns), rows, actions: env.actions, motion, now: env.now }
   if (state.battle) return battleBand(c, env, state.battle)
+  const choice = state.moments.find(m => m.kind === 'outcome' && m.outcome.catch.status === 'choose')
+  if (choice?.kind === 'outcome') return outcomeBand(c, env, choice)
+  if (state.reveal?.inline && !state.prefs.quiet) return packBand(c, env, state.reveal)
   // quiet silences the band except the result of a battle the player started themselves
   const moments = state.prefs.quiet ? state.moments.filter(m => m.kind === 'outcome') : state.moments
   const m = headMoment(moments)
   if (m) return momentBand(c, env, m)
   if (!state.prefs.quiet && state.account.link === 'joining' && !state.me) return hatching(c, env)
   return null
+}
+
+/** A pack opened above the composer keeps its ceremony and progress when moved to the sidebar. */
+function packBand(c: Ctx, env: Env, r: Reveal): RenderElement {
+  const { Box, Text, Button } = c.el
+  const i = Math.min(r.cards.length, env.state.pane?.flipped ?? 0)
+  const pending = !!r.packId, complete = !pending && i >= r.cards.length
+  const card = i > 0 ? r.cards[i - 1] : null
+  const family = r.family ?? env.state.signals.family
+  const art = card ? creatureArt(c, card, complete)
+    : c.surface === 'terminal' ? raster(c.el, KEYS.art, packFrame(family, 0))
+      : svg(c.el, packSvg(family), `${FAMILY_INFO[family].name} pack`, plateSize(), false)
+  const sidebar = () => { void c.actions.open({ view: { kind: 'reveal' }, revealId: r.id }) }
+  const controls = <Box flexDirection="row" columnGap={SPACE.loose} flexWrap="wrap">
+    {complete
+      ? <Button key="inline-pack-sidebar" label="Sidebar" hotkey="1" plain variant="primary" onPress={sidebar} />
+      : <Button key="inline-pack-open" label={pending ? 'Open' : c.columns < 50 ? 'Next' : 'Flip next'} hotkey="1" plain variant="primary" onPress={() => { void c.actions.flip(r.id) }} />}
+    <Button key="inline-pack-close" label="Close" hotkey="2" plain dimColor onPress={() => { void c.actions.doneReveal(r.id) }} />
+    {!complete ? <Button key="inline-pack-sidebar" label="Sidebar" hotkey="3" plain onPress={sidebar} /> : null}
+  </Box>
+  return beside(c, art, [
+    <Text bold wrap="truncate-end">{card ? nameOf(card) : `${FAMILY_INFO[family].name} pack`}</Text>,
+    <Text dimColor wrap="truncate-end">{env.state.pane?.message || (pending ? env.state.pane?.busy ? 'Opening…' : 'Ready when you are' : card ? rarityWords(card) : 'Opening…')}</Text>,
+    <Text dimColor wrap="truncate-end">{pending ? '' : complete ? `${plural(r.cards.length, 'card')} added to Collection` : `${i} of ${r.cards.length} revealed`}</Text>,
+  ], { act: controls })
 }
 
 // ---------- battles ----------
@@ -287,7 +315,7 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
       return beside(c, art, [
         <Text bold>{`${MARK.sparkle} A Spinling hatched!`}</Text>,
         <Text dimColor wrap="truncate-end">{sub}</Text>,
-      ], { act: actionsRow(c, m, 'Open your welcome pack', 'Later') })
+      ], { act: actionsRow(c, m, 'Open your welcome pack', 'Close', 'Open pack', true) })
     }
     case 'outcome': return outcomeBand(c, env, m)
     case 'evolve': return evolveBand(c, env, m)
@@ -297,7 +325,7 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
       return beside(c, art, [
         <Text bold>A pack is ready!</Text>,
         <Text dimColor wrap="truncate-end">{`${plural(m.count, 'pack')} waiting · it charged while you were here`}</Text>,
-      ], { act: actionsRow(c, m, 'Open', null) })
+      ], { act: actionsRow(c, m, 'Open', 'Close') })
     }
     case 'present': {
       const art = c.surface === 'terminal' ? raster(el, KEYS.art, presentFrame(0)) : svg(el, presentSvg(), 'a wrapped present', plateSize(), c.motion)
@@ -344,9 +372,9 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
     case 'server': {
       const host = hostOf(m.origin)
       const a = env.state.account
-      // already in use (a server already in play is the player's own OK), it only says so; offline, it is kept for later
-      const act = a.server === m.origin ? actionsRow(c, m, 'Got it', null)
-        : a.world === 'offline' ? actionsRow(c, m, 'Use it online', 'Cancel') : actionsRow(c, m, 'Connect', 'Cancel')
+      // Only an online server already in play is informational; Connect enters that online world from offline too.
+      const act = a.world === 'online' && a.server === m.origin ? actionsRow(c, m, 'Got it', null)
+        : actionsRow(c, m, 'Connect', 'Cancel')
       return beside(c, null, [
         <Text bold wrap="truncate-end">{`${safe(host, 60)} is a community server run by someone else`}</Text>,
         <Text dimColor wrap={wraps(c)}>{c.surface !== 'terminal' || c.columns >= 100

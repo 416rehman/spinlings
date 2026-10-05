@@ -12,7 +12,7 @@ const ceremony = stripTypeScriptTypes(source.slice(source.indexOf('const shelf =
   + source.slice(keysAt, source.indexOf('\n  album()', keysAt))
   + '\nglobalThis.demo = { openPack, isOpening: () => opening };')
 
-function den() {
+function den(cards = [{ id: 'first', rarity: 'common' }, { id: 'second', rarity: 'rare' }]) {
   type Pending = { node: Node; finish: () => void }
   const pending: Pending[] = [], timers = new Map<number, () => unknown>()
   let sequence = 0, focused: Node | null = null
@@ -61,7 +61,7 @@ function den() {
     $: select, $$: all, D: document, RM: () => false, W: {}, hourFamily: () => 'opus',
     keys: { on: (_: string, handlers: Record<string, () => unknown>) => Object.assign(shortcuts, handlers) },
     crypto: { getRandomValues: (values: Uint8Array) => values.fill(1) }, rngFromSeed: () => () => 0,
-    rollPack: () => [{ card: { id: 'first', rarity: 'common' } }, { card: { id: 'second', rarity: 'rare' } }],
+    rollPack: () => cards.map(card => ({ card })),
     el: (kind: string, cls = '', text = '') => { const node = new Node(kind, cls); node.textContent = text; return node },
     face: (card: { id: string }) => { const node = new Node('face'); node.append(new Node('svg'), new Node('name', 'cf-name')); faces.set(card.id, node); return node },
     cardName: (card: { id: string }) => card.id, spoken: (card: { id: string }) => card.id,
@@ -94,6 +94,29 @@ function den() {
 }
 
 describe('the den pack reveal', () => {
+  it('a single common card completes after its front settles, preserves focus and resets for another pack', async () => {
+    const view = den([{ id: 'first', rarity: 'common' }])
+    await view.open()
+    assert.equal(view.items().length, 1)
+    assert.equal(view.back(0)!.attributes['aria-label'], 'Card 1 of 1, face down')
+    const back = view.back(0)
+    await view.click(0)
+    await view.repeat(0)
+    assert.equal(view.pending.length, 1)
+    await view.finish(back)
+    assert.ok(view.summary.hidden, 'the card front is still turning')
+    await view.finishFace('first')
+    assert.equal(view.summary.hidden, false)
+    assert.equal(view.summary.firstElementChild!.textContent, '1 card: common.')
+    assert.equal(view.opening(), false)
+    assert.equal(view.timers.size, 0)
+    assert.equal(view.focus(), view.faces.get('first'))
+    await view.open()
+    assert.ok(view.summary.hidden)
+    assert.equal(view.items().length, 1)
+    assert.ok(!view.items()[0]!.dataset.open && !view.items()[0]!.dataset.revealed)
+  })
+
   it('a second-back-first click followed by f completes both cards only after all in-flight flips settle', async () => {
     const view = den()
     await view.open()

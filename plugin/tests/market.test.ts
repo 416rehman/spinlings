@@ -170,7 +170,7 @@ test('legacy leaderboard-only servers keep Community on 4 and offer rating witho
   expect(urls(w).some(u => u.startsWith('GET /v1/market'))).toBe(false)
 })
 
-test('selling: Sell on a card page opens the price stepper from recent sales, List sends the price, and your listing shows', LONG, async ($, on) => {
+test('selling: Sell opens editable prices and optional hints, List sends the chosen price, and your listing shows', LONG, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   const w = engine(on)
   await started($, clock)
@@ -182,7 +182,8 @@ test('selling: Sell on a card page opens the price stepper from recent sales, Li
   await settle(clock)
   expect(w.requests.some(r => r.url.startsWith(`${ORIGIN}/v1/market?species=`))).toBe(true)
   await ui.redraw()
-  expect(textOf(await ui.drawn())).toMatch(/craft cost/)
+  expect(textOf(await ui.drawn())).toMatch(/craft reference/)
+  expect((await ui.find({ key: 'sell-price' }))?.props).toMatchObject({ label: 'Your price (sparks)', submitLabel: 'Apply' })
   const start = String((await ui.find({ key: 'list' }))?.props.label)
   expect(start).toMatch(/^List for ✧ [\d,]+$/)
   await ui.press({ key: 'price-up' })
@@ -208,6 +209,69 @@ test('selling: Sell on a card page opens the price stepper from recent sales, Li
   expect(textOf(await ui.drawn())).toMatch(/is on the market/)
   expect(await ui.find({ key: 'listing-listing-2-pick' })).toBeDefined()
   await ui.unmount()
+})
+
+test('sellers apply any exact whole price in a tiny pane; invalid text and optional averages never list a card', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const server = fakeServer(), handle = server.handle
+  const card = server.cards.find(c => c.id === 'shiny-foil')!
+  server.handle = (url, init) => {
+    const reply = handle(url, init)
+    if (new URL(url).pathname === '/v1/market' && (!init?.method || init.method === 'GET') && reply.ok) {
+      const sale = (price: number, shiny = card.shiny) => ({ day: '2026-10-04', price, rarity: card.rarity, shiny, foil: !!card.foil })
+      return { ...reply, text: JSON.stringify({ ...JSON.parse(reply.text), prices: [{ species: card.species, sales: [sale(150), sale(250), sale(350), sale(900000, !card.shiny)] }] }) }
+    }
+    return reply
+  }
+  const w = engine(on, server)
+  await started($, clock)
+  const listings = () => urls(w).filter(u => u === 'POST /v1/market')
+  for (const surface of ['terminal', 'desktop'] as const) {
+    await $.command.run(RUN('gift shiny-foil'))
+    await settle(clock)
+    const ui = await $.ui.mount(PANE(24, surface))
+    await ui.press({ key: 'sell' })
+    await settle(clock)
+    await ui.redraw()
+    expect(textOf(await ui.drawn())).toMatch(/Optional suggestions/)
+    expect(textOf(await ui.drawn())).toMatch(/recent average · 3 sales/)
+    const previous = (await ui.find({ key: 'list' }))!.props.label
+    for (const invalid of ['12.5', '0', '1000001', 'not a price']) {
+      await ui.input({ key: 'sell-price', text: invalid })
+      await settle(clock)
+      await ui.redraw()
+      expect(textOf(await ui.drawn())).toMatch(/Enter a whole price from 1 to 1,000,000 sparks/)
+      expect((await ui.find({ key: 'list' }))!.props.label).toBe(previous)
+      expect(listings()).toEqual([])
+    }
+    await ui.input({ key: 'sell-price', text: '7,321' })
+    await settle(clock)
+    await ui.redraw()
+    expect((await ui.find({ key: 'sell-price' }))?.props.value).toBe('7321')
+    expect((await ui.find({ key: 'list' }))?.props.label).toBe('List for ✧ 7,321')
+    expect(listings()).toEqual([])
+    // Adding a wanted card preserves that exact price; card-only terms remain an explicit choice.
+    await ui.press({ key: 'want-0' })
+    await ui.redraw()
+    expect(textOf(await ui.drawn())).toMatch(/List for ✧ 7,321 \+/)
+    await ui.press({ key: 'want-sparks' })
+    await ui.redraw()
+    expect((await ui.find({ key: 'sell-price' }))?.props).toMatchObject({ label: 'Add sparks (optional)', value: '' })
+    await ui.input({ key: 'sell-price', text: '7321' })
+    await ui.redraw()
+    await ui.press({ key: 'want-none' })
+    await ui.redraw()
+    expect((await ui.find({ key: 'list' }))?.props.label).toBe('List for ✧ 7,321')
+    expect(listings()).toEqual([])
+    if (surface === 'desktop') {
+      await ui.press({ key: 'list' })
+      await settle(clock)
+      expect(bodyOf(w, 'POST', '/v1/market')).toEqual({ cardId: card.id, price: 7321 })
+      expect(listings()).toHaveLength(1)
+    }
+    await ui.unmount()
+  }
+  expect(w.requests.some(r => /not a price|12\.5|7,321/.test(r.body))).toBe(false)
 })
 
 test('a challenge by handle: /spin duel sends the handle and plays a friendly duel; boards and profiles carry Challenge', LONG, async ($, on) => {

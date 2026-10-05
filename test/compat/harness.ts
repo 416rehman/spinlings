@@ -7,17 +7,20 @@
 // Placeholders: every id, token, handle, gift code, poll id, page URL and cursor a server makes up is written as
 // `<kind:n>`. The replay binds each one from the current server's answer at the place it first appeared, and fills
 // it into later requests; a join's nonce is `<pow>`, solved afresh.
-// When a smaller pack omits a card the recorded mod later selected, supplemental read-only collection GETs let
-// the replay select an available replacement. These are replay bookkeeping, not added historical requests or a
-// change to the mod's wire behavior; every recorded request and its status/reader/shape checks still run.
+// When a smaller pack omits a card the recorded mod later selected, supplemental collection reads and bounded,
+// paid acquisitions let the replay select a real owned replacement. They spend only the player's existing sparks,
+// pass the frozen reader, and never mint through setup or alter a fixture. Every historical exchange still runs
+// with its recorded status/error/reader/shape checks and established identities intact.
 import { FAMILIES } from '../../plugin/hooks/core/families.ts'
-import type { CardsResponse, ListingView, MarketWant, OpenPackResponse, TraderDealView } from '../../plugin/hooks/core/api.ts'
+import type { CardResponse, CardsResponse, ListingView, MarketWant, MeResponse, OpenPackResponse, PacksResponse, SeasonResponse, TraderDealView } from '../../plugin/hooks/core/api.ts'
 import type { Card } from '../../plugin/hooks/core/types.ts'
+import { craftCost } from '../../plugin/hooks/core/cards.ts'
+import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { wantMatches } from '../../plugin/hooks/core/market.ts'
 import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 import { proofBits, sha256 } from '../../plugin/hooks/core/sha256.ts'
 import { mintFor } from '../../plugin/hooks/core/trader.ts'
-import { utcDay } from '../../plugin/hooks/core/world.ts'
+import { seasonOf, utcDay } from '../../plugin/hooks/core/world.ts'
 import { insertStmts, planDrop } from '../../scripts/admin/drop.ts'
 import { createApp } from '../../server/src/app.ts'
 import { hashToken } from '../../server/src/auth.ts'
@@ -200,6 +203,13 @@ const PLACEHOLDER = /<([a-z]+):(\d+)>/g
 const EXACT = /^<[a-z]+:\d+>$/
 
 class Unbound extends Error {}
+class NoPackCard extends Unbound {
+  readonly ref: string
+  constructor(ref: string) {
+    super(`${ref} was omitted from a shorter pack, and no observed free card can replace it`)
+    this.ref = ref
+  }
+}
 
 /** A recorded request with every placeholder filled from what the current server answered earlier in the flow. */
 function fill<T>(v: T, bound: ReadonlyMap<string, string>): T {
@@ -239,14 +249,15 @@ export function bindAnswer(rec: unknown, cur: unknown, bound: Map<string, string
 const cardReferences = (value: unknown): string[] => [...new Set(JSON.stringify(value).match(/<card:\d+>/g) ?? [])]
 
 /**
- * A frozen flow may select a third-to-fifth pack card that today's smaller pack never made. Reproduce the mod's
+ * A frozen flow may select a later pack card that today's smaller pack never made. Reproduce the mod's
  * selection from an actual current collection, without inventing cards or changing an established identity.
  * Cards referenced elsewhere stay reserved, so two distinct inputs can never become the same consuming input.
  */
-export function choosePackCards(o: {
+type PackSelection = {
   refs: readonly string[]; omitted: ReadonlyMap<string, Card>; cards: readonly Card[]; team: readonly string[]; now: number
   bound: ReadonlyMap<string, string>; referenced: ReadonlySet<string>; requirement?: MarketWant & { firstFind?: true }; market?: boolean
-}): Map<string, string> {
+}
+export function choosePackCards(o: PackSelection): Map<string, string> {
   const reserved = new Set([...o.bound].filter(([key]) => o.referenced.has(key)).map(([, value]) => value))
   const chosen = new Map<string, string>()
   const want = o.requirement ?? {}
@@ -261,14 +272,91 @@ export function choosePackCards(o: {
     const candidates = o.cards.filter(c => !c.bound && c.state === 'owned' && c.lockedUntil <= o.now
       && c.tiredUntil <= o.now && !o.team.includes(c.id) && !reserved.has(c.id)
       && wantMatches(want, c) && (o.market || !want.rarity || c.rarity === want.rarity)
-      && (!want.firstFind || c.firstFind))
+      && (!(want.firstFind || recorded.firstFind) || c.firstFind) && (!recorded.foil || c.foil))
       .sort((a, b) => preference(b) - preference(a) || a.id.localeCompare(b.id))
     const candidate = candidates[0]
-    if (!candidate) throw new Unbound(`${ref} was omitted from a shorter pack, and no observed free card can replace it`)
+    if (!candidate) throw new NoPackCard(ref)
     chosen.set(ref, candidate.id)
     reserved.add(candidate.id)
   }
   return chosen
+}
+
+/**
+ * Prepare a historical selection with actual server-owned cards. At most 32 paid acquisitions per selection;
+ * ordinary common crafting is cheaper than a pack, while a higher rarity requires buying/opening a real pack.
+ * Acquisitions use the recorded clock and seeded server RNG, without resetting randomness or adding funds.
+ * Supplemental answers must pass the historical mod's reader.
+ * A full collection reread proves the selected cards are still owned; no partial choice changes bindings.
+ */
+export async function preparePackCards(o: Omit<PackSelection, 'cards'> & {
+  world: Pick<World, 'send'>; player: string; headers: Record<string, string>; reader: Reader
+}): Promise<Map<string, string>> {
+  const checked = async <T>(op: string, method: string, path: string, body?: unknown): Promise<T> => {
+    const answer = await o.world.send(o.player, method, path, o.headers, body === undefined ? undefined : JSON.stringify(body))
+    if (!o.reader.JSON_CONTENT_TYPE.test((answer.headers['content-type'] ?? '').trim()) || bytes(answer.text) > o.reader.RESPONSE_MAX_BYTES) {
+      throw new Unbound(`supplemental ${op}: the ${o.reader.RESPONSE_MAX_BYTES}-byte JSON response contract failed`)
+    }
+    const json = JSON.parse(answer.text) as unknown
+    if (answer.status !== 200) {
+      const code = o.reader.parseApiError(json).error.code
+      throw new Unbound(`supplemental ${op}: answered ${answer.status} (${code}); no card was fabricated`)
+    }
+    return o.reader.parseResponse(op, json) as T
+  }
+  const collection = async (): Promise<Card[]> => {
+    const cards: Card[] = [], cursors = new Set<string>()
+    let next: string | undefined, version: number | undefined
+    do {
+      const page = await checked<CardsResponse>('cards', 'GET', '/v1/cards' + (next ? `?after=${encodeURIComponent(next)}` : ''))
+      if (version !== undefined && page.version !== version) throw new Unbound('supplemental cards: collection version moved between pages')
+      version = page.version
+      cards.push(...page.cards)
+      next = page.next
+      if (next && cursors.has(next)) throw new Unbound('supplemental cards: collection repeated a page')
+      if (next) cursors.add(next)
+    } while (next)
+    if (new Set(cards.map(c => c.id)).size !== cards.length) throw new Unbound('supplemental cards: collection repeated an identity')
+    return cards
+  }
+  let cards = await collection()
+  const attempted = new Set<string>()
+  let me: MeResponse | undefined, season: SeasonResponse | undefined, spent = 0
+  for (let count = 0; ; count++) {
+    let missing: string
+    try {
+      const chosen = choosePackCards({ ...o, cards })
+      return count === 0 ? chosen : choosePackCards({ ...o, cards: await collection() })
+    } catch (err) {
+      if (!(err instanceof NoPackCard)) throw err
+      missing = err.ref
+    }
+    if (count === 32) throw new Unbound(`${missing}: supplemental selection exhausted its 32 paid acquisitions`)
+    me ??= await checked<MeResponse>('me', 'GET', '/v1/me')
+    season ??= await checked<SeasonResponse>('season', 'GET', `/v1/season/${seasonOf(o.now)}`)
+    const recorded = o.omitted.get(missing)!, want = o.requirement ?? {}
+    const firstFind = want.firstFind || recorded.firstFind
+    const common = !want.rarity || want.rarity === 'common'
+    const species = common && !want.shiny ? season.species.filter(s => !s.legendary
+      && (!want.family || s.family === want.family) && (!want.species || s.id === want.species)
+      && (!firstFind || (!attempted.has(s.id) && !cards.some(c => c.species === s.id))))
+      .sort((a, b) => Number(b.family === recorded.family) - Number(a.family === recorded.family) || a.id.localeCompare(b.id))[0] : undefined
+    const cost = species ? craftCost('common') : ECONOMY.packs.buyCost
+    if (spent + cost > me.player.sparks) throw new Unbound(`${missing}: supplemental selection cannot afford another real card`)
+    if (species) {
+      attempted.add(species.id)
+      const got = await checked<CardResponse>('craft', 'POST', '/v1/craft', { speciesId: species.id, rarity: 'common' })
+      cards.push(got.card)
+    } else {
+      const family = want.family ?? season.species.find(s => s.id === want.species)?.family ?? recorded.family
+      const bought = await checked<PacksResponse>('buyPack', 'POST', '/v1/packs/buy', { family })
+      const pack = bought.packs.find(p => p.family === family && p.source === 'bought' && !me!.packs.some(old => old.id === p.id))
+      if (!pack) throw new Unbound('supplemental buyPack: no new bought pack was observed')
+      const opened = await checked<OpenPackResponse>('openPack', 'POST', '/v1/packs/open', { packId: pack.id })
+      cards.push(...opened.cards)
+    }
+    spent += cost
+  }
 }
 
 /** The join's proof of work as the mod solves it (client/remote.ts solvePow): a base-36 counter, leading zero bits. */
@@ -410,26 +498,11 @@ export async function replay(
             if (!listing) throw new Unbound(`${where}: the current listing was never observed`)
             requirement = listing.want ?? {}
           }
-          // An action that returns the chosen card must retain optional fields the recorded answer showed.
-          if (step.op === 'setForTrade' && (step.response.body as { card?: Card }).card?.firstFind) requirement.firstFind = true
           const headers = fill(step.request.headers, bound)
-          const cards: Card[] = []
-          let next: string | undefined
-          const cursors = new Set<string>()
-          do {
-            const answer = await w.send(step.player, 'GET', '/v1/cards' + (next ? `?after=${encodeURIComponent(next)}` : ''), headers)
-            if (answer.status !== 200 || !reader.JSON_CONTENT_TYPE.test(answer.headers['content-type'] ?? '') || bytes(answer.text) > reader.RESPONSE_MAX_BYTES) {
-              throw new Unbound(`${where}: the current collection could not be read`)
-            }
-            const page = reader.parseResponse('cards', JSON.parse(answer.text)) as CardsResponse
-            cards.push(...page.cards)
-            next = page.next
-            if (next && cursors.has(next)) throw new Unbound(`${where}: the collection repeated a page`)
-            if (next) cursors.add(next)
-          } while (next)
           const team = teams.get(step.player)
           if (!team) throw new Unbound(`${where}: the current team was never observed`)
-          const chosen = choosePackCards({ refs: missing, omitted, cards, team, now: w.now(), bound, referenced, requirement, market: step.op === 'buyListing' })
+          const chosen = await preparePackCards({ refs: missing, omitted, team, now: w.now(), bound, referenced,
+            requirement, market: step.op === 'buyListing', world: w, player: step.player, headers, reader })
           for (const [ref, id] of chosen) bound.set(ref, id)
         }
         const req = fill(step.request, bound)

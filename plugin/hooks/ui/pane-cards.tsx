@@ -7,8 +7,9 @@ import { FAMILY_INFO } from '../core/families.ts'
 import { dailyRule, fusionCost } from '../core/world.ts'
 import { nameOf } from '../client/game.ts'
 import { dots } from '../client/text.ts'
+import { teamSlotChoices } from '../client/team-slots.ts'
 import {
-  FILTER_FAMILIES, FILTER_RARITIES, cardCan, collection, cycle, filterLabel, fusePartners, paged, perRow, sellProblem, teamPlace,
+  FILTER_FAMILIES, FILTER_RARITIES, cardCan, collection, cycle, filterLabel, fusePartners, paged, perRow, sellProblem,
   withTop,
 } from '../client/viewmodels.ts'
 import { card } from './card.tsx'
@@ -16,7 +17,7 @@ import type { Ctx, Shown } from './pane-kit.tsx'
 import {
   CHIP, TILE, actions, btn, chip, column, grid, heading, holdLine, line, marketOpen, para, priceChip, tabsHint, tile,
 } from './pane-kit.tsx'
-import { MARK, SPACE } from './tokens.ts'
+import { INK, MARK, SPACE } from './tokens.ts'
 
 const TILE_ROWS = { terminal: 14, desktop: 8 }
 const CHIP_ROWS = { terminal: 8, desktop: 6 }
@@ -72,22 +73,19 @@ export function cardScreen(c: Ctx, cardId: string): Shown {
   const me = c.state.me
   const can = cardCan(x, { offline: c.offline, now: c.now, market: marketOpen(c.state) })
   const listing = me?.listings?.find(l => l.card.id === x.id) ?? null
-  const place = me && x.state === 'owned' ? teamPlace(me.player.team, x, c.state.cards) : null
+  const at = me?.player.team.indexOf(x.id) ?? -1
   const name = nameOf(x)
-  const replaceLabel = place?.kind === 'replace' ? `Set in team, for ${nameOf(place.replaced)}` : ''
-  const shortReplace = replaceLabel.length + 3 > c.columns
-  const team = place === null || place.kind === 'leads' ? null
+  const team = !me || x.state !== 'owned' || c.state.account.readOnly || c.state.pane.busy ? null
     : btn(c, {
-      key: 'set-team', hotkey: '1', primary: true, on: () => c.actions.setTeam(place.ids),
-      label: place.kind === 'lead' ? 'Lead the team' : place.kind === 'replace' && !shortReplace ? replaceLabel : 'Set in team',
+      key: 'set-team', hotkey: '1', primary: true, on: () => c.actions.push({ kind: 'team-slot', cardId: x.id }),
+      label: at >= 0 ? 'Change slot' : 'Set in team',
     })
   const value = recycleValue(x)
   const sellNote = can.sell && me ? sellProblem(x, me.player.team, c.state.cards) : ''
   const rows = column(c, [
     para(c, `Cards › ${name}`, { dim: true }),
     card(c.el, c.surface, x, 'full', { key: 'detail', width: c.columns, motion: c.motion, offline: c.offline, now: c.now }),
-    place?.kind === 'leads' ? line(c, 'Leads your team', { dim: true }) : null,
-    place?.kind === 'replace' && shortReplace ? line(c, `Setting this card in your team replaces ${nameOf(place.replaced)}.`, { dim: true }) : null,
+    at >= 0 ? line(c, at === 0 ? 'Leads your team' : `On your team · slot ${at + 1}`, { dim: true }) : null,
     actions(c, [
       team,
       can.trade ? btn(c, { key: 'for-trade', label: x.forTrade ? 'Keep (not for trade)' : 'Mark for trade', hotkey: '2', on: () => c.actions.setForTrade(x.id, !x.forTrade) }) : null,
@@ -115,6 +113,47 @@ export function cardScreen(c: Ctx, cardId: string): Shown {
   return {
     body: rows,
     hints: [team ? '1 Set in team' : '', can.trade ? '2 Trade' : '', can.fuse ? '3 Fuse' : '', can.sell && !sellNote ? 'l Sell' : '', can.gift ? 'g Gift' : '', can.recycle ? 'x Recycle' : '', 's Share', 'esc Back'],
+  }
+}
+
+/** Pick the actual occupant to replace, or swap an existing teammate; no card leaves the collection. */
+export function teamSlotScreen(c: Ctx, cardId: string, chosenSlot?: number): Shown {
+  const x = c.state.cards.find(k => k.id === cardId)
+  if (!x) return missing(c, 'Team')
+  if (x.state !== 'owned') return { body: column(c, [heading(c, 'Team'), para(c, 'This card is held for a trade or sale. It can join your team when it returns.', { dim: true })]), hints: ['esc Back'] }
+  const me = c.state.me
+  if (!me) return missing(c, 'Team')
+  const choices = teamSlotChoices(me.player.team, cardId, c.state.cards)
+  const busy = !!c.state.pane.busy
+  const success = chosenSlot !== undefined && me.player.team[chosenSlot] === cardId
+  const pick = async (slot: number, ids: string[]) => {
+    await c.actions.pane(p => withTop(p, v => v.kind === 'team-slot' && v.cardId === cardId && !p.busy ? { ...v, chosenSlot: slot } : v))
+    await c.actions.setTeam(ids, { cardId, slot, team: [...me.player.team], world: c.state.account.world, server: c.state.account.server })
+  }
+  const slotCtx = { ...c, columns: CHIP }
+  const slots = choices.map(s => {
+    const enabled = !!s.ids && !busy && !c.state.account.readOnly
+    const on = enabled ? () => pick(s.slot, s.ids!) : undefined
+    const word = s.kind === 'replace' ? 'Replace' : s.kind === 'swap' ? 'Swap' : 'Add here'
+    return <c.el.Box key={`team-choice-${s.slot}`} flexDirection="column" width={CHIP} flexShrink={0}>
+      {line(slotCtx, s.slot === 0 ? 'Slot 1 · leads' : `Slot ${s.slot + 1}`, { dim: true })}
+      {s.card ? chip(slotCtx, s.card, { key: `team-choice-${s.slot}-card`, selected: s.kind === 'here', on }) : line(slotCtx, 'Empty', { dim: true })}
+      {enabled ? btn(c, { key: `team-slot-${s.slot}`, label: word, hotkey: String(s.slot + 1), on: on! })
+        : s.kind === 'here' ? line(slotCtx, 'Here now', { dim: true })
+          : s.kind === 'waiting' ? para(slotCtx, 'Still loading', { dim: true })
+            : s.kind === 'empty' ? para(slotCtx, me.player.team.includes(cardId) ? 'Swap with a teammate' : 'Fill earlier slot first', { dim: true }) : null}
+    </c.el.Box>
+  })
+  return {
+    body: column(c, [
+      heading(c, `Team · ${nameOf(x)}`),
+      success ? para(c, `${nameOf(x)} is now in slot ${chosenSlot! + 1}.`, { color: INK.good })
+        : para(c, 'Choose a slot. The first creature leads; replaced cards stay in Collection.', { dim: true }),
+      grid(c, slots, perRow(c.columns, CHIP)),
+      busy ? line(c, 'Saving your team…', { dim: true }) : null,
+      actions(c, [btn(c, { key: 'team-choice-done', label: busy ? 'Back' : success ? 'Done' : 'Cancel', hotkey: 'd', on: () => c.actions.back() })]),
+    ]),
+    hints: [!busy && !c.state.account.readOnly ? '1-3 Choose slot' : '', 'd Back', 'esc Back'],
   }
 }
 

@@ -105,6 +105,13 @@ test('first run: joins silently, keeps the session per origin, and welcomes with
   const band = await $.ui.mount({ ...BAND(80), surface: 'terminal' })
   await band.press({ key: 'act-welcome' })
   await settle(clock)
+  expect(await band.find({ key: 'inline-pack-open' })).toBeDefined()
+  expect(w.opened).toBe(0)
+  expect(w.server.calls.some(c => c.path === '/v1/packs/open')).toBe(false)
+  await band.press({ key: 'inline-pack-open' })
+  await settle(clock)
+  await band.press({ key: 'inline-pack-sidebar' })
+  await settle(clock)
   await band.unmount()
   expect(w.opened).toBeGreaterThan(0)
   expect(w.server.calls.some(c => c.path === '/v1/packs/open' && c.body.includes('pack-welcome-1'))).toBe(true)
@@ -117,8 +124,11 @@ test('first run: joins silently, keeps the session per origin, and welcomes with
     }
   }
   const pane = await $.ui.mount({ ...PANE(80), surface: 'terminal' })
-  for (let i = 0; i < 2; i++) await pane.press({ key: 'flip' })
-  expect(cardArt(await pane.findAll({ type: 'Raster' })).length).toBe(2)
+  const count = w.server.calls.filter(c => c.path === '/v1/packs/open').length
+  const cards = w.server.cards.filter(c => c.id.startsWith('pack-welcome-1-'))
+  for (let i = 0; i < cards.length; i++) await pane.press({ key: 'flip' })
+  expect(count).toBe(1)
+  expect(cardArt(await pane.findAll({ type: 'Raster' })).length).toBe(cards.length)
   await pane.press({ key: 'done' })
   await settle(clock)
   await pane.unmount()

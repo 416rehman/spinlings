@@ -104,11 +104,19 @@ test('8,000 cards fit in well under the save\'s share of the 4 MiB store, and st
   await refused(w.backend.openPack({ packId: me.packs[0]!.id }), 'cap_reached')
   const suggested = recycleSuggestions(cards, me.player.team, 5)
   assert.deepEqual(suggested.map(c => c.id), cards.filter(c => c.id.startsWith('bulk') && c.rarity === 'common').slice(0, 5).map(c => c.id))
-  await w.backend.recycle({ cardId: suggested[0]!.id })
-  await refused(w.backend.openPack({ packId: me.packs[0]!.id }), 'cap_reached')
-  await w.backend.recycle({ cardId: suggested[1]!.id })
-  assert.equal((await w.backend.openPack({ packId: me.packs[0]!.id })).cards.length, 2)
-  assert.equal((await w.backend.cards({})).cards.length, LIMITS.cards, 'exactly two free slots are sufficient')
+  for (const [index, pack] of me.packs.entries()) {
+    const before = JSON.stringify(w.stored)
+    await refused(w.backend.openPack({ packId: pack.id }), 'cap_reached')
+    assert.equal(JSON.stringify(w.stored), before, 'a full collection preserves its pack and every saved card')
+    await w.backend.recycle({ cardId: suggested[index]!.id })
+    assert.equal((await w.backend.cards({})).cards.length, LIMITS.cards - 1)
+    const opened = await w.backend.openPack({ packId: pack.id })
+    assert.equal(opened.cards.length, 1)
+    const owned = (await w.backend.cards({})).cards
+    assert.equal(owned.length, LIMITS.cards, 'exactly one free slot is sufficient')
+    assert.ok(owned.some(c => c.id === opened.cards[0]!.id))
+    assert.ok(!(await w.backend.me({})).packs.some(p => p.id === pack.id))
+  }
 })
 
 test('a save past its byte budget only shrinks; a store that refuses the write leaves the save as it was', async () => {
@@ -123,7 +131,7 @@ test('a save past its byte budget only shrinks; a store that refuses the write l
   assert.equal((await w.backend.me({})).player.sparks, 100 + ECONOMY.sparks.dailyHello, 'reading still answers')
   assert.equal(JSON.stringify(w.stored), before)
   full = false
-  assert.equal((await w.backend.openPack({ packId: me.packs[0]!.id })).cards.length, 2)
+  assert.equal((await w.backend.openPack({ packId: me.packs[0]!.id })).cards.length, 1)
 
   w.edit(s => { s.extra.ballast = 'x'.repeat(LIMITS.bytes) })
   const big = JSON.stringify(w.stored)
@@ -173,14 +181,18 @@ test('keys and cards this version does not know are written back exactly as foun
   w.stored = { ...old, cards: [...old.cards, strange], packs: [...old.packs, oddPack], hereafter: { a: [1, 2] } }
   const me = await w.backend.me({})
   assert.equal((await w.backend.cards({})).cards.length, 3)
-  await w.backend.openPack({ packId: me.packs[0]!.id })
+  const opened = await w.backend.openPack({ packId: me.packs[0]!.id })
+  assert.equal(opened.cards.length, 1)
   const stored = w.stored as { cards: unknown[]; packs: unknown[]; hereafter: unknown; v: number }
   assert.deepEqual(stored.hereafter, { a: [1, 2] })
   assert.deepEqual(stored.cards.at(-1), strange)
   assert.deepEqual(stored.packs.at(-1), oddPack)
   assert.equal(me.packs.length, 2)
   assert.equal(stored.v, SAVE_VERSION)
-  assert.equal((await w.backend.cards({})).cards.length, 5)
+  const known = (await w.backend.cards({})).cards
+  assert.equal(known.length, 3 + opened.cards.length)
+  assert.ok(known.some(c => c.id === opened.cards[0]!.id))
+  assert.ok(!known.some(c => c.id === 'futurecard'), 'the retained unknown tuple remains unavailable to this reader')
 })
 
 test('older formats migrate forward step by step; a missing step leaves the save alone', () => {
@@ -205,9 +217,12 @@ test('calls run one at a time, and another session\'s write in between sends the
   const w = world()
   const me = await w.backend.me({})
   const [a, b] = await Promise.all([w.backend.openPack({ packId: me.packs[0]!.id }), w.backend.openPack({ packId: me.packs[1]!.id })])
-  assert.equal(a.cards.length, 2)
-  assert.equal(b.cards.length, 2)
-  assert.equal((await w.backend.cards({})).cards.length, 7)
+  assert.equal(a.cards.length, 1)
+  assert.equal(b.cards.length, 1)
+  assert.notEqual(a.cards[0]!.id, b.cards[0]!.id, 'concurrent openings retain distinct minted identities')
+  const owned = (await w.backend.cards({})).cards
+  assert.deepEqual(owned.map(c => c.id).sort(), [...me.player.team, a.cards[0]!.id, b.cards[0]!.id].sort())
+  assert.ok(!(await w.backend.me({})).packs.some(p => me.packs.some(old => old.id === p.id)), 'both serialized openings consume their own pack exactly once')
 
   // a second session buys a pack while this one is charging one: neither change is lost
   let other: ReturnType<typeof world> | null = null

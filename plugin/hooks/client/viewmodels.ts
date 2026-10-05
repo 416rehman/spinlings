@@ -276,11 +276,19 @@ export function stepPrice(price: number, by: 1 | -1): number {
   return below.length > 0 ? below[below.length - 1]! : 0
 }
 
+/** Only an exact whole-spark amount; applying a price never lists the card. */
+export function parsePrice(text: string): number | null {
+  const value = text.trim()
+  if (!/^(?:\d{1,7}|\d{1,3}(?:,\d{3}){1,2})$/.test(value)) return null
+  const price = Number(value.replace(/,/g, ''))
+  return price >= 1 && price <= ECONOMY.market.maxPrice ? price : null
+}
+
 export type PriceHint = { price: number; label: string }
 
 /**
- * Prices to start from (SPEC 21.7 smart defaults): what this species last sold for, the typical sale of its kind
- * (rarity and finish), and what crafting one costs. Whole sparks, no repeats, at most three.
+ * Optional prices from this species' matching rarity and finish sales, plus its rarity's plain craft reference.
+ * The average includes only observed sales, never listing asks or a guessed finish premium.
  */
 export function priceHints(c: Pick<Card, 'rarity' | 'shiny' | 'foil'>, sales: readonly SaleView[] | undefined): PriceHint[] {
   const out: PriceHint[] = []
@@ -291,12 +299,14 @@ export function priceHints(c: Pick<Card, 'rarity' | 'shiny' | 'foil'>, sales: re
   const all = sales ?? []
   const alike = all.filter(s => s.rarity === c.rarity && s.shiny === c.shiny && s.foil === !!c.foil)
   if (alike.length > 0) add(alike[0]!.price, 'last sale')
-  const pool = alike.length >= 2 ? alike : all
-  if (pool.length >= 2) {
-    const sorted = pool.map(s => s.price).sort((a, b) => a - b)
-    add(sorted[Math.floor(sorted.length / 2)]!, 'typical')
+  if (alike.length >= 2) {
+    const average = alike.reduce((sum, s) => sum + s.price, 0) / alike.length
+    const label = `recent average · ${alike.length} sales`
+    const same = out.find(h => h.price === Math.round(average))
+    if (same) same.label = `last sale / ${label}`
+    else add(average, label)
   }
-  add(craftCost(c.rarity) * (c.foil ? 2 : 1) * (c.shiny ? 1.5 : 1), 'craft cost')
+  add(craftCost(c.rarity), 'craft reference')
   return out.slice(0, 3)
 }
 
@@ -421,7 +431,7 @@ export function packsLine(packs: Reveal['packs']): string {
   return '+' + [...by].map(([f, n]) => plural(n, `${FAMILY_INFO[f].name} pack`)).join(', ')
 }
 
-/** `2 cards · 2 new species · Album 14/36 (+2)` (SPEC 13.5). */
+/** `1 card · 1 new species · Album 13/36 (+1)` (SPEC 13.5). */
 export function revealSummary(r: Reveal): string {
   const fresh = r.fresh.length
   const gained = r.album.after - r.album.before

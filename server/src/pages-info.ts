@@ -69,10 +69,9 @@ export function oddsBody(): Raw {
 <p class="lede">Every rate in the game. The server rolls everything, with the same odds for every family and every player, and these numbers come straight from the rules it runs.</p>
 
 <h2>${PICS.pack}${heading('Packs')}</h2>
-<p>A pack holds ${E.packs.size} cards, rolled when you open it. A legendary roll gives the pack family's legendary; every other card is one of the family's 8 regular species, picked evenly.</p>
+<p>A pack holds ${E.packs.size} card, rolled when you open it, with no guaranteed rarity. A legendary roll gives the pack family's legendary; every other card is one of the family's 8 regular species, picked evenly.</p>
 ${table(['Card', 'Common', 'Rare', 'Epic', 'Legendary'], [
-    rarityRow(`Slots 1 to ${E.packs.size - 1}`, E.packs.odds),
-    rarityRow(`Slot ${E.packs.size}`, E.packs.lastSlotOdds),
+    rarityRow('Card', E.packs.odds),
   ])}
 ${table(['Finish', 'Chance per card'], [
     ['Shiny', oneIn(E.shiny.chance)],

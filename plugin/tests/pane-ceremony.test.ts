@@ -1,8 +1,8 @@
 // The reveal ceremonies (SPEC 13.5, 13.9, 13.10, 14): the pack opens on o, flips on f, keeps the strip of glowing
-// backs, ends on a summary with Set team and Done; single reveals hatch into the full card. The driver paces every
+// backs for older multi-card reveals, ends on a summary with Set in team and Done; single reveals hatch into the full card. The driver paces every
 // beat from TIMING, blits same-size frames, gives up blitting where no Raster is (the desktop), respects motion off,
 // stops when the reveal closes and follows a player who flips ahead.
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Actions, El, Fx, GameState, Reveal, RevealControl, View } from '../hooks/client/types.ts'
 import { INITIAL } from '../hooks/client/game.ts'
@@ -57,9 +57,34 @@ async function press(ui: Ui, key: string): Promise<void> {
 }
 
 const step = (title: string) => demoSteps(NOW).find(s => s.title === title)!.state
+const historicalPack = (): Reveal => {
+  const r = step('Pack · a gold back waiting').reveal!
+  return { ...r, torn: false, cards: [step('Pack · sealed, waiting to tear').reveal!.cards[0]!, ...r.cards] }
+}
 const p: Probe = { state: INITIAL, calls: [] }
 
-test('the pack: o opens, f flips, the strip glows, a summary with Set team and Done', { timeoutMs: 60_000 }, async ($, on) => {
+test('a sealed preview stays visible while waiting for Open, with either motion preference', { timeoutMs: 30_000 }, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  draws(on, p)
+  for (const motion of [true, false]) {
+    const s = step('Pack · sealed, waiting to tear')
+    p.state = { ...s, prefs: { ...s.prefs, motion }, reveal: { ...s.reveal!, cards: [], packId: 'waiting-pack' } }
+    p.calls = []
+    const ui = await $.ui.mount(MOUNT(80, 'desktop'))
+    const before = cardArt(await ui.findAll({ type: 'Svg' }))
+    expect(before.length).toBe(1)
+    expect(before[0]!.props).toMatchObject({ alt: 'Opus pack', isInteractive: false })
+    expect(String(before[0]!.props.source)).not.toMatch(/<animate|<set|visibility="hidden"/)
+    await clock.advance(TIMING.tearDelay + TIMING.tear + 5000)
+    await ui.redraw()
+    expect(cardArt(await ui.findAll({ type: 'Svg' }))[0]!.props.source).toBe(before[0]!.props.source)
+    expect(p.calls).toEqual([])
+    expect((await ui.find({ key: 'flip' }))?.props.label).toBe('Open')
+    await ui.unmount()
+  }
+})
+
+test('the pack: o opens one card, then Set in team asks which slot without replacing anyone', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
   for (const surface of SURFACES) {
     for (const columns of [50, 80, 120]) {
@@ -70,26 +95,27 @@ test('the pack: o opens, f flips, the strip glows, a summary with Set team and D
       expect((await ui.find({ key: 'flip' }))?.props).toMatchObject({ label: 'Open', hotkey: 'o', variant: 'primary' })
       expect(await ui.find({ text: /Opus pack/ })).toBeDefined()
       expect(cardArt(await ui.findAll({ type: art })).length).toBe(1)
-      // once the tear has played the two backs are out, glowing before the first one turns
+      // After the tear, the single back waits on the stage; there is no extra strip.
       p.state = { ...p.state, reveal: { ...p.state.reveal!, torn: true } }
       await ui.redraw()
-      expect(cardArt(await ui.findAll({ type: art })).length).toBe(3)
+      expect(cardArt(await ui.findAll({ type: art })).length).toBe(1)
       expect((await ui.find({ key: 'flip' }))?.props).toMatchObject({ label: 'Flip next', hotkey: 'f' })
       await press(ui, 'flip')
-      expect((await ui.find({ key: 'flip' }))?.props).toMatchObject({ label: 'Flip next', hotkey: 'f' })
-      expect((await ui.find({ key: 'flip' }))?.props.variant).toBeUndefined()
-      // two slots and the stage; the desktop's gene bar is one more Svg
-      expect(cardArt(await ui.findAll({ type: art })).length).toBe(surface === 'terminal' ? 3 : 4)
-      expect(await ui.find({ text: /1 of 2/ })).toBeDefined()
+      expect(await ui.find({ key: 'flip' })).toBeUndefined()
+      expect(cardArt(await ui.findAll({ type: art })).length).toBe(1)
       expect(await ui.find({ text: /NEW/ })).toBeDefined()
-      await press(ui, 'flip')
-      expect(await ui.find({ text: /^2 cards · 2 new species · Album 14\/36 \(\+2\)$/ })).toBeDefined()
-      expect(cardArt(await ui.findAll({ type: art })).length).toBe(2)
+      expect(await ui.find({ text: /^1 card · 1 new species · Album 13\/36 \(\+1\)$/ })).toBeDefined()
       expect(await ui.find({ key: 'done' })).toBeDefined()
+      const beforeTeam = [...p.state.me!.player.team]
+      const beforeReveal = p.state.reveal!
+      expect((await ui.find({ key: 'set-team' }))?.props.label).toBe('Set in team')
       await press(ui, 'set-team')
-      const set = p.calls.find(c => c[0] === 'setTeam')!
-      expect((set[1][0] as string[]).length).toBe(3)
-      expect(p.calls.map(c => c[0]).slice(-2)).toEqual(['doneReveal', 'tab'])
+      expect(p.state.pane.stack.at(-1)).toEqual({ kind: 'team-slot', cardId: beforeReveal.cards[0]!.id })
+      expect(p.calls.map(c => c[0])).not.toContain('setTeam')
+      expect(p.calls.map(c => c[0])).not.toContain('doneReveal')
+      expect(p.state.me!.player.team).toEqual(beforeTeam)
+      expect(p.state.reveal).toEqual(beforeReveal)
+      expect(await ui.find({ key: 'team-slot-0' })).toBeDefined()
       await ui.unmount()
     }
   }
@@ -102,7 +128,7 @@ test('a legendary turns the ceremony border gold', { timeoutMs: 30_000 }, async 
   const border = (await ui.findAll({ type: 'Box' })).find(b => b.props.borderStyle === 'round')
   expect(border?.props.borderColor).toBe('#f2b33d')
   await ui.unmount()
-  p.state = step('Pack · one turned, a gold back waiting')
+  p.state = step('Pack · a gold back waiting')
   const before = await $.ui.mount(MOUNT(80, 'terminal'))
   expect((await before.findAll({ type: 'Box' })).find(b => b.props.borderStyle === 'round')?.props.borderDimColor).toBe(true)
   expect(await before.find({ text: /backs glowing/ })).toBeUndefined()
@@ -195,32 +221,28 @@ async function run(clock: Clock, work: Promise<void>, each: () => void = () => u
 const STAGE_CELLS = Math.ceil((18 * 10 * 12) / 3) * 4
 const SLOT_CELLS = Math.ceil((8 * 4 * 12) / 3) * 4
 
-test('the driver tears the pack, builds up, pauses and flips every card in order, celebrating each', { timeoutMs: 60_000 }, async () => {
+test('the current pack driver tears, builds up, pauses and flips its one card before celebrating on the summary', { timeoutMs: 60_000 }, async () => {
   const r = step('Pack · sealed, waiting to tear').reveal!
   const clock: Clock = { t: 0, timers: [], seq: 0 }
   const blits: Blit[] = []
   const live: Live = { reveal: r, flipped: 0, flips: [], motion: true }
   await run(clock, ceremony(fakeFx(clock, blits, () => true), control(live, clock)))
-  expect(live.flips.map(f => f[0])).toEqual([1, 2])
+  expect(live.flips.map(f => f[0])).toEqual([1])
   const first = r.cards[0]!
   expect(live.flips[0]![1]).toBeGreaterThanOrEqual(TIMING.tearDelay + TIMING.tear + TIMING.buildup[first.rarity] + TIMING.pause + TIMING.flip[first.rarity])
-  for (let i = 1; i < r.cards.length; i++) expect(live.flips[i]![1]).toBeGreaterThan(live.flips[i - 1]![1])
   const stage = blits.filter(b => b.key === 'cer-stage')
   expect(stage.length).toBeGreaterThan(20)
   expect(stage.every(b => b.length === STAGE_CELLS)).toBe(true)
-  expect(blits.filter(b => b.key.startsWith('cer-slot-')).every(b => b.length === SLOT_CELLS)).toBe(true)
-  expect(blits.some(b => b.key === 'cer-slot-1' && b.at < live.flips[1]![1])).toBe(true)
-  expect(blits.some(b => b.key === 'sum-1-art' && b.at >= live.flips[1]![1])).toBe(true)
+  expect(blits.filter(b => b.key.startsWith('cer-slot-'))).toEqual([])
+  expect(blits.some(b => b.key === 'sum-0-art' && b.at >= live.flips[0]![1])).toBe(true)
   const tear = stage.filter(b => b.at >= TIMING.tearDelay && b.at <= TIMING.tearDelay + TIMING.tear)
   expect(tear.length).toBeGreaterThan(2)
-  // the strip of backs comes out with the tear, and nothing is sent to it before
   expect(live.tore).toBeGreaterThanOrEqual(TIMING.tearDelay + TIMING.tear)
-  expect(blits.some(b => b.key.startsWith('cer-slot-') && b.at < live.tore!)).toBe(false)
   expect(Math.max(...blits.map(b => b.at))).toBeLessThan(30_000)
 })
 
-test('a key that refuses is left alone without stopping the others: the tear plays while the strip is not out', { timeoutMs: 60_000 }, async () => {
-  const r = step('Pack · sealed, waiting to tear').reveal!
+test('an older pack leaves a refused key alone without stopping the others: the tear plays before the strip is out', { timeoutMs: 60_000 }, async () => {
+  const r = historicalPack()
   const clock: Clock = { t: 0, timers: [], seq: 0 }
   const blits: Blit[] = []
   const live: Live = { reveal: r, flipped: 0, flips: [], motion: true }
@@ -229,6 +251,7 @@ test('a key that refuses is left alone without stopping the others: the tear pla
   const tear = blits.filter(b => b.key === 'cer-stage' && b.at >= TIMING.tearDelay && b.at <= TIMING.tearDelay + TIMING.tear)
   expect(tear.length).toBeGreaterThan(2)
   expect(live.flips.map(f => f[0])).toEqual([1, 2])
+  expect(blits.some(b => b.key === 'cer-slot-1' && b.at >= live.tore!)).toBe(true)
 })
 
 test('the driver stops blitting where there is no Raster, and still flips', { timeoutMs: 60_000 }, async () => {
@@ -237,11 +260,11 @@ test('the driver stops blitting where there is no Raster, and still flips', { ti
   const blits: Blit[] = []
   const live: Live = { reveal: r, flipped: 0, flips: [], motion: true }
   await run(clock, ceremony(fakeFx(clock, blits, () => false), control(live, clock)))
-  expect(live.flips.map(f => f[0])).toEqual([1, 2])
-  // each key at most 8 times a state (sealed, torn, then one per card turned), and only the few keys a state blits
+  expect(live.flips.map(f => f[0])).toEqual([1])
+  // Each key is tried at most eight times per state: sealed, torn and the one card turned.
   const keys = new Set(blits.map(b => b.key))
-  expect(keys.size).toBeLessThan(8)
-  for (const k of keys) expect(blits.filter(b => b.key === k).length).toBeLessThanOrEqual(8 * 7)
+  expect([...keys].sort()).toEqual(['cer-stage', 'sum-0-art'])
+  for (const k of keys) expect(blits.filter(b => b.key === k).length).toBeLessThanOrEqual(8 * 3)
 })
 
 test('motion off turns every card at once; a closed reveal stops the driver; flipping ahead is followed', { timeoutMs: 60_000 }, async () => {
@@ -249,16 +272,16 @@ test('motion off turns every card at once; a closed reveal stops the driver; fli
   let clock: Clock = { t: 0, timers: [], seq: 0 }
   let live: Live = { reveal: r, flipped: 0, flips: [], motion: false }
   await run(clock, ceremony(fakeFx(clock, [], () => true), control(live, clock)))
-  expect(live.flips).toEqual([[2, 0]])
+  expect(live.flips).toEqual([[1, 0]])
 
   clock = { t: 0, timers: [], seq: 0 }
-  live = { reveal: r, flipped: 0, flips: [], motion: true }
+  live = { reveal: historicalPack(), flipped: 0, flips: [], motion: true }
   const l1 = live
   await run(clock, ceremony(fakeFx(clock, [], () => true), control(live, clock)), () => { if (l1.flipped >= 1) l1.reveal = null })
   expect(live.flips.map(f => f[0])).toEqual([1])
 
   clock = { t: 0, timers: [], seq: 0 }
-  live = { reveal: r, flipped: 0, flips: [], motion: true }
+  live = { reveal: historicalPack(), flipped: 0, flips: [], motion: true }
   const l2 = live
   let skipped = false
   await run(clock, ceremony(fakeFx(clock, [], () => true), control(live, clock)), () => {
@@ -282,7 +305,7 @@ test('an egg wobbles, cracks and hatches before it lands, then celebrates on the
 
 test('the art: 16x16 pieces, three tear frames, flip frames the stage\'s size, Svgs within bounds', () => {
   const r = step('Pack · sealed, waiting to tear').reveal!
-  const legendary = r.cards.find(c => c.rarity === 'legendary')!
+  const legendary = step('Pack · a legendary foil revealed').reveal!.cards[0]!
   const square = (px: number[][], n: number) => px.length === n && px.every(row => row.length === n)
   expect(square(backOf(legendary, 16, 1), 16)).toBe(true)
   expect(square(backOf(r.cards[0]!, 8, 0), 8)).toBe(true)
@@ -302,8 +325,8 @@ test('the art: 16x16 pieces, three tear frames, flip frames the stage\'s size, S
   expect(svgPackage('opus', 8, false)).not.toContain('<set')
 })
 
-test('the desktop plays each state as the driver does: the turned face holds, the next back builds up and pauses, then flips', () => {
-  const r = step('Pack · one turned, a gold back waiting').reveal!
+test('an older two-card reveal still holds the turned face before the next back builds up, pauses and flips', async () => {
+  const r = historicalPack()
   const prev = r.cards[0]!, next = r.cards[1]!
   const hold = holdMs(prev, r)
   const svg = svgTurn(next, 8, true, { card: prev, hold })
@@ -314,6 +337,15 @@ test('the desktop plays each state as the driver does: the turned face holds, th
   // and squashes away only after the build-up and the pause
   expect(svg).toContain(`values="1 1;0.01 1" begin="${sec(hold + TIMING.buildup[next.rarity] + TIMING.pause)}"`)
   // the first card of a torn pack starts on its back
-  const first = svgTurn(r.cards[0]!, 8, true)
-  expect(first).toContain(`values="1 1;0.01 1" begin="${sec(TIMING.buildup[r.cards[0]!.rarity] + TIMING.pause)}"`)
+  const opening = svgTurn(r.cards[0]!, 8, true)
+  expect(opening).toContain(`values="1 1;0.01 1" begin="${sec(TIMING.buildup[r.cards[0]!.rarity] + TIMING.pause)}"`)
+  const clock: Clock = { t: 0, timers: [], seq: 0 }, blits: Blit[] = []
+  const live: Live = { reveal: r, flipped: 0, flips: [], motion: true }
+  await run(clock, ceremony(fakeFx(clock, blits, () => true), control(live, clock)))
+  expect(live.flips.map(f => f[0])).toEqual([1, 2])
+  expect(live.flips[1]![1] - live.flips[0]![1]).toBeGreaterThanOrEqual(hold + TIMING.buildup[next.rarity] + TIMING.pause + TIMING.flip[next.rarity])
+  expect(blits.filter(b => b.key.startsWith('cer-slot-')).every(b => b.length === SLOT_CELLS)).toBe(true)
+  expect(blits.some(b => b.key === 'cer-slot-1' && b.at < live.flips[1]![1])).toBe(true)
+  expect(blits.some(b => b.key === 'sum-1-art' && b.at >= live.flips[1]![1])).toBe(true)
+  expect(blits.some(b => b.key.startsWith('cer-slot-') && b.at < live.tore!)).toBe(false)
 })

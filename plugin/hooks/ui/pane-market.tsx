@@ -1,7 +1,7 @@
 // The Market section (SPEC 8): everyone's listings as a grid of card tiles (the art, the rarity gem, the family mark, the
 // finish, a price chip and the card a listing wants in return), filtered by chips and pages; your own listings; one
 // listing's page, which is the confirm (what you give, what you get, then Buy); and the sell page, where a card gets a
-// price on a stepper that starts from recent sales, and optionally asks for a card too. Online only.
+// exact price with optional recent-sale hints, and optionally asks for a card too. Online only.
 import type { RenderElement } from 'claude-code'
 import type { Family, Rarity } from '../core/types.ts'
 import { FAMILIES, FAMILY_INFO } from '../core/families.ts'
@@ -11,7 +11,7 @@ import { catalogOf } from '../client/frozen.ts'
 import { dayLabel, dots, safe, title } from '../client/text.ts'
 import type { Listing, MarketQuery, MarketWant } from '../client/types.ts'
 import {
-  cycle, grouped, paged, perRow, priceHints, salesOf, sameWant, sellProblem, startPrice, stepPrice, today, wantChoices, wantFits,
+  cycle, grouped, paged, parsePrice, perRow, priceHints, salesOf, sameWant, sellProblem, startPrice, stepPrice, today, wantChoices, wantFits,
   wantSpecies, wantWords, withTop,
 } from '../client/viewmodels.ts'
 import { card, rarityColor } from './card.tsx'
@@ -261,7 +261,7 @@ export function listingScreen(c: Ctx, v: { listingId: string; cardId: string | n
 
 // ---------- selling one of yours ----------
 
-/** The sell page: a price on a stepper that starts from recent sales, optionally a card asked too, then List. */
+/** The seller applies an exact price (or an optional hint), then separately confirms the full listing terms. */
 export function sellScreen(c: Ctx, v: { cardId: string; price: number; want: MarketWant | null }): Shown {
   const x = c.state.cards.find(k => k.id === v.cardId)
   const crumb = (name: string) => para(c, `Cards › ${name} › Sell`, { dim: true })
@@ -270,10 +270,22 @@ export function sellScreen(c: Ctx, v: { cardId: string; price: number; want: Mar
   const sales = salesOf(c.state.social.prices ?? c.state.social.market?.prices, x.species)
   const hints = priceHints(x, sales)
   const price = v.price > 0 ? v.price : v.want ? 0 : startPrice(x, sales)
-  const set = (change: Partial<{ price: number; want: MarketWant | null }>) =>
-    c.actions.pane(p => withTop(p, w => (w.kind === 'sell' ? { ...w, ...change } : w)))
+  const set = (change: Partial<{ price: number; want: MarketWant | null }>) => c.actions.pane(p => {
+    const top = p.stack.at(-1)
+    return top?.kind === 'sell' && top.cardId === v.cardId
+      ? { ...withTop(p, w => (w.kind === 'sell' ? { ...w, ...change } : w)), message: '' } : p
+  })
+  const applyPrice = (text: string) => {
+    const chosen = parsePrice(text)
+    if (chosen !== null) return set({ price: chosen })
+    return c.actions.pane(p => {
+      const top = p.stack.at(-1)
+      return top?.kind === 'sell' && top.cardId === v.cardId
+        ? { ...p, message: `Enter a whole price from 1 to ${grouped(ECONOMY.market.maxPrice)} sparks.` } : p
+    })
+  }
   const problem = me ? sellProblem(x, me.player.team, c.state.cards) : ''
-  const { Box, Text } = c.el
+  const { Box, Text, Input } = c.el
   // the card beside the price: a tile where there is room, else its mini
   const big = c.columns >= TILE + 30
   const beside = c.columns >= CHIP + SPACE.loose + 20
@@ -281,16 +293,15 @@ export function sellScreen(c: Ctx, v: { cardId: string; price: number; want: Mar
   const stepper = (
     <Box flexDirection="row" columnGap={SPACE.loose} width={ic.columns} flexWrap="wrap">
       {btn(c, { key: 'price-down', label: 'Lower', hotkey: 'j', on: () => set({ price: v.want ? stepPrice(price, -1) : Math.max(1, stepPrice(price, -1)) }) })}
-      {price > 0 ? <Text><Text color={STAT.sales.color}>{MARK.spark}</Text><Text bold>{` ${grouped(price)}`}</Text></Text> : <Text color={INK.muted}>{`${MARK.swap} card only`}</Text>}
       {btn(c, { key: 'price-up', label: 'Higher', hotkey: 'k', on: () => set({ price: Math.min(ECONOMY.market.maxPrice, stepPrice(price, 1)) }) })}
     </Box>
   )
   const hintChips = (
     <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={ic.columns}>
       {...hints.map((hint, i) => (
-        <Box key={`hint-${i}`} flexDirection="row" columnGap={SPACE.tight} flexShrink={0}>
+        <Box key={`hint-${i}`} flexDirection="row" flexWrap="wrap" columnGap={SPACE.tight} width={Math.min(ic.columns, 44)} flexShrink={0}>
           {btn(c, { key: `price-hint-${i}`, label: `${MARK.spark} ${grouped(hint.price)}`, hotkey: String(i + 2), dim: hint.price !== price, on: () => set({ price: hint.price }) })}
-          <Text dimColor>{hint.label}</Text>
+          <Text dimColor wrap="wrap">{hint.label}</Text>
         </Box>
       ))}
     </Box>
@@ -321,7 +332,14 @@ export function sellScreen(c: Ctx, v: { cardId: string; price: number; want: Mar
       crumb(name),
       <Box flexDirection={beside ? 'row' : 'column'} columnGap={SPACE.loose} rowGap={SPACE.tight} width={c.columns}>
         <Box flexShrink={0}>{(big ? tile : chip)(c, x, { key: 'sell-card' })}</Box>
-        {column(ic, [line(ic, 'Price', { dim: true }), stepper, hintChips], SPACE.tight)}
+        {column(ic, [
+          <Input key="sell-price" label={price > 0 ? 'Your price (sparks)' : 'Add sparks (optional)'} value={price > 0 ? String(price) : ''} placeholder="1–1,000,000" submitLabel="Apply" onSubmit={text => { void applyPrice(text) }} />,
+          stepper,
+          line(ic, 'Optional suggestions', { dim: true }),
+          hintChips,
+          sales.some(s => s.rarity === x.rarity && s.shiny === x.shiny && s.foil === !!x.foil)
+            ? null : line(ic, 'No matching recent sales.', { dim: true }),
+        ], SPACE.tight)}
       </Box>,
       line(c, 'Ask for a card too', { dim: true }),
       wantRow,

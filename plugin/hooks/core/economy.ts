@@ -113,9 +113,8 @@ export const ECONOMY = {
   rival: { ratingSpread: 50, scaleAt: 1000, scalePer400: 0.08, minScale: 0.85, maxScale: 1.25 },
 
   packs: {
-    size: 2,
+    size: 1,
     odds: [['common', 70], ['rare', 22], ['epic', 7], ['legendary', 1]] as [Rarity, number][],
-    lastSlotOdds: [['rare', 75], ['epic', 21], ['legendary', 4]] as [Rarity, number][],
     presenceMinutes: 50,
     chargeSpacingMs: 45 * MIN,
     /** beyond this many charges in any rolling 24 hours, the spacing doubles */
@@ -127,7 +126,7 @@ export const ECONOMY = {
   },
 
   sparks: { start: 100, dailyHello: 10 },
-  /** well under the pack price: a bought pack's two cards recycle for less than its 150 sparks on average */
+  /** well under the pack price: a bought pack's card recycles for less than its 150 sparks on average */
   recycle: { common: 4, rare: 15, epic: 60, legendary: 250 } as Record<Rarity, number>,
   recycleShiny: 2,
   recycleFoil: 1.5,

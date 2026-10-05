@@ -215,6 +215,14 @@ const FLOWS: FlowSpec[] = [
       await a.fails('setTeam', { cardIds: ['nosuchcardanywhere0000000a'] }, 'not_found')
       for (let day = 0; day < 8; day++, r.w.tick(DAY)) {
         for (const deal of (await a.call('trader', {})).deals) {
+          if (!deal.give.rarity || deal.give.rarity === 'common') {
+            const family = deal.give.family ?? 'opus'
+            const species = familySpecies(seasonOf(r.w.now()), family).find(s => !s.legendary)!
+            while (pool.filter(k => (!deal.give.family || k.family === deal.give.family) && (!deal.give.rarity || k.rarity === deal.give.rarity)).length < deal.give.count) {
+              await a.call('craft', { speciesId: species.id, rarity: 'common' })
+              pool.splice(0, pool.length, ...await freeCards(r, a))
+            }
+          }
           const give = pool.filter(k => (!deal.give.family || k.family === deal.give.family) && (!deal.give.rarity || k.rarity === deal.give.rarity)).slice(0, deal.give.count)
           if (traderGiveProblem(deal, give, r.w.now())) continue
           await a.call('traderDeal', { dealId: deal.id, cardIds: ids(give) })

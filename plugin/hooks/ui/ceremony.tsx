@@ -10,7 +10,7 @@ import { FAMILY_INFO } from '../core/families.ts'
 import { TRAITS } from '../core/traits.ts'
 import type { Fx, Reveal, RevealControl, RevealDriver } from '../client/types.ts'
 import { bar, dots, fit, plural } from '../client/text.ts'
-import { bestTeam, packsLine, perRow, revealLine, revealSummary, revealTitle } from '../client/viewmodels.ts'
+import { packsLine, perRow, revealLine, revealSummary, revealTitle } from '../client/viewmodels.ts'
 import { artPixels, artSvg, card, displayName, frameOf, isMythic, rarityColor, rarityLabel, stamps } from './card.tsx'
 import type { CardFace } from './card.tsx'
 import { TIMING, tint } from '../client/anim.ts'
@@ -68,7 +68,7 @@ export function stillStage(r: Reveal, i: number): Cells {
 /** The desktop's state: the same beats the driver plays on the terminal, from the last turned card to the next flip. */
 function stageSvg(c: Ctx, r: Reveal, i: number): string {
   const first = r.cards[0]
-  if (sealedPack(r, i) && r.family) return svgPackage(r.family, STAGE_SCALE, c.motion)
+  if (sealedPack(r, i) && r.family) return svgPackage(r.family, STAGE_SCALE, c.motion && !r.packId)
   if (!first) return svgPackage(r.family ?? 'sonnet', STAGE_SCALE, false)
   if (isSingle(r)) return svgSingle(r.kind as SingleKind, first, STAGE_SCALE, c.motion, isFusion(first))
   const prev = i >= 1 ? r.cards[i - 1]! : null
@@ -84,7 +84,7 @@ function stage(c: Ctx, r: Reveal, i: number): RenderElement {
   }
   const side = 18 * STAGE_SCALE
   const alt = i >= 1 ? `${displayName(r.cards[i - 1]!)}, ${rarityLabel(r.cards[i - 1]!)}` : revealTitle(r)
-  return <c.el.Svg source={stageSvg(c, r, i)} alt={alt} width={side} height={side} isInteractive={c.motion} />
+  return <c.el.Svg source={stageSvg(c, r, i)} alt={alt} width={side} height={side} isInteractive={c.motion && !r.packId} />
 }
 
 function slot(c: Ctx, card: CardFace, up: boolean, k: number): RenderElement {
@@ -162,6 +162,18 @@ function waiting(c: Ctx, r: Reveal, width: number): RenderElement {
 
 /** The ceremony body, framed by a round border that turns gold for a legendary (SPEC 13.5). */
 export function ceremonyScreen(c: Ctx, r: Reveal): Shown {
+  if (r.packId) return {
+    body: column(c, [
+      line(c, revealTitle(r), { bold: true }),
+      stage(c, r, 0),
+      para(c, 'Ready when you are.', { dim: true }),
+      actions(c, [
+        btn(c, { key: 'flip', label: 'Open', hotkey: 'o', primary: true, on: () => c.actions.flip(r.id) }),
+        btn(c, { key: 'done', label: 'Close', hotkey: 'd', on: () => c.actions.doneReveal(r.id) }),
+      ]),
+    ]),
+    hints: ['o Open', 'esc Close'],
+  }
   const i = Math.max(0, c.state.pane.flipped)
   const n = r.cards.length
   const inner: Ctx = { ...c, columns: c.columns - 2 }
@@ -185,8 +197,8 @@ function flipping(c: Ctx, r: Reveal, i: number, legendary: boolean): Shown {
   const words = last ? info(c, r, last, width) : waiting(c, r, width)
   const banner = legendary && last ? line(c, isMythic(last) ? 'MYTHIC!' : 'LEGENDARY!', { color: isMythic(last) ? MYTHIC_COLOR : RARITY_COLOR.legendary, bold: true }) : null
   const go = sealed
-    ? btn(c, { key: 'flip', label: 'Open', hotkey: 'o', primary: true, on: () => c.actions.flip() })
-    : btn(c, { key: 'flip', label: 'Flip next', hotkey: 'f', on: () => c.actions.flip() })
+    ? btn(c, { key: 'flip', label: 'Open', hotkey: 'o', primary: true, on: () => c.actions.flip(r.id) })
+    : btn(c, { key: 'flip', label: 'Flip next', hotkey: 'f', on: () => c.actions.flip(r.id) })
   return {
     body: column(c, [
       banner,
@@ -215,7 +227,7 @@ function summary(c: Ctx, r: Reveal): Shown {
         card(c.el, c.surface, x, 'full', { key: 'cer-card', width: c.columns, motion: c.motion, offline: c.offline, now: c.now }),
         actions(c, [
           btn(c, { key: 'share', label: 'Share', hotkey: 's', on: () => c.actions.share(x.id) }),
-          btn(c, { key: 'done', label: 'Done', hotkey: 'd', on: () => c.actions.doneReveal() }),
+          btn(c, { key: 'done', label: 'Done', hotkey: 'd', on: () => c.actions.doneReveal(r.id) }),
         ]),
       ]),
       hints: ['s Share', 'd Done', 'esc Done'],
@@ -232,17 +244,18 @@ function summary(c: Ctx, r: Reveal): Shown {
       line(c, words, { bold: true }),
       n > 0 ? shown : null,
       actions(c, [
-        team ? btn(c, { key: 'set-team', label: 'Set team', hotkey: 't', on: async () => {
-          const ids = bestTeam([...c.state.cards.filter(x => !r.cards.some(y => y.id === x.id)), ...r.cards])
-          await c.actions.setTeam(ids)
-          await c.actions.doneReveal()
-          await c.actions.tab('team')
+        team && !c.state.pane.busy && !c.state.account.readOnly ? btn(c, { key: 'set-team', label: n === 1 ? 'Set in team' : 'Choose cards', hotkey: 't', on: async () => {
+          if (n === 1) await c.actions.push({ kind: 'team-slot', cardId: r.cards[0]!.id })
+          else {
+            await c.actions.doneReveal(r.id)
+            await c.actions.tab('cards')
+          }
         } }) : null,
-        btn(c, { key: 'done', label: 'Done', hotkey: 'd', on: () => c.actions.doneReveal() }),
+        btn(c, { key: 'done', label: 'Done', hotkey: 'd', on: () => c.actions.doneReveal(r.id) }),
       ]),
-      team ? para(c, 'Set team puts your three strongest cards on the team.', { dim: true }) : null,
+      team ? para(c, n === 1 ? 'Choose where this creature joins your team.' : 'Pick each card and choose its team slot.', { dim: true }) : null,
     ]),
-    hints: [team ? 't Set team' : '', 'd Done', 'Tab Look at a card'],
+    hints: [team ? n === 1 ? 't Set in team' : 't Choose cards' : '', 'd Done', 'Tab Look at a card'],
   }
 }
 

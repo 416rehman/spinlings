@@ -9,14 +9,14 @@ import { familySpecies, getSpecies, legendaryOf, seasonSpecies } from './species
 import type { SeasonCatalog } from './species.ts'
 import { dailyRule, seasonOf, shinyChance } from './world.ts'
 
-/** Two fresh cards of the pack's family. The first and last slot use their own odds. */
+/** One fresh card of the pack's family, with no guaranteed rarity. */
 export function rollPack(family: Family, season: number, rng: Rng, now: number, rule: DailyRule = dailyRule(now), catalog?: SeasonCatalog): NewCard[] {
   const p = ECONOMY.packs
   const regular = familySpecies(season, family, catalog).filter(s => !s.legendary)
   const odds = shinyChance(now, rule)
   const out: NewCard[] = []
   for (let slot = 0; slot < p.size; slot++) {
-    const rarity = weighted(rng, slot === p.size - 1 ? p.lastSlotOdds : p.odds)
+    const rarity = weighted(rng, p.odds)
     const species = rarity === 'legendary' ? legendaryOf(season, family, catalog) : pick(rng, regular)
     const shiny = chance(rng, odds)
     out.push(mintCard({ species, rarity, shiny, dna: uint32(rng), origin: 'pack', now, foil: chance(rng, ECONOMY.foil.chance) }, catalog))

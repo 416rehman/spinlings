@@ -33,6 +33,7 @@ import type {
 import { BackendError, isBackendError, isUnreachable } from './types.ts'
 import { dayLabel, dots, plural, safe, title } from './text.ts'
 import { createFrozenCatalog, createSeasonCache } from './frozen.ts'
+import { teamSlotChoices } from './team-slots.ts'
 import type { FrozenCatalog } from './frozen.ts'
 
 const B = ECONOMY.battle
@@ -426,6 +427,13 @@ export function createGame(o: GameOptions): Game {
     encounter: null as Timer | null,
     driving: null as string | null,
     revealing: null as string | null,
+    revealSeq: 0,
+    revealEpoch: 0,
+    revealId: null as string | null,
+    revealContinuation: null as { from: string; to: string; before: number; after: number } | null,
+    openingPack: null as (() => boolean) | null,
+    /** Same-server sign-in/reset also invalidates a pending pack action. */
+    packAccount: 0,
     /** the band's moment driver runs once per load of the module */
     animating: false,
     /**
@@ -466,8 +474,16 @@ export function createGame(o: GameOptions): Game {
   // ---------- state ----------
 
   const get = <K extends StateKey>(fx: Fx, k: K) => fx.state.get(k)
-  const put = <K extends StateKey>(fx: Fx, k: K, v: GameState[K]) => fx.state.update(k, () => v)
-  const upd = <K extends StateKey>(fx: Fx, k: K, fn: (v: GameState[K]) => GameState[K]) => fx.state.update(k, fn)
+  const upd = <K extends StateKey>(fx: Fx, k: K, fn: (v: GameState[K]) => GameState[K]) => fx.state.update(k, value => {
+    const next = fn(value)
+    if (k === 'reveal') {
+      const before = (value as Reveal | null)?.id ?? null
+      rt.revealId = (next as Reveal | null)?.id ?? null
+      if (before !== rt.revealId) rt.revealEpoch++
+    }
+    return next
+  })
+  const put = <K extends StateKey>(fx: Fx, k: K, v: GameState[K]) => upd(fx, k, () => v)
   const sleep = (fx: Fx, ms: number) => new Promise<void>(r => { fx.after(Math.max(0, ms), r) })
   /**
    * For work about to begin: true while the world and the server in play stay the ones in play now. Taken before the
@@ -477,6 +493,28 @@ export function createGame(o: GameOptions): Game {
   const stays = (): (() => boolean) => {
     const place = rt.place
     return () => rt.place === place
+  }
+
+  const packStays = (): (() => boolean) => {
+    const here = stays(), account = rt.packAccount
+    return () => here() && rt.packAccount === account
+  }
+
+  /** Nested pack helpers cannot write or open UI for an account that has since been left. */
+  function packFx(fx: Fx, ok: () => boolean): Fx {
+    return { ...fx,
+      state: { get: key => fx.state.get(key), update: (key, fn) => fx.state.update(key, value => ok() ? fn(value) : value) },
+      store: { ...fx.store,
+        set: async (key, value) => { if (ok()) await fx.store.set(key, value) },
+        delete: async key => { if (ok()) await fx.store.delete(key) },
+      },
+      ui: { ...fx.ui,
+        openPane: async () => ok() ? fx.ui.openPane() : false,
+        toast: text => { if (ok()) fx.ui.toast(text) }, status: text => { if (ok()) fx.ui.status(text) },
+        log: text => { if (ok()) fx.ui.log(text) }, sound: cue => { if (ok()) fx.ui.sound(cue) },
+        blit: async (site, key, cells) => ok() ? fx.ui.blit(site, key, cells) : false,
+      },
+    }
   }
 
   async function publish(fx: Fx): Promise<void> {
@@ -641,8 +679,11 @@ export function createGame(o: GameOptions): Game {
    * operation in the offline world shows the one-line "needs the online world" instead (SPEC 28). An answer or a
    * failure that comes back once play moved to another world or server is dropped: the caller gets null.
    */
-  async function run<K extends ApiOp>(fx: Fx, op: K, req: ApiRequest<K>, label: string): Promise<ApiResponse<K> | null> {
-    const { backend, account, ok } = await backendOf(fx)
+  async function run<K extends ApiOp>(fx: Fx, op: K, req: ApiRequest<K>, label: string, valid: () => boolean = () => true): Promise<ApiResponse<K> | null> {
+    if (!valid()) return null
+    const { backend, account, ok: here } = await backendOf(fx)
+    const ok = () => valid() && here()
+    if (!ok()) return null
     if (account.world === 'offline' && needsOnline(op)) {
       await pushMoment(fx, { kind: 'needs-online', id: 'needs-online', until: (await fx.now()) + HINT_MS })
       await message(fx, 'This needs the online world.')
@@ -653,10 +694,12 @@ export function createGame(o: GameOptions): Game {
       return null
     }
     const now = await fx.now()
-    await upd(fx, 'pane', p => ({ ...p, busy: label, busySince: now, message: '', toCopy: '' }))
+    if (!ok()) return null
+    await upd(fx, 'pane', p => ok() ? { ...p, busy: label, busySince: now, message: '', toCopy: '' } : p)
+    if (!ok()) return null
     try {
       const res = await backend.call(op, req)
-      await upd(fx, 'pane', p => (p.busy === label ? { ...p, busy: null } : p))
+      await upd(fx, 'pane', p => (ok() && p.busy === label ? { ...p, busy: null } : p))
       return ok() ? res : null
     } catch (err) {
       if (ok()) await message(fx, failureText(err, account.host))
@@ -734,16 +777,27 @@ export function createGame(o: GameOptions): Game {
    * The passkey offer when something just made the collection worth keeping: online on a server with passkeys, not
    * yet backed up, at most once a UTC day (a "Later" waits for the next such moment), never once a passkey is saved.
    */
-  async function valueMoment(fx: Fx, card: BattleCard | null): Promise<void> {
+  async function valueMoment(fx: Fx, card: BattleCard | null, valid: () => boolean = () => true): Promise<void> {
     const [account, me] = await Promise.all([get(fx, 'account'), get(fx, 'me')])
-    if (account.world !== 'online' || !me || account.link !== 'ready' || account.readOnly || !hasFeature(account, 'passkey')) return
+    if (!valid() || account.world !== 'online' || !me || account.link !== 'ready' || account.readOnly || !hasFeature(account, 'passkey')) return
     if (account.backedUp || (account.devices?.passkeys ?? 0) > 0) return
     const meta = await metaOf(fx, account.server)
+    if (!valid()) return
     const today = utcDay(await fx.now())
-    if (meta.passkeyDay === 'saved' || meta.passkeyDay === today) return
-    if ((await get(fx, 'moments')).some(m => m.kind === 'passkey')) return
-    await saveMeta(fx, account.server, { passkeyDay: today })
-    await pushMoment(fx, { kind: 'passkey', id: 'passkey', until: null, ...(card ? { card: toBattleCard(card) } : {}) })
+    if (!valid() || meta.passkeyDay === 'saved' || meta.passkeyDay === today) return
+    const moments = await get(fx, 'moments')
+    if (!valid() || moments.some(m => m.kind === 'passkey')) return
+    const latest = await metaOf(fx, account.server)
+    if (!valid()) return
+    await fx.store.set(KEYS.meta(account.server), { ...latest, passkeyDay: today })
+    if (!valid()) return
+    const moment: Moment = { kind: 'passkey', id: 'passkey', until: null, ...(card ? { card: toBattleCard(card) } : {}) }
+    let added = false
+    await upd(fx, 'moments', list => {
+      added = valid() && !list.some(m => m.kind === 'passkey')
+      return added ? [...list, moment].slice(-16) : list
+    })
+    if (added) scheduleExpiry(fx, moment)
   }
 
   /** This account's passkey is saved, or known to be gone: the header's marker and the offers follow. */
@@ -864,7 +918,7 @@ export function createGame(o: GameOptions): Game {
     const battle = await get(fx, 'battle')
     if (battle) drive(fx, battle.id)
     const reveal = await get(fx, 'reveal')
-    if (reveal) revealDrive(fx, reveal.id)
+    if (reveal && !reveal.packId) revealDrive(fx, reveal.id)
     if (!rt.animating && o.slots.moments) {
       rt.animating = true
       const driver = o.slots.moments
@@ -1079,6 +1133,7 @@ export function createGame(o: GameOptions): Game {
   }
 
   async function clearWorldState(fx: Fx): Promise<void> {
+    rt.packAccount++
     // a passkey flow belongs to the account it began for: its poll stops, and its page is no longer offered
     rt.poll?.cancel()
     rt.poll = null
@@ -1093,6 +1148,7 @@ export function createGame(o: GameOptions): Game {
       const { backedUp: _, ...rest } = a
       return { ...rest, signIn: null, devices: null }
     })
+    rt.packAccount++
   }
 
   // ---------- signals (SPEC 10) ----------
@@ -1502,45 +1558,127 @@ export function createGame(o: GameOptions): Game {
 
   // ---------- packs and reveals ----------
 
-  async function openPack(fx: Fx, packId?: string): Promise<void> {
+  async function previewPack(fx: Fx, packId?: string, valid: () => boolean = () => true): Promise<void> {
+    const here = packStays(), ok = () => here() && valid()
+    fx = packFx(fx, ok)
+    if (!ok()) return
+    const active = await get(fx, 'reveal')
+    if (!ok()) return
+    const [prefs, battle, moments] = await Promise.all([get(fx, 'prefs'), get(fx, 'battle'), get(fx, 'moments')])
+    if (!ok()) return
+    const inline = !prefs.quiet && !battle && !moments.some(m => m.kind === 'outcome' && m.outcome.catch.status === 'choose')
+    if (active) {
+      if (active.kind !== 'pack' || !inline) return openPane(fx, { view: { kind: 'reveal' }, revealId: active.id })
+      const epoch = rt.revealEpoch
+      let resumed = false
+      await upd(fx, 'reveal', r => {
+        resumed = r?.id === active.id
+        return resumed ? { ...r!, inline: true } : r
+      })
+      if (resumed && ok()) await upd(fx, 'pane', p => rt.revealEpoch === epoch ? { ...p, stack: p.stack.filter(v => v.kind !== 'reveal') } : p)
+      return
+    }
+    if (rt.openingPack?.()) return
     const me = await get(fx, 'me')
-    if (!me) return
+    if (!ok()) return
+    const pack = packId ? me?.packs.find(p => p.id === packId) : me?.packs.find(p => p.source === 'welcome') ?? me?.packs[0]
+    if (!pack || !me) {
+      await openPane(fx, { tab: 'team' })
+      if (!ok()) return
+      await message(fx, 'No packs waiting. The next one charges while you work.')
+      return
+    }
+    const now = await fx.now(), before = me.player.seen.filter(s => s.startsWith(`s${seasonOf(now)}-`)).length
+    if (!ok()) return
+    await welcomeDone(fx, false)
+    if (!ok()) return
+    await dropMoment(fx, 'pack-ready')
+    if (!ok()) return
+    const id = `preview:${now.toString(36)}:${++rt.revealSeq}`
+    let epoch = 0
+    await upd(fx, 'reveal', () => {
+      epoch = rt.revealEpoch + 1
+      return { id, kind: 'pack', inline, packId: pack.id, family: pack.family, cards: [], packs: [], fresh: [], album: { before, after: before, total: 36 } }
+    })
+    const live = () => ok() && rt.revealEpoch === epoch
+    if (!live()) return
+    fx = packFx(fx, live)
+    await upd(fx, 'pane', p => ({ ...p, flipped: 0, message: '', toCopy: '' }))
+    if (!live()) return
+    if (!inline) await openPane(fx, { view: { kind: 'reveal' }, revealId: id })
+  }
+
+  async function openPack(fx: Fx, packId?: string, inline = false, valid: () => boolean = () => true): Promise<void> {
+    const here = packStays(), ok = () => here() && valid()
+    fx = packFx(fx, ok)
+    if (!ok() || rt.openingPack?.()) return
+    const me = await get(fx, 'me')
+    if (!ok() || !me) return
     const pack = packId ? me.packs.find(p => p.id === packId) : [...me.packs].sort((a, b) => (a.source === 'welcome' ? -1 : 0) - (b.source === 'welcome' ? -1 : 0))[0]
     if (!pack) {
       await message(fx, 'No packs waiting. The next one charges while you work.')
       return
     }
-    const res = await run(fx, 'openPack', { packId: pack.id }, 'Opening the pack')
-    if (!res) return
-    // the welcome pack is open: the band's "open your welcome pack" has done its job, whichever door opened it
-    if (pack.source === 'welcome') await welcomeDone(fx, false)
-    await showReveal(fx, 'pack', pack.family, res.cards, [], me.player.seen)
-    await upd(fx, 'me', m => (m ? { ...m, packs: m.packs.filter(p => p.id !== pack.id) } : m))
-    await refresh(fx)
+    const current = await get(fx, 'reveal')
+    if (!ok()) return
+    const preview = current?.packId === pack.id ? current : null
+    if (rt.openingPack?.()) return
+    rt.openingPack = ok
+    try {
+      const res = await run(fx, 'openPack', { packId: pack.id }, 'Opening the pack', ok)
+      if (!res || !ok()) return
+      // the welcome pack is open: the band's "open your welcome pack" has done its job, whichever door opened it
+      if (pack.source === 'welcome') await welcomeDone(fx, false)
+      if (!ok()) return
+      const active = await get(fx, 'reveal')
+      if (!ok()) return
+      // Closing a preview while the server opens keeps the cards, without reviving the old window.
+      if (!preview || active?.id === preview.id) {
+        await showReveal(fx, 'pack', pack.family, res.cards, [], me.player.seen, inline || !!preview, preview?.id, ok)
+      }
+      if (!ok()) return
+      await upd(fx, 'me', m => (m ? { ...m, packs: m.packs.filter(p => p.id !== pack.id) } : m))
+      if (!ok()) return
+      await refresh(fx)
+    } finally { if (rt.openingPack === ok) rt.openingPack = null }
   }
 
   async function showReveal(fx: Fx, kind: Reveal['kind'], family: Family | null, cards: Card[], packs: ApiResponse<'redeem'>['packs'],
-    seenBefore: readonly string[]): Promise<void> {
+    seenBefore: readonly string[], inline = false, replacedId?: string, valid: () => boolean = () => true): Promise<void> {
+    if (!valid()) return
     const now = await fx.now()
+    if (!valid()) return
     const seen = new Set(seenBefore)
     const fresh = [...new Set(cards.map(c => c.species).filter(s => /^s\d/.test(s) && !seen.has(s)))]
     const total = 36
     const before = seenBefore.filter(s => s.startsWith(`s${seasonOf(now)}-`)).length
     const after = before + fresh.filter(s => s.startsWith(`s${seasonOf(now)}-`)).length
-    const id = `reveal:${now.toString(36)}`
-    await put(fx, 'reveal', { id, kind, family, cards, packs, fresh, album: { before, after, total } })
-    await upd(fx, 'pane', p => ({ ...p, flipped: 0, stack: [...p.stack.filter(v => v.kind !== 'reveal'), { kind: 'reveal' }] }))
-    revealDrive(fx, id)
+    const id = `reveal:${now.toString(36)}:${++rt.revealSeq}`
+    let shown = false, shownInline = false, epoch = 0
+    await upd(fx, 'reveal', r => {
+      shown = valid() && (!replacedId || r?.id === replacedId)
+      if (!shown) return r
+      shownInline = inline && r?.inline !== false
+      epoch = rt.revealEpoch + 1
+      rt.revealContinuation = replacedId && kind === 'pack' && r?.packId
+        ? { from: replacedId, to: id, before: rt.revealEpoch, after: epoch } : null
+      return { id, kind, family, cards, packs, fresh, album: { before, after, total }, ...(shownInline ? { inline: true } : {}) }
+    })
+    const live = () => valid() && rt.revealEpoch === epoch
+    if (!shown || !live()) return
+    await upd(fx, 'pane', p => live() ? { ...p, flipped: 0, stack: shownInline ? p.stack : [...p.stack.filter(v => v.kind !== 'reveal'), { kind: 'reveal' }] } : p)
+    if (live()) revealDrive(fx, id, live)
   }
 
-  function revealDrive(fx: Fx, id: string): void {
+  function revealDrive(fx: Fx, id: string, valid: () => boolean = () => true): void {
+    if (!valid()) return
     if (rt.revealing === id) return
     rt.revealing = id
     const ctl: RevealControl = {
-      reveal: async () => { const r = await get(cur(fx), 'reveal'); return r && r.id === id ? r : null },
+      reveal: async () => { const r = await get(cur(fx), 'reveal'); return valid() && r && r.id === id ? r : null },
       flipped: async () => (await get(cur(fx), 'pane')).flipped,
-      flip: async n => { await flipTo(cur(fx), id, n) },
-      tear: async () => { await upd(cur(fx), 'reveal', r => (r && r.id === id && !r.torn ? { ...r, torn: true } : r)) },
+      flip: async n => { if (valid()) await flipTo(packFx(cur(fx), valid), id, n) },
+      tear: async () => { await upd(cur(fx), 'reveal', r => (valid() && r && r.id === id && !r.torn ? { ...r, torn: true } : r)) },
       motion: async () => (await get(cur(fx), 'prefs')).motion,
     }
     void o.slots.reveal(fx, ctl).catch(() => undefined).finally(() => { if (rt.revealing === id) rt.revealing = null })
@@ -1558,22 +1696,34 @@ export function createGame(o: GameOptions): Game {
     if (cue) fx.ui.sound(cue)
   }
 
-  async function flip(fx: Fx): Promise<void> {
+  async function flip(fx: Fx, revealId?: string): Promise<void> {
+    const ok = packStays(), serial = rt.revealSeq
     const r = await get(fx, 'reveal')
-    if (!r) return
+    if (!ok() || serial !== rt.revealSeq || !r || revealId && r.id !== revealId) return
+    if (r.packId) return openPack(fx, r.packId, !!r.inline, ok)
     const p = await get(fx, 'pane')
-    if (p.flipped < r.cards.length) await flipTo(fx, r.id, p.flipped + 1)
-    else await doneReveal(fx)
+    if (!ok() || serial !== rt.revealSeq) return
+    if (p.flipped < r.cards.length) await flipTo(packFx(fx, () => ok() && serial === rt.revealSeq), r.id, p.flipped + 1)
+    else await doneReveal(fx, r.id)
   }
 
-  async function doneReveal(fx: Fx): Promise<void> {
+  async function doneReveal(fx: Fx, revealId?: string): Promise<void> {
+    const ok = packStays(), serial = rt.revealSeq
+    const live = () => ok() && serial === rt.revealSeq
+    fx = packFx(fx, live)
     const r = await get(fx, 'reveal')
+    if (!live() || !r || revealId && r.id !== revealId) return
     // the passkey offer waits until every card is face up, so it never names a creature still hidden
-    const best = r ? [...r.cards].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity)).find(c => worthKeeping(c)) : undefined
-    if (best) await valueMoment(fx, best)
-    await put(fx, 'reveal', null)
-    await upd(fx, 'pane', p => ({ ...p, flipped: 0, stack: p.stack.filter(v => v.kind !== 'reveal') }))
-    if (r && r.kind === 'pack') await welcomeDone(fx, true)
+    const best = [...r.cards].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity)).find(c => worthKeeping(c))
+    if (best) await valueMoment(fx, best, live)
+    let cleared = false
+    await upd(fx, 'reveal', current => {
+      cleared = ok() && current?.id === r.id
+      return cleared ? null : current
+    })
+    if (!cleared) return
+    await upd(fx, 'pane', p => ok() && serial === rt.revealSeq ? { ...p, flipped: 0, stack: p.stack.filter(v => v.kind !== 'reveal') } : p)
+    if (ok() && serial === rt.revealSeq && r.kind === 'pack' && !r.packId) await welcomeDone(fx, true)
   }
 
   /**
@@ -1595,19 +1745,38 @@ export function createGame(o: GameOptions): Game {
 
   // ---------- the pane ----------
 
-  async function openPane(fx: Fx, to?: { tab?: Tab; view?: View; community?: CommunitySection }): Promise<void> {
+  async function openPane(fx: Fx, to?: { tab?: Tab; view?: View; community?: CommunitySection; revealId?: string }): Promise<void> {
+    let valid = () => true
+    if (to?.view?.kind === 'reveal') {
+      const here = packStays(), epoch = rt.revealEpoch
+      valid = () => here() && (epoch === rt.revealEpoch || !!to.revealId && rt.revealContinuation?.from === to.revealId
+        && rt.revealContinuation.to === rt.revealId && rt.revealContinuation.before === epoch && rt.revealContinuation.after === rt.revealEpoch)
+      fx = packFx(fx, valid)
+      let accepted = !to.revealId
+      await upd(fx, 'reveal', r => {
+        accepted = valid() && (!to.revealId || r?.id === to.revealId)
+        return accepted && r ? { ...r, inline: false } : r
+      })
+      if (!accepted || !valid()) return
+    }
     const now = await fx.now()
+    if (!valid()) return
     const prefs = await prefsRecord(fx)
+    if (!valid()) return
     const today = utcDay(now)
     const hello = prefs.helloDay !== today
     if (hello) await savePrefs(fx, { helloDay: today })
+    if (!valid()) return
     await upd(fx, 'pane', p => ({
       ...p, hello: p.hello || hello, tab: (to?.tab ?? p.tab) === 'market' ? 'trade' : to?.tab ?? p.tab, showUpdate: to ? false : p.showUpdate,
       community: to?.tab === 'market' ? 'market' : to?.community ?? communitySection(p),
       stack: to?.view ? to.tab || to.community ? [to.view] : [...p.stack.filter(v => v.kind !== to.view!.kind), to.view] : to?.tab || to?.community ? [] : p.stack,
     }))
+    if (!valid()) return
     await fx.ui.openPane()
+    if (!valid()) return
     const opened = await get(fx, 'pane')
+    if (!valid()) return
     if (opened.tab === 'trade' && communitySection(opened) === 'market' && opened.stack.length === 0 && await marketStale(fx)) await loadMarket(fx, false)
   }
 
@@ -1782,18 +1951,9 @@ export function createGame(o: GameOptions): Game {
     }
     const prefs = await prefsRecord(fx)
     if (origin !== DEFAULT_SERVER && !prefs.communityOk.includes(origin)) {
-      // offline nothing is sent, not even this check (SPEC 28): the server is first asked once play goes online
-      const online = account.world === 'online'
-      if (online) {
-        try {
-          await remote(origin).version({})
-        } catch (err) {
-          fx.ui.log(failureText(err, hostOf(origin)))
-          return
-        }
-      }
+      // Naming a community server is only a local notice: Connect is the permission to ask it anything.
       await pushMoment(fx, { kind: 'server', id: `server:${origin}`, origin, until: null })
-      fx.ui.log(`${hostOf(origin)} is a community server run by someone else. ${online ? 'See the band to connect.' : 'See the band to use it when you play online.'}`)
+      fx.ui.log(`${hostOf(origin)} is a community server run by someone else. See the band to connect online.`)
       return
     }
     await useServer(fx, origin)
@@ -1833,19 +1993,21 @@ export function createGame(o: GameOptions): Game {
 
   async function useServer(fx: Fx, origin: string): Promise<void> {
     const prefs = await prefsRecord(fx)
-    await savePrefs(fx, { server: origin, communityOk: origin === DEFAULT_SERVER ? prefs.communityOk : [...new Set([...prefs.communityOk, origin])] })
+    await savePrefs(fx, { world: 'online', server: origin, communityOk: origin === DEFAULT_SERVER ? prefs.communityOk : [...new Set([...prefs.communityOk, origin])] })
     await dropMoment(fx, `server:${origin}`)
     const account = await get(fx, 'account')
-    // in play already, unless an unusable stored address held play back from it: then it connects as a switch does
-    if (account.server === origin && !badAddress(account)) return
-    // the move first, so what the old server still sends back is dropped; offline only the server to go online to changes
-    await setAccount(fx, account.world, origin)
-    if (account.world === 'online') {
-      await clearWorldState(fx)
-      await unblock(fx, 'any')
-      await connect(fx, { firstRun: false, explicit: true, fallback: false })
+    if (account.world === 'online' && account.server === origin && account.link === 'ready') return
+    if (account.world === 'online' && account.server === origin && account.link === 'signed-out') {
+      await forgetToken(fx.store, origin)
+      await fx.store.delete(KEYS.cache(origin))
     }
-    fx.ui.log(account.world === 'online' ? `Server: ${hostOf(origin)}` : `Server: ${hostOf(origin)}, from when you play online`)
+    // Connect explicitly enters online; the local save and every origin's session remain in their own keys.
+    await setAccount(fx, 'online', origin)
+    await clearWorldState(fx)
+    await unblock(fx, 'any')
+    await saveMeta(fx, origin, { deleted: false })
+    await connect(fx, { firstRun: false, explicit: true, fallback: false })
+    fx.ui.log(`Online on ${hostOf(origin)}.`)
     await publish(fx)
   }
 
@@ -1918,6 +2080,7 @@ export function createGame(o: GameOptions): Game {
 
   async function command(fx: Fx, args: string): Promise<void> {
     enter(fx)
+    const packHere = packStays()
     const cmd = parseCommand(args)
     const account = await get(fx, 'account')
     const cards = await get(fx, 'cards') as Card[]
@@ -1940,8 +2103,7 @@ export function createGame(o: GameOptions): Game {
         return
       }
       case 'pack': {
-        await openPane(fx)
-        return openPack(fx)
+        return previewPack(fx, undefined, packHere)
       }
       case 'team': {
         const ids: string[] = []
@@ -2311,7 +2473,7 @@ export function createGame(o: GameOptions): Game {
       pickCatch: index => after(pickCatch(fx, index)),
       act: id => after(act(fx, id)),
       dismiss: id => after(dismiss(fx, id)),
-      open: to => after(openPane(fx, to)),
+      open: to => after(openPane(to?.revealId ? packFx(fx, packStays()) : fx, to)),
       close: () => after(fx.ui.closePane()),
       tab: tab => after((async () => {
         await upd(fx, 'pane', p => ({ ...p, tab: tab === 'market' ? 'trade' : tab, community: tab === 'market' ? 'market' : communitySection(p), stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false, showUpdate: false }))
@@ -2327,12 +2489,61 @@ export function createGame(o: GameOptions): Game {
       })()),
       pane: fn => after(upd(fx, 'pane', fn)),
       hold: (action, target) => after(hold(fx, action, target)),
-      openPack: packId => after(openPack(fx, packId)),
-      flip: () => after(flip(fx)),
-      doneReveal: () => after(doneReveal(fx)),
-      setTeam: cardIds => after((async () => {
-        const res = await run(fx, 'setTeam', { cardIds }, 'Setting the team')
-        if (res) await upd(fx, 'me', m => (m ? { ...m, player: { ...m.player, team: res.team } } : m))
+      openPack: (packId, inline) => after(openPack(fx, packId, inline)),
+      flip: revealId => after(flip(fx, revealId)),
+      doneReveal: revealId => after(doneReveal(fx, revealId)),
+      setTeam: (cardIds, picker) => after((async () => {
+        const ok = packStays()
+        const [account, me, cards, pane] = await Promise.all([get(fx, 'account'), get(fx, 'me'), get(fx, 'cards'), get(fx, 'pane')])
+        if (!ok() || !me || pane.busy || account.readOnly) return
+        if (cardIds.length > ECONOMY.teamSize || new Set(cardIds).size !== cardIds.length
+          || cardIds.some(id => !cards.some(c => c.id === id && c.state === 'owned'))) {
+          await upd(fx, 'pane', p => ok() ? { ...p, message: 'That card is not available for your team.', tone: 'warn' } : p)
+          return
+        }
+        const here = (p: PaneUi) => {
+          const top = p.stack.at(-1)
+          return !picker || top?.kind === 'team-slot' && top.cardId === picker.cardId && top.chosenSlot === picker.slot
+        }
+        if (picker && (account.world !== picker.world || account.server !== picker.server || !here(pane)
+          || JSON.stringify(me.player.team) !== JSON.stringify(picker.team)
+          || JSON.stringify(teamSlotChoices(me.player.team, picker.cardId, cards).find(s => s.slot === picker.slot)?.ids) !== JSON.stringify(cardIds))) return
+        let taking = false
+        const now = await fx.now()
+        if (!ok()) return
+        const backend = account.world === 'offline' ? local() : remote(account.server)
+        await upd(fx, 'pane', p => {
+          taking = ok() && !p.busy && here(p)
+          if (!taking) return p
+          return { ...p, busy: 'Setting the team', busySince: now, message: '', toCopy: '' }
+        })
+        if (!taking || !ok()) return
+        const clear = () => upd(fx, 'pane', p => ok() && p.busy === 'Setting the team' ? { ...p, busy: null } : p)
+        const fresh = await get(fx, 'account')
+        if (!ok()) return
+        if (fresh.world !== account.world || fresh.server !== account.server || fresh.readOnly) { await clear(); return }
+        const [currentMe, currentCards] = await Promise.all([get(fx, 'me'), get(fx, 'cards')])
+        if (!ok()) return
+        if (!currentMe || JSON.stringify(currentMe.player.team) !== JSON.stringify(me.player.team)
+          || cardIds.some(id => !currentCards.some(c => c.id === id && c.state === 'owned'))) { await clear(); return }
+        const active = await get(fx, 'pane')
+        if (!ok()) return
+        if (!here(active) || active.busy !== 'Setting the team') { await clear(); return }
+        try {
+          const res = await backend.call('setTeam', { cardIds })
+          if (!ok()) return
+          let accepted = false
+          await upd(fx, 'me', m => {
+            accepted = ok() && !!m && JSON.stringify(m.player.team) === JSON.stringify(currentMe.player.team)
+            return accepted ? { ...m!, player: { ...m!.player, team: res.team } } : m
+          })
+          if (!accepted) { await clear(); return }
+          if (!ok()) return
+          await clear()
+        } catch (err) {
+          if (ok()) await upd(fx, 'pane', p => ok() ? { ...p, busy: null, message: failureText(err, account.host), tone: 'warn' } : p)
+          if (ok()) await noteFailure(fx, err, ok)
+        }
       })()),
       setForTrade: (cardId, forTrade) => after((async () => {
         const res = await run(fx, 'setForTrade', { cardId, forTrade }, forTrade ? 'Marking for trade' : 'Keeping it')
@@ -2433,17 +2644,16 @@ export function createGame(o: GameOptions): Game {
   }
 
   async function act(fx: Fx, id: string): Promise<void> {
+    const packHere = packStays()
     const m = (await get(fx, 'moments')).find(x => x.id === id)
     if (!m) return
     switch (m.kind) {
       case 'welcome':
-        await openPane(fx)
-        await openPack(fx, m.packId ?? undefined)
+        await previewPack(fx, m.packId ?? undefined, packHere)
         return
       case 'pack-ready':
-        await dropMoment(fx, id)
-        await openPane(fx)
-        await openPack(fx)
+        await dropMoment(packFx(fx, packHere), id)
+        await previewPack(fx, undefined, packHere)
         return
       case 'outcome': {
         if (m.outcome.catch.status === 'choose') return pickCatch(fx, rarestIndex(m.outcome.catch.options))

@@ -13,7 +13,7 @@ import { hello, screenOf, withTop } from '../client/viewmodels.ts'
 import { ceremonyScreen } from './ceremony.tsx'
 import { privacyScreen, devicesScreen } from './pane-account.tsx'
 import { albumScreen, speciesScreen } from './pane-album.tsx'
-import { cardScreen, cardsScreen, fuseScreen } from './pane-cards.tsx'
+import { cardScreen, cardsScreen, fuseScreen, teamSlotScreen } from './pane-cards.tsx'
 import type { Ctx, Shown } from './pane-kit.tsx'
 import { actions, btn, column, formMini, frame, line, marketOpen, para, playable } from './pane-kit.tsx'
 import { listingScreen, sellScreen } from './pane-market.tsx'
@@ -132,6 +132,7 @@ function route(c: Ctx): Shown {
     case 'tab': return tabScreen(c)
     case 'reveal': return s.reveal ? ceremonyScreen(c, s.reveal) : tabScreen({ ...c, root: true })
     case 'card': return cardScreen(c, top.cardId)
+    case 'team-slot': return teamSlotScreen(c, top.cardId, top.chosenSlot)
     case 'fuse': return fuseScreen(c, top.cardId, top.otherId)
     case 'species': return speciesScreen(c, top.speciesId)
     case 'profile': return profileScreen(c, top)

@@ -30,6 +30,7 @@ import {
 import type { Raw } from './pages-html.ts'
 import { oddsBody, privacyBody, PROSE_CSS } from './pages-info.ts'
 import { CAMP_CSS, LANDING_CSS, landingBody, teamCamp } from './pages-landing.ts'
+import { captureResponse } from './pages-media.ts'
 import { ENTRY_RE, meet, SEED_RE } from './pages-meet.ts'
 import { imageCache, meadowPng, postcardPng } from './pages-og.ts'
 import type { ImageCache } from './pages-og.ts'
@@ -113,6 +114,9 @@ export function pages(api: Api): void {
     if (!Object.hasOwn(SITE_FILES, file)) return missing(ctx, 'No such file', 'Scripts here change their names with every release.')
     return new Response(SITE_FILES[file], { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': IMMUTABLE } })
   })
+
+  page('/media/:file', ctx => captureResponse(ctx.params.file!)
+    ?? missing(ctx, 'No such picture', 'This Desktop screenshot is not here.'))
 
   // Share images: the meadow is drawn once a day, and a postcard once while it is among the last 64
   // asked for. Only a fresh drawing spends from the address's 'share' bucket, so a stream of new seeds

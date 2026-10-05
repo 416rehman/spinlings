@@ -116,6 +116,7 @@ const FIXTURES: Fixture[] = [
   { name: 'community server', state: moment({ kind: 'server', id: 'server:https://cats.example', origin: 'https://cats.example', until: null }), texts: [/cats.example is a community server run by someone else/], keys: ['act-server:https://cats.example'] },
   { name: 'community server in use (the Server URL option)', state: moment(CATS, { account: { ...base().account, server: 'https://cats.example', host: 'cats.example', community: true } }), texts: [/cats.example is a community server run by someone else/], keys: ['act-server:https://cats.example'] },
   { name: 'community server named offline', state: moment(CATS, { account: { ...base().account, world: 'offline' } }), texts: [/cats.example is a community server run by someone else/], keys: ['act-server:https://cats.example', 'dismiss-server:https://cats.example'] },
+  { name: 'community server selected but offline', state: moment(CATS, { account: { ...base().account, world: 'offline', server: CATS.origin } }), texts: [/cats.example is a community server run by someone else/], keys: ['act-server:https://cats.example', 'dismiss-server:https://cats.example'] },
   { name: 'offline fallback', state: moment({ kind: 'line', id: 'line:notice:x', tone: 'notice', text: 'Playing offline · /spin world online when you\'re connected', until: NOW + 15_000 }), texts: [/Playing offline · \/spin world online when you're connected/] },
   { name: 'first-run hint', state: moment({ kind: 'line', id: 'line:hint:x', tone: 'hint', text: 'Creatures find you while Claude works · /spin to open your collection', until: NOW + 10_000 }), texts: [/Creatures find you while Claude works/] },
   { name: 'reaction', state: moment({ kind: 'line', id: 'line:reaction:x', tone: 'reaction', text: 'Pipkin flinched', until: NOW + 4000 }), texts: [/Pipkin flinched/] },
@@ -332,7 +333,7 @@ test('band presses reach the game: Now!, a catch pick, the primary and the secon
   expect(await press(welcome, 'dismiss-welcome')).toEqual([['dismiss', ['welcome']]])
 })
 
-test('a community server\'s notice asks to connect online, keeps it for later offline, and only says so when already in use', LONG, async ($, on) => {
+test('a community server\'s notice offers Connect from either world, and Got it only when already online there', LONG, async ($, on) => {
   draws(on)
   const labels = async (name: string) => {
     current = { state: FIXTURES.find(f => f.name === name)!.state, now: NOW }
@@ -342,7 +343,8 @@ test('a community server\'s notice asks to connect online, keeps it for later of
     return shown
   }
   expect(await labels('community server')).toEqual(['Connect on 1', 'Cancel on 2'])
-  expect(await labels('community server named offline')).toEqual(['Use it online on 1', 'Cancel on 2'])
+  expect(await labels('community server named offline')).toEqual(['Connect on 1', 'Cancel on 2'])
+  expect(await labels('community server selected but offline')).toEqual(['Connect on 1', 'Cancel on 2'])
   expect(await labels('community server in use (the Server URL option)')).toEqual(['Got it on 1'])
 })
 

@@ -388,6 +388,10 @@ export type SpinMoment =
 export type SpinReveal = {
   id: string
   kind: 'pack' | 'present' | 'egg' | 'craft' | 'trader' | 'redeem' | 'bounty'
+  /** above the composer until handed to the sidebar */
+  inline?: boolean
+  /** a sealed preview; no opening request or cards awarded yet */
+  packId?: string
   /** the package colour for a pack */
   family: SpinFamily | null
   cards: SpinCard[]
@@ -422,6 +426,7 @@ export type SpinTab = 'team' | 'cards' | 'album' | 'market' | 'trade'
 /** Views stacked over the tabs; esc pops one. */
 export type SpinView =
   | { kind: 'card'; cardId: string }
+  | { kind: 'team-slot'; cardId: string; chosenSlot?: number }
   | { kind: 'fuse'; cardId: string; otherId: string | null }
   | { kind: 'species'; speciesId: string }
   | { kind: 'profile'; handle: string; give: string[]; get: string[]; counterOf: string | null }

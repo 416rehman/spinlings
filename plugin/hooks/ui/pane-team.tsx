@@ -9,7 +9,7 @@ import type { Slot } from '../client/viewmodels.ts'
 import type { Ctx, Shown } from './pane-kit.tsx'
 import { cardHitRegion } from './card-hit-area.tsx'
 import { TILE, actions, btn, cardRow, column, heading, line, packArt, para, tabsHint, tile } from './pane-kit.tsx'
-import { ART, INK, MARK, SPACE } from './tokens.ts'
+import { ART, INK, MARK, SPACE, SVG_SCALE } from './tokens.ts'
 
 const NOTICES = 2
 /** Packs drawn as art on the Team tab; more show as a count. */
@@ -34,11 +34,14 @@ function emptySlot(c: Ctx, s: Slot, wide: boolean): RenderElement {
       </Box>
     )
   }
+  const extent = ART.columns * SVG_SCALE.tile
+  const picture = c.surface === 'desktop'
+    ? <c.el.Svg key={`team-${s.slot}-art`} width={extent} height={extent} alt={`Empty team slot ${s.slot + 1}`}
+      source={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18"><rect x=".5" y=".5" width="17" height="17" rx="1" fill="none" stroke="${INK.muted}"/><path d="M9 6v6M6 9h6" fill="none" stroke="${INK.muted}"/></svg>`} />
+    : <Box width={TILE} height={ART.rows} borderStyle="round" borderDimColor justifyContent="center" alignItems="center"><Text dimColor>+</Text></Box>
   return (
     <Box key={`team-${s.slot}`} position="relative" flexDirection="column" width={TILE} flexShrink={0}>
-      {cardHitRegion(c.el, <Box width={TILE} height={ART.rows} borderStyle="round" borderDimColor justifyContent="center" alignItems="center">
-        <Text dimColor>+</Text>
-      </Box>, c.hitAreas, `team-${s.slot}-art`, pick, `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`)}
+      {cardHitRegion(c.el, picture, c.hitAreas, `team-${s.slot}-art`, pick, `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`)}
       {btn(c, { key: `team-${s.slot}-pick`, label: 'Pick a card', on: pick })}
       {cardHitRegion(c.el, <Text dimColor>{`Slot ${s.slot + 1}`}</Text>, c.hitAreas, `team-${s.slot}-note`, pick,
         `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`, undefined, TILE)}

@@ -165,7 +165,7 @@ export type Actions = {
 
   // pane navigation
   /** opens the pane (from a press, so it seats at any width), optionally on a tab and a view */
-  open(to?: { tab?: SpinTab; view?: SpinView; community?: SpinCommunitySection }): Promise<void>
+  open(to?: { tab?: SpinTab; view?: SpinView; community?: SpinCommunitySection; revealId?: string }): Promise<void>
   close(): Promise<void>
   tab(tab: SpinTab): Promise<void>
   /** Switches Community's local section; its card/player details still use the stack. */
@@ -178,11 +178,12 @@ export type Actions = {
   hold(action: SpinHoldAction, target: string): Promise<void>
 
   // collection
-  openPack(packId?: string): Promise<void>
+  openPack(packId?: string, inline?: boolean): Promise<void>
   /** the reveal ceremony: flip the next card, or finish */
-  flip(): Promise<void>
-  doneReveal(): Promise<void>
-  setTeam(cardIds: string[]): Promise<void>
+  flip(revealId?: string): Promise<void>
+  doneReveal(revealId?: string): Promise<void>
+  /** picker is local context only: a stale card/slot choice never sends a team request. */
+  setTeam(cardIds: string[], picker?: { cardId: string; slot: number; team: string[]; world: SpinWorld; server: string }): Promise<void>
   setForTrade(cardId: string, forTrade: boolean): Promise<void>
   craft(speciesId: string, rarity: SpinRarity): Promise<void>
   buyPack(family?: Family): Promise<void>
@@ -246,7 +247,7 @@ export type ViewEnv = {
   actions: Actions
 }
 
-export type BandState = Pick<GameState, 'account' | 'me' | 'signals' | 'battle' | 'moments' | 'prefs' | 'cards'>
+export type BandState = Pick<GameState, 'account' | 'me' | 'signals' | 'battle' | 'moments' | 'prefs' | 'cards'> & Partial<Pick<GameState, 'reveal' | 'pane'>>
 /** The band (ui/band*.tsx): null when nothing is live, so the engine's own band shows. */
 export type BandView = (env: ViewEnv & { state: BandState; isWorking: boolean }) => RenderElement | null
 /** The pane (ui/pane*.tsx): always a tree; header, body, hint row on every tab (SPEC 21). */

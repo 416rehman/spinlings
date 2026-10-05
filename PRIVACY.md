@@ -114,6 +114,7 @@ The timing of requests says a little on its own. A pack charge means Claude Code
 | Your previous handle, after any name change or after deletion | Kept for 30 days, so nobody else takes it straight away |
 | Join challenges | Deleted when used, or when they expire after 5 minutes |
 | Join counters (see below) | Deleted after 24 hours |
+| A used named-Mythic roster id, so that creature cannot appear twice | Permanent world content marker, containing no player id, handle, date or time; account deletion does not reset it |
 
 The server keeps a date instead of a time wherever a game rule allows. It keeps exact times only where a rule needs them, such as the 10-minute battle window, the spacing between battles and between pack charges, and offer expiry times, and it clears the spacing marks on your account after 24 hours.
 
@@ -164,7 +165,7 @@ The cards on your team show their level. Someone who checks your profile often c
 
 ## Deleting your account
 
-`/spin privacy` has a delete button behind a 2-second hold. It calls `DELETE /v1/me`, which removes your player record, your sessions and passkeys, and all of your cards, packs, battles, offers, gifts, market listings, notices, wishlist, stats, board places, first-discovery credit and the record of who you beat or who beat you, and of who you sold to or bought from. Cards you already traded, sold or gave away stay with their new owners, and old sale prices stay, naming nobody. The server remembers only that your handle was taken, so nobody else gets it straight away, and frees it after 30 days.
+`/spin privacy` has a delete button behind a 2-second hold. It calls `DELETE /v1/me`, which removes your player record, your sessions and passkeys, and all of your cards, packs, battles, offers, gifts, market listings, notices, wishlist, stats, board places, first-discovery credit and the record of who you beat or who beat you, and of who you sold to or bought from. Cards you already traded, sold or gave away stay with their new owners, and old sale prices stay, naming nobody. The only remaining player-linked record is that your handle was taken, so nobody else gets it straight away; it is freed after 30 days. Anonymous used named-Mythic roster ids remain as world markers, with no player, handle, date or time.
 
 Anything the server deletes, whether your account or old battles and notices, can stay in the database's point-in-time recovery history (Cloudflare D1 Time Travel) for up to 30 days, after which it is gone for good. That history is only ever used to recover from data loss.
 

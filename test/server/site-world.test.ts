@@ -23,6 +23,7 @@ import { regulars } from '../../server/src/pages-world.ts'
 import { viaEdgeCache } from '../../server/src/worker.ts'
 import { buildSite, OUT } from '../../server/static/build.ts'
 import { SITE_ASSETS, SITE_FILES, SITE_PARTS } from '../../server/static/site.gen.ts'
+import { DESKTOP_CAPTURES } from '../../server/static/media.gen.ts'
 import { testApp } from './infra-helpers.ts'
 import { DAY, server, T0 } from './scaffold-helpers.ts'
 
@@ -131,7 +132,13 @@ describe('site scripts', () => {
     assert.ok(gzipSync(text).length <= 64 * 1024, `landing ${gzipSync(text).length} bytes gzipped`)
     const css = text.match(/<style>([\s\S]*?)<\/style>/)![1]!
     assert.ok(gzipSync(css).length <= 18 * 1024, `inline CSS ${gzipSync(css).length} bytes gzipped`)
-    assert.doesNotMatch(text, /<img\b|\.woff2?|url\([^)]*\.png/, 'no fonts and no raster images on the page')
+    assert.doesNotMatch(text, /\.woff2?|url\([^)]*\.png/, 'no fonts or raster backgrounds on the page')
+    const images = [...text.matchAll(/<img\b[^>]*>/g)].map(m => m[0])
+    assert.equal(images.length, DESKTOP_CAPTURES.length, 'only reviewed native captures add raster images')
+    for (const image of images) {
+      assert.match(image, /loading="lazy"/)
+      assert.ok(DESKTOP_CAPTURES.some(c => image.includes(`src="/media/${c.file}"`)), 'every image is a whitelisted first-party capture')
+    }
   })
 })
 
@@ -211,21 +218,24 @@ describe('site creatures', () => {
       for (const e of p) if ('species' in e) assert.ok(e.species.id === w.featured && !e.species.legendary)
     }
     const rng = rngFromSeed('packs')
-    let unfound = 0, legendary = 0
     for (let i = 0; i < 400; i++) {
       for (const slot of rollPack(w, 'fable', rng)) {
-        if ('unfound' in slot) { unfound++; assert.ok(slot.unfound.legendary && !isFound(w, slot.unfound.id)); continue }
+        if ('unfound' in slot) { assert.ok(slot.unfound.legendary && !isFound(w, slot.unfound.id)); continue }
         assert.notEqual(slot.card.rarity, 'legendary', 'an unfound legendary never shows in colour')
       }
     }
-    assert.ok(unfound > 0, 'the gold silhouette turns up')
+    assert.ok('unfound' in rollPack(w, 'fable', () => 0.999)[0]!, 'a legendary draw shows the gold silhouette')
     const leg = species.find(s => s.family === 'fable' && s.legendary)!
     const w2 = siteWorld([[leg.id, '2026-10-01']])
     for (let i = 0; i < 400; i++) for (const slot of rollPack(w2, 'fable', rng)) {
       assert.ok(!('unfound' in slot), 'a found legendary is a real card')
-      if (slot.card.rarity === 'legendary') { legendary++; assert.equal(slot.card.species, leg.id); assert.ok(slot.card.foil) }
+      if (slot.card.rarity === 'legendary') { assert.equal(slot.card.species, leg.id); assert.ok(slot.card.foil) }
     }
-    assert.ok(legendary > 0)
+    const drawn = rollPack(w2, 'fable', () => 0.999)[0]!
+    assert.ok('card' in drawn)
+    assert.equal(drawn.card.rarity, 'legendary')
+    assert.equal(drawn.card.species, leg.id)
+    assert.ok(drawn.card.foil)
   })
 
   it('battle with the real engine: a Perfect press changes nothing before its round', () => {

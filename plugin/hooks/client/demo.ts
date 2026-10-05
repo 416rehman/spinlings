@@ -57,7 +57,7 @@ function world(now: number) {
     mint('opus', 2, 'common'), mint('opus', 5, 'common', { firstFind: true }), mint('opus', 1, 'rare', {}, 2),
     mint('opus', 8, 'legendary', { shiny: true }), mint('opus', 6, 'epic', { shiny: true }),
   ]
-  const pack = [examples[0]!, examples[3]!]
+  const pack = [examples[0]!]
   const more = [
     mint('haiku', 3, 'rare', { forTrade: true }, 5), mint('sonnet', 0, 'common', {}, 4), mint('fable', 4, 'epic', { forTrade: true }, 7),
     mint('haiku', 6, 'common', {}, 9), mint('sonnet', 7, 'rare', {}, 3),
@@ -181,6 +181,7 @@ function steps(now: number): DemoStep[] {
   const s = w.base
   const fresh = w.pack.map(c => c.species)
   const packR = reveal(w, 'pack', w.pack, fresh)
+  const legendaryR = reveal(w, 'pack', [w.examples[3]!], [w.examples[3]!.species])
   const at = (r: Reveal, flipped: number): GameState => ({ ...view(s, { kind: 'reveal' }, { flipped }), reveal: r })
   // the offline world has no backup, no stats and no listings
   const { backedUp: _b, ...plain } = s.account
@@ -199,6 +200,8 @@ function steps(now: number): DemoStep[] {
     { title: 'Cards · a filter with nothing in it', state: pane(s, { tab: 'cards', family: FAMILIES.find(f => !w.cards.some(c => c.family === f && c.rarity === 'legendary')) ?? 'haiku', rarity: 'legendary' }) },
     { title: 'Cards · empty collection', state: { ...pane(s, { tab: 'cards' }), cards: [] } },
     { title: 'Card · a legendary shiny foil', state: view(s, { kind: 'card', cardId: w.examples[3]!.id }, { tab: 'cards' }) },
+    { title: 'Team · choose a replacement slot', state: pane(s, { tab: 'cards', stack: [{ kind: 'card', cardId: w.examples[3]!.id }, { kind: 'team-slot', cardId: w.examples[3]!.id }] }) },
+    { title: 'Team · swap two teammates', state: pane(s, { tab: 'team', stack: [{ kind: 'card', cardId: w.starters[1]!.id }, { kind: 'team-slot', cardId: w.starters[1]!.id }] }) },
     { title: 'Card · a starter (stays with you)', state: view(s, { kind: 'card', cardId: w.starters[0]!.id }, { tab: 'cards' }) },
     { title: 'Card · a share to copy by hand (no clipboard here)', state: view(s, { kind: 'card', cardId: w.examples[3]!.id }, { tab: 'cards', toCopy: shareText(w.examples[3]!, 'online', 'https://spinlings.dev') }) },
     { title: 'Card · recycle armed (2-second hold)', state: view(s, { kind: 'card', cardId: w.more[1]!.id }, { tab: 'cards', hold: { action: 'recycle', target: w.more[1]!.id, startedAt: now } }) },
@@ -241,9 +244,9 @@ function steps(now: number): DemoStep[] {
     { title: 'Boards · hidden, and nobody yet', state: { ...view(s, { kind: 'boards', board: 'mythics', period: 'season' }, { tab: 'team' }), me: { ...s.me!, player: { ...s.me!.player, leaderboard: false } }, social: { ...s.social, rankings: { board: 'mythics', period: 'season', season: w.rankings.season, top: [] } } } },
     { title: 'Header · not backed up yet', state: { ...pane(s, { tab: 'team' }), account: { ...s.account, backedUp: false, devices: { sessions: 1, passkeys: 0 } } } },
     { title: 'Pack · sealed, waiting to tear', state: at(packR, 0) },
-    { title: 'Pack · one turned, a gold back waiting', state: at(packR, 1) },
-    { title: 'Pack · a legendary foil revealed', state: at(packR, 2) },
-    { title: 'Pack · the summary', state: at(packR, 2) },
+    { title: 'Pack · a gold back waiting', state: at(legendaryR, 0) },
+    { title: 'Pack · a legendary foil revealed', state: at(legendaryR, 1) },
+    { title: 'Pack · the summary', state: at(packR, 1) },
     { title: 'Fusion · the egg', state: at(reveal(w, 'egg', [w.hybrid]), 0) },
     { title: 'Fusion · hatched', state: at(reveal(w, 'egg', [w.hybrid]), 1) },
     { title: 'Present · wrapped', state: at(reveal(w, 'present', [w.more[3]!]), 0) },

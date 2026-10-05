@@ -9,6 +9,7 @@ import type { FinishBattleResponse, NoticeKind, Opponent, StartBattleRequest, St
 import { participants, RULES_VERSION, simulateBattle } from '../../../plugin/hooks/core/battle.ts'
 import { cardFromBattleCard, cardPower, toBattleCard } from '../../../plugin/hooks/core/cards.ts'
 import { ECONOMY, finishAfter, firstWildDue, leagueOf } from '../../../plugin/hooks/core/economy.ts'
+import { NAMED_MYTHICS, namedMythic } from '../../../plugin/hooks/core/named-mythics.ts'
 import { rollFirstWild, rollWildTeam } from '../../../plugin/hooks/core/packs.ts'
 import { rollRival } from '../../../plugin/hooks/core/rivals.ts'
 import { BATTLE_TEXT, settlePlan } from '../../../plugin/hooks/core/settle.ts'
@@ -213,14 +214,29 @@ async function duelFoe(env: Env, p: PlayerRow, team: readonly StoredCard[]): Pro
  * first wild encounter ever is one gentle creature against the lead (beginner's luck); the sweep
  * forgets a wild start after a day, so a player who has still never won one meets another then.
  */
-function wildFoe(env: Env, p: PlayerRow, req: StartBattleRequest, team: readonly StoredCard[]): Foe {
+async function wildFoe(env: Env, p: PlayerRow, req: StartBattleRequest, team: readonly StoredCard[]): Promise<Foe> {
   const w = worldOf(env.now, catalogOf(env.db))
   const level = team.reduce((n, c) => n + c.card.level, 0) / team.length
   const o = { rng: rngOf(env), arena: req.family, now: env.now, level, rule: w.rule, catalog: catalogOf(env.db) }
   const defender = firstWildDue(p.wild_won === 1, p.last_wild_at)
     ? rollFirstWild({ ...o, lead: team[0]!.card.family })
     : rollWildTeam({ ...o, featured: w.featured, roamer: w.roamer, rested: restedNow(p, env.now) })
-  return { defender, defenderId: null, kind: 'wild', opponent: { kind: 'wild' }, stored: { kind: 'wild' }, stmts: [] }
+  const stmts: Stmt[] = []
+  if (defender[0]?.species === 'mythic') {
+    const used = new Set((await env.db.all<{ id: string }>(
+      `SELECT id FROM named_mythic_encounters WHERE id IN (${NAMED_MYTHICS.map(() => '?').join(', ')})`,
+      ...NAMED_MYTHICS.map(m => m.id),
+    )).map(r => r.id))
+    const entry = NAMED_MYTHICS.find(m => !used.has(m.id))
+    if (entry) {
+      defender[0] = namedMythic(defender[0], entry)
+      stmts.push(
+        guard('SELECT NOT EXISTS (SELECT 1 FROM named_mythic_encounters WHERE id = ?)', entry.id),
+        stmt('INSERT INTO named_mythic_encounters (id) VALUES (?)', entry.id),
+      )
+    }
+  }
+  return { defender, defenderId: null, kind: 'wild', opponent: { kind: 'wild' }, stored: { kind: 'wild' }, stmts }
 }
 
 /** Per defender slot: nobody has obtained this species this season yet (the FIRST IN THE WORLD tease). */
@@ -238,7 +254,7 @@ async function firstPossible(db: Db, defender: readonly BattleCard[]): Promise<b
  */
 export async function prepareStart(env: Env, p: PlayerRow, req: StartBattleRequest): Promise<{ response: StartBattleResponse; stmts: Stmt[] }> {
   const { cards, subs } = await battleTeam(env.db, p, env.now)
-  const foe = req.kind === 'wild' ? wildFoe(env, p, req, cards)
+  const foe = req.kind === 'wild' ? await wildFoe(env, p, req, cards)
     : req.revenge !== undefined ? await revengeFoe(env, p, req.revenge)
       : req.handle !== undefined ? await challengeFoe(env, p, req.handle)
         : await duelFoe(env, p, cards)

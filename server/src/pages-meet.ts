@@ -217,8 +217,8 @@ export type PackSlot = { card: SiteCard } | { unfound: Species }
  * One pack card at slot odds: a legendary nobody has found turns into its gold silhouette. `entry`
  * fixes which creature a non-legendary roll gives (a pack deals its deck without repeats).
  */
-export function rollSlot(w: SiteWorld, family: Family, rng: Rng, last: boolean, entry?: Entry): PackSlot {
-  const rarity = weighted(rng, last ? ECONOMY.packs.lastSlotOdds : ECONOMY.packs.odds)
+export function rollSlot(w: SiteWorld, family: Family, rng: Rng, _last: boolean, entry?: Entry): PackSlot {
+  const rarity = weighted(rng, ECONOMY.packs.odds)
   const shiny = rng() < ECONOMY.shiny.chance
   const foil = rng() < ECONOMY.foil.chance
   const dna = uint32(rng)

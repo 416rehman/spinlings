@@ -153,7 +153,7 @@ describe('the landing, third pass', () => {
     assert.match(den, /<svg class="stumpart"/)
     const backs = den.match(/<div class="slots" aria-hidden="true">((?:<i><\/i>)+)<\/div>/)![1]!
     const count = [...backs.matchAll(/<i><\/i>/g)].length
-    assert.equal(count, 2, 'the pack has exactly two inert card backs')
+    assert.equal(count, 1, 'the pack has exactly one inert card back')
     assert.match(css(html), new RegExp(`\\.slots,\\.fan\\{[^}]*grid-template-columns:repeat\\(${count},var\\(--cw\\)\\)`), 'backs and revealed cards have one grid column per pack card')
     assert.equal((den.match(/<div class="hollow-room /g) ?? []).length, 2)
     assert.match(den, /<div class="hatchspot" aria-hidden="true"><i><\/i><span>Hatches here<\/span><\/div>/)
@@ -204,9 +204,7 @@ describe('site creatures, third pass', () => {
     const rng = rngFromSeed('decks')
     for (let i = 0; i < 200; i++) {
       const pack = rollPack(w, 'fable', rng)
-      assert.equal(pack.length, 2)
-      const last = pack[1]!
-      assert.ok(!('card' in last) || last.card.rarity !== 'common', 'the second card is rare or better')
+      assert.equal(pack.length, 1)
       const names = pack.flatMap(s => ('card' in s && s.card.rarity !== 'legendary' ? [s.card.species === 'promo' ? s.card.form!.names[0] : s.card.species] : []))
       assert.equal(new Set(names).size, names.length, `pack ${i}: ${names.join(', ')}`)
     }

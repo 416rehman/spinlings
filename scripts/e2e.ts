@@ -356,6 +356,37 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
   const p3 = connect(boot, 'p3', 'fable')
   const cardsOf = async (c: Client) => (await c.call('cards', {})).cards
   const sparksOf = async (c: Client) => (await c.me()).player.sparks
+  const freeCards = async (c: Client) => {
+    const team = (await c.me()).player.team
+    return (await cardsOf(c)).filter(card => free(card, clock.now(), team))
+  }
+  const regular = (c: Card) => c.species.startsWith('s')
+  /** Consuming flows replenish only through real, paced packs; no recorded card is invented or reused. */
+  const stock = async (who: Client, needed: number, family: Family = who.family, eligible: (c: Card) => boolean = () => true) => {
+    const promoPacks = (await who.me()).packs.filter(p => p.source === 'promo').map(p => p.id)
+    const minted = new Set<string>()
+    const pool = async () => (await freeCards(who)).filter(eligible)
+    for (let extra = 0; (await pool()).length < needed && extra < needed + 36; extra++) {
+      const me = await who.me()
+      let pack = me.packs.find(p => p.source !== 'promo' && p.family === family) ?? me.packs.find(p => p.source !== 'promo')
+      if (!pack) {
+        clock.until(me.player.nextChargeAt)
+        pack = (await who.call('chargePack', { family })).packs.find(p => p.source === 'charge' && p.family === family)
+      }
+      assert.ok(pack, 'a normal waiting or charged pack supplies missing eligible stock')
+      const before = new Set((await cardsOf(who)).map(c => c.id))
+      const opened = await who.call('openPack', { packId: pack.id })
+      assert.equal(opened.cards.length, 1)
+      const card = opened.cards[0]!
+      assert.ok(!before.has(card.id) && !minted.has(card.id), 'each pack supplies a new distinct observed card')
+      minted.add(card.id)
+      assert.ok((await freeCards(who)).some(c => c.id === card.id), 'the observed minted card is actually owned and free')
+    }
+    assert.deepEqual((await who.me()).packs.filter(p => p.source === 'promo').map(p => p.id), promoPacks, 'bound promo stock stays unopened')
+    const cards = await pool()
+    assert.ok(cards.length >= needed, 'bounded normal pack openings supplied the required eligible cards')
+    return cards
+  }
   let firstHandle = ''
   let foilCards = 0
 
@@ -596,8 +627,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
     })
 
     await step('fusion', async () => {
-      const team = (await p1.me()).player.team
-      const pool = (await cardsOf(p1)).filter(c => !c.bound && c.state === 'owned' && !team.includes(c.id) && c.species !== 'mythic')
+      const pool = await stock(p1, 2)
       const [a, b] = pool.sort((x, y) => recycleValue(x) - recycleValue(y))
       assert.ok(a && b, 'two free cards to fuse')
       const before = await sparksOf(p1)
@@ -617,8 +647,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
     })
 
     await step('recycle', async () => {
-      const team = (await p1.me()).player.team
-      const c = (await cardsOf(p1)).filter(x => !x.bound && x.state === 'owned' && !team.includes(x.id)).sort((x, y) => recycleValue(x) - recycleValue(y))[0]!
+      const c = (await stock(p1, 1)).sort((x, y) => recycleValue(x) - recycleValue(y))[0]!
       const before = await sparksOf(p1)
       const r = await p1.call('recycle', { cardId: c.id })
       assert.equal(r.gained, recycleValue(c))
@@ -672,12 +701,12 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
 
     let theirs!: Card, mine!: Card
     await step('wishlist, for-trade and the board', async () => {
-      const now = clock.now()
-      const t1 = (await p1.me()).player.team
-      const t2 = (await p2.me()).player.team
-      const c1 = (await cardsOf(p1)).filter(c => free(c, now, t1))
-      const c2 = (await cardsOf(p2)).filter(c => free(c, now, t2) && c.species.startsWith('s') && !c1.some(x => x.species === c.species))
+      const c1 = await stock(p1, 1, 'sonnet', regular)
+      // A different species is needed for the two wishlists; prefer a family absent from the first pool.
+      const family = [...FAMILIES].sort((a, b) => c1.filter(c => c.family === a).length - c1.filter(c => c.family === b).length)[0]!
+      const c2 = await stock(p2, 1, family, c => regular(c) && !c1.some(x => x.species === c.species))
       theirs = c2[0]!
+      assert.ok(theirs, 'player 2 holds an observed free season card missing from player 1')
       mine = c1.find(c => c.species.startsWith('s') && c.species !== theirs.species)!
       assert.ok(theirs && mine, 'both players hold a tradeable season card')
       await p2.call('setForTrade', { cardId: theirs.id, forTrade: true })
@@ -729,8 +758,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
 
     let giftCard!: Card
     await step('a gift, claimed by a newcomer, and the bonus pack', async () => {
-      const team = (await p1.me()).player.team
-      giftCard = (await cardsOf(p1)).filter(c => free(c, clock.now(), team))[0]!
+      giftCard = (await stock(p1, 1))[0]!
       const { gift } = await p1.call('gift', { cardId: giftCard.id })
       assert.match(gift.code, /^[a-z]+-[a-z]+-[a-z]+-\d{4}$/)
       assert.ok((await p1.me()).gifts.some(g => g.code === gift.code))
@@ -780,12 +808,10 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
 
     await step('the market: sold for sparks while away, a swap, a race, a cancel and recent prices', async () => {
       const h1 = (await p1.me()).player.handle
-      const pool1 = async () => {
-        const team = (await p1.me()).player.team
-        return (await cardsOf(p1)).filter(c => free(c, clock.now(), team) && c.species.startsWith('s'))
-      }
-      const [forSparks, forSwap, forRace, kept] = await pool1()
+      // Prior exchanges may leave fewer than the four distinct cards this market flow consumes.
+      const [forSparks, forSwap, forRace, kept] = await stock(p1, 4, 'sonnet', regular)
       assert.ok(forSparks && forSwap && forRace && kept, 'four season cards to sell')
+      assert.equal(new Set([forSparks, forSwap, forRace, kept].map(c => c.id)).size, 4, 'each market operation uses a distinct owned card')
       const sold = (await p1.call('listCard', { cardId: forSparks.id, price: 30 })).listing
       assert.deepEqual([sold.seller, sold.price, sold.state, sold.day, sold.want], [h1, 30, 'open', utcDay(clock.now()), undefined])
       assert.equal((await cardsOf(p1)).find(c => c.id === forSparks.id)!.state, 'escrow', 'a listed card waits in escrow')
@@ -806,8 +832,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       const news = (await p1.me()).notices.find(n => n.kind === 'market-sold')!
       assert.deepEqual([news.day, news.handle], [utcDay(clock.now()), (await p2.me()).player.handle])
       // a swap: p2's card that fits what p1 wants
-      const t2 = (await p2.me()).player.team
-      const offerCard = (await cardsOf(p2)).find(c => free(c, clock.now(), t2) && c.id !== forSparks.id)!
+      const offerCard = (await stock(p2, 1, p2.family, c => c.id !== forSparks.id && c.id !== mine.id))[0]!
       const swap = (await p1.call('listCard', { cardId: forSwap.id, want: { family: offerCard.family, rarity: offerCard.rarity } })).listing
       await p2.fails('buyListing', { listingId: swap.id }, 'bad_request')
       const done = await p2.call('buyListing', { listingId: swap.id, cardId: offerCard.id })
@@ -885,8 +910,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       const a = await pageOf(add.url)
       assert.equal((await post('/passkey/add/finish', { ticket: a.ticket, ...(await auth.create(a.options, boot.origin)) })).status, 200)
       assert.deepEqual(await p2.call('authPoll', { pollId: add.pollId }), { status: 'added' })
-      const t2 = (await p2.me()).player.team
-      const listedCard = (await cardsOf(p2)).find(c => free(c, clock.now(), t2) && c.species.startsWith('s'))!
+      const listedCard = (await stock(p2, 1, p2.family, regular))[0]!
       const listing = (await p2.call('listCard', { cardId: listedCard.id, price: 12 })).listing
       const warned = async () => (await p2.me()).notices.filter(n => n.kind === 'new-device' && n.text === NOTICE_TEXT.newDevice()).length
       const warnedBefore = await warned()
@@ -923,8 +947,7 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
     await step('delete the account, totally', async () => {
       const { id } = (await boot.db.get<{ id: string }>('SELECT id FROM players WHERE handle = ?', handles.at(-1)!))!
       // an offer still waiting for the leaving player: its card must come home to its sender
-      const t2 = (await p2.me()).player.team
-      const waiting = (await cardsOf(p2)).find(c => free(c, clock.now(), t2))!
+      const waiting = (await stock(p2, 1))[0]!
       await p2.call('offer', { to: handles.at(-1)!, give: [waiting.id], get: [] })
       assert.deepEqual(await p1.call('deleteMe', {}), { deleted: true })
       await p1.fails('me', {}, 'unauthorized')

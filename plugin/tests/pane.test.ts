@@ -182,7 +182,7 @@ function namesIn(s: GameState): string[] {
   return [...new Set(faces.map(nameOf))].filter(n => n.length >= 5)
 }
 
-test('names are never cut, and every card tile with art is one control: its art over a button that opens it', { timeoutMs: 300_000 }, async ($, on) => {
+test('names are never cut; selectable card tiles have controls and the current team slot is explicitly disabled', { timeoutMs: 300_000 }, async ($, on) => {
   draws(on, p)
   for (const step of demoSteps(NOW).filter(s => !s.band)) {
     const names = namesIn(step.state)
@@ -196,13 +196,37 @@ test('names are never cut, and every card tile with art is one control: its art 
         walk(tree, n => { if (n.type === 'Text' || n.type === 'Button') shown.push(textOf(n)) })
         const cut = names.filter(name => shown.some(s => [...Array(name.length - 3).keys()].some(k => s.includes(`${name.slice(0, k + 3)}…`))))
         expect({ where, cut }).toEqual({ where, cut: [] })
+        const view = step.state.pane.stack.at(-1)
+        let currentSlotArt: string | undefined
+        if (view?.kind === 'team-slot') {
+          const team = step.state.me!.player.team
+          const current = team.indexOf(view.cardId)
+          for (const [slot, cardId] of team.entries()) {
+            const key = `team-choice-${slot}-card`
+            const choice = all(tree, 'Box').find(n => n.props?.key === `team-choice-${slot}`)
+            expect({ where, slot, drawn: !!choice }).toEqual({ where, slot, drawn: true })
+            expect(textOf(choice)).toContain(nameOf(step.state.cards.find(c => c.id === cardId)!))
+            const pick = await ui.find({ key: key + '-pick' })
+            const action = await ui.find({ key: `team-slot-${slot}` })
+            if (slot === current) {
+              currentSlotArt = key + '-art'
+              expect(pick).toBeUndefined()
+              expect(action).toBeUndefined()
+              expect(all(choice, 'Client')).toHaveLength(0)
+              expect(textOf(choice)).toContain('Here now')
+            } else {
+              expect(pick?.type).toBe('Button')
+              expect(action?.props).toMatchObject({ label: current >= 0 ? 'Swap' : 'Replace', hotkey: String(slot + 1) })
+            }
+          }
+        }
         if (surface === 'terminal') {
           const buttons = new Set(all(tree, 'Button').map(b => String(b.props?.key ?? '')))
           // a profile's team is shown, not picked; a listing's wanted creature is part of its tile
           const tiles = all(tree, 'Raster').map(r => String(r.props?.key ?? ''))
             .filter(k => /^(card|listing|team|mine|their|partner|fit)-.+-art$/.test(k) && !/-want-|^their-team-|^listing-card-art$/.test(k))
           const unpressable = tiles.filter(k => !buttons.has(k.replace(/-art$/, '-pick')))
-          expect({ where, unpressable }).toEqual({ where, unpressable: [] })
+          expect({ where, unpressable }).toEqual({ where, unpressable: currentSlotArt ? [currentSlotArt] : [] })
         }
         await ui.unmount()
       }
@@ -311,7 +335,7 @@ test('tabs switch with 1-4 on a tab, and a pushed view keeps the digits for its 
   await ui.unmount()
 })
 
-test('a card page: set in team in place of the weakest, mark for trade, recycle and gift behind a 2-second hold', { timeoutMs: 60_000 }, async ($, on) => {
+test('a card page: choose a team slot, mark for trade, recycle and gift behind a 2-second hold', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
   const s = demoSteps(NOW).find(x => x.title === 'Card · a legendary shiny foil')!.state
   p.state = s
@@ -319,14 +343,19 @@ test('a card page: set in team in place of the weakest, mark for trade, recycle 
   const cardId = (s.pane.stack[0] as { cardId: string }).cardId
   for (const surface of SURFACES) {
     p.state = s
+    p.calls = []
     const ui = await $.ui.mount(MOUNT(80, surface))
     const set = await ui.find({ key: 'set-team' })
     expect(set?.props).toMatchObject({ hotkey: '1', variant: 'primary' })
-    expect(String(set?.props.label)).toMatch(/^Set in team, for /)
+    expect(set?.props.label).toBe('Set in team')
     await press(ui, 'set-team')
+    expect(p.state.pane.stack.at(-1)).toEqual({ kind: 'team-slot', cardId })
+    expect(p.calls.some(([name]) => name === 'setTeam')).toBe(false)
+    await press(ui, 'team-slot-1')
     const [name, args] = p.calls.at(-1)!
     expect(name).toBe('setTeam')
-    expect((args[0] as string[]).includes(cardId)).toBe(true)
+    expect(args[0]).toEqual(s.me!.player.team.map((id, i) => i === 1 ? cardId : id))
+    await press(ui, 'pane-back')
     await press(ui, 'for-trade')
     expect(p.calls.at(-1)).toEqual(['setForTrade', [cardId, true]])
     await press(ui, 'recycle')
@@ -720,7 +749,7 @@ test('view models: team places, trader picks, filters, pages, reveal words', () 
   expect(tradeSection(2, false)).toBe('trader')
   expect(tradeSection(0, true)).toBe('trader')
   const pack = steps.find(x => x.title === 'Pack · the summary')!.state.reveal!
-  expect(revealSummary(pack)).toBe('2 cards · 2 new species · Album 14/36 (+2)')
+  expect(revealSummary(pack)).toBe('1 card · 1 new species · Album 13/36 (+1)')
   expect(holdText('recycle', outsider.id, s, NOW)).toMatch(/will be gone\. You get \d+ sparks\./)
   expect(holdText('reset-access', 'me', s, NOW)).toBe('Other machines sign out and saved passkeys are removed.')
   // one of a thing reads as one: "1 first", "1 Mythic"

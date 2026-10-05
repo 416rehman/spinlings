@@ -385,22 +385,33 @@ test('Guardian toughens the next ally after it faints', () => {
 })
 
 test('20-round limit, 30 on Long Day, tiebreak by remaining HP fraction', () => {
-  let found = 0
-  for (let i = 0; i < 3000 && found < 5; i++) {
-    const s = randomDuel(i, 'calm', 6)
+  // Equal chip damage with unequal HP proves fraction-based wins/losses; equal HP proves a draw. Nobody faints.
+  const team = (tag: string, hp: number) => Array.from({ length: 3 }, (_, i) => fighter('haiku', {
+    id: `${tag}${i}`, traits: ['swift'], stats: { hp: hp * (i + 1), atk: 1, def: 9999, spd: 20 },
+  }))
+  for (const [aHp, dHp, result] of [[2000, 1000, 'win'], [1000, 2000, 'loss'], [1000, 1000, 'draw']] as const) {
+    const s = setup(team('a', aHp), team('d', dHp), { seed: 'round-limit', arena: 'haiku' })
     const log = simulateBattle(s, [])
-    assert.ok(log.rounds.length <= 20)
+    assert.equal(log.rounds.length, 20)
     const last = log.rounds[log.rounds.length - 1]!
-    if (log.rounds.length < 20 || last.active.a < 0 || last.active.d < 0) continue
-    found++
+    assert.deepEqual(log.fainted, { a: [], d: [] })
     const sum = (a: number[]) => a.reduce((x, y) => x + y, 0)
     const fa = sum(last.hp.a) / sum(log.maxHp.a), fd = sum(last.hp.d) / sum(log.maxHp.d)
     assert.equal(log.result, fa > fd ? 'win' : fa < fd ? 'loss' : 'draw')
+    assert.equal(log.result, result)
     const long = simulateBattle({ ...s, rule: 'longDay' }, [])
-    assert.deepEqual(long.rounds.slice(0, 20), log.rounds)
-    assert.ok(long.rounds.length > 20 && long.rounds.length <= 30)
+    assert.equal(long.rounds.length, 30)
+    assert.deepEqual(long.fainted, { a: [], d: [] })
+    assert.deepEqual(long.rounds.slice(0, 19), log.rounds.slice(0, 19))
+    // The cap hides the next action in Calm, while Long Day still announces round 21. Combat itself is identical.
+    assert.deepEqual({ ...long.rounds[19], attackerSpecialReady: false }, last)
+    assert.equal(last.attackerSpecialReady, false)
+    assert.equal(long.rounds[19]!.attackerSpecialReady, true)
+    const longLast = long.rounds[29]!
+    const longFa = sum(longLast.hp.a) / sum(long.maxHp.a), longFd = sum(longLast.hp.d) / sum(long.maxHp.d)
+    assert.equal(long.result, longFa > longFd ? 'win' : longFa < longFd ? 'loss' : 'draw')
+    assert.equal(long.result, result)
   }
-  assert.ok(found >= 3, `found ${found} long battles`)
 })
 
 test('results, fainted lists, active slots and participants', () => {

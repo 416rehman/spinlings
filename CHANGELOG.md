@@ -2,6 +2,16 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.9 (2026-10-04)
+
+- **Connect in one step.** Confirming a community server joins its online world immediately, including from offline. Cancel keeps the current world, and no request goes to a new community server before Connect. `/spin server default` resumes the default online account; each server's collection and the offline save stay separate.
+- **Choose your team slots.** Set in team and Change slot show every teammate, so you choose the replacement or swap. Replaced cards stay in your collection. Pack results use the same picker; empty slots match the occupied artwork size.
+- **One card per pack, no rarity guarantee.** Each card uses the ordinary 70% common, 22% rare, 7% epic and 1% legendary odds. Price, charge pace, welcome-pack count and trading rules are unchanged. Existing cards stay owned. Older supported online mods receive one card without updating; older offline mods retain their bundled pack rules.
+- **Open packs above the prompt.** Preview, Open, Close and Sidebar make the opening explicit. Closing a sealed preview keeps the pack; closing after opening keeps the card. Moving to the sidebar preserves the opening and never consumes another pack. An empty-pack command shows the normal next-pack countdown.
+- **Set your own market price.** Enter an exact whole-spark price before confirming a listing. Recent matching sales show the last price, and an average with a sample count when at least two sales match. A plain crafting cost is also available as a reference.
+- **Named Mythics.** Dario, Marshmallow Menace, Noodle Knight and Soggy Emperor each get one ordinary Mythic encounter worldwide. The usual encounter/catch odds, generated form and stats remain. A new migration stores only permanent roster ids, containing no player identity or time. Deleting an account cannot respawn a named Mythic.
+- **Compatibility and privacy.** API v1, rules 1, generator 2, offline format 1, minimum client, request fields and public player fields stay unchanged. Named forms fit existing readers; historical fixtures, engines and generators remain immutable. Website styling is preserved.
+
 ## 0.2.8 (2026-10-04)
 
 - **Repair artwork selection in Claude Desktop.** The invisible artwork selection region now includes the accessibility text Desktop requires. This prevents Desktop from rejecting the region and showing a `Client hooks` error over the creature. A clipped margin keeps the artwork's bottom and right edges clickable. Rarity, family, names and native controls keep their existing behavior.

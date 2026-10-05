@@ -678,7 +678,7 @@ describe('reference pages', () => {
     const E = ECONOMY
     for (const want of [
       `1 in ${Math.round(1 / E.wild.mythicChance)}`, `1 in ${Math.round(1 / E.shiny.chance)}`, `1 in ${Math.round(1 / E.foil.chance)}`,
-      `${E.battle.catchChance * 100}%`, `${E.packs.odds[0]![1]}%`, `${E.packs.lastSlotOdds[0]![1]}%`, `${E.wild.rarity[0]![1]}%`,
+      `${E.battle.catchChance * 100}%`, `${E.packs.odds[0]![1]}%`, `${E.wild.rarity[0]![1]}%`,
       `${E.packs.bank} unopened packs`, `${E.battle.bountyChance * 100}%`,
     ]) assert.ok(text.includes(want), want)
   })

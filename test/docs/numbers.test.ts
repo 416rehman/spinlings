@@ -91,9 +91,8 @@ const CLAIMS: Record<string, Claim[]> = {
     ['stage 3 is #% stronger', gain(S.stageMult[2])],
     ['**Starters** begin at level #, # XP short of level #', E.starter.level, L.xpPerLevel * E.starter.level - E.starter.xp, L.evolveAt[0]],
     ['About 1 wild encounter in #', oneIn(W.mythicChance)],
-    ['A pack holds # cards', P.size],
+    ['A pack holds # card', P.size],
     ['| # | #% | #% | #% | #% |', 1, ...weights(P.odds)],
-    ['| # | – | #% | #% | #% |', P.size, ...weights(P.lastSlotOdds)],
     ['shiny (1 in #) and foil (1 in #) on its own', oneIn(E.shiny.chance), oneIn(E.foil.chance)],
     ['Every # minutes that Claude Code is open', P.presenceMinutes],
     ['Charges are at least # minutes apart (# minutes beyond # charges in any # hours',
@@ -211,7 +210,7 @@ describe('the numbers the docs quote are the ones the game plays by', () => {
   it('a pack recycles for well under its price, as how-to-play.md says', () => {
     const value = (odds: readonly (readonly [Rarity, number])[]) => odds.reduce((sum, [r, w]) =>
       sum + (w / 100) * E.recycle[r] * (1 + E.shiny.chance * (E.recycleShiny - 1)) * (r === 'legendary' ? E.recycleFoil : 1 + E.foil.chance * (E.recycleFoil - 1)), 0)
-    const pack = (P.size - 1) * value(P.odds) + value(P.lastSlotOdds)
+    const pack = P.size * value(P.odds)
     assert.ok(pack < 0.75 * P.buyCost, `a pack recycles for about ${pack.toFixed(0)} sparks against its ${P.buyCost}`)
   })
 })

@@ -205,12 +205,15 @@ test('a loss: fainted starters rest for 15 minutes and the bench steps in; the s
   await w.backend.me({})
   await battle(w, 'wild', 'win')
   w.now += B.wildSpacingMs
-  const packs = (await w.backend.me({})).packs.slice(0, 2)
-  assert.equal(packs.length, 2, 'two real packs supply enough rested bench creatures for all three starters')
+  const needed = Math.ceil(3 / ECONOMY.packs.size)
+  const packs = (await w.backend.me({})).packs.slice(0, needed)
+  assert.equal(packs.length, needed, 'real packs supply a rested bench creature for every starter')
   for (const pack of packs) await w.backend.openPack({ packId: pack.id })
-  const { done } = await battle(w, 'wild', 'loss')
+  const { start, done } = await battle(w, 'wild', 'loss')
   assert.deepEqual([done.streak, done.sparks, done.catchOptions.length], [0, B.sparks.loss, 0])
   assert.equal(done.tired.length, 3)
+  assert.deepEqual(done.log.fainted.a, [0, 1, 2])
+  assert.deepEqual([...done.tired].sort(), start.setup.attacker.map(c => c.id).sort())
   const cards = (await w.backend.cards({})).cards
   for (const id of done.tired) assert.equal(cards.find(c => c.id === id)!.tiredUntil, w.now + B.tiredMs)
   w.now += B.duelSpacingMs

@@ -8,6 +8,8 @@ import { expect, mock, test } from 'claude-code/testing'
 import { NEXT, NOW, ORIGIN, OTHER_TOKEN, TOKEN, fakeServer } from './fixtures.ts'
 import { BAND, PANE, RUN, SESSION, engine, settle, textOf, walk } from './engine.ts'
 import type { Engine } from './engine.ts'
+import type { Card } from '../hooks/core/types.ts'
+import { parseResponse } from '../hooks/core/schemas.ts'
 
 const LONG = { timeoutMs: 120_000 }
 
@@ -28,7 +30,16 @@ test('every /spin subcommand answers {} and does what it says', LONG, async ($, 
   await run('help')
   expect(w.logs.at(-1)).toMatch(/\/spin leaderboard \[on\|off\][\s\S]*\/spin handle \[new\]/)
   await run('pack')
-  expect(sent(w)).toContain('POST /v1/packs/open')
+  expect(sent(w)).not.toContain('POST /v1/packs/open')
+  const preview = await $.ui.mount(BAND(80))
+  expect((await preview.find({ key: 'inline-pack-open' }))?.props.label).toBe('Open')
+  await preview.press({ key: 'inline-pack-open' })
+  await settle(clock)
+  expect(sent(w).filter(x => x === 'POST /v1/packs/open')).toHaveLength(1)
+  await preview.redraw()
+  await preview.press({ key: 'inline-pack-close' })
+  await settle(clock)
+  await preview.unmount()
   await run('team starter-0 starter-1 shiny-foil')
   expect(bodyOf(w, 'PUT /v1/team')).toEqual({ cardIds: ['starter-0', 'starter-1', 'shiny-foil'] })
   expect(w.logs.at(-1)).toBe('Team set.')
@@ -131,27 +142,96 @@ test('signing in with a passkey: this computer plays as that account from the po
 
 test('chimes play only with sound on, for rare and better, and never while quiet', LONG, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
-  const w = engine(on)
+  const server = fakeServer(), handle = server.handle.bind(server)
+  // Rarity is explicit test data: packs no longer promise any rarity. Cover a rare card with sound off,
+  // then common and rare cards with sound on, and a real rare redeem while quiet.
+  server.me = { ...server.me, packs: [...server.me.packs, { ...server.me.packs[0]!, id: 'pack-chime-rare' }] }
+  server.handle = (url, init) => {
+    const answer = handle(url, init)
+    if (answer.ok && (url.endsWith('/v1/packs/open') || url.endsWith('/v1/redeem'))) {
+      const parsed = JSON.parse(answer.text) as { cards: Card[] }
+      const common = url.endsWith('/v1/packs/open') && JSON.parse(init?.body ?? '{}').packId === 'pack-welcome-2'
+      parsed.cards = parsed.cards.map(({ firstFind: _first, ...c }) => ({ ...c, rarity: common ? 'common' : 'rare' }))
+      parseResponse(url.endsWith('/v1/packs/open') ? 'openPack' : 'redeem', parsed)
+      server.cards = server.cards.map(c => parsed.cards.find(got => got.id === c.id) ?? c)
+      return { ...answer, text: JSON.stringify(parsed) }
+    }
+    return answer
+  }
+  const w = engine(on, server)
   await $.session.start(SESSION)
   await settle(clock)
   const openAll = async () => {
     await $.command.run(RUN('pack'))
+    await settle(clock)
+    const preview = await $.ui.mount(BAND(80))
+    expect((await preview.find({ key: 'inline-pack-open' }))?.props.label).toBe('Open')
+    await preview.press({ key: 'inline-pack-open' })
+    await settle(clock)
+    await preview.redraw()
+    expect({ label: (await preview.find({ key: 'inline-pack-open' }))?.props.label, text: textOf(await preview.drawn()) })
+      .toMatchObject({ label: 'Flip next' })
+    await preview.press({ key: 'inline-pack-open' })
+    await settle(clock)
     for (let i = 0; i < 40; i++) await clock.advance(1000)
     await settle(clock)
+    await preview.redraw()
+    await preview.press({ key: 'inline-pack-close' })
+    await settle(clock)
+    await preview.unmount()
   }
   await openAll()
   expect(w.sounds).toEqual([])
   await $.command.run(RUN('sound on'))
   await openAll()
-  // a pack's fifth card is always rare or better
+  expect(w.sounds).toEqual([])
+  await openAll()
   expect(w.sounds.length).toBeGreaterThan(0)
-  expect(w.sounds.every(s => /^assets\/chime-(rare|legendary|first)\.wav$/.test(s))).toBe(true)
+  expect(w.sounds.every(s => s === 'assets/chime-rare.wav')).toBe(true)
   const heard = w.sounds.length
   await $.command.run(RUN('quiet on'))
+  const cards = w.server.cards.length
   await $.command.run(RUN('redeem FOUNDERS'))
   for (let i = 0; i < 20; i++) await clock.advance(1000)
   await settle(clock)
+  expect(w.server.cards).toHaveLength(cards + 1)
+  expect(w.server.cards.at(-1)?.rarity).toBe('rare')
   expect(w.sounds.length).toBe(heard)
+})
+
+test('an opened inline pack flips automatically on both surfaces without a mounted sidebar or another press', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW }), w = engine(on)
+  let flipped = 0
+  // Observe the real host atom writes; preserve its state/CAS behavior instead of supplying a fake state table.
+  on('state.set', (_$, e, next) => {
+    if (e.key === 'pane') flipped = (e.value as { flipped: number }).flipped
+    return next(e)
+  })
+  await $.session.start(SESSION)
+  await settle(clock)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    await $.command.run(RUN('pack'))
+    await settle(clock)
+    const ui = await $.ui.mount(BAND(80, surface))
+    expect((await ui.find({ key: 'inline-pack-open' }))?.props.label).toBe('Open')
+    expect(flipped).toBe(0)
+    await ui.press({ key: 'inline-pack-open' })
+    await settle(clock)
+    // Flush timer callbacks and their asynchronous state reads between clock steps, as the real clock does.
+    for (let i = 0; i < 150 && flipped < 1; i++) {
+      await clock.advance(100)
+      await settle(clock)
+    }
+    expect(flipped).toBe(1)
+    await ui.redraw()
+    expect(await ui.find({ text: '1 card added to Collection' })).toBeDefined()
+    expect(await ui.find({ key: 'inline-pack-open' })).toBeUndefined()
+    expect(w.opened).toBe(0)
+    await ui.press({ key: 'inline-pack-close' })
+    await settle(clock)
+    await ui.unmount()
+  }
+  expect(w.requests.filter(r => r.url.endsWith('/v1/packs/open'))).toHaveLength(2)
 })
 
 test('a newer mod is announced in the band once, and stays gone once acknowledged', LONG, async ($, on) => {

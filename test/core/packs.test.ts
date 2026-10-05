@@ -13,9 +13,9 @@ import { recycleValue, stageFor, starterTeam, toBattleCard } from '../../plugin/
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { fighter, NOW, near } from './helpers.ts'
 
-test('a pack is exactly 2 fresh cards of its family and season', () => {
+test('a pack is exactly 1 fresh card of its family and season', () => {
   const cards = rollPack('fable', 1, rngFromSeed('p'), NOW, 'calm')
-  assert.equal(cards.length, 2)
+  assert.equal(cards.length, 1)
   for (const c of cards) {
     assert.equal(c.family, 'fable')
     assert.equal(c.season, 1)
@@ -26,16 +26,16 @@ test('a pack is exactly 2 fresh cards of its family and season', () => {
   assert.deepEqual(rollPack('fable', 1, rngFromSeed('p'), NOW, 'calm'), cards)
 })
 
-test('pack odds: slot 1 70/22/7/1, slot 2 75/21/4, legendary means the family legendary', () => {
+test('pack odds are 70/22/7/1 with no rarity guarantee; a legendary is the family legendary', () => {
   const rng = rngFromSeed('odds')
   const early: Record<Rarity, number> = { common: 0, rare: 0, epic: 0, legendary: 0 }
-  const last: Record<Rarity, number> = { common: 0, rare: 0, epic: 0, legendary: 0 }
   let shiny = 0
   const packs = 12_000
   for (let i = 0; i < packs; i++) {
     const cards = rollPack('haiku', 2, rng, NOW, 'calm')
-    cards.forEach((c, slot) => {
-      ;(slot === 0 ? early : last)[c.rarity]++
+    assert.equal(cards.length, 1)
+    cards.forEach(c => {
+      early[c.rarity]++
       if (c.shiny) shiny++
       const s = getSpecies(c.species)!
       assert.equal(s.legendary, c.rarity === 'legendary')
@@ -44,9 +44,7 @@ test('pack odds: slot 1 70/22/7/1, slot 2 75/21/4, legendary means the family le
   }
   const n = packs
   assert.ok(near(early.common, n, 0.7) && near(early.rare, n, 0.22) && near(early.epic, n, 0.07) && near(early.legendary, n, 0.01), JSON.stringify(early))
-  assert.equal(last.common, 0)
-  assert.ok(near(last.rare, packs, 0.75) && near(last.epic, packs, 0.21) && near(last.legendary, packs, 0.04), JSON.stringify(last))
-  assert.ok(near(shiny, packs * 2, 0.01), `shiny ${shiny}`)
+  assert.ok(near(shiny, packs, 0.01), `shiny ${shiny}`)
 })
 
 test('a bought pack recycles for well under its price, even in Shiny Hour: buying is never a sparks pump', () => {
@@ -80,7 +78,7 @@ test('shiny hour makes shinies 1 in 25', () => {
   const rng = rngFromSeed('shiny-hour')
   let shiny = 0
   for (let i = 0; i < 4000; i++) shiny += rollPack('sonnet', 1, rng, day + 18.5 * 3_600_000).filter(c => c.shiny).length
-  assert.ok(near(shiny, 4000 * 2, 1 / 25), `${shiny}`)
+  assert.ok(near(shiny, 4000, 1 / 25), `${shiny}`)
 })
 
 test('wild teams: 1-3 creatures, current season, no legendaries, levels within one', () => {

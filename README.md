@@ -46,7 +46,7 @@ The Code tab in Claude Desktop needs a bundled Claude Code version that supports
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
 
 ```sh
-git clone --branch v0.2.7 https://github.com/416rehman/spinlings
+git clone --branch v0.2.9 https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 
@@ -66,12 +66,19 @@ Optional: turn on updates in `/plugin` → Marketplaces → spinlings → Enable
 
 ## See it
 
-**A pack opening.** Two backs wait face down, and the rare ones glow before they flip. This one glows gold.
+<p align="center">
+  <img src="docs/media/desktop-team-0.2.9.png" width="644" alt="A three-creature team in Claude Desktop.">
+  <img src="docs/media/desktop-team-picker-0.2.9.png" width="644" alt="Choose which teammate to replace or swap.">
+  <img src="docs/media/desktop-market-0.2.9.png" width="622" alt="Set an exact selling price in Claude Desktop.">
+  <img src="docs/media/desktop-pack-0.2.9.png" width="768" alt="A pack preview above the Claude Desktop input, with Open, Close and Sidebar.">
+</p>
+
+**A pack opening.** One card waits face down. Every pack rolls freely, with no guaranteed rarity; a rare result glows before it flips.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/pack-dark.svg">
-    <img src="docs/media/pack-light.svg" width="864" alt="Two cards emerge from an Opus pack, including a legendary foil.">
+    <img src="docs/media/pack-light.svg" width="864" alt="A legendary foil emerges from an Opus pack.">
   </picture>
 </p>
 
@@ -123,6 +130,8 @@ You never lose a card in battle. A card that faints is tired for 15 minutes, and
 
 About 1 wild encounter in 40 is led by a **Mythic**: a creature generated on the spot that has never existed before and never will again. If it gets away, it is gone forever.
 
+Legendary is the highest ordinary rarity. Mythics are rarer still: online, named visitors such as **Dario**, **Marshmallow Menace**, **Noodle Knight** and **Soggy Emperor** each have a single encounter in the whole world.
+
 ### When Claude is idle
 
 | Activity | Needs Claude working? |
@@ -151,13 +160,15 @@ There is one command, `/spin`. On its own it opens the pane, with four tabs (Tea
 
 Community opens on your Profile, with a section bar for Profile, Market, Rankings and Trading. Market and Rankings appear on online servers that support them; offline, Profile and the Wandering Trader remain available. Open a card, listing or player for details, then Back returns to the section you were using. Every card, pack and board row is a button: press it (or Tab to it) to open it. Press the daily rule to see its effect, or Help for a short field guide.
 
+Open a card and choose **Set in team** or **Change slot**, then choose the teammate to replace or the slot to swap. A replaced creature stays in your collection. When selling, you choose the exact spark price; recent matching sales provide a reference.
+
 | Command | What it does |
 |---|---|
 | `/spin` | Open the pane |
 | `/spin battle` | Start a duel now (at most one every 2 minutes) |
 | `/spin duel <handle>` | Challenge one player's saved team: a friendly duel that moves no rating |
 | `/spin market` | Open Community → Market: buy cards for sparks or a card, and see your own listings |
-| `/spin pack` | Open the pack view |
+| `/spin pack` | Preview a waiting pack above the prompt; Open, Close or move it to the sidebar |
 | `/spin team <a> <b> <c>` | Set your team from one to three cards, by name or id; slot order is play order |
 | `/spin trade <handle>` | Open a player's profile to make an offer |
 | `/spin gift <card>` / `/spin claim <code>` | Make a gift code, or claim one |

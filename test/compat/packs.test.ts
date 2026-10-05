@@ -1,4 +1,4 @@
-// Pack size is a game rule, not a new wire contract: released readers must accept a two-card answer,
+// Pack size is a game rule, not a new wire contract: released readers must accept a one-card answer,
 // and the current reader must still accept an older server's five-card answer during rollout.
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -12,7 +12,7 @@ import type { Exchange, Flow, Reader } from './harness.ts'
 const fixtures = new URL('./fixtures/', import.meta.url)
 const versions = readdirSync(fileURLToPath(fixtures), { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)
 
-for (const version of versions) it(`${version} opens and keeps exactly two cards without updating`, async () => {
+for (const version of versions) it(`${version} opens and keeps exactly one card without updating`, async () => {
   const reader = await import(new URL(`${version}/schemas.ts`, fixtures).href) as Reader
   const s = server()
   const p = await s.join()
@@ -22,11 +22,11 @@ for (const version of versions) it(`${version} opens and keeps exactly two cards
   assert.equal(response.status, 200)
   const body = await response.json() as OpenPackResponse
   const parsed = reader.parseResponse('openPack', body) as OpenPackResponse
-  assert.equal(body.cards.length, 2)
-  assert.equal(parsed.cards.length, 2, 'the released reader keeps both cards')
+  assert.equal(body.cards.length, 1)
+  assert.equal(parsed.cards.length, 1, 'the released reader keeps the card')
   assert.deepEqual(parsed.cards.map(c => c.id), body.cards.map(c => c.id))
   const after = (await p.call('cards')).cards
-  assert.equal(after.length, before.length + 2)
+  assert.equal(after.length, before.length + 1)
   for (const card of before) assert.deepEqual(after.find(c => c.id === card.id), card)
   for (const card of body.cards) assert.deepEqual(after.find(c => c.id === card.id), card)
   assert.ok(!(await p.call('me')).packs.some(k => k.id === pack.id))
