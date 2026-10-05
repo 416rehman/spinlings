@@ -18,6 +18,7 @@ import { band } from './ui/band.tsx'
 import { ceremony } from './ui/ceremony.tsx'
 import { pane } from './ui/pane.tsx'
 import { launcher } from './ui/launcher.tsx'
+import type { LauncherState } from './ui/launcher.tsx'
 import { prepareCardHit, clearCardHits } from './ui/card-hit-state.ts'
 
 // The slots: the band (ui/band*.tsx, client/scheduler.ts), prompt launcher, pane and its ceremonies
@@ -163,6 +164,14 @@ async function readBand($: Engine): Promise<BandState & { clock: number }> {
     read($, prefsAtom), read($, clockAtom), read($, revealAtom), read($, paneAtom),
   ])
   return { account, me, cards, signals, battle, moments, prefs, clock, reveal, pane } as BandState & { clock: number }
+}
+
+/** Only local, already-loaded state for the composer; rendering never asks for a board. */
+async function readLauncher($: Engine): Promise<LauncherState> {
+  const [account, me, battle, prefs, signals, social] = await Promise.all([
+    read($, accountAtom), read($, meAtom), read($, battleAtom), read($, prefsAtom), read($, signalsAtom), read($, socialAtom),
+  ])
+  return { account, me, battle, prefs, signals, social } as LauncherState
 }
 
 // ---------- effects: the only door from the game to $ ----------
@@ -367,7 +376,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     if (e.surface !== 'terminal') return next(e)
     const theirs = await next(e)
-    const state = await readBand($)
+    const state = await readLauncher($)
     const fx = fxOf($, e.surface)
     const tree = launcher({ el: $.ui.resolve(e) as unknown as El, state, theirs, open: () => { void game.actions(fx).open() } })
     game.launcherDrawn(fx, e.surface, !state.prefs.quiet)
@@ -377,7 +386,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
     if (e.surface !== 'desktop') return next(e)
     const theirs = await next(e)
-    const state = await readBand($)
+    const state = await readLauncher($)
     const fx = fxOf($, e.surface)
     const tree = launcher({ el: $.ui.resolve(e) as unknown as El, state, theirs, open: () => { void game.actions(fx).open() } })
     game.launcherDrawn(fx, e.surface, !state.prefs.quiet)

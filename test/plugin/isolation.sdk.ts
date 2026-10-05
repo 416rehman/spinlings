@@ -68,6 +68,11 @@ test('an offline session, then online: nothing from the offline save reaches the
   // offline from the start: the world a player chose with /spin world, as the store keeps it
   w.store.set('prefs', { world: 'offline' })
   const status = () => w.status.at(-1) ?? ''
+  const local = () => {
+    const opened = openSave(w.store.get('offline:v1'))
+    if (opened.kind !== 'ok') throw new Error(`the offline save is ${opened.kind}`)
+    return opened.state
+  }
   const until = async (done: () => boolean, seconds = 150) => {
     for (let i = 0; i < seconds && !done(); i++) await clock.advance(1000)
     await settle(clock)
@@ -90,7 +95,7 @@ test('an offline session, then online: nothing from the offline save reaches the
   // ---------- offline: the welcome, both packs, a wild encounter and its catch, a Rival duel ----------
   await $.session.start(SESSION)
   await settle(clock)
-  expect(status()).toBe('Offline · 2 packs')
+  expect(status()).toBe('▪')
   const initial = openSave(w.store.get('offline:v1'))
   if (initial.kind !== 'ok') throw new Error(`the initial offline save is ${initial.kind}`)
   await openPack()
@@ -100,18 +105,28 @@ test('an offline session, then online: nothing from the offline save reaches the
   expect(opened.state.packs).toEqual([])
   expect(opened.state.cards).toHaveLength(initial.state.cards.length + 2)
   expect(opened.state.cards.filter(c => !initial.state.cards.some(s => s.id === c.id))).toHaveLength(2)
-  expect(status()).toBe('Offline')
+  expect(status()).toBe('')
   await $.turn.start({ text: 'x', turnId: 't1' } as never)
-  await until(() => /wild/.test(status()), 30)
-  expect(status()).toMatch(/^wild /)
-  await until(() => !/wild/.test(status()))
+  await until(() => local().battle?.state === 'open', 30)
+  const wild = local().battle
+  expect(wild).toMatchObject({ state: 'open', rival: null, setup: { kind: 'wild' } })
+  if (!wild || wild.state !== 'open') throw new Error('the offline wild encounter did not start')
+  await until(() => local().done.includes(wild.id))
+  expect(local().done).toContain(wild.id)
   await $.turn.complete({ turnId: 't1', answer: '', durationMs: 90_000, isAborted: false, reason: 'answer' } as never)
   await until(() => false, 30)
+  expect(local().wildWon).toBe(true)
+  expect(local().cards.some(c => c.origin === 'catch' && !opened.state.cards.some(before => before.id === c.id))).toBe(true)
   await clock.advance(3 * 60_000)
   await $.command.run(RUN('battle'))
   await settle(clock)
-  expect(status()).toMatch(/^vs Rival /)
-  await until(() => !/^vs /.test(status()))
+  const duel = local().battle
+  expect(duel).toMatchObject({ state: 'open', setup: { kind: 'duel' } })
+  if (!duel || duel.state !== 'open') throw new Error('the offline Rival duel did not start')
+  expect(duel.rival).not.toBeNull()
+  await until(() => local().done.includes(duel.id))
+  expect(local().done).toContain(duel.id)
+  expect(local().battles).toBe(initial.state.battles + 2)
   await until(() => false, 30)
   expect(w.requests).toEqual([])
   expect(w.reads.filter(k => k.startsWith('server:'))).toEqual([])
@@ -126,7 +141,7 @@ test('an offline session, then online: nothing from the offline save reaches the
   const readsBefore = w.reads.length
   await $.command.run(RUN('world online'))
   await settle(clock)
-  expect(status()).toBe('Online · 2 packs')
+  expect(status()).toBe('▪')
   await openPack()
   await clock.advance(3 * 60_000)
   await $.command.run(RUN('battle'))

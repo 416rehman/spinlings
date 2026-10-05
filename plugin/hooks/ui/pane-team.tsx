@@ -3,6 +3,7 @@
 // Revenge, evolutions, gifts, sales, season ends). Other players show by handle and day only.
 import type { RenderElement } from 'claude-code'
 import { FAMILY_INFO } from '../core/families.ts'
+import { comfortLine } from '../client/session.ts'
 import { dayLabel, dots, safe, span } from '../client/text.ts'
 import { teamSlots, today } from '../client/viewmodels.ts'
 import type { Slot } from '../client/viewmodels.ts'
@@ -126,6 +127,7 @@ export function teamScreen(c: Ctx): Shown {
         <Text bold>{me.packs.length ? `Packs · ${me.packs.length} ready` : 'Packs'}</Text>,
         me.packs.length ? btn(c, { key: 'open-pack', label: 'Open pack', hotkey: c.root ? 'o' : undefined, primary: c.root, on: () => c.actions.openPack() }) : null,
       ])}
+      {c.state.signals.restingUntil !== null ? para(c, comfortLine(c.state.signals.restingUntil), { dim: true }) : null}
       {meter(c)}
       {packStrip(c)}
     </Box>,

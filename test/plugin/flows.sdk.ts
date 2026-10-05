@@ -76,7 +76,7 @@ test('every /spin subcommand answers {} and does what it says', LONG, async ($, 
   await run('quiet on')
   expect(w.status.at(-1)).toBeUndefined()
   await run('quiet off')
-  expect(w.status.at(-1)).toMatch(/^Online/)
+  expect(w.status.at(-1)).toBe('▪')
   await run('server')
   expect(w.logs.at(-1)).toBe('Server: spinlings.dev')
   const worldRequests = w.requests.length, worldPrefs = JSON.stringify(w.store.get('prefs'))
@@ -151,6 +151,67 @@ test('signing in with a passkey: this computer plays as that account from the po
   expect(w.logs.at(-1)).toMatch(/^You are misty-lark-18/)
   // the poll never carries the token, and no URL ever does
   expect(w.requests.filter(r => r.url.includes('/auth/poll/')).every(r => r.headers.authorization === undefined)).toBe(true)
+})
+
+test('a board response from before same-server passkey sign-in cannot repopulate the new account\'s rankings', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  let release!: () => void, served!: () => void
+  const resume = new Promise<void>(resolve => { release = resolve })
+  const reached = new Promise<void>(resolve => { served = resolve })
+  let held = false
+  // Capture the old account's genuine fixture response before delaying it. The server, path and rank board stay
+  // the same across sign-in; a world-only guard cannot distinguish the account that requested this answer.
+  const w = engine(on, fakeServer(), request => {
+    if (!held && new URL(request.url).pathname === '/v1/leaderboards') {
+      held = true
+      served()
+      return resume
+    }
+  })
+  await $.session.start(SESSION)
+  await settle(clock)
+  const reading = $.command.run(RUN('leaderboard'))
+  await reached
+  const ui = await $.ui.mount(PANE(80, 'desktop'))
+  try {
+    await $.command.run(RUN('devices'))
+    await settle(clock)
+    await ui.redraw()
+    await ui.press({ key: 'passkey-signin' })
+    await settle(clock)
+    w.server.poll = 'done'
+    await clock.advance(2000)
+    await settle(clock)
+    expect(w.store.get(`server:${ORIGIN}:session`)).toBe(OTHER_TOKEN)
+    await $.command.run(RUN('handle'))
+    expect(w.logs.at(-1)).toMatch(/^You are misty-lark-18/)
+
+    release()
+    await reading
+    await settle(clock)
+    await ui.redraw()
+    // Sign-in clears the device stack but keeps the underlying Community board. Assert that screen is actually
+    // drawn, so absence of the old row proves the cached ranking was cleared rather than hidden by Devices.
+    expect(textOf(await ui.drawn())).toContain('Leaderboards')
+    expect(textOf(await ui.drawn())).toContain('The board did not load. Press a board to look again.')
+    expect(await ui.find({ key: 'rank-me' })).toBeUndefined()
+    expect(textOf(await ui.drawn())).not.toContain('You · brave-wren-41')
+    expect(w.requests.filter(r => new URL(r.url).pathname === '/v1/leaderboards')).toHaveLength(1)
+
+    // An explicit fresh read still succeeds for the active fixture account; rejecting a stale reply must not
+    // disable the board or leave its loading flag stuck. No automatic replacement request was sent.
+    w.server.me = w.server.other
+    await $.command.run(RUN('leaderboard'))
+    await settle(clock)
+    await ui.redraw()
+    expect(await ui.find({ key: 'rank-me' })).toBeDefined()
+    expect(textOf(await ui.drawn())).toContain('You · misty-lark-18')
+    expect(w.requests.filter(r => new URL(r.url).pathname === '/v1/leaderboards')).toHaveLength(2)
+  } finally {
+    release()
+    await reading
+    await ui.unmount()
+  }
 })
 
 test('chimes play only with sound on, for rare and better, and never while quiet', LONG, async ($, on) => {

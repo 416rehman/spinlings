@@ -82,6 +82,7 @@ export function helpScreen(c: Ctx): Shown {
     body: column(c, [
       heading(c, 'A little field guide'),
       para(c, 'Your team battles while Claude works. Open packs and catch creatures, then pick three favourites for your team.'),
+      para(c, `${MARK.dot} beside Spinlings means a pack is ready; # is your place on the rating board. Press Spinlings to open your team and packs.`),
       heading(c, 'Your numbers'),
       para(c, `${MARK.spark} Sparks buy packs and craft or fuse cards. ${MARK.rank} Rating measures duel results; it sets your league, from Pebble to Star.`),
       para(c, `A win streak counts wins in a row. Every ${ECONOMY.streak.every} wins earns a pack. Friendly challenges do not change it.`),

@@ -58,7 +58,7 @@ test('offline Connect joins online after confirmation; Cancel keeps the offline 
   await ui.press({ key: `act-server:${COMMUNITY}` })
   await settle(clock, 12)
   expect(w.store.get('prefs')).toMatchObject({ world: 'online', server: COMMUNITY, communityOk: [COMMUNITY] })
-  expect(w.status.at(-1)).toMatch(/Online/)
+  expect(w.status.at(-1)).toBe('▪')
   expect(w.requests.length).toBeGreaterThan(2)
   expect(w.requests[0]!.url).toBe(`${COMMUNITY}/v1/version`)
   expect(w.requests.every(r => r.url.startsWith(`${COMMUNITY}/v1/`))).toBe(true)

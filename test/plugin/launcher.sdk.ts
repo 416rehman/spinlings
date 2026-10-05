@@ -3,7 +3,7 @@
 // modes list; PromptHint is terminal-only in older Desktop hosts. Scene probes cover uncommon game states.
 import { expect, mock, test } from 'claude-code/testing'
 import type { El } from '../../plugin/hooks/client/types.ts'
-import { INITIAL, statusLine } from '../../plugin/hooks/client/game.ts'
+import { INITIAL } from '../../plugin/hooks/client/game.ts'
 import { launcher } from '../../plugin/hooks/ui/launcher.tsx'
 import type { LauncherState } from '../../plugin/hooks/ui/launcher.tsx'
 import { INERT, uiScenes } from './ui-scenes.ts'
@@ -39,7 +39,7 @@ test('unsupported composer sites pass Claude through and keep status until the n
   await $.session.start(SESSION)
   await settle(clock)
   const fallback = w.status.at(-1)
-  expect(fallback).toBe('Online · 2 packs')
+  expect(fallback).toBe('▪')
   for (const event of [HINT(40, 'desktop'), MODE(40, 'terminal')]) {
     const ui = await $.ui.mount(event)
     expect(textOf(await ui.drawn())).toBe('engine')
@@ -49,7 +49,7 @@ test('unsupported composer sites pass Claude through and keep status until the n
   }
   // This is the actual Desktop request shape, even when Claude has no additional session modes.
   const ui = await $.ui.mount(MODE(40, 'desktop'))
-  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings ▪ 2 packs')
+  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings ▪')
   expect(walk(await ui.drawn()).filter(n => n.type === 'Text' && textOf(n) === 'engine')).toHaveLength(1)
   expect(w.status.at(-1)).toBeUndefined()
   await ui.unmount()
@@ -66,7 +66,7 @@ test('the unstarted prompt launcher preserves Claude\'s hint and never starts an
     const ui = await $.ui.mount(COMPOSER(columns, surface))
     const tree = await ui.drawn()
     expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings')
-    expect(textOf(tree)).toContain('Starting…')
+    expect(textOf(tree)).toBe('Spinlingsengine')
     expect(walk(tree).filter(n => n.type === 'Text' && textOf(n) === 'engine')).toHaveLength(1)
     expect(textOf(tree)).not.toContain('Private composer hint')
     fits(tree, columns)
@@ -78,15 +78,17 @@ test('the unstarted prompt launcher preserves Claude\'s hint and never starts an
 })
 
 test('the launcher opens only the pane; pack consumption updates its badge, quiet hides it, and offline keeps its own state', { timeoutMs: 90_000 }, async ($, on) => {
-  const clock = mock.clock(on, { now: NOW }), w = engine(on, fakeServer())
+  const clock = mock.clock(on, { now: NOW }), server = fakeServer()
+  server.me.player.leaderboard = true
+  const w = engine(on, server)
   await $.session.start(SESSION)
   await settle(clock)
   // A host without a supported composer slot retains its concise passive status.
-  expect(w.status.at(-1)).toBe('Online · 2 packs')
+  expect(w.status.at(-1)).toBe('▪')
   const ui = await $.ui.mount(MODE(20, 'desktop'))
   const packIds = w.server.me.packs.map(p => p.id), cards = w.server.cards.map(c => c.id)
   const before = w.requests.length
-  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings ▪ 2 packs')
+  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings ▪')
   expect(w.status.at(-1)).toBeUndefined()
   await ui.press({ key: 'spinlings-launcher' })
   await settle(clock)
@@ -102,7 +104,7 @@ test('the launcher opens only the pane; pack consumption updates its badge, quie
   await settle(clock)
   await ui.redraw()
   expect(w.requests.filter(r => r.url.endsWith('/v1/packs/open'))).toHaveLength(1)
-  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings ▪ 1 pack')
+  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings ▪')
   expect(w.status.at(-1)).toBeUndefined()
   await preview.redraw()
   await preview.press({ key: 'inline-pack-close' })
@@ -120,12 +122,35 @@ test('the launcher opens only the pane; pack consumption updates its badge, quie
   expect(await ui.find({ key: 'spinlings-launcher' })).toBeDefined()
   expect(w.status.at(-1)).toBeUndefined()
 
+  await $.command.run(RUN('pack'))
+  await settle(clock)
+  const last = await $.ui.mount(BAND(40, 'desktop'))
+  await last.press({ key: 'inline-pack-open' })
+  await settle(clock)
+  await ui.redraw()
+  expect(w.requests.filter(r => r.url.endsWith('/v1/packs/open'))).toHaveLength(2)
+  expect(w.server.me.packs).toHaveLength(0)
+  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings')
+  await last.redraw()
+  await last.press({ key: 'inline-pack-close' })
+  await settle(clock)
+  await last.unmount()
+
+  // Boards are loaded only by the player's explicit action; redraws reuse the exact own rank, outside top[].
+  await $.command.run(RUN('leaderboard'))
+  await settle(clock)
+  const boardCalls = w.requests.length
+  await ui.redraw()
+  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings #9')
+  await ui.redraw()
+  expect(w.requests.length).toBe(boardCalls)
+
   const onlineCalls = w.requests.length
   await $.command.run(RUN('world offline'))
   await settle(clock)
   await ui.redraw()
-  expect(textOf(await ui.drawn())).toContain('Offline')
-  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings ▪ 2 packs')
+  expect(textOf(await ui.drawn())).toBe('Spinlings ▪engine')
+  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings ▪')
   expect(w.requests.length).toBe(onlineCalls)
   expect(w.status.at(-1)).toBeUndefined()
   await ui.unmount()
@@ -134,20 +159,44 @@ test('the launcher opens only the pane; pack consumption updates its badge, quie
 test('launcher connection states, cached-pack guards, rest, battle, update and full-bank labels stay readable at narrow widths', { timeoutMs: 90_000 }, async ($, on) => {
   const base = uiScenes(NOW)[0]!.state
   const packs = Array.from({ length: 12 }, (_, i) => ({ ...base.me!.packs[0]!, id: `held-${i}` }))
-  const full: LauncherState = { ...base, me: { ...base.me!, packs } }
+  const full: LauncherState = { ...base, me: { ...base.me!, packs }, social: { ...base.social, rankings: null } }
   const battle = uiScenes(NOW).find(s => s.state.battle)!.state
-  const cases: { state: LauncherState; label: string; note?: string }[] = [
-    { state: full, label: 'Spinlings ▪ 12 packs' },
+  const ranked: LauncherState = {
+    ...full, me: { ...full.me!, packs: [], player: { ...full.me!.player, leaderboard: true } },
+    social: { ...full.social, rankings: {
+      board: 'rating', period: 'all', season: 1, top: [],
+      me: { rank: 23, handle: full.me!.player.handle, league: full.me!.player.league, value: full.me!.player.rating },
+    } },
+  }
+  const cases: { state: LauncherState; label: string }[] = [
+    { state: full, label: 'Spinlings ▪' },
     { state: { ...full, me: { ...full.me!, packs: [] } }, label: 'Spinlings' },
-    { state: { ...full, account: { ...full.account, link: 'starting' } }, label: 'Spinlings', note: 'Starting…' },
-    { state: { ...full, account: { ...full.account, link: 'joining' } }, label: 'Spinlings', note: 'Hatching…' },
-    { state: { ...full, account: { ...full.account, link: 'signed-out' } }, label: 'Spinlings', note: 'Sign in' },
-    { state: { ...full, account: { ...full.account, link: 'unreachable' } }, label: 'Spinlings ▪ 12 packs', note: 'Connection unavailable' },
-    { state: { ...full, account: { ...full.account, world: 'offline' } }, label: 'Spinlings ▪ 12 packs', note: 'Offline' },
-    { state: { ...full, account: { ...full.account, community: true, host: 'world.example' } }, label: 'Spinlings ▪ 12 packs', note: 'world.example' },
-    { state: { ...full, account: { ...full.account, latest: '9.0.0' } }, label: 'Spinlings ▪ 12 packs', note: 'update 9.0.0' },
-    { state: { ...full, signals: { ...full.signals, restingUntil: NOW + 60_000 } }, label: 'Spinlings ▪ 12 packs', note: 'Claude is resting until' },
-    { state: battle, label: `Spinlings ▪ ${battle.me!.packs.length} packs`, note: statusLine({ ...battle, me: null })! },
+    { state: { ...full, account: { ...full.account, link: 'starting' } }, label: 'Spinlings' },
+    { state: { ...full, account: { ...full.account, link: 'joining' } }, label: 'Spinlings' },
+    { state: { ...full, account: { ...full.account, link: 'signed-out' } }, label: 'Spinlings' },
+    { state: { ...full, account: { ...full.account, link: 'unreachable' } }, label: 'Spinlings ▪' },
+    { state: { ...full, account: { ...full.account, world: 'offline' } }, label: 'Spinlings ▪' },
+    { state: { ...full, account: { ...full.account, community: true, host: 'world.example' } }, label: 'Spinlings ▪' },
+    { state: { ...full, account: { ...full.account, latest: '9.0.0' } }, label: 'Spinlings ▪' },
+    { state: { ...full, signals: { ...full.signals, restingUntil: NOW + 60_000 } }, label: 'Spinlings ▪' },
+    { state: battle, label: battle.me!.packs.length > 0 ? 'Spinlings ▪' : 'Spinlings' },
+    { state: ranked, label: 'Spinlings #23' },
+    { state: { ...ranked, me: { ...ranked.me!, packs } }, label: 'Spinlings ▪' },
+    { state: { ...ranked, account: { ...ranked.account, world: 'offline' } }, label: 'Spinlings' },
+    { state: { ...ranked, account: { ...ranked.account, link: 'unreachable' } }, label: 'Spinlings' },
+    { state: { ...ranked, account: { ...ranked.account, link: 'signed-out' } }, label: 'Spinlings' },
+    { state: { ...ranked, account: { ...ranked.account, link: 'joining' } }, label: 'Spinlings' },
+    { state: { ...ranked, me: null }, label: 'Spinlings' },
+    { state: { ...ranked, account: { ...ranked.account, features: ['leaderboard'] } }, label: 'Spinlings' },
+    { state: { ...ranked, battle: battle.battle }, label: 'Spinlings' },
+    { state: { ...ranked, me: { ...ranked.me!, player: { ...ranked.me!.player, leaderboard: false } } }, label: 'Spinlings' },
+    { state: { ...ranked, me: { ...ranked.me!, player: { ...ranked.me!.player, handle: 'Renamed' } } }, label: 'Spinlings' },
+    { state: { ...ranked, me: { ...ranked.me!, player: { ...ranked.me!.player, rating: ranked.me!.player.rating + 1 } } }, label: 'Spinlings' },
+    { state: { ...ranked, social: { ...ranked.social, loading: ['rankings'] } }, label: 'Spinlings' },
+    { state: { ...ranked, social: { ...ranked.social, rankings: { ...ranked.social.rankings!, board: 'species' } } }, label: 'Spinlings' },
+    { state: { ...ranked, social: { ...ranked.social, rankings: { ...ranked.social.rankings!, period: 'season' } } }, label: 'Spinlings' },
+    { state: { ...ranked, social: { ...ranked.social, rankings: { ...ranked.social.rankings!, me: undefined } } }, label: 'Spinlings' },
+    { state: { ...ranked, social: { ...ranked.social, rankings: { ...ranked.social.rankings!, me: { ...ranked.social.rankings!.me!, rank: 0 } } } }, label: 'Spinlings' },
   ]
   let state: LauncherState = INITIAL
   let opened = 0
@@ -162,7 +211,7 @@ test('launcher connection states, cached-pack guards, rest, battle, update and f
     const control = await ui.find({ key: 'spinlings-launcher' })
     if (!control) throw new Error(`Missing launcher at ${columns} ${surface}: ${one.label}; ${textOf(tree)}`)
     expect(control.props.label).toBe(one.label)
-    if (one.note) expect(textOf(tree)).toContain(one.note)
+    expect(textOf(tree)).toBe(one.label + 'Claude hint')
     expect(walk(tree).filter(n => n.type === 'Text' && textOf(n) === 'Claude hint')).toHaveLength(1)
     fits(tree, columns)
     await ui.unmount()

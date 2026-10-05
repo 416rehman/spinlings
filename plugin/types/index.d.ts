@@ -261,7 +261,7 @@ export type SpinAccount = {
   readOnly: boolean
   /**
    * a newer release the server names (latestClient, or minClient when only that is newer; never a pre-release): the
-   * pane footer's `Update to` chip and the status line's ` · update` show it. Null when this mod is current, before
+   * pane footer's `Update to` chip shows it. Null when this mod is current, before
    * the first handshake, and offline.
    */
   latest: string | null

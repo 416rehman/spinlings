@@ -1,6 +1,6 @@
 // The SPEC 21 quality gate mounts the real pane and band render functions against internal UI fixtures on the
 // terminal and the desktop at 40, 80 and 120 columns. Every pane screen and every band moment must draw
-// with no refused tree, no overflow, one meaning per key, a primary action only on 1 (o opens, in the header and the
+// with no refused tree, no overflow, one meaning per key, a primary action only on 1 (o opens, in Team and the
 // ceremonies), a hint row, art on its own surface only (Raster on the terminal, Svg on the desktop), and guidance in
 // every empty state. Each band moment is then drawn as the band itself: four rows at most, every button on a digit.
 import { expect, test } from 'claude-code/testing'
@@ -8,7 +8,6 @@ import type { El } from '../../plugin/hooks/client/types.ts'
 import { INERT, uiScenes } from './ui-scenes.ts'
 import { band } from '../../plugin/hooks/ui/band.tsx'
 import { pane } from '../../plugin/hooks/ui/pane.tsx'
-import { statusLine } from '../../plugin/hooks/client/game.ts'
 import { NOW } from './fixtures.ts'
 import { BAND, PANE, measure, textOf, walk } from './engine.ts'
 import type { Node } from './engine.ts'
@@ -53,7 +52,7 @@ const GUIDED: [string, RegExp][] = [
   ['Devices · signed out, a passkey brings the old collection', /Use a passkey you saved on another computer/],
   ['Cards · a filter with nothing in it', /change the filters/],
   ['First run · hatching', /Hatching your first Spinling/],
-  ['Band · Claude is resting: only the status line speaks', /Claude is resting until/],
+  ['Team · Claude is resting', /Claude is resting until/],
 ]
 
 test('every real pane screen passes the gate at 40, 80 and 120 columns on both surfaces', { timeoutMs: 600_000 }, async ($, on) => {
@@ -108,8 +107,6 @@ test('every real band moment fits four rows (fewer in a shorter window), with di
         await ui.unmount()
         if (textOf(tree) === 'engine band') {
           if (!/resting/.test(step.title)) failures.push(`${where}: the band is hidden`)
-          const guided = GUIDED.find(([title]) => title === step.title)
-          if (guided && !guided[1].test(statusLine(state) ?? '')) failures.push(`${where}: no resting guidance in the status line`)
           continue
         }
         gate(tree, columns, surface, where, failures)

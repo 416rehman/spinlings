@@ -142,9 +142,9 @@ Legendary is the highest ordinary rarity. Mythics are rarer still: online, named
 | Trading, the market, gifts, claims | No. Players buy your listings while you are away. |
 | Duels (`/spin battle`, revenge, challenges) | No. Duels start at least 2 minutes apart. |
 
-The **Spinlings** button below the input opens your pane; a dot and count show when packs are waiting. Desktop places it beside the session modes; the terminal places it beside the prompt hint. It keeps Claude's own controls and composer keys. Offline, connection problems, battles and updates retain short explanations beside it. Hosts without this control keep a plain status line.
+The **Spinlings** button below the input opens your pane; a small dot means a pack is ready. With no packs waiting, it can show your last loaded online rating rank (#23). It shows one cue at a time. Desktop places it beside the session modes; the terminal places it beside the prompt hint. It keeps Claude's own controls and composer keys. Pack counts, world controls and updates stay in the pane. Older hosts without the button show only a passive pack-ready dot.
 
-Hitting a rate limit is neither rewarded nor punished: packs keep charging as usual. The launcher or fallback status says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
+Hitting a rate limit is neither rewarded nor punished: packs keep charging as usual. The Team pane says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
 
 ### When nobody else is around
 
@@ -204,7 +204,7 @@ The game runs on the rhythm of your session, never its content. This is everythi
 | `turn.start`, `turn.complete` (main thread only) | that Claude started or stopped, and how the turn ended (`reason`) | Encounters; a one-line reaction when you press Esc |
 | `turn.step` | `model`, `effort` (main thread only) | The arena and pack family; effort changes only the local band's ink and creature-frame glow |
 | `agent.spawn` | that a subagent started (a count) | A `+2 cheering` line in the band |
-| `session.measure` | rate-limit percentages only | One status note when you hit a limit |
+| `session.measure` | rate-limit percentages only | One Team pane note when you hit a limit |
 | `session.compact` | `trigger` | A one-line reaction |
 | `ui.render` | the spinner's `mode`; the band's and pane's size; the composer's surface, never hint text or session modes | A spinner suffix, the band and pane, and a launcher beside Claude's unread composer controls |
 | `ui.close` | that you pressed esc in the pane | Going back one view |

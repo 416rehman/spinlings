@@ -21,7 +21,7 @@ import {
 } from './remote.ts'
 import type { RemoteDeps } from './remote.ts'
 import {
-  BEGINNER_BATTLES, HEARTBEAT_MS, REACTION_MS, afterCharge, chargeDue, comfortLine, encounterDue, leaseFor, mayHold, nextCheckIn,
+  BEGINNER_BATTLES, HEARTBEAT_MS, REACTION_MS, afterCharge, chargeDue, encounterDue, leaseFor, mayHold, nextCheckIn,
   reactionLine, restingUntil, tickPresence, workedAfter,
 } from './session.ts'
 import type { ServerMeta, StoredPrefs, StoredPresence } from './store.ts'
@@ -31,7 +31,7 @@ import type {
   MarketWant, Moment, Outcome, PaneUi, Reveal, RevealControl, Sent, SignIn, Slots, StateKey, Surface, Tab, Timer, View, World, WorldChoice, CommunitySection,
 } from './types.ts'
 import { BackendError, isBackendError, isUnreachable } from './types.ts'
-import { dayLabel, dots, plural, safe, title } from './text.ts'
+import { dayLabel, dots, safe, title } from './text.ts'
 import { createFrozenCatalog, createSeasonCache } from './frozen.ts'
 import { teamSlotChoices } from './team-slots.ts'
 import type { FrozenCatalog } from './frozen.ts'
@@ -276,27 +276,14 @@ export function newerMod(account: Pick<Account, 'world'> & { latest?: string | n
   return account.world === 'online' && typeof account.latest === 'string' && account.latest !== '' ? safe(account.latest, 48) : null
 }
 
-/**
- * The status line (SPEC 9, 17, 28): the world always shows; never sparks; empty while quiet. A newer mod adds a
- * quiet ` · update 0.2.0` to whatever it says (SPEC 32), in words, never a glyph alone.
- */
-export function statusLine(s: Pick<GameState, 'account' | 'me' | 'battle' | 'prefs' | 'signals'>): string | undefined {
-  if (s.prefs.quiet) return undefined
-  const latest = newerMod(s.account)
-  const text = statusText(s)
-  return latest ? `${text} · update ${latest}` : text
+/** A pack indicator never advertises a signed-out or changing account's cached collection. */
+export function packReady(s: Pick<GameState, 'account' | 'me' | 'prefs'>): boolean {
+  return !s.prefs.quiet && (s.account.link === 'ready' || s.account.link === 'unreachable') && (s.me?.packs.length ?? 0) > 0
 }
 
-function statusText(s: Pick<GameState, 'account' | 'me' | 'battle' | 'signals'>): string {
-  if (s.signals.restingUntil !== null) return comfortLine(s.signals.restingUntil)
-  if (s.battle) {
-    const lead = s.battle.setup.defender[0] ?? null
-    return s.battle.opponent.kind === 'wild' ? opponentLabel(s.battle.opponent, lead) : 'vs ' + opponentLabel(s.battle.opponent, lead)
-  }
-  const world = s.account.world === 'online' ? 'Online' : 'Offline'
-  // a signed-out machine's cached packs are not its to open
-  const packs = s.account.link === 'signed-out' ? 0 : s.me?.packs.length ?? 0
-  return dots(world, packs > 0 && plural(packs, 'pack'))
+/** Passive fallback only: the host supplies the plugin name; a waiting pack adds a small dot, otherwise nothing. */
+export function statusLine(s: Pick<GameState, 'account' | 'me' | 'battle' | 'prefs' | 'signals'>): string | undefined {
+  return packReady(s) ? '▪' : undefined
 }
 
 /** The spinner's suffix during a battle (SPEC 10): only the phase mode is read, never the spinner's words. */
@@ -2337,25 +2324,30 @@ export function createGame(o: GameOptions): Game {
 
   /** One board, all time or this season; on a server with only 0.1.0's rating board, that board. */
   async function loadRankings(fx: Fx, board: BoardName, period: BoardPeriod): Promise<void> {
+    // A board belongs to the account that requested it, including a passkey change on the same origin.
+    const valid = packStays()
     const account = await get(fx, 'account')
-    if (account.world !== 'online') return
-    await loading(fx, 'rankings', true)
-    if (hasFeature(account, 'stats')) {
-      const res = await run(fx, 'rankings', { board, period }, 'Reading the board')
-      if (res) await upd(fx, 'social', s => ({ ...s, rankings: res }))
-    } else if (hasFeature(account, 'leaderboard')) {
-      const res = await run(fx, 'leaderboard', {}, 'Reading the board')
-      const me = await get(fx, 'me')
-      const season = seasonOf(await fx.now())
-      if (res) {
-        const top = res.top.map((r, i) => ({ rank: i + 1, handle: r.handle, league: r.league, value: r.rating }))
-        const mine = top.find(r => r.handle === me?.player.handle)
-        await upd(fx, 'social', s => ({
-          ...s, leaderboard: res.top, rankings: { board: 'rating', period: 'all', season, top, ...(mine ? { me: mine } : {}) },
-        }))
+    if (!valid() || account.world !== 'online') return
+    await upd(fx, 'social', s => valid() ? { ...s, loading: [...new Set([...s.loading, 'rankings' as const])] } : s)
+    try {
+      if (hasFeature(account, 'stats')) {
+        const res = await run(fx, 'rankings', { board, period }, 'Reading the board', valid)
+        if (res) await upd(fx, 'social', s => valid() ? { ...s, rankings: res } : s)
+      } else if (hasFeature(account, 'leaderboard')) {
+        const res = await run(fx, 'leaderboard', {}, 'Reading the board', valid)
+        const me = await get(fx, 'me')
+        const season = seasonOf(await fx.now())
+        if (res) {
+          const top = res.top.map((r, i) => ({ rank: i + 1, handle: r.handle, league: r.league, value: r.rating }))
+          const mine = top.find(r => r.handle === me?.player.handle)
+          await upd(fx, 'social', s => valid() ? {
+            ...s, leaderboard: res.top, rankings: { board: 'rating', period: 'all', season, top, ...(mine ? { me: mine } : {}) },
+          } : s)
+        }
       }
+    } finally {
+      await upd(fx, 'social', s => valid() ? { ...s, loading: s.loading.filter(x => x !== 'rankings') } : s)
     }
-    await loading(fx, 'rankings', false)
   }
 
   /** Read a Community section's existing data; changing sections never pushes a view. */

@@ -195,6 +195,7 @@ function steps(now: number): UiScene[] {
   return [
     { title: 'Team · the daily hello', state: pane(s, { tab: 'team', hello: true }) },
     { title: 'Team · slots, resting, notices with Revenge', state: pane(s, { tab: 'team' }) },
+    { title: 'Team · Claude is resting', state: { ...pane(s, { tab: 'team' }), signals: { ...s.signals, restingUntil: now + 95 * MIN } } },
     { title: 'Team · a brand-new player', state: { ...pane(s, { tab: 'team' }), cards: [], me: { ...s.me!, player: { ...s.me!.player, team: [], streak: 0 }, notices: [] } } },
     { title: 'Cards · the collection', state: pane(s, { tab: 'cards' }) },
     { title: 'Cards · a filter with nothing in it', state: pane(s, { tab: 'cards', family: FAMILIES.find(f => !w.cards.some(c => c.family === f && c.rarity === 'legendary')) ?? 'haiku', rarity: 'legendary' }) },
@@ -358,7 +359,7 @@ function bandSteps(w: World, now: number): UiScene[] {
     step('this needs the online world', moment({ kind: 'needs-online', id: 'needs-online', until: now + 10_000 })),
     step('someone else\'s server', moment({ kind: 'server', id: 'server:https://cats.example', origin: 'https://cats.example', until: null })),
     step('a reaction to an early stop', moment({ kind: 'line', id: 'line:reaction:flinch', tone: 'reaction', text: `${cardName(lead)} flinched`, until: now + 4000 })),
-    step('Claude is resting: only the status line speaks', at({ signals: { ...s.signals, restingUntil: now + 95 * MIN } })),
+    step('Claude is resting: the band stays quiet', at({ signals: { ...s.signals, restingUntil: now + 95 * MIN } })),
   ]
 }
 

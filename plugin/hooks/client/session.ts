@@ -23,7 +23,7 @@ export function restingUntil(limits: readonly { percentUsed: number; resetsAt?: 
   return until
 }
 
-/** The status line's comfort note while a window is full (SPEC 17): no reward, no penalty. */
+/** The Team pane's comfort note while a window is full (SPEC 17): no reward, no penalty. */
 export function comfortLine(until: number): string {
   const at = clockTime(until)
   return at ? `Claude is resting until ${at} · your team is napping too` : 'Claude is resting · your team is napping too'

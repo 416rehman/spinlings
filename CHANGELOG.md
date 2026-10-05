@@ -4,7 +4,7 @@ One entry per release (SPEC 32), newest first. Each says what changed in plain w
 
 ## 0.2.12 (2026-10-05)
 
-- **Show the launcher in Claude Desktop.** Use Desktop's session-mode slot for the Spinlings button, including when no modes are active. The terminal retains its prompt-hint launcher. Each preserves Claude's own drawing unread; unsupported surface/slot combinations leave the fallback status intact. The control opens the pane, and its dot/count reflects waiting packs.
+- **Show the launcher in Claude Desktop.** Use Desktop's session-mode slot for the Spinlings button, including when no modes are active. The terminal retains its prompt-hint launcher. Each preserves Claude's own drawing unread; unsupported surface/slot combinations leave the fallback intact. The compact control opens the pane with one cue at a time: a dot when packs wait, otherwise an available online rating rank. Cached ranks are suppressed for offline, hidden, changing accounts, active battles and unrelated boards. World labels, pack counts and update text stay in the pane; resting guidance moves to Team. Older hosts show only a passive pack-ready dot. Help explains its meaning.
 - **Compatibility and privacy.** API v1, rules 1, generator 2, offline format 1 and minimum client 0.1.0 remain unchanged. No new event data is read, no requests or stored/public game fields are added, and no migration or runtime dependency is introduced. Released fixtures, engines, generators, existing cards and website styling are preserved. Native appearance requires a separate Desktop check; SDK proof does not certify it.
 
 ## 0.2.11 (2026-10-05)

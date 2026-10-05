@@ -91,7 +91,7 @@ test('first run: joins silently, keeps the session per origin, and welcomes with
   const sent = w.server.calls.map(c => `${c.method} ${c.path}`)
   expect(sent.slice(0, 3)).toEqual(['GET /v1/version', 'GET /v1/challenge', 'POST /v1/join'])
   expect(w.server.calls.every(c => c.headers['x-spinlings-client'] === CLIENT_VERSION)).toBe(true)
-  expect(w.status.at(-1)).toBe('Online · 2 packs')
+  expect(w.status.at(-1)).toBe('▪')
 
   for (const surface of ['terminal', 'desktop'] as const) {
     for (const columns of [40, 80, 120]) {
@@ -146,7 +146,7 @@ test('first run with no network plays offline instead, and says how to go online
   await $.session.start(SESSION)
   await settle(clock)
   expect((w.store.get('prefs') as { world: string }).world).toBe('offline')
-  expect(w.status.at(-1)).toBe('Offline · 2 packs')
+  expect(w.status.at(-1)).toBe('▪')
   // the welcome itself says so: the payoff is never held back behind the line (SPEC 34.3, 34.4)
   const band = await $.ui.mount({ ...BAND(80), surface: 'terminal' })
   expect(await band.find({ text: /Playing offline · \/spin world online when you're connected/ })).toBeDefined()
@@ -178,7 +178,7 @@ test('upgrading from 0.1.0 with the world option on offline stays offline and se
   w.store.set('prefs', old)
   await $.session.start(SESSION)
   await settle(clock)
-  expect(w.status.at(-1)).toMatch(/^Offline/)
+  expect(w.status.at(-1)).toBe('▪')
   await clock.advance(5 * 60_000)
   await $.command.run(RUN('battle'))
   await $.session.start(SESSION)
@@ -198,7 +198,7 @@ test('a fresh install plays online on spinlings.dev', { timeoutMs: 60_000 }, asy
   expect(w.server.calls[0]?.path).toBe('/v1/version')
   expect(w.store.get('prefs')).toMatchObject({ world: 'online', worldOption: null, server: null, serverOption: null })
   expect(w.store.get(`server:${ORIGIN}:session`)).toBe(TOKEN)
-  expect(w.status.at(-1)).toBe('Online · 2 packs')
+  expect(w.status.at(-1)).toBe('▪')
 })
 
 test('hooks never stand in the way: results pass through untouched', { timeoutMs: 60_000 }, async ($, on) => {
@@ -242,7 +242,7 @@ test('a duel plays in the band, minis and all, then settles into a result', { ti
   await settle(clock)
   await $.command.run(RUN('battle'))
   await settle(clock)
-  expect(w.status.at(-1)).toBe('vs Rival Thistlewick')
+  expect(w.status.at(-1)).toBe('▪')
   await clock.advance(2000)
   await settle(clock)
   for (const surface of ['terminal', 'desktop'] as const) {
@@ -341,7 +341,7 @@ test('each world keeps its own collection: switching sends nothing offline and r
   await settle(clock)
   await $.command.run(RUN('world offline'))
   await settle(clock)
-  expect(w.status.at(-1)).toBe('Offline · 2 packs')
+  expect(w.status.at(-1)).toBe('▪')
   const before = w.fetches
   await clock.advance(10 * 60_000)
   await $.command.run(RUN('battle'))
@@ -352,7 +352,7 @@ test('each world keeps its own collection: switching sends nothing offline and r
   await settle(clock)
   expect(w.server.calls.filter(c => c.path === '/v1/join').length).toBe(1)
   expect(w.server.calls.at(-1)?.path).not.toBe('/v1/join')
-  expect(w.status.at(-1)).toBe('Online · 2 packs')
+  expect(w.status.at(-1)).toBe('▪')
 })
 
 test('a newer mod is announced once per version', { timeoutMs: 60_000 }, async ($, on) => {

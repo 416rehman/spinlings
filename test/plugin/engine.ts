@@ -37,7 +37,8 @@ export type Engine = {
   opened: number
 }
 
-export function engine(on: On, server: FakeServer = fakeServer()): Engine {
+/** Optional response delay runs after the fixture answer is captured; ordinary hooks still return synchronously. */
+export function engine(on: On, server: FakeServer = fakeServer(), afterResponse?: (request: Request) => Promise<void> | void): Engine {
   const w: Engine = { store: new Map(), reads: [], server, requests: [], status: [], logs: [], toasts: [], sounds: [], copied: [], copies: [], opened: 0 }
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('session.end', (_$, e) => ({ sessionId: e.sessionId }))
@@ -54,9 +55,12 @@ export function engine(on: On, server: FakeServer = fakeServer()): Engine {
   on('store.delete', (_$, e) => { w.store.delete(e.key); return { value: undefined } })
   on('store.keys', () => ({ value: [...w.store.keys()] }))
   on('http.fetch', (_$, e) => {
-    w.requests.push({ url: e.url, method: e.init?.method ?? 'GET', headers: { ...(e.init?.headers ?? {}) }, body: e.init?.body ?? '' })
+    const request = { url: e.url, method: e.init?.method ?? 'GET', headers: { ...(e.init?.headers ?? {}) }, body: e.init?.body ?? '' }
+    w.requests.push(request)
     try {
-      return { value: server.handle(e.url, e.init) }
+      const answer = server.handle(e.url, e.init)
+      const paused = afterResponse?.(request)
+      return paused ? paused.then(() => ({ value: answer })) : { value: answer }
     } catch {
       return { deny: 'no network' }
     }

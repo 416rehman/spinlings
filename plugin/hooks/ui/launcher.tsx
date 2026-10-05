@@ -2,35 +2,29 @@
 // Desktop shapes SessionMode into one compact line, keeping native buttons and their hosted press handlers.
 import type { RenderElement } from 'claude-code'
 import type { El, GameState } from '../client/types.ts'
-import { newerMod, statusLine } from '../client/game.ts'
-import { dots, plural, safe } from '../client/text.ts'
+import { packReady } from '../client/game.ts'
 import { MARK, SPACE } from './tokens.ts'
 
-export type LauncherState = Pick<GameState, 'account' | 'me' | 'battle' | 'prefs' | 'signals'>
+export type LauncherState = Pick<GameState, 'account' | 'me' | 'battle' | 'prefs' | 'signals' | 'social'>
 
-/** The world is implicit online; connection problems, offline, battles, rests and updates keep their words. */
-function hint(state: LauncherState): string {
-  const { account } = state
-  if (state.battle || state.signals.restingUntil !== null) return statusLine({ ...state, me: null }) ?? ''
-  const link = account.link === 'starting' ? 'Starting…' : account.link === 'joining' ? 'Hatching…'
-    : account.link === 'signed-out' ? 'Sign in' : account.link === 'unreachable' ? 'Connection unavailable'
-    : account.world === 'offline' ? 'Offline' : account.community ? safe(account.host, 80) : ''
-  const latest = newerMod(account)
-  return dots(link, latest && `update ${latest}`)
+/** One cue at a time. Never fetch a board just to decorate Claude's composer. */
+export function launcherLabel(s: LauncherState): string {
+  if (packReady(s)) return `Spinlings ${MARK.dot}`
+  const board = s.social.rankings, player = s.me?.player, mine = board?.me
+  if (s.account.world === 'online' && s.account.link === 'ready' && s.account.features.includes('stats')
+    && !s.battle && !s.social.loading.includes('rankings') && player?.leaderboard
+    && board?.board === 'rating' && board.period === 'all' && mine?.handle === player.handle
+    && mine.value === player.rating && Number.isSafeInteger(mine.rank) && mine.rank > 0) return `Spinlings #${mine.rank}`
+  return 'Spinlings'
 }
 
 export function launcher(env: { el: El; state: LauncherState; theirs: RenderElement; open(): void }): RenderElement {
   if (env.state.prefs.quiet) return env.theirs
-  const { Box, Text, Button } = env.el
-  const { account, me } = env.state
-  // A signed-out or changing account must not advertise cached packs belonging to the previous player.
-  const packs = account.link === 'ready' || account.link === 'unreachable' ? me?.packs.length ?? 0 : 0
-  const label = packs > 0 ? `Spinlings ${MARK.dot} ${plural(packs, 'pack')}` : 'Spinlings'
-  const note = hint(env.state)
+  const { Box, Button } = env.el
+  const label = launcherLabel(env.state)
   return (
     <Box flexDirection="row" columnGap={SPACE.loose} flexWrap="wrap">
       <Box flexShrink={0}><Button key="spinlings-launcher" label={label} plain onPress={env.open} /></Box>
-      {note ? <Text dimColor>{note}</Text> : null}
       <Box flexGrow={1} flexShrink={1}>{env.theirs}</Box>
     </Box>
   )
