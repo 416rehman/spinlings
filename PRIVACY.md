@@ -32,7 +32,7 @@ The mod reads only the shape of your Claude Code session:
 | Whether Claude is working | `turn.start`, `turn.complete` on the main thread | Wild encounters while Claude works |
 | How a turn ended | `turn.complete` `reason` | A one-line reaction |
 | Spinner phase | the spinner's `mode` in `ui.render` | A spinner suffix during a battle |
-| Prompt hint render site | `ui.render` filtered to `PromptHint`; only its surface, never its hint or draft text | A clickable Spinlings launcher using game state. Claude's own drawing passes through unchanged and unread. |
+| Composer render site | `ui.render` filtered to Desktop `SessionMode` or terminal `PromptHint`; only its surface, never its modes, hint or draft text | A clickable Spinlings launcher using game state. Claude's own drawing passes through unchanged and unread. |
 | Subagents | `agent.spawn` (a count only) | A cheering line in the band |
 | Rate limits | `session.measure` (the rate-limit percentages only) | One status note when you hit a limit |
 | Compaction | `session.compact` `trigger` | A one-line reaction |

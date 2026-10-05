@@ -374,11 +374,11 @@ Everything here works while the other player is away. **No account limits:** any
 ## 9. Surfaces
 
 ### Prompt launcher and status
-- In the supported `PromptHint` site below the composer, a native `Spinlings` button opens the existing pane. Waiting packs add a dot and explicit count (`Spinlings ▪ 2 packs`); the button never opens or consumes a pack itself.
-- Compose Claude's own hint from `next(e)` without reading its text. Take no composer hotkey or focus. Wrap the row at narrow widths.
+- In Desktop's `SessionMode` site and the terminal's `PromptHint` site below the composer, a native `Spinlings` button opens the existing pane. Waiting packs add a dot and explicit count (`Spinlings ▪ 2 packs`); the button never opens or consumes a pack itself. The Desktop slot must render even when Claude has no session modes.
+- Compose Claude's own drawing from `next(e)` without reading hint text or modes. Take no composer hotkey or focus. Wrap the row at narrow widths.
 - Online is implicit. Offline/community, connection states, battle opponents, resting guidance and available updates keep concise words beside the button. Starting, joining and signed-out accounts never advertise cached packs.
-- Quiet returns Claude's own hint unchanged. Once the host draws this launcher, clear the separate passive status row for the module's life.
-- A host that never draws `PromptHint` keeps the plain-text fallback: `Online · 2 packs`, `Offline`, `vs soft-otter-42`, or `wild Fogmaw`, plus resting and update guidance. Do not repeat the plugin name Claude supplies.
+- Quiet returns Claude's own drawing unchanged. Once the host draws its supported launcher, clear the separate passive status row for the module's life. Desktop `PromptHint` and terminal `SessionMode` pass through unchanged and never suppress that fallback.
+- A host that never draws its supported composer slot keeps the plain-text fallback: `Online · 2 packs`, `Offline`, `vs soft-otter-42`, or `wild Fogmaw`, plus resting and update guidance. Do not repeat the plugin name Claude supplies.
 - Never show sparks in either place.
 
 ### Band (above the prompt; hidden by default)
@@ -459,7 +459,7 @@ Pushed over the tabs and sections: card, fuse, species, listing and sell details
 | Claude working | `turn.start` and `turn.complete` (main thread, where `agentId` is undefined) | Waiting battles |
 | Turn ending | `turn.complete` `reason` | A one-line reaction only (e.g. the creature flinches on Esc) |
 | Spinner phase | `ui.render` Spinner `e.props.mode` | Spinner suffix during a battle |
-| Prompt hint render site | `ui.render`, filtered to `PromptHint`; only `e.surface` is read, never its hint or draft text | A native launcher composed beside Claude's unread `next(e)` drawing, using only the game's own state |
+| Composer render site | `ui.render`, filtered to Desktop `SessionMode` or terminal `PromptHint`; only `e.surface` is read, never its modes, hint or draft text | A native launcher composed beside Claude's unread `next(e)` drawing, using only the game's own state |
 | Subagents | `agent.spawn` (count only) | Cheering line in the band (cosmetic) |
 | Context fill, rate limits | `session.measure` | Launcher or fallback status comfort note only ("your team is napping until 3:40 PM" at a 100% limit) |
 | Compaction | `session.compact` `trigger` | A one-line reaction only |

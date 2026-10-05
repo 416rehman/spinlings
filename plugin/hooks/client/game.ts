@@ -28,7 +28,7 @@ import type { ServerMeta, StoredPrefs, StoredPresence } from './store.ts'
 import { KEYS, cacheRecord, readCache, readMeta, readOfflineMeta, readPrefs, readPresence, serverKeys } from './store.ts'
 import type {
   Account, Actions, Backend, Battle, BattleControl, BoardName, BoardPeriod, Catch, Chime, Fx, GameState, HoldAction, MarketQuery,
-  MarketWant, Moment, Outcome, PaneUi, Reveal, RevealControl, Sent, SignIn, Slots, StateKey, Tab, Timer, View, World, WorldChoice, CommunitySection,
+  MarketWant, Moment, Outcome, PaneUi, Reveal, RevealControl, Sent, SignIn, Slots, StateKey, Surface, Tab, Timer, View, World, WorldChoice, CommunitySection,
 } from './types.ts'
 import { BackendError, isBackendError, isUnreachable } from './types.ts'
 import { dayLabel, dots, plural, safe, title } from './text.ts'
@@ -412,8 +412,8 @@ export type Game = {
   /** ui.close for the pane: true keeps it open (esc went back one view) */
   paneClosing(fx: Fx, byPerson: boolean): Promise<boolean>
   actions(fx: Fx): Actions
-  /** A supported prompt launcher replaces the host's plain-text status row for this module load. */
-  launcherDrawn(fx: Fx): void
+  /** Supported composer sites actually drawn this conversation replace the session's plain-text status row. */
+  launcherDrawn(fx: Fx, surface: Surface, shown: boolean): void
   /** the band and pane instances last drawn, for blit */
   site(kind: 'band' | 'pane', requestId: string): void
   sites(): { band: string | null; pane: string | null }
@@ -458,7 +458,7 @@ export function createGame(o: GameOptions): Game {
     /** when the Market section's listings were last read in this load of the module (0: never) */
     marketAt: 0,
     status: null as string | undefined | null,
-    launcher: false,
+    launchers: new Set<Surface>(),
     /** server clock minus local clock, from the last me() */
     skew: 0,
     lastRefresh: 0,
@@ -534,7 +534,7 @@ export function createGame(o: GameOptions): Game {
     const [account, me, battle, prefs, signals] = await Promise.all([
       get(fx, 'account'), get(fx, 'me'), get(fx, 'battle'), get(fx, 'prefs'), get(fx, 'signals'),
     ])
-    const text = rt.launcher ? undefined : statusLine({ account, me, battle, prefs, signals })
+    const text = rt.launchers.size > 0 ? undefined : statusLine({ account, me, battle, prefs, signals })
     if (text !== rt.status) {
       rt.status = text
       fx.ui.status(text)
@@ -982,6 +982,7 @@ export function createGame(o: GameOptions): Game {
   }
 
   async function reseed(fx: Fx): Promise<void> {
+    rt.launchers.clear()
     rt.status = null
     await boot(fx, { model: null })
   }
@@ -1355,6 +1356,7 @@ export function createGame(o: GameOptions): Game {
   }
 
   async function end(fx: Fx): Promise<void> {
+    rt.launchers.clear()
     rt.heartbeat?.cancel()
     const p = readPresence(await fx.store.get(KEYS.presence))
     if (p.lease?.holder === rt.holder) await fx.store.set(KEYS.presence, { ...p, lease: null })
@@ -2780,8 +2782,10 @@ export function createGame(o: GameOptions): Game {
     boot, reseed, end, turnStarted, turnStep, turnCompleted, agentStarted, agentFinished, measured, compacted,
     heartbeat: fx => { enter(fx); return heartbeat(fx) },
     command, paneClosing, actions,
-    launcherDrawn: fx => {
-      rt.launcher = true
+    launcherDrawn: (fx, surface, shown) => {
+      if (!shown) { rt.launchers.delete(surface); return }
+      rt.launchers.add(surface)
+      // ui.status has no surface argument: it is cleared only after one of that surface's supported sites draws.
       if (rt.status !== undefined) { rt.status = undefined; fx.ui.status(undefined) }
     },
     site: (kind, requestId) => { rt.sites[kind] = requestId },

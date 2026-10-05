@@ -142,7 +142,7 @@ Legendary is the highest ordinary rarity. Mythics are rarer still: online, named
 | Trading, the market, gifts, claims | No. Players buy your listings while you are away. |
 | Duels (`/spin battle`, revenge, challenges) | No. Duels start at least 2 minutes apart. |
 
-The **Spinlings** button below the input opens your pane; a dot and count show when packs are waiting. It keeps Claude's own hint and composer keys. Offline, connection problems, battles and updates retain short explanations beside it. Hosts without this control keep a plain status line.
+The **Spinlings** button below the input opens your pane; a dot and count show when packs are waiting. Desktop places it beside the session modes; the terminal places it beside the prompt hint. It keeps Claude's own controls and composer keys. Offline, connection problems, battles and updates retain short explanations beside it. Hosts without this control keep a plain status line.
 
 Hitting a rate limit is neither rewarded nor punished: packs keep charging as usual. The launcher or fallback status says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
 
@@ -206,7 +206,7 @@ The game runs on the rhythm of your session, never its content. This is everythi
 | `agent.spawn` | that a subagent started (a count) | A `+2 cheering` line in the band |
 | `session.measure` | rate-limit percentages only | One status note when you hit a limit |
 | `session.compact` | `trigger` | A one-line reaction |
-| `ui.render` | the spinner's `mode`; the band's and pane's size | A spinner suffix during a battle, and drawing the band and pane |
+| `ui.render` | the spinner's `mode`; the band's and pane's size; the composer's surface, never hint text or session modes | A spinner suffix, the band and pane, and a launcher beside Claude's unread composer controls |
 | `ui.close` | that you pressed esc in the pane | Going back one view |
 | `ui.message` (Spinlings pane regions only) | the current registered region's element key and a null payload | Selecting a card or opening the world chooser from its mark or host in Desktop |
 | `command.run` | `/spin` and its arguments | The game's one command |

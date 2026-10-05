@@ -2,6 +2,11 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.12 (2026-10-05)
+
+- **Show the launcher in Claude Desktop.** Use Desktop's session-mode slot for the Spinlings button, including when no modes are active. The terminal retains its prompt-hint launcher. Each preserves Claude's own drawing unread; unsupported surface/slot combinations leave the fallback status intact. The control opens the pane, and its dot/count reflects waiting packs.
+- **Compatibility and privacy.** API v1, rules 1, generator 2, offline format 1 and minimum client 0.1.0 remain unchanged. No new event data is read, no requests or stored/public game fields are added, and no migration or runtime dependency is introduced. Released fixtures, engines, generators, existing cards and website styling are preserved. Native appearance requires a separate Desktop check; SDK proof does not certify it.
+
 ## 0.2.11 (2026-10-05)
 
 - **Keep QA out of the installed game.** Remove `/spin demo` and its preview screens, scene data and special controls. SDK tests and visual fixtures stay in the repository and run against an unchanged staged copy of the plugin; players install only the game and its assets.

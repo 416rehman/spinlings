@@ -1,5 +1,6 @@
 // The supported prompt control, through the registered mod: preserve Claude's hint, open only the pane, and keep
-// live pack state without taking composer keys. Internal scene probes exercise uncommon account/rest/battle states.
+// live pack state without taking composer keys. Desktop uses the native SessionMode slot, including an empty
+// modes list; PromptHint is terminal-only in older Desktop hosts. Scene probes cover uncommon game states.
 import { expect, mock, test } from 'claude-code/testing'
 import type { El } from '../../plugin/hooks/client/types.ts'
 import { INITIAL, statusLine } from '../../plugin/hooks/client/game.ts'
@@ -15,6 +16,11 @@ const HINT = (columns: number, surface: 'terminal' | 'desktop') => ({
   plugin: 'spinlings', component: 'PromptHint', requestId: 'prompt-hint', surface, viewport: { columns, rows: 4 },
   props: { isDraft: true, isWorking: false, hint: 'Private composer hint: not read by Spinlings' },
 }) as const
+const MODE = (columns: number, surface: 'terminal' | 'desktop') => ({
+  plugin: 'spinlings', component: 'SessionMode', requestId: 'session-mode', surface, viewport: { columns, rows: 4 },
+  props: { modes: [] },
+}) as const
+const COMPOSER = (columns: number, surface: 'terminal' | 'desktop') => surface === 'desktop' ? MODE(columns, surface) : HINT(columns, surface)
 
 function fits(tree: unknown, columns: number): void {
   const problems: string[] = []
@@ -28,10 +34,36 @@ function fits(tree: unknown, columns: number): void {
   }
 }
 
+test('unsupported composer sites pass Claude through and keep status until the native Desktop slot draws', { timeoutMs: 90_000 }, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW }), w = engine(on, fakeServer())
+  await $.session.start(SESSION)
+  await settle(clock)
+  const fallback = w.status.at(-1)
+  expect(fallback).toBe('Online · 2 packs')
+  for (const event of [HINT(40, 'desktop'), MODE(40, 'terminal')]) {
+    const ui = await $.ui.mount(event)
+    expect(textOf(await ui.drawn())).toBe('engine')
+    expect(await ui.find({ key: 'spinlings-launcher' })).toBeUndefined()
+    expect(w.status.at(-1)).toBe(fallback)
+    await ui.unmount()
+  }
+  // This is the actual Desktop request shape, even when Claude has no additional session modes.
+  const ui = await $.ui.mount(MODE(40, 'desktop'))
+  expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings ▪ 2 packs')
+  expect(walk(await ui.drawn()).filter(n => n.type === 'Text' && textOf(n) === 'engine')).toHaveLength(1)
+  expect(w.status.at(-1)).toBeUndefined()
+  await ui.unmount()
+  // Ending a conversation must not hide the next conversation's fallback before its composer renders.
+  await $.session.end({ reason: 'clear', sessionId: 'launcher-session', resume: { id: 'launcher-session' } })
+  await $.session.start(SESSION)
+  await settle(clock)
+  expect(w.status.at(-1)).toBe(fallback)
+})
+
 test('the unstarted prompt launcher preserves Claude\'s hint and never starts an account or claims the keyboard', { timeoutMs: 90_000 }, async ($, on) => {
   const w = engine(on)
   for (const surface of SURFACES) for (const columns of WIDTHS) {
-    const ui = await $.ui.mount(HINT(columns, surface))
+    const ui = await $.ui.mount(COMPOSER(columns, surface))
     const tree = await ui.drawn()
     expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings')
     expect(textOf(tree)).toContain('Starting…')
@@ -49,9 +81,9 @@ test('the launcher opens only the pane; pack consumption updates its badge, quie
   const clock = mock.clock(on, { now: NOW }), w = engine(on, fakeServer())
   await $.session.start(SESSION)
   await settle(clock)
-  // Hosts without PromptHint retain the readable fallback with no duplicated plugin name.
+  // A host without a supported composer slot retains its concise passive status.
   expect(w.status.at(-1)).toBe('Online · 2 packs')
-  const ui = await $.ui.mount(HINT(20, 'desktop'))
+  const ui = await $.ui.mount(MODE(20, 'desktop'))
   const packIds = w.server.me.packs.map(p => p.id), cards = w.server.cards.map(c => c.id)
   const before = w.requests.length
   expect((await ui.find({ key: 'spinlings-launcher' }))?.props.label).toBe('Spinlings ▪ 2 packs')
@@ -135,7 +167,7 @@ test('launcher connection states, cached-pack guards, rest, battle, update and f
     fits(tree, columns)
     await ui.unmount()
   }
-  // These fixture trees are drawn by the test engine rather than the registered mod; the real PromptHint click
+  // These fixture trees are drawn by the test engine rather than the registered mod; the registered composer click
   // above exercises the host-owned handler. Merely rendering any of these fixtures must never invoke its action.
   expect(opened).toBe(0)
   // A quiet fixture returns the exact caller-provided tree, with no launcher.

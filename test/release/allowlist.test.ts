@@ -83,8 +83,9 @@ describe('the content-blind allowlist (SPEC 10, 12)', () => {
     assert.ok(reads.length > 0)
   })
 
-  it('the prompt launcher composes Claude\'s drawing without reading prompt hint or draft content', () => {
+  it('the composer launcher composes Claude\'s drawing without reading modes, prompt hint or draft content', () => {
     assert.match(register, /on\('ui\.render', \{ component: 'PromptHint' \}/)
-    for (const name of eventBindings) assert.doesNotMatch(register, new RegExp(`(?<![\\w$])${escaped(name)}\\.props\\.(hint|tail|isDraft)\\b`))
+    assert.match(register, /on\('ui\.render', \{ component: 'SessionMode' \}/)
+    for (const name of eventBindings) assert.doesNotMatch(register, new RegExp(`(?<![\\w$])${escaped(name)}\\.props\\.(modes|hint|tail|isDraft)\\b`))
   })
 })

@@ -365,11 +365,23 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    if (e.surface !== 'terminal') return next(e)
     const theirs = await next(e)
     const state = await readBand($)
     const fx = fxOf($, e.surface)
-    game.launcherDrawn(fx)
-    return launcher({ el: $.ui.resolve(e) as unknown as El, state, theirs, open: () => { void game.actions(fx).open() } })
+    const tree = launcher({ el: $.ui.resolve(e) as unknown as El, state, theirs, open: () => { void game.actions(fx).open() } })
+    game.launcherDrawn(fx, e.surface, !state.prefs.quiet)
+    return tree
+  })
+
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    if (e.surface !== 'desktop') return next(e)
+    const theirs = await next(e)
+    const state = await readBand($)
+    const fx = fxOf($, e.surface)
+    const tree = launcher({ el: $.ui.resolve(e) as unknown as El, state, theirs, open: () => { void game.actions(fx).open() } })
+    game.launcherDrawn(fx, e.surface, !state.prefs.quiet)
+    return tree
   })
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {

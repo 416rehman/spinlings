@@ -1,4 +1,5 @@
-// A native control in the prompt hint site. Claude's own hint stays in the tree, unread; no composer keys are taken.
+// A native composer control: PromptHint in the terminal, SessionMode in Desktop. Claude's tree stays unread.
+// Desktop shapes SessionMode into one compact line, keeping native buttons and their hosted press handlers.
 import type { RenderElement } from 'claude-code'
 import type { El, GameState } from '../client/types.ts'
 import { newerMod, statusLine } from '../client/game.ts'
