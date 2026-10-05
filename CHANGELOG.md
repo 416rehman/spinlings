@@ -2,6 +2,11 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.13 (2026-10-05)
+
+- **A shared duel arena.** Both active creatures battle in one Desktop scene: Moss Grove, Moonlit Water, Ember Cliffs or Floating Isles. Readable names and HP accompany clearer damage, healing and hit effects. The rival stays visible; a native Day button explains the duel's fixed rule, including across midnight. A native footer carries round, streak and the real Now! action for special timing. The scene stays within 160px of height plus a native header/footer; Desktop panes below 40 columns keep compact battle text with actions first, and the terminal retains its four-row budget. Motion off uses still frames; quiet keeps a player-started battle still and hides other moments. Battle ticks, special timing, Perfect windows and authoritative outcomes are unchanged.
+- **Compatibility and privacy.** API v1, rules 1, generator 2, offline format 1 and minimum client 0.1.0 remain unchanged. No new event data, requests, stored/public game fields, migrations or runtime dependencies are added. Released fixtures, engines, generators, existing cards and website layout are preserved. The new duel appearance still needs a native Desktop check; existing screenshots remain honestly versioned.
+
 ## 0.2.12 (2026-10-05)
 
 - **Show the launcher in Claude Desktop.** Use Desktop's session-mode slot for the Spinlings button, including when no modes are active. The terminal retains its prompt-hint launcher. Each preserves Claude's own drawing unread; unsupported surface/slot combinations leave the fallback intact. The compact control opens the pane with one cue at a time: a dot when packs wait, otherwise an available online rating rank. Cached ranks are suppressed for offline, hidden, changing accounts, active battles and unrelated boards. World labels, pack counts and update text stay in the pane; resting guidance moves to Team. Older hosts show only a passive pack-ready dot. Help explains its meaning.

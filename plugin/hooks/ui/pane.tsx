@@ -141,7 +141,7 @@ function route(c: Ctx): Shown {
     case 'trades': return communityScreen(c, { section: 'trades' })
     case 'mine': return communityScreen(c, { section: 'profile' })
     case 'help': return helpScreen(c)
-    case 'today': return todayScreen(c)
+    case 'today': return todayScreen(c, top.rule)
     case 'boards': return c.offline ? onlineOnly(c) : communityScreen(c, { section: 'boards', boards: top })
     case 'listing': return c.offline ? onlineOnly(c) : listingScreen(c, top)
     case 'sell': return c.offline ? onlineOnly(c) : sellScreen(c, top)

@@ -438,7 +438,7 @@ export type SpinView =
   | { kind: 'trades' }
   | { kind: 'mine' }
   | { kind: 'help' }
-  | { kind: 'today' }
+  | { kind: 'today'; rule?: SpinDailyRule }
   /** the leaderboards: one board at a time, all time or this season */
   | { kind: 'boards'; board: SpinBoardName; period: SpinBoardPeriod }
   /** one listing: what you give and what you get, then Buy; `cardId` the card of yours picked for a listing that wants one */

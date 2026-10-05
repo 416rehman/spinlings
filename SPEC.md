@@ -385,7 +385,7 @@ Everything here works while the other player is away. **No account limits:** any
 
 | State | Size | Contents |
 |---|---|---|
-| Battle | Up to 4 rows | Header `vs soft-otter-42 · Opus arena · Haiku Day · round 3`. Both active creatures as 8×8 mini sprites with name, HP bar and HP. `[1] Now!` during the round the attacker's special fires (Perfect timing). A `+n cheering` line while subagents run. |
+| Battle | Terminal: up to 4 rows. Desktop fight: one shared scene up to 160px high plus a native header/footer. | Both active creatures share a Desktop arena with landscapes for each family, readable names, HP bars/numbers and damage/healing effects. Opponent and daily-rule badges identify the matchup; a native Day button explains the duel's fixed rule on demand, including across midnight. The footer shows round/streak and a real native `[1] Now!` button during the round the attacker's special fires (Perfect timing), with cheering while subagents run. Below 40 columns Desktop keeps compact words with actions first. Rustle/reveal ceremonies and the terminal's 8×8 mini sprites/four-row layout remain. Authoritative HP, battle ticks, special timing and Perfect windows are unchanged; motion off draws still frames and quiet keeps a player-started battle still while hiding other moments. |
 | Result | 1 row, 12 s | e.g. `Won vs wild Fogmaw · caught Fogmaw! · +10 sparks · Pipkin evolved into Pipmaw`, with `[Open]` |
 | Catch choice | 1 row | When a wild win allows a catch: `[1] Fogmaw  [2] Tuftbun  [3] Mintling` (auto-picks the rarest after 20 s) |
 | Welcome | 2 rows, once ever | See "First run" in section 6 |
@@ -986,7 +986,7 @@ The same card always looks the same everywhere: same colors, same marks, same or
   - Back or Close, Help and version/update controls at the bottom.
 
   This is the same on every tab.
-- **Parity:** the terminal and desktop show the same information in the same order. The desktop uses `Svg` art and the 4/8/16/32 spacing scale.
+- **Parity:** the terminal and desktop show the same battle information and actions. Desktop fights arrange it around a shared `Svg` scene; the terminal retains its four-row layout. Other moments keep the same order on both surfaces. The desktop uses the 4/8/16/32 spacing scale.
 
 ### Keys (identical everywhere)
 | Key | Action |

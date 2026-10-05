@@ -253,7 +253,7 @@ export const restLook = (hp: number, gone = false): FighterLook => ({
 })
 
 /** The callouts a hit raises, in order, with when each starts and whose they are. */
-function calloutsOf(plan: RoundPlan, h: Hit): { side: Side; at: number; c: Callout }[] {
+export function calloutsOf(plan: RoundPlan, h: Hit): { side: Side; at: number; c: Callout }[] {
   const x = h.action
   const out: { side: Side; at: number; c: Callout }[] = []
   const actor = plan.fighters[h.actor]
@@ -869,4 +869,3 @@ export function leadCard(state: Pick<BandState, 'me' | 'cards'>): Card | null {
 export function packFamily(state: Pick<BandState, 'me' | 'signals'>): Family {
   return state.me?.packs.at(-1)?.family ?? state.signals.family
 }
-

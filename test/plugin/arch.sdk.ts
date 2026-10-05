@@ -248,9 +248,14 @@ test('a duel plays in the band, minis and all, then settles into a result', { ti
   for (const surface of ['terminal', 'desktop'] as const) {
     for (const columns of [40, 80, 120]) {
       const band = await $.ui.mount({ ...BAND(columns), surface })
-      expect(await band.find({ text: /Rival Thistlewick/ })).toBeDefined()
+      if (surface === 'terminal') expect(await band.find({ text: /Rival Thistlewick/ })).toBeDefined()
+      else {
+        const scene = (await band.findAll({ type: 'Svg' }))[0]!
+        expect(String(scene.props.alt)).toContain('Rival Thistlewick')
+        expect(String(scene.props.source)).toContain('vs Rival Thistlewick')
+      }
       if (surface === 'terminal' && columns >= 80) expect((await band.findAll({ type: 'Raster' })).length).toBe(2)
-      if (surface === 'desktop' && columns >= 80) expect((await band.findAll({ type: 'Svg' })).length).toBe(2)
+      if (surface === 'desktop') expect((await band.findAll({ type: 'Svg' })).length).toBe(1)
       await band.unmount()
     }
   }

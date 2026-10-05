@@ -10,6 +10,7 @@ import {
   bestTeam, cardCan, collection, holdText, paged, revealSummary, statTiles, teamPlace, tradeSection, traderPicks,
 } from '../../plugin/hooks/client/viewmodels.ts'
 import { traderDeals } from '../../plugin/hooks/core/trader.ts'
+import { DAY_MS, RULE_INFO, dailyRule } from '../../plugin/hooks/core/world.ts'
 import { pane } from '../../plugin/hooks/ui/pane.tsx'
 import { cardArt, measure } from './engine.ts'
 
@@ -54,9 +55,9 @@ function fakeActions(p: Probe, redraw: () => void): Actions {
  * Draws the pane from the probe's state beneath the plugins, as register.tsx's PANE slot does (an inline plugin
  * cannot close over this file's imports). Acts redraw explicitly: the probe's state is not $.state.
  */
-function draws(on: On, p: Probe): void {
+function draws(on: On, p: Probe, now: () => number = () => NOW): void {
   on('ui.render', { component: 'Pane', requestId: 'probe' }, async ($, e) => pane({
-    el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns, rows: e.props.scroll.bodyRows, now: NOW,
+    el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns, rows: e.props.scroll.bodyRows, now: now(),
     actions: fakeActions(p, () => undefined), focused: true, placement: 'inline', state: p.state,
   }))
 }
@@ -133,6 +134,48 @@ function gate(tree: unknown, columns: number, where: string): void {
 
 // The probe plugin draws from this; each test sets the state it needs.
 const p: Probe = { state: INITIAL, calls: [] }
+
+test('duel Day explanations keep the setup rule across midnight while ordinary Day follows the current meadow', { timeoutMs: 60_000 }, async ($, on) => {
+  let now = NOW
+  draws(on, p, () => now)
+  const base = uiScenes(NOW).find(s => s.title === 'Today · the meadow rule')!.state
+  const start = Math.floor(NOW / DAY_MS) * DAY_MS
+  const midnight = Array.from({ length: 14 }, (_, i) => start + (i + 1) * DAY_MS).find(t => dailyRule(t - 1) !== dailyRule(t))
+  expect(midnight).toBeDefined()
+  const battleRule = dailyRule(midnight! - 1)
+  const battle = RULE_INFO[battleRule]
+  for (const surface of SURFACES) for (const columns of [24, 80]) for (const time of [midnight! - 1, midnight! + 1]) {
+    now = time
+    p.state = { ...base, pane: { ...base.pane, hello: false, stack: [{ kind: 'today', rule: battleRule }] } }
+    p.calls = []
+    const ui = await $.ui.mount(MOUNT(columns, surface))
+    const tree = await ui.drawn()
+    gate(tree, columns, `duel Day @${columns} ${surface} ${time}`)
+    const text = textOf(tree)
+    expect(all(tree, 'Text').some(n => textOf(n) === battle.name)).toBe(true)
+    expect(text).toContain(battle.text.replace('shinies', 'Alt colour cards'))
+    expect(text).toContain('This rule is fixed for this duel.')
+    expect(text).toContain('The current meadow rule changes at midnight UTC.')
+    expect(text).not.toContain('A different meadow rule arrives each day')
+    expect(p.calls).toEqual([])
+    await ui.unmount()
+
+    p.state = { ...base, pane: { ...base.pane, hello: false, stack: [{ kind: 'today' }] } }
+    const currentUi = await $.ui.mount(MOUNT(columns, surface))
+    const currentTree = await currentUi.drawn()
+    gate(currentTree, columns, `current Day @${columns} ${surface} ${time}`)
+    const current = RULE_INFO[dailyRule(time)]
+    expect(all(currentTree, 'Text').some(n => textOf(n) === current.name)).toBe(true)
+    expect(textOf(currentTree)).toContain(current.text.replace('shinies', 'Alt colour cards'))
+    expect(textOf(currentTree)).toContain('A different meadow rule arrives each day at midnight UTC.')
+    expect(textOf(currentTree)).not.toContain('fixed for this duel')
+    await currentUi.unmount()
+  }
+  p.state = { ...base, pane: { ...base.pane, hello: false, stack: [{ kind: 'today', rule: 'shinyHour' }] } }
+  const shinyUi = await $.ui.mount(MOUNT(24, 'desktop'))
+  expect(textOf(await shinyUi.drawn())).toContain('Alt colour cards are 1 in 25')
+  await shinyUi.unmount()
+})
 
 test('pack art, waiting count, Open and countdown stay together in Team at narrow and wide sizes', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)

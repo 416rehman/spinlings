@@ -1,6 +1,8 @@
 // Community's sections, your live game numbers, and small explanations reached from the pane's controls.
 import { ECONOMY } from '../core/economy.ts'
 import { FAMILIES, FAMILY_INFO, SPECIALS } from '../core/families.ts'
+import { RULE_INFO } from '../core/world.ts'
+import type { SpinDailyRule } from '../../types/index.d.ts'
 import { communitySection, hasFeature } from '../client/game.ts'
 import { catalogOf } from '../client/frozen.ts'
 import type { BoardName, BoardPeriod, CommunitySection } from '../client/types.ts'
@@ -68,11 +70,12 @@ export function mineScreen(c: Ctx): Shown {
   }
 }
 
-export function todayScreen(c: Ctx): Shown {
-  const day = hello(c.now, catalogOf(c.state.account))
+export function todayScreen(c: Ctx, rule?: SpinDailyRule): Shown {
+  const day = rule === undefined ? hello(c.now, catalogOf(c.state.account)) : { rule: RULE_INFO[rule].name, text: RULE_INFO[rule].text }
   const text = day.rule === 'Shiny Hour' ? day.text.replace('shinies', 'Alt colour cards') : day.text
+  const note = rule === undefined ? 'A different meadow rule arrives each day at midnight UTC.' : 'This rule is fixed for this duel. The current meadow rule changes at midnight UTC.'
   return {
-    body: column(c, [heading(c, day.rule), para(c, `${text}.`), para(c, 'A different meadow rule arrives each day at midnight UTC.', { dim: true })]),
+    body: column(c, [heading(c, day.rule), para(c, `${text}.`), para(c, note, { dim: true })]),
     hints: ['esc Back'],
   }
 }

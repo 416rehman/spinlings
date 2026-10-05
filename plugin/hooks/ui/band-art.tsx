@@ -7,7 +7,7 @@ import type { Pixels } from '../core/sprite.ts'
 import { FAMILY_COLOR, FAMILY_MARK, INK, MYTHIC_COLOR, RARITY_COLOR, hex6, hexInt, hpColor, pixelRects as rects } from './tokens.ts'
 import { T, TIMING, cardBack, dissolve, flash, glowOutline, place, silhouette, sparkles, squash } from '../client/anim.ts'
 import type { Fighter, Foreshadow, RoundPlan, Side } from '../client/battleview.ts'
-import { SHADOW, catchBeats, catchPreMs, evolveSwitches, lookAt, spriteOf } from '../client/battleview.ts'
+import { SHADOW, calloutsOf, catchBeats, catchPreMs, evolveSwitches, lookAt, spriteOf } from '../client/battleview.ts'
 import { fit } from '../client/text.ts'
 import { effortLook } from '../client/effort.ts'
 import { eggPixels, eggSpeck, packagePixels, presentPixels } from './ceremony-art.tsx'
@@ -53,54 +53,52 @@ const sprite = (px: Pixels, k: number, x: number, y: number, inner = '') =>
 
 const rarityHex = (c: Pick<BattleCard, 'species' | 'rarity'>) => (c.species === 'mythic' ? MYTHIC_COLOR : RARITY_COLOR[c.rarity])
 
-// ---------- the battle: one plate per creature ----------
+// ---------- the battle's creatures and their shared round beats ----------
 
-export type HudSize = { k: number; pad: number; info: number; font: number }
-export const HUD = { wide: { k: 3, pad: 6, info: 112, font: 11 }, narrow: { k: 2, pad: 6, info: 84, font: 10 } } as const
+export type FighterSvgOptions = { x: number; y: number; k: number; start?: number; motion: boolean }
 
-export function hudSize(s: HudSize): { w: number; height: number } {
-  return { w: s.pad * 3 + 16 * s.k + s.info, height: 16 * s.k + s.pad * 2 }
+/** A crisp creature and its impact numbers; the owning scene provides the background, labels and clip region. */
+export function fighterSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, o: FighterSvgOptions): string {
+  return fighterArtSvg(f, plan, side, o)
 }
 
-const barWidth = (s: HudSize) => Math.round(s.info * 0.62)
-
-/**
- * A creature's plate for the round being animated: the sprite, name and family mark, HP bar and numbers, callouts
- * and the special's charge, with the round's beats played by SMIL. `start` resumes the round that far in.
- */
-export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s: HudSize, o: { start?: number; motion: boolean; effort?: unknown }): string {
-  const { w, height } = hudSize(s)
-  if (!f) return doc(w, height, plate(w, height, '#3a3646'))
+function fighterArtSvg(f: Fighter | null, plan: RoundPlan | null, side: Side,
+  o: FighterSvgOptions & { font?: number; entry?: number; burst?: boolean }): string {
+  if (!f || (plan ? plan.start[side] : f.hp) <= 0) return ''
   const start = o.start ?? 0
-  const mirror = side === 'd'
-  const sp = 16 * s.k
-  const sx = mirror ? w - s.pad - sp : s.pad
-  const ix = mirror ? s.pad : s.pad * 2 + sp
+  const sp = 16 * o.k
+  const font = o.font ?? (o.k >= 4 ? 19 : o.k >= 3 ? 17 : 13)
+  const burst = o.burst ?? o.k >= 3
   const px = spriteOf(f.card, 'full')
   const anim = o.motion && plan !== null
   const toward = side === 'a' ? 1 : -1
-  const rarity = rarityHex(f.card)
   const fam = FAMILY_COLOR[f.card.family]
   const hits = anim ? plan!.hits : []
 
-  // the creature, with its round's motion
   let moves = ''
-  if (anim && plan!.stepIn[side]) moves += shift(`${-toward * sp} 0;0 0`, -start, TIMING.stepIn, { freeze: true })
+  if (anim && plan!.stepIn[side]) moves += shift(`${o.entry ?? -toward * sp} 0;0 0`, -start, TIMING.stepIn, { freeze: true })
   let overlays = ''
-  const gone = plan ? plan.start[side] <= 0 : f.hp <= 0
   for (const hit of hits) {
     const x = hit.action
     if (hit.actor === side) {
       moves += shift(`0 0;${toward * 4} 0;0 0`, hit.at - TIMING.windup - start, TIMING.windup + 80)
       if (x.move === 'special') {
         const ring = glowOutline(px, x.perfect ? 0xf2b33d : hexInt(fam), 1).map((row, y) => row.map((c, xx) => (px[y]![xx] === T ? c : T)))
-        overlays += hidden(group(rects(ring, s.k), 'shape-rendering="crispEdges"'), during(hit.at - 2 * TIMING.windup, hit.at + 80, start))
+        overlays += hidden(group(rects(ring, o.k), 'shape-rendering="crispEdges"'), during(hit.at - 2 * TIMING.windup, hit.at + 80, start))
       }
-      if (x.perfect) overlays += hidden(group(rects(sparkles(px, 0.2, `${f.card.id}/p`, { count: 4, color: 0xfff0a8, reach: 1 }), s.k), 'shape-rendering="crispEdges"'), during(hit.at, hit.at + 700, start))
+      if (x.perfect) overlays += hidden(group(rects(sparkles(px, 0.2, `${f.card.id}/p`, { count: 4, color: 0xfff0a8, reach: 1 }), o.k), 'shape-rendering="crispEdges"'), during(hit.at, hit.at + 700, start))
     } else {
-      overlays += hidden(group(rects(flash(px), s.k), 'shape-rendering="crispEdges"'), during(hit.at, hit.at + TIMING.hitFlash + 20, start))
-      if (x.hits > 1) overlays += hidden(group(rects(flash(px), s.k), 'shape-rendering="crispEdges"'), during(hit.at + 150, hit.at + 150 + TIMING.hitFlash + 20, start))
+      overlays += hidden(group(rects(flash(px), o.k), 'shape-rendering="crispEdges"'), during(hit.at, hit.at + TIMING.hitFlash + 20, start))
+      if (x.hits > 1) overlays += hidden(group(rects(flash(px), o.k), 'shape-rendering="crispEdges"'), during(hit.at + 150, hit.at + 150 + TIMING.hitFlash + 20, start))
       moves += shift('0 0;-3 0;3 0;-3 0;3 0;0 0', hit.at - start, TIMING.shake)
+      if (burst) {
+        const cx = sp / 2, cy = sp / 2
+        const rays = [0, 1, 2, 3, 4, 5, 6, 7].map(i => {
+          const a = i * Math.PI / 4, r = sp * 0.36, end = sp * 0.49
+          return `<path d="M${(cx + Math.cos(a) * r).toFixed(1)} ${(cy + Math.sin(a) * r).toFixed(1)}L${(cx + Math.cos(a) * end).toFixed(1)} ${(cy + Math.sin(a) * end).toFixed(1)}"/>`
+        }).join('')
+        overlays += hidden(`<g fill="none" stroke="${x.crit || x.perfect ? INKS.gold : '#fff3dd'}" stroke-width="2">${rays}</g>`, during(hit.at, hit.at + TIMING.hitFlash + 60, start))
+      }
       if (x.targetFainted) {
         const k = hit.at + 250
         moves += `<animate attributeName="opacity" calcMode="discrete" values="1;0;1;0;1;0;1" begin="${s3(k - start)}" dur="0.45s"/>`
@@ -109,8 +107,8 @@ export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s:
       }
     }
   }
-  const body = gone ? '' : group(sprite(px, s.k, 0, 0) + overlays, `transform="translate(${sx} ${s.pad})"`)
-  const creature = gone ? '' : `<g>${moves}${body}</g>`
+  const body = group(sprite(px, o.k, 0, 0) + overlays, `transform="translate(${o.x} ${o.y})"`)
+  const creature = `<g>${moves}${body}</g>`
 
   // numbers over the creature
   let popups = ''
@@ -125,20 +123,55 @@ export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s:
     if (plan!.end[side] > settled) pops.push({ at: plan!.endAt, text: `+${plan!.end[side] - settled}`, color: INKS.good })
     for (const p of pops) {
       const begin = s3(p.at - start)
-      popups += `<text x="${sx + sp / 2}" y="${s.pad + sp * 0.55}" text-anchor="middle" font-size="${s.font + 3}" font-weight="700" fill="${p.color}" stroke="${PLATE}" stroke-width="3" paint-order="stroke" opacity="0" ${FONT}>`
+      popups += `<text x="${o.x + sp / 2}" y="${o.y + sp * 0.55}" text-anchor="middle" font-size="${font}" font-weight="700" fill="${p.color}" stroke="${PLATE}" stroke-width="3" paint-order="stroke" opacity="0" ${FONT}>`
         + `<animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.5;1" begin="${begin}" dur="${s3(TIMING.popup)}"/>`
         + `<animateTransform attributeName="transform" type="translate" values="0 0;0 ${-sp / 4}" begin="${begin}" dur="${s3(TIMING.popup)}"/>${esc(p.text)}</text>`
     }
   }
+  return creature + popups
+}
+
+// ---------- one plate per creature, retained for compact standalone callers ----------
+
+export type HudSize = { k: number; pad: number; info: number; font: number }
+export const HUD = { wide: { k: 4, pad: 8, info: 120, font: 12 }, narrow: { k: 2, pad: 6, info: 84, font: 10 } } as const
+
+export function hudSize(s: HudSize): { w: number; height: number } {
+  return { w: s.pad * 3 + 16 * s.k + s.info, height: 16 * s.k + s.pad * 2 }
+}
+
+const barWidth = (s: HudSize) => s.k >= 4 ? s.info : Math.round(s.info * 0.62)
+
+/** A creature's plate; `start` resumes the same authoritative round used by the shared arena. */
+export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s: HudSize, o: { start?: number; motion: boolean; effort?: unknown }): string {
+  const { w, height } = hudSize(s)
+  if (!f) return doc(w, height, `<rect width="${w}" height="${height}" fill="${PLATE}"/>` + plate(w, height, '#3a3646'))
+  const start = o.start ?? 0
+  const mirror = side === 'd'
+  const wide = s.k >= 4
+  const sp = 16 * s.k
+  const artRight = mirror !== wide
+  const sx = artRight ? w - s.pad - sp : s.pad
+  const ix = artRight ? s.pad : s.pad * 2 + sp
+  const anim = o.motion && plan !== null
+  const toward = side === 'a' ? 1 : -1
+  const rarity = rarityHex(f.card)
+  const fam = FAMILY_COLOR[f.card.family]
+  const hits = anim ? plan!.hits : []
+  const creature = fighterArtSvg(f, plan, side, {
+    x: sx, y: s.pad, k: s.k, start, motion: o.motion, font: s.font + (wide ? 7 : 3),
+    entry: (wide ? toward : -toward) * sp, burst: wide,
+  })
 
   // name, bar, numbers
   const anchor = mirror ? 'end' : 'start'
   const tx = mirror ? ix + s.info : ix
+  const nameLimit = Math.max(4, Math.floor(s.info / (s.font * 0.62)) - 2)
   const nameText = `<text x="${tx}" y="${s.pad + s.font}" text-anchor="${anchor}" font-size="${s.font}" font-weight="700" ${FONT}>`
-    + (mirror ? `<tspan fill="${fam}">${FAMILY_MARK[f.card.family]} </tspan><tspan fill="${rarity}">${esc(fit(f.name, 14))}</tspan>`
-      : `<tspan fill="${rarity}">${esc(fit(f.name, 14))}</tspan><tspan fill="${fam}"> ${FAMILY_MARK[f.card.family]}</tspan>`) + '</text>'
-  const bw = barWidth(s), bh = Math.max(4, Math.round(s.font * 0.5))
-  const by = s.pad + s.font + 5
+    + (mirror ? `<tspan fill="${fam}">${FAMILY_MARK[f.card.family]} </tspan><tspan fill="${rarity}">${esc(fit(f.name, nameLimit))}</tspan>`
+      : `<tspan fill="${rarity}">${esc(fit(f.name, nameLimit))}</tspan><tspan fill="${fam}"> ${FAMILY_MARK[f.card.family]}</tspan>`) + '</text>'
+  const bw = barWidth(s), bh = wide ? 8 : Math.max(4, Math.round(s.font * 0.5))
+  const by = wide ? 38 : s.pad + s.font + 5
   const bx = mirror ? ix + s.info - bw : ix
   const frac = (v: number) => Math.max(0, Math.min(1, f.maxHp > 0 ? v / f.maxHp : 0))
   const startHp = plan ? plan.start[side] : f.hp
@@ -162,36 +195,39 @@ export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s:
   const w0 = Math.round(bw * frac(startHp))
   const bar = `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="${bh / 2}" fill="#3a3646"/>`
     + `<rect x="${mirror ? bx + bw - w0 : bx}" y="${by}" width="${w0}" height="${bh}" rx="${bh / 2}" fill="${hpColor(frac(startHp))}">${barAnim}</rect>`
-  const dx = mirror ? bx - 4 : bx + bw + 4
+  const dx = wide ? tx : mirror ? bx - 4 : bx + bw + 4
   const digitsAt = (hp: number) => `${Math.max(0, Math.ceil(hp))}/${f.maxHp}`
   let digits = ''
   const marks = [{ at: -Infinity, hp: startHp }, ...steps]
   marks.forEach((m, i) => {
     const next = marks[i + 1]
-    const text = `<text x="${dx}" y="${by + bh}" text-anchor="${mirror ? 'end' : 'start'}" font-size="${s.font - 1}" fill="${INKS.dim}" ${FONT}>${digitsAt(m.hp)}</text>`
+    const text = `<text x="${dx}" y="${wide ? by - 5 : by + bh}" text-anchor="${mirror ? 'end' : 'start'}" font-size="${s.font - 1}" fill="${INKS.dim}" ${FONT}>${wide ? 'HP ' : ''}${digitsAt(m.hp)}</text>`
     if (marks.length === 1) digits += text
     else digits += hidden(text, during(i === 0 ? start : m.at + TIMING.drain / 2, next ? next.at + TIMING.drain / 2 : null, start))
   })
 
   // callouts, each until the next
   let callouts = ''
-  const cy = by + bh + s.font + 4
+  const cy = wide ? 60 : by + bh + s.font + 4
   if (anim) {
     const list = calloutTimeline(plan!, side)
     list.forEach((c, i) => {
       const next = list[i + 1]
-      callouts += hidden(`<text x="${tx}" y="${cy}" text-anchor="${anchor}" font-size="${s.font - 1}" font-weight="700" fill="${hex6(c.color)}" ${FONT}>${esc(c.text)}</text>`, during(c.at, next ? next.at : null, start))
+      callouts += hidden(`<text x="${tx}" y="${cy}" text-anchor="${anchor}" font-size="${s.font - 1}" font-weight="700" fill="${hex6(c.color)}" ${FONT}>${esc(fit(c.text, Math.floor(s.info / ((s.font - 1) * 0.62))))}</text>`, during(c.at, next ? next.at : null, start))
     })
   }
   const ready = f.charge >= f.need
   const charge = `<text x="${tx}" y="${height - s.pad}" text-anchor="${anchor}" font-size="${s.font - 2}" fill="${ready ? INKS.gold : INKS.dim}" ${FONT}>${esc(f.special)} ${'●'.repeat(Math.min(f.need, f.charge))}${'○'.repeat(Math.max(0, f.need - f.charge))}</text>`
-  return doc(w, height, plate(w, height, rarity, side === 'a' ? effortLook(o.effort) : {}) + creature + popups + nameText + bar + digits + callouts + charge)
+  // An opaque canvas also keeps native SVG rasterizers from whitening the rounded corners.
+  const ground = wide ? `<ellipse cx="${sx + sp / 2}" cy="${height - s.pad - 2}" rx="${sp * 0.44}" ry="5" fill="${fam}" opacity="0.2"/><ellipse cx="${sx + sp / 2}" cy="${s.pad + sp / 2}" rx="${sp * 0.47}" ry="${sp * 0.47}" fill="${fam}" opacity="0.06"/>` : ''
+  return doc(w, height, `<rect width="${w}" height="${height}" fill="${PLATE}"/>` + plate(w, height, rarity, side === 'a' ? effortLook(o.effort) : {}) + ground + creature + nameText + bar + digits + callouts + charge)
 }
 
 /** The callouts one side shows through a round, in order (as lookAt picks them on the terminal). */
-function calloutTimeline(plan: RoundPlan, side: Side): { at: number; text: string; color: number }[] {
+export function calloutTimeline(plan: RoundPlan, side: Side): { at: number; text: string; color: number }[] {
   const out: { at: number; text: string; color: number }[] = []
-  for (let t = 0; t < plan.ms; t += 20) {
+  const beats = [...new Set([0, ...plan.hits.flatMap(hit => calloutsOf(plan, hit).map(c => c.at))])].filter(t => t >= 0 && t < plan.ms).sort((a, b) => a - b)
+  for (const t of beats) {
     const c = lookAt(plan, side, t).callout
     const last = out.at(-1)
     if (c && (!last || last.text !== c.text)) out.push({ at: t, text: c.text, color: c.color })

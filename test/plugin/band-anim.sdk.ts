@@ -7,7 +7,7 @@ import { RULES_VERSION, simulateBattle } from '../../plugin/hooks/core/battle.ts
 import { mintCard, toBattleCard } from '../../plugin/hooks/core/cards.ts'
 import { EYE, SHINE, spriteFor } from '../../plugin/hooks/core/sprite.ts'
 import { familySpecies } from '../../plugin/hooks/core/species.ts'
-import { seasonOf } from '../../plugin/hooks/core/world.ts'
+import { DAILY_RULES, seasonOf } from '../../plugin/hooks/core/world.ts'
 import {
   T, TIMING, cardBack, cellAt, crossfade, dissolve, easeIn, easeOut, encodeGrid, flash, foil, glowOutline, grid, gridText, offset,
   putPixels, putText, silhouette, sparkles, squash,
@@ -19,6 +19,21 @@ import {
 import { INITIAL } from '../../plugin/hooks/client/game.ts'
 import { encounterDue, nextCheckIn, workedAfter } from '../../plugin/hooks/client/session.ts'
 import type { Battle, Moment, Outcome } from '../../plugin/hooks/client/types.ts'
+import { HUD, calloutTimeline, hudSize, hudSvg } from '../../plugin/hooks/ui/band-art.tsx'
+import { arenaSize, arenaSvg } from '../../plugin/hooks/ui/arena-duel.ts'
+import { hex6 } from '../../plugin/hooks/ui/tokens.ts'
+
+const attrs = (tag: string): Record<string, string> => Object.fromEntries([...tag.matchAll(/([\w:-]+)="([^"]*)"/g)].map(m => [m[1]!, m[2]!]))
+const tags = (source: string, name: string): Record<string, string>[] => [...source.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'g'))].map(m => attrs(m[0]))
+const texts = (source: string): { p: Record<string, string>; body: string }[] => [...source.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/g)].map(m => ({ p: attrs(m[1]!), body: m[2]! }))
+const hpRects = (source: string) => {
+  const rects = tags(source, 'rect')
+  const track = rects.find(r => r.fill === '#3a3646' && r.rx !== undefined)!
+  expect(track !== undefined).toBe(true)
+  const fill = rects.find(r => r !== track && r.y === track.y && r.height === track.height && r.rx === track.rx)!
+  expect(fill !== undefined).toBe(true)
+  return { track, fill }
+}
 
 const NOW = Date.UTC(2026, 9, 2, 12, 0, 0)
 const card: Card = { ...mintCard({ species: familySpecies(seasonOf(NOW), 'opus').filter(s => !s.legendary)[0]!, rarity: 'rare', shiny: false, dna: 31, origin: 'pack', now: NOW, level: 3 }), id: 'a1' }
@@ -117,6 +132,320 @@ test('a fighter Raster is the size its layout says, mirrored for the defender, a
   expect(line.columns).toBe(31)
   const half = fighterGrid(f.a, restLook(f.a!.maxHp / 2), wide)
   expect(gridText(half)[1]).toMatch(/████░░░░/)
+})
+
+test('desktop duel HUDs keep intrinsic bounds, opaque corners and crisp art, facing inward in the wide layout', () => {
+  const b = duel()
+  const f = fightersAt(b, simulateBattle(b.setup, []), 1)
+  expect(hudSize(HUD.wide)).toEqual({ w: 208, height: 80 })
+  expect(hudSize(HUD.narrow)).toEqual({ w: 134, height: 44 })
+  for (const s of [HUD.wide, HUD.narrow]) for (const side of ['a', 'd'] as const) {
+    const fighter = f[side]!
+    const { w, height } = hudSize(s)
+    const source = hudSvg(fighter, null, side, s, { motion: false })
+    const root = tags(source, 'svg')[0]!
+    expect(root.viewBox).toBe(`0 0 ${w} ${height}`)
+    expect([Number(root.width), Number(root.height)]).toEqual([w, height])
+    const background = tags(source, 'rect')[0]!
+    expect([Number(background.x ?? 0), Number(background.y ?? 0), Number(background.width), Number(background.height)]).toEqual([0, 0, w, height])
+    expect(background.rx ?? '0').toBe('0')
+    expect(background['fill-opacity'] ?? '1').toBe('1')
+    expect(background.fill).toMatch(/^#[0-9a-f]{6}$/i)
+    const artOnRight = s === HUD.wide ? side === 'a' : side === 'd'
+    const artX = artOnRight ? w - s.pad - 16 * s.k : s.pad
+    expect(source).toContain(`transform="translate(${artX} ${s.pad})"`)
+    expect(source).toContain('shape-rendering="crispEdges"')
+    const name = texts(source).find(t => t.body.includes('<tspan'))!
+    expect(name !== undefined).toBe(true)
+    expect(name.p['text-anchor']).toBe(side === 'a' ? 'start' : 'end')
+    if (artOnRight) expect(Number(name.p.x)).toBeLessThanOrEqual(artX)
+    else expect(Number(name.p.x)).toBeGreaterThan(artX + 16 * s.k)
+    const charge = texts(source).find(t => t.body.includes(fighter.special))!
+    expect(charge.p['text-anchor']).toBe(name.p['text-anchor'])
+    expect(charge.p.x).toBe(name.p.x)
+    expect(Number(charge.p.y)).toBeLessThan(height)
+    const { track } = hpRects(source)
+    expect(Number(track.x)).toBeGreaterThanOrEqual(0)
+    expect(Number(track.x) + Number(track.width)).toBeLessThanOrEqual(w)
+    expect(Number(track.y) + Number(track.height)).toBeLessThan(height)
+    if (s === HUD.wide) expect(Number(track.height)).toBeGreaterThanOrEqual(8)
+  }
+  const empty = hudSvg(null, null, 'a', HUD.wide, { motion: false })
+  expect(tags(empty, 'rect')[0]?.width).toBe('208')
+  expect(texts(empty).length).toBe(0)
+})
+
+test('still desktop HP bars clamp their endpoints, keep zero HP readable and show the settled battle', () => {
+  const b = duel()
+  const log = simulateBattle(b.setup, [])
+  const initial = fightersAt(b, log, 1)
+  for (const s of [HUD.wide, HUD.narrow]) for (const side of ['a', 'd'] as const) {
+    const fighter = initial[side]!
+    for (const hp of [-5, 0, 1, fighter.maxHp / 2, fighter.maxHp, fighter.maxHp + 100]) {
+      const source = hudSvg({ ...fighter, hp }, null, side, s, { motion: false })
+      const { track, fill } = hpRects(source)
+      const width = Number(fill.width), full = Number(track.width)
+      expect(width).toBeGreaterThanOrEqual(0)
+      expect(width).toBeLessThanOrEqual(full)
+      if (hp <= 0) expect(width).toBe(0)
+      if (hp >= fighter.maxHp) expect(width).toBe(full)
+      const numbers = texts(source).find(t => /\d+\/\d+$/.test(t.body))!
+      expect(numbers !== undefined).toBe(true)
+      if (hp <= fighter.maxHp) expect(numbers.body).toContain(`${Math.max(0, Math.ceil(hp))}/${fighter.maxHp}`)
+      expect(source).not.toMatch(/<(?:animate(?:Transform|Motion)?|set)\b/)
+    }
+    const settled = fightersAt(b, log, log.rounds.length + 1)[side]!
+    const source = hudSvg(settled, null, side, s, { motion: true })
+    expect(source).toContain(`${Math.ceil(settled.hp)}/${settled.maxHp}`)
+    expect(source).not.toMatch(/<(?:animate(?:Transform|Motion)?|set)\b/)
+    if (settled.hp <= 0) expect(source).not.toContain('shape-rendering="crispEdges"')
+  }
+})
+
+test('desktop fighter labels escape markup, fit long names and never insert server text as SVG', () => {
+  const b = duel()
+  const fighter = fightersAt(b, simulateBattle(b.setup, []), 1).a!
+  for (const s of [HUD.wide, HUD.narrow]) {
+    const name = 'A<&"B'
+    const source = hudSvg({ ...fighter, name, special: 'C<&"D' }, null, 'a', s, { motion: false })
+    expect(source).toContain('A&lt;&amp;&quot;B')
+    expect(source).toContain('C&lt;&amp;&quot;D')
+    expect(source).not.toContain(name)
+    expect(source).not.toContain('C<&"D')
+    const longName = 'MarshmallowMenaceWithAnExtremelyLongName'
+    const long = hudSvg({ ...fighter, name: longName }, null, 'a', s, { motion: false })
+    expect(long).not.toContain(longName)
+    expect(long).toContain('…')
+    const label = texts(long).find(t => t.body.includes('<tspan'))!.body.replace(/<[^>]*>/g, '')
+    expect(Array.from(label).length * s.font * 0.62).toBeLessThanOrEqual(s.info)
+    expect(long).not.toMatch(/<(?:script|foreignObject|image)\b|(?:href|onload|onclick)=/i)
+  }
+})
+
+test('desktop impacts and HP transitions use the round plan, resume its beats and stay absent with motion off', () => {
+  const b = duel()
+  const log = simulateBattle(b.setup, [])
+  const seconds = (ms: number) => `${(ms / 1000).toFixed(3)}s`
+  for (let round = 1; round <= log.rounds.length; round++) {
+    const plan = roundPlan(b, log, round, 2200)!
+    for (const side of ['a', 'd'] as const) {
+      const fighter = plan.fighters[side]!
+      for (const start of [0, TIMING.windup]) {
+        const source = hudSvg(fighter, plan, side, HUD.wide, { motion: true, start })
+        const changes = [...plan.hits.filter(hit => hit.after[side] !== hit.before[side]).map(hit => ({ at: hit.at, hp: hit.after[side] }))]
+        const lastHp = plan.hits.at(-1)?.after[side] ?? plan.start[side]
+        if (plan.end[side] !== lastHp) changes.push({ at: plan.endAt, hp: plan.end[side] })
+        const { track } = hpRects(source)
+        for (const change of changes) {
+          const width = Math.round(Number(track.width) * Math.max(0, Math.min(1, change.hp / fighter.maxHp)))
+          const bar = tags(source, 'animate').find(a => a.attributeName === 'width' && a.begin === seconds(change.at - start) && a.dur === seconds(TIMING.drain))!
+          expect(bar !== undefined).toBe(true)
+          expect(Number(bar.to)).toBe(width)
+          expect(bar.fill).toBe('freeze')
+          expect(source).toContain(`${Math.ceil(change.hp)}/${fighter.maxHp}`)
+        }
+        for (const hit of plan.hits) if (hit.target === side && hit.action.dmg > 0) {
+          const popup = texts(source).find(t => t.body.endsWith(`-${hit.action.dmg}${hit.action.crit ? '!' : ''}`))!
+          expect(popup !== undefined).toBe(true)
+          const pulse = tags(popup.body, 'animate').find(a => a.attributeName === 'opacity')!
+          expect(pulse.begin).toBe(seconds(hit.at - start))
+          expect(pulse.dur).toBe(seconds(TIMING.popup))
+        }
+      }
+      const still = hudSvg(fighter, plan, side, HUD.wide, { motion: false })
+      expect(still).not.toMatch(/<(?:animate(?:Transform|Motion)?|set)\b/)
+      expect(still).toContain(`${Math.ceil(fighter.hp)}/${fighter.maxHp}`)
+    }
+  }
+  // A heal on a hit and healing at round end have distinct beats, even if this seeded duel never needs them.
+  const base = roundPlan(b, log, 1, 2200)!
+  const fighter = { ...base.fighters.a!, hp: base.fighters.a!.maxHp - 20 }
+  const before = { a: fighter.hp, d: base.start.d }
+  const after = { a: before.a + 7, d: before.d - 5 }
+  const hit = { ...base.hits[0]!, actor: 'a' as const, target: 'd' as const, before, after,
+    action: { ...base.hits[0]!.action, side: 'a' as const, dmg: 5, heal: 7, targetFainted: false } }
+  const healing = { ...base, fighters: { ...base.fighters, a: fighter }, start: before, hits: [hit], end: { ...after, a: after.a + 3 } }
+  for (const start of [0, TIMING.windup]) {
+    const source = hudSvg(fighter, healing, 'a', HUD.wide, { motion: true, start })
+    for (const [amount, at] of [[7, hit.at + 120], [3, healing.endAt]]) {
+      const popup = texts(source).find(t => t.body.endsWith(`+${amount}`))!
+      expect(popup !== undefined).toBe(true)
+      expect(tags(popup.body, 'animate').find(a => a.attributeName === 'opacity')!.begin).toBe(seconds(at! - start))
+    }
+    const endBar = tags(source, 'animate').find(a => a.attributeName === 'width' && a.begin === seconds(healing.endAt - start))!
+    expect(Number(endBar.to)).toBe(Math.round(HUD.wide.info * healing.end.a / fighter.maxHp))
+  }
+})
+
+const arenaBars = (source: string) => {
+  const rects = tags(source, 'rect')
+  const tracks = rects.filter(r => r.fill === '#33404a' && r.height === '6' && r.rx === '3').sort((a, b) => Number(a.x) - Number(b.x))
+  expect(tracks.length).toBe(2)
+  return tracks.map(track => {
+    const fill = rects.find(r => r !== track && r.fill !== '#33404a' && r.y === track.y && r.height === track.height && r.rx === track.rx
+      && Number(r.x) >= Number(track.x) && Number(r.x) <= Number(track.x) + Number(track.width))!
+    expect(fill !== undefined).toBe(true)
+    const element = [...source.matchAll(/<rect\b([^>]*[^/])>([\s\S]*?)<\/rect>/g)]
+      .find(m => { const p = attrs(m[1]!); return p.x === fill.x && p.y === fill.y && p.width === fill.width && p.height === '6' && p.rx === '3' })!
+    expect(element !== undefined).toBe(true)
+    return { track, fill, animation: element[2]! }
+  })
+}
+
+/** An effect-heavy, supported round: both specials, two-hit flashes, perfect sparkles, crit popups and heals. */
+function arenaRound() {
+  const b = duel(), base = roundPlan(b, simulateBattle(b.setup, []), 1, 2200)!
+  const make = (side: 'a' | 'd') => {
+    const f = base.fighters[side]!, family = side === 'a' ? 'opus' : 'fable'
+    const c = mintCard({ species: familySpecies(seasonOf(NOW), family).find(s => s.legendary)!, rarity: 'legendary', shiny: true, dna: 951, origin: 'pack', now: NOW, level: 8 })
+    return { ...f, card: toBattleCard({ ...c, id: `arena-${side}` }), hp: 60, maxHp: 100 }
+  }
+  const fighters = { a: make('a'), d: make('d') }
+  const hits = [
+    { ...base.hits[0]!, at: 550, actor: 'a' as const, target: 'd' as const, before: { a: 60, d: 60 }, after: { a: 67, d: 42 },
+      action: { ...base.hits[0]!.action, side: 'a' as const, move: 'special' as const, special: 'crescendo' as const, perfect: true as const, hits: 2, dmg: 18, heal: 7, crit: true, targetFainted: false } },
+    { ...base.hits[0]!, at: 1450, actor: 'd' as const, target: 'a' as const, before: { a: 67, d: 42 }, after: { a: 45, d: 47 },
+      action: { ...base.hits[0]!.action, side: 'd' as const, move: 'special' as const, special: 'twist' as const, perfect: true as const, hits: 2, dmg: 22, heal: 5, crit: true, targetFainted: false } },
+  ]
+  return { ...base, fighters, hits, start: { a: 60, d: 60 }, end: { a: 48, d: 51 }, endAt: 1900, stepIn: { a: true, d: true } }
+}
+
+test('shared desktop arenas keep the full family/day matrix inside the native SVG budget, with static scenery and optional round motion', () => {
+  const plan = arenaRound()
+  const before = JSON.stringify(plan)
+  for (const arena of ['haiku', 'sonnet', 'opus', 'fable'] as const) for (const rule of DAILY_RULES) for (const columns of [40, 80, 120, 240]) for (const motion of [false, true]) {
+    const source = arenaSvg({ columns, arena, rule, opponent: 'MarshmallowMenaceWithAnExtremelyLongName', fighters: plan.fighters, plan, start: 0, motion })
+    const size = arenaSize(columns), root = tags(source, 'svg')[0]!
+    expect(new TextEncoder().encode(source).length).toBeLessThanOrEqual(131072)
+    expect(root.viewBox).toBe(`0 0 ${size.w} ${size.height}`)
+    expect([Number(root.width), Number(root.height)]).toEqual([size.w, size.height])
+    expect(size.w).toBeLessThanOrEqual(1280)
+    expect(source).toContain('clip-path="url(#arena-clip)"')
+    expect(source).not.toMatch(/<(?:script|foreignObject|image)\b|(?:href|onload|onclick)=/i)
+    expect(source.replace('xmlns="http://www.w3.org/2000/svg"', '')).not.toMatch(/https?:\/\//)
+    expect(source).not.toContain('repeatCount="indefinite"')
+    if (!motion) expect(source).not.toMatch(/<(?:animate(?:Transform|Motion)?|set)\b/)
+    else for (const damage of ['-18!', '-22!', '+7', '+5', '+3', '+4']) expect(source).toContain(damage)
+  }
+  expect(JSON.stringify(plan)).toBe(before)
+})
+
+test('shared arena labels sanitize server text, escape SVG markup and fit the rival between the fighter HUDs', () => {
+  const fighters = arenaRound().fighters
+  const odd = 'A<&"B', long = 'MarshmallowMenaceWithAnExtremelyLongNameAndAnotherFortyCharacters'
+  for (const columns of [40, 80, 120, 240]) {
+    const source = arenaSvg({ columns, arena: 'haiku', rule: 'calm', opponent: odd + '\u001b[31m\u202e', fighters: { a: { ...fighters.a, name: odd }, d: { ...fighters.d, name: odd } }, plan: null, start: 0, motion: false })
+    expect(source).toContain('vs A&lt;&amp;&quot;B')
+    expect(source).not.toContain(odd)
+    expect(source).not.toContain('\u001b')
+    expect(source).not.toContain('\u202e')
+    expect(source).not.toMatch(/<(?:script|foreignObject|image)\b/)
+    const fitted = arenaSvg({ columns, arena: 'haiku', rule: 'calm', opponent: long, fighters: { a: { ...fighters.a, name: long }, d: { ...fighters.d, name: long } }, plan: null, start: 0, motion: false })
+    expect(fitted).not.toContain(long)
+    expect(fitted).toContain('…')
+    const width = arenaSize(columns).w, hud = columns >= 80 ? 160 : Math.min(132, Math.floor(width * 0.36))
+    const rival = texts(fitted).find(t => t.body.startsWith('vs '))!
+    expect(rival.p['text-anchor']).toBe('middle')
+    expect(Number(rival.p.x)).toBe(width / 2)
+    expect(Array.from(rival.body).length * 7).toBeLessThanOrEqual(columns >= 80 ? width - 2 * (hud + 30) : width - 24)
+    for (const side of ['start', 'end']) {
+      const name = texts(fitted).find(t => t.p['font-size'] === '11' && t.p['text-anchor'] === side)!
+      expect(Array.from(name.body).length * 7).toBeLessThanOrEqual(hud)
+    }
+  }
+})
+
+test('shared arena health bars clamp empty/full endpoints and mirror defender depletion while motion is off', () => {
+  const fighters = arenaRound().fighters
+  for (const columns of [40, 80, 240]) for (const hp of [-5, 0, 1, 50, 100, 105]) {
+    const source = arenaSvg({ columns, arena: 'sonnet', rule: 'calm', opponent: 'Rival', fighters: { a: { ...fighters.a, hp }, d: { ...fighters.d, hp } }, plan: null, start: 0, motion: false })
+    const bars = arenaBars(source)
+    bars.forEach(({ track, fill }, i) => {
+      const width = Number(track.width), actual = Number(fill.width), expected = Math.round(width * Math.max(0, Math.min(1, hp / 100)))
+      expect(actual).toBe(expected)
+      expect(Number(fill.x)).toBe(Number(track.x) + (i === 1 ? width - actual : 0))
+      expect(Number(track.x) + width).toBeLessThanOrEqual(arenaSize(columns).w)
+    })
+    expect(source).toContain(`HP ${Math.max(0, Math.ceil(hp))}/100`)
+    expect(source).not.toMatch(/<(?:animate(?:Transform|Motion)?|set)\b/)
+  }
+})
+
+test('shared arena HP drains, healing and resumed digits follow each authoritative beat with one visible label per fighter', () => {
+  const plan = arenaRound()
+  const seconds = (ms: number) => `${(ms / 1000).toFixed(3)}s`
+  for (const columns of [40, 80, 120]) for (const start of [0, 1000, 1700, plan.endAt + TIMING.drain + 1]) {
+    const source = arenaSvg({ columns, arena: 'fable', rule: 'sonnetDay', opponent: 'Rival', fighters: plan.fighters, plan, start, motion: true })
+    arenaBars(source).forEach(({ track, animation }, i) => {
+      const side = i === 0 ? 'a' : 'd', width = Number(track.width)
+      const changes = [...plan.hits.map(hit => ({ at: hit.at, hp: hit.after[side] })), { at: plan.endAt, hp: plan.end[side] }]
+      const steps = tags(animation, 'animate')
+      let previous = plan.start[side]
+      for (const change of changes) {
+        const to = Math.round(width * change.hp / 100), from = Math.round(width * previous / 100)
+        const drain = steps.find(a => a.attributeName === 'width' && a.begin === seconds(change.at - start))!
+        expect(drain !== undefined).toBe(true)
+        expect([Number(drain.from), Number(drain.to)]).toEqual([from, to])
+        expect(drain.dur).toBe(seconds(TIMING.drain))
+        expect(drain.fill).toBe('freeze')
+        if (side === 'd') {
+          const mirror = steps.find(a => a.attributeName === 'x' && a.begin === drain.begin)!
+          expect([Number(mirror.from), Number(mirror.to)]).toEqual([Number(track.x) + width - from, Number(track.x) + width - to])
+        }
+        previous = change.hp
+      }
+    })
+    const digits = [...source.matchAll(/<g visibility="(visible|hidden)">((?:<set\b[^>]*\/>)*<text\b[^>]*>HP [^<]*<\/text>)<\/g>/g)]
+    for (const side of ['a', 'd'] as const) {
+      const anchor = side === 'a' ? 'start' : 'end'
+      const group = digits.filter(m => texts(m[2]!)[0]!.p['text-anchor'] === anchor)
+      expect(group.length).toBe(4)
+      const visible = group.filter(m => m[1] === 'visible')
+      expect(visible.length).toBe(1)
+      let hp = plan.start[side]
+      for (const hit of plan.hits) if (hit.at + TIMING.drain / 2 <= start) hp = hit.after[side]
+      if (plan.endAt + TIMING.drain / 2 <= start) hp = plan.end[side]
+      expect(texts(visible[0]![2]!)[0]!.body).toBe(`HP ${hp}/100`)
+      for (const m of group) for (const change of tags(m[2]!, 'set')) expect(Number.parseFloat(change.begin!)).toBeGreaterThan(0)
+    }
+  }
+})
+
+test('shared arenas explain hits and trait ownership with the terminal callouts, including resumed and knockout beats', () => {
+  const base = arenaRound()
+  const fighters = {
+    a: { ...base.fighters.a, card: { ...base.fighters.a.card, traits: ['moonlit', 'guardian'] as Card['traits'] } },
+    d: { ...base.fighters.d, card: { ...base.fighters.d.card, traits: ['moonlit'] as Card['traits'] } },
+  }
+  const plan = { ...base, fighters, ms: 3600, endAt: 3000, end: { a: 0, d: 47 }, hits: [
+    { ...base.hits[0]!, action: { ...base.hits[0]!.action, effect: 'super' as const, traits: ['moonlit'] as Card['traits'] } },
+    { ...base.hits[1]!, after: { a: 0, d: 47 }, action: { ...base.hits[1]!.action, dmg: 67, effect: 'weak' as const, traits: ['moonlit', 'guardian'] as Card['traits'], targetFainted: true } },
+  ] }
+  const timeline = [...calloutTimeline(plan, 'a'), ...calloutTimeline(plan, 'd')]
+  for (const label of ['Perfect!', 'Critical!', 'Super effective!', 'Not very effective…', 'Moonlit!', 'Guardian!', 'Fainted']) {
+    expect(timeline.some(c => c.text === label)).toBe(true)
+  }
+  for (const columns of [40, 80]) for (const start of [0, 550, 950, 1500, plan.ms]) {
+    const source = arenaSvg({ columns, arena: 'opus', rule: 'calm', opponent: 'Rival', fighters, plan, start, motion: true })
+    const height = arenaSize(columns).height, width = arenaSize(columns).w
+    const callouts = [...source.matchAll(/<g visibility="(visible|hidden)"[^>]*>((?:<set\b[^>]*\/>)*<text\b[^>]*>[^<]*<\/text>)<\/g>/g)]
+      .filter(m => texts(m[2]!)[0]!.p.y === String(height - 3))
+    for (const side of ['a', 'd'] as const) {
+      const center = Math.round(width * (side === 'a' ? 0.23 : 0.77) / 2) * 2
+      const groups = callouts.filter(m => texts(m[2]!)[0]!.p.x === String(center))
+      const expected = lookAt(plan, side, start).callout
+      const visible = groups.filter(m => m[1] === 'visible')
+      expect(visible.length).toBe(expected ? 1 : 0)
+      if (expected) {
+        const label = texts(visible[0]![2]!)[0]!
+        expect(label.body).toBe(expected.text)
+        expect(label.p.fill).toBe(hex6(expected.color))
+      }
+      for (const group of groups) for (const change of tags(group[2]!, 'set')) expect(Number.parseFloat(change.begin!)).toBeGreaterThan(0)
+    }
+    const still = arenaSvg({ columns, arena: 'opus', rule: 'calm', opponent: 'Rival', fighters, plan, start, motion: false })
+    expect(texts(still).some(t => t.p.y === String(height - 3))).toBe(false)
+  }
 })
 
 test('a round\'s looks: the blow lands white, its number rises and fades, the knocked-out falls and is gone', () => {

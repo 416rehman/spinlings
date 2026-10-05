@@ -218,6 +218,16 @@ function walk(n: unknown, out: Node[] = []): Node[] {
   return out
 }
 
+/** SVG text and alt labels are visible game copy, but the headless engine's text query cannot inspect them. */
+function wordsOf(n: unknown): string {
+  const art = walk(n).filter(x => x.type === 'Svg').map(x => {
+    const source = String(x.props?.source ?? '')
+    const text = [...source.matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/g)].map(m => m[1]!.replace(/<[^>]*>/g, '')).join(' ')
+    return String(x.props?.alt ?? '') + ' ' + text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+  })
+  return [textOf(n), ...art].join(' ')
+}
+
 // ---------- the gate ----------
 
 for (const surface of ['terminal', 'desktop'] as const) {
@@ -256,8 +266,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
           expect(`${where}: ${nodes.filter(x => x.type === kind).length > 0 ? 'art' : 'no art'}`).toBe(`${where}: art`)
         }
         for (const text of f.texts ?? []) {
-          const found = await ui.find({ text })
-          expect(`${where}: ${found ? 'shows' : 'lacks'} ${String(text)}`).toBe(`${where}: shows ${String(text)}`)
+          expect(wordsOf(tree)).toMatch(text)
         }
         for (const key of f.keys ?? []) expect(`${where}: ${(await ui.find({ key })) ? 'has' : 'lacks'} ${key}`).toBe(`${where}: has ${key}`)
         await ui.unmount()
@@ -266,7 +275,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
-test('the battle band: both creatures at 80 and up, the defender and two stat lines below that', LONG, async ($, on) => {
+test('the terminal keeps its fighter layouts and the desktop shows one shared battle scene', LONG, async ($, on) => {
   draws(on)
   current = { state: at({ battle: battle({ kind: 'duel', shown: 1 }) }), now: NOW }
   for (const [columns, keys] of [[120, ['band-a', 'band-d']], [80, ['band-a', 'band-d']], [40, ['band-d-art', 'band-a-line', 'band-d-line']]] as const) {
@@ -276,7 +285,7 @@ test('the battle band: both creatures at 80 and up, the defender and two stat li
     await ui.unmount()
   }
   const desk = await $.ui.mount({ ...MOUNT, surface: 'desktop', props: props(80) })
-  expect((await desk.findAll({ type: 'Svg' })).length).toBe(2)
+  expect((await desk.findAll({ type: 'Svg' })).length).toBe(1)
   expect((await desk.findAll({ type: 'Svg' })).every(s => s.props.isInteractive === true)).toBe(true)
   await desk.unmount()
   current = { state: at({ battle: battle({ kind: 'duel', shown: 1 }), prefs: { quiet: false, motion: false, sound: false } }), now: NOW }
@@ -285,31 +294,109 @@ test('the battle band: both creatures at 80 and up, the defender and two stat li
   await still.unmount()
 })
 
+test('desktop arena sizes retain pixel bounds and reachable native actions, with compact fallbacks below 40 columns', LONG, async ($, on) => {
+  draws(on)
+  const ordinary = duelLog.rounds.findIndex(r => !r.actions.some(a => a.side === 'a' && a.move === 'special'))
+  expect(ordinary).toBeGreaterThanOrEqual(0)
+  for (const shown of [ordinary, perfectAt - 1]) for (const prefs of [
+    { quiet: false, motion: true, sound: false },
+    { quiet: false, motion: false, sound: false },
+    { quiet: true, motion: true, sound: false },
+  ]) for (const columns of [20, 32, 40, 60, 80, 120]) {
+    const ready = shown === perfectAt - 1
+    current = { state: at({ battle: battle({ kind: 'duel', shown }), prefs }), now: NOW }
+    calls.length = 0
+    const ui = await $.ui.mount({ ...MOUNT, surface: 'desktop', props: props(columns) })
+    const tree = await ui.drawn()
+    const nodes = walk(tree), buttons = nodes.filter(n => n.type === 'Button')
+    const svgs = await ui.findAll({ type: 'Svg' })
+    expect(svgs.length).toBe(columns < 40 ? 0 : 1)
+    expect(buttons.filter(n => n.props?.variant === 'primary').map(n => n.props?.label)).toEqual(ready ? ['Now!'] : [])
+    if (ready) {
+      expect(buttons.find(n => n.props?.label === 'Now!')!.props).toMatchObject({ label: 'Now!', hotkey: '1', variant: 'primary' })
+      expect(!!(await ui.find({ key: 'now' }))).toBe(true)
+    }
+    if (columns < 40) {
+      const problems: string[] = []
+      const size = measure(tree, columns, problems)
+      expect(problems).toEqual([])
+      expect(size.w).toBeLessThanOrEqual(columns)
+      expect(size.h).toBeLessThanOrEqual(2)
+      expect(buttons.map(n => n.props?.label)).toEqual(ready ? ['Now!'] : [])
+      expect(!!(await ui.find({ key: 'battle-today' }))).toBe(false)
+      // The action leads the first compact row rather than adding a third crowded row.
+      if (ready && isNode(tree)) expect(walk(tree.children?.[0]).find(n => n.type === 'Button')?.props?.label).toBe('Now!')
+    } else {
+      const expected = { width: Math.min(1280, columns * 8), height: columns >= 80 ? 144 : 124 }
+      for (const svg of svgs) {
+        expect({ width: svg.props.width, height: svg.props.height }).toEqual(expected)
+        const source = String(svg.props.source)
+        expect(source).toContain(`viewBox="0 0 ${expected.width} ${expected.height}"`)
+        expect(new TextEncoder().encode(source).length).toBeLessThanOrEqual(131072)
+        expect(String(svg.props.alt)).toMatch(/vs Rival Thistlewick/)
+        expect(String(svg.props.alt)).toContain(`round ${shown + 1}`)
+        expect(svg.props.isInteractive === true).toBe(prefs.motion && !prefs.quiet)
+        if (!prefs.motion || prefs.quiet) expect(source).not.toMatch(/<(?:animate(?:Transform|Motion)?|set)\b/)
+      }
+      // Unlike the terminal-only gate's zero-sized SVG placeholder, account for actual intrinsic pixels here.
+      expect(svgs.reduce((sum, svg) => sum + Number(svg.props.width), 0)).toBeLessThanOrEqual(columns * 8)
+      expect(Math.max(...svgs.map(svg => Number(svg.props.height)))).toBeLessThanOrEqual(144)
+      expect(textOf(tree)).toContain(`Round ${shown + 1}`)
+      expect(textOf(tree)).toContain('Streak 2')
+      const today = await ui.find({ key: 'battle-today' })
+      expect(!!today).toBe(true)
+      expect(today!.props.hotkey).toBe('2')
+      expect(today!.props.variant === 'primary').toBe(false)
+      expect(buttons.length).toBe(ready ? 2 : 1)
+      if (columns === 40 || columns === 120) {
+        await ui.press({ key: 'battle-today', plugin: 'test' })
+        expect(calls).toEqual([['open', [{ view: { kind: 'today', rule: 'calm' } }]]])
+        calls.length = 0
+      }
+    }
+    if (ready && (columns === 20 || columns === 120)) {
+      await ui.press({ key: 'now', plugin: 'test' })
+      expect(calls).toEqual([['press', []]])
+    } else expect(calls).toEqual([])
+    await ui.unmount()
+  }
+})
+
 test('effort changes only local ink and the player frame, with identical words, controls and animation timelines', LONG, async ($, on) => {
   draws(on)
   const state = at({ battle: battle({ kind: 'duel', shown: 1 }) })
   const read = async (effort: 'low' | 'max', surface: 'terminal' | 'desktop') => {
     current = { state: { ...state, signals: { ...state.signals, effort } }, now: NOW }
     const ui = await $.ui.mount({ ...MOUNT, surface, props: props(80) })
-    const text = textOf(await ui.drawn())
+    const tree = await ui.drawn(), text = wordsOf(tree)
+    const textNodes = walk(tree).filter(n => n.type === 'Text').map(n => ({ text: textOf(n), props: n.props }))
     const sources = (await ui.findAll({ type: 'Svg' })).map(n => String(n.props.source))
     const controls = (await ui.findAll({ type: 'Button' })).map(n => ({ label: n.props.label, hotkey: n.props.hotkey }))
     const header = (await ui.find({ type: 'Text', text: /vs Rival Thistlewick/ }))?.props
     await ui.unmount()
-    return { text, sources, controls, header }
+    return { text, sources, controls, header, textNodes }
   }
   for (const surface of ['terminal', 'desktop'] as const) {
     const low = await read('low', surface), max = await read('max', surface)
     expect(max.text).toBe(low.text)
     expect(max.controls).toEqual(low.controls)
-    expect(low.header).toMatchObject({ dimColor: true, bold: false })
-    expect(max.header).toMatchObject({ dimColor: false, bold: true })
     if (surface === 'desktop') {
-      expect(low.sources[0]).toMatch(/stroke-opacity="0.3" stroke-width="1"/)
-      expect(max.sources[0]).toMatch(/stroke-opacity="1" stroke-width="2"/)
-      expect(max.sources[1]).toBe(low.sources[1])
+      expect(low.sources.length).toBe(1)
+      expect(max.sources.length).toBe(1)
+      expect(max.textNodes).toEqual(low.textNodes)
+      const outline = (source: string) => source.match(/<ellipse\b(?=[^>]*\bid="effort-a")[^>]*>/)?.[0] ?? ''
+      expect(outline(low.sources[0]!)).toMatch(/stroke-opacity="0.3"/)
+      expect(outline(low.sources[0]!)).toMatch(/stroke-width="1"/)
+      expect(outline(max.sources[0]!)).toMatch(/stroke-opacity="1"/)
+      expect(outline(max.sources[0]!)).toMatch(/stroke-width="2"/)
+      const withoutEffort = (source: string) => source.replace(/<ellipse\b(?=[^>]*\bid="effort-a")[^>]*>/, tag => tag.replace(/\sstroke-opacity="[^"]*"|\sstroke-width="[^"]*"/g, ''))
+      // The entire opponent and scene stay byte-identical; only the player's outline strength may differ.
+      expect(withoutEffort(max.sources[0]!)).toBe(withoutEffort(low.sources[0]!))
       const timeline = (source: string) => [...source.matchAll(/<(?:animate|animateTransform|set)\b[^>]*>/g)].map(m => m[0])
       expect(timeline(max.sources[0]!)).toEqual(timeline(low.sources[0]!))
+    } else {
+      expect(low.header).toMatchObject({ dimColor: true, bold: false })
+      expect(max.header).toMatchObject({ dimColor: false, bold: true })
     }
   }
 })

@@ -1,5 +1,5 @@
-// The band above the prompt (SPEC 9, 13, 14, 21, 34): every live moment in at most four rows, from 40 columns up, the
-// same information in the same order on the terminal and the desktop. The terminal draws each moment's resting frame
+// The band above the prompt (SPEC 9, 13, 14, 21, 34): terminal moments fit four rows. Desktop battles use one shared
+// arena and native controls, with compact words below 40 columns. The terminal draws each moment's resting frame
 // as keyed Rasters that client/scheduler.ts animates by blit; the desktop draws one Svg per moment that animates
 // itself. Every band button uses a digit, the only keys an empty prompt hands to the band: 1 is the one primary
 // action, 2 the secondary, 1 to 3 a catch choice. Returns null when nothing is live, so the engine's band shows.
@@ -16,7 +16,8 @@ import {
   outcomeStage, packFamily, packFrame, presentFrame, rarityWords, restLook, revealFrame, roundOnScreen, roundPlan,
   rustleFrame, SHADOW, spriteOf,
 } from '../client/battleview.ts'
-import { ROUND_MS, catchOrder, headMoment, nameOf } from '../client/game.ts'
+import { ROUND_MS, catchOrder, headMoment, nameOf, opponentLabel } from '../client/game.ts'
+import { RULE_INFO } from '../core/world.ts'
 import { effortLook } from '../client/effort.ts'
 import { hostOf } from '../client/net.ts'
 import { UPDATE_COMMAND } from '../client/remote.ts'
@@ -24,10 +25,11 @@ import { fit, plural, safe } from '../client/text.ts'
 import { grouped } from '../client/viewmodels.ts'
 import type { Actions, Battle, BandView, El, Moment, Reveal, Surface } from '../client/types.ts'
 import {
-  ART_K, HUD, artSide, catchSvg, creatureSvg, evolveSvg, fledSvg, hatchSvg, hudSize, hudSvg, optionSvg, packSvg, presentSvg,
+  ART_K, artSide, catchSvg, creatureSvg, evolveSvg, fledSvg, hatchSvg, optionSvg, packSvg, presentSvg,
   revealSvg, rustleSvg,
 } from './band-art.tsx'
-import { FAMILY_COLOR, INK, MARK, MYTHIC_COLOR, RARITY_COLOR, RARITY_INITIAL, SPACE } from './tokens.ts'
+import { FAMILY_COLOR, FAMILY_MARK, INK, MARK, MYTHIC_COLOR, RARITY_COLOR, RARITY_INITIAL, SPACE } from './tokens.ts'
+import { arenaSize, arenaSvg } from './arena-duel.ts'
 
 type Env = Parameters<BandView>[0]
 /** `rows`: the band's window on the terminal (maxRows, at most 4); below 4 each moment draws its compact form. */
@@ -167,7 +169,7 @@ function packBand(c: Ctx, env: Env, r: Reveal): RenderElement {
 
 // ---------- battles ----------
 
-/** More effort brightens the local band; no added rows, animation beats or game signals. */
+/** More effort brightens the local band; no added animation beats or game signals. */
 function battleHeader(c: Ctx, env: Env, text: string): RenderElement {
   const look = effortLook(env.state.signals.effort)
   return <c.el.Text color={look.vivid ? FAMILY_COLOR[env.state.signals.family] : undefined} dimColor={!look.vivid} bold={look.bold} wrap="truncate-end">{text}</c.el.Text>
@@ -214,30 +216,33 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
     : blankRow(el)
   const kind = bandKind(c.columns)
   if (c.surface !== 'terminal') {
-    const size = kind === 'wide' ? HUD.wide : HUD.narrow
+    if (c.columns < 40) return compactBattle(c, env, words)
     const plan = log && r <= log.rounds.length && b.phase === 'fight' ? roundPlan(b, log, r, ROUND_MS) : null
     const special = plan?.hits.find(hit => hit.actor === 'a' && hit.action.move === 'special')
     const start = plan && b.inputs.includes(r) && special ? Math.max(0, special.at - 2 * TIMING.windup) : 0
-    const hud = (side: Side) => svg(el, hudSvg(f[side], plan, side, size, { start, motion: c.motion, effort: env.state.signals.effort }), f[side] ? `${f[side]!.name}, ${Math.ceil(f[side]!.hp)} of ${f[side]!.maxHp} HP` : 'empty', hudSize(size), c.motion)
-    if (kind === 'wide') {
-      return (
-        <Box flexDirection="row" columnGap={SPACE.tight} width={c.columns}>
-          <Box flexShrink={0}>{hud('a')}</Box>
-          <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-            {battleHeader(c, env, words.header)}
-            {line(el, words.banner)}
-            {line(el, words.extra)}
-            {controls}
-          </Box>
-          <Box flexShrink={0}>{hud('d')}</Box>
-        </Box>
-      )
-    }
+    const scene = arenaSvg({ columns: c.columns, arena: b.setup.arena, rule: b.setup.rule,
+      opponent: opponentLabel(b.opponent, lead), fighters: f, plan, start, motion: c.motion, effort: env.state.signals.effort })
+    const health = (side: Side) => f[side] ? `${f[side]!.name}, ${Math.ceil(f[side]!.hp)} of ${f[side]!.maxHp} HP` : 'empty'
+    const streak = env.state.me?.player.streak ?? 0
+    const progress = `${words.round ? `Round ${words.round}` : 'Preparing'}${!b.friendly && streak > 0 ? ` · Streak ${streak}` : ''}`
+    // The streak has its own badge; preserve the battle's step-ins and Perfect story without repeating it.
+    const extra = words.extra.filter(s => !s.text.startsWith('streak '))
+    const story = line(el, storyOf({ ...words, extra }))
+    const storyRow = <Box flexDirection="row" columnGap={SPACE.tight} flexGrow={1} flexShrink={1}>
+      {words.now ? <Box flexShrink={0}><Button key="now" label="Now!" hotkey="1" plain variant="primary" onPress={() => { void c.actions.press() }} /></Box> : null}
+      <Box flexGrow={1} flexShrink={1}>{story}</Box>
+      {cheering > 0 ? <Text color={INK.accent} wrap="truncate-end">{`+${cheering} cheering`}</Text> : null}
+    </Box>
     return (
       <Box flexDirection="column" width={c.columns}>
-        {battleHeader(c, env, words.header)}
-        <Box flexDirection="row" columnGap={SPACE.tight}>{hud('a')}{hud('d')}</Box>
-        {narrowStory(c, words)}
+        <Box flexDirection="row" columnGap={SPACE.tight}>
+          <Box flexGrow={1} flexShrink={1}><Text bold color={FAMILY_COLOR[b.setup.arena]} wrap="truncate-end">{`${FAMILY_MARK[b.setup.arena]} ${FAMILY_INFO[b.setup.arena].name} arena`}</Text></Box>
+          <Box flexShrink={0}><Button key="battle-today" label={RULE_INFO[b.setup.rule].name} hotkey="2" plain dimColor onPress={() => { void c.actions.open({ view: { kind: 'today', rule: b.setup.rule } }) }} /></Box>
+        </Box>
+        {svg(el, scene, `${words.header}; ${health('a')}; ${health('d')}`, arenaSize(c.columns), c.motion)}
+        {kind === 'wide'
+          ? <Box flexDirection="row" columnGap={SPACE.loose}><Box flexShrink={0}><Text dimColor>{progress}</Text></Box>{storyRow}</Box>
+          : <Box flexDirection="column">{storyRow}<Text dimColor wrap="truncate-end">{progress}</Text></Box>}
       </Box>
     )
   }
