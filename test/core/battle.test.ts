@@ -18,7 +18,8 @@ function setup(attacker: BattleCard[], defender: BattleCard[], over: Partial<Bat
 function randomDuel(i: number, rule: DailyRule = 'calm', level = 4): BattleSetup {
   const rng = rngFromSeed('duel-' + i)
   const fams: Family[] = ['haiku', 'sonnet', 'opus', 'fable']
-  const team = (tag: string) => rollPack(fams[i % 4]!, 1, rng, NOW, 'calm').slice(0, 3).map((c, j) => atLevel({ ...c, id: `${tag}${j}` }, level))
+  const team = (tag: string) => Array.from({ length: Math.ceil(3 / ECONOMY.packs.size) }, () => rollPack(fams[i % 4]!, 1, rng, NOW, 'calm'))
+    .flat().slice(0, 3).map((c, j) => atLevel({ ...c, id: `${tag}${j}` }, level))
   return setup(team('a'), team('d'), { seed: 'duel-seed-' + i, arena: fams[(i + 1) % 4]!, rule })
 }
 

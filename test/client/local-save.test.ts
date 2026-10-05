@@ -104,8 +104,11 @@ test('8,000 cards fit in well under the save\'s share of the 4 MiB store, and st
   await refused(w.backend.openPack({ packId: me.packs[0]!.id }), 'cap_reached')
   const suggested = recycleSuggestions(cards, me.player.team, 5)
   assert.deepEqual(suggested.map(c => c.id), cards.filter(c => c.id.startsWith('bulk') && c.rarity === 'common').slice(0, 5).map(c => c.id))
-  for (const c of suggested) await w.backend.recycle({ cardId: c.id })
-  assert.equal((await w.backend.openPack({ packId: me.packs[0]!.id })).cards.length, 5)
+  await w.backend.recycle({ cardId: suggested[0]!.id })
+  await refused(w.backend.openPack({ packId: me.packs[0]!.id }), 'cap_reached')
+  await w.backend.recycle({ cardId: suggested[1]!.id })
+  assert.equal((await w.backend.openPack({ packId: me.packs[0]!.id })).cards.length, 2)
+  assert.equal((await w.backend.cards({})).cards.length, LIMITS.cards, 'exactly two free slots are sufficient')
 })
 
 test('a save past its byte budget only shrinks; a store that refuses the write leaves the save as it was', async () => {
@@ -120,7 +123,7 @@ test('a save past its byte budget only shrinks; a store that refuses the write l
   assert.equal((await w.backend.me({})).player.sparks, 100 + ECONOMY.sparks.dailyHello, 'reading still answers')
   assert.equal(JSON.stringify(w.stored), before)
   full = false
-  assert.equal((await w.backend.openPack({ packId: me.packs[0]!.id })).cards.length, 5)
+  assert.equal((await w.backend.openPack({ packId: me.packs[0]!.id })).cards.length, 2)
 
   w.edit(s => { s.extra.ballast = 'x'.repeat(LIMITS.bytes) })
   const big = JSON.stringify(w.stored)
@@ -177,7 +180,7 @@ test('keys and cards this version does not know are written back exactly as foun
   assert.deepEqual(stored.packs.at(-1), oddPack)
   assert.equal(me.packs.length, 2)
   assert.equal(stored.v, SAVE_VERSION)
-  assert.equal((await w.backend.cards({})).cards.length, 8)
+  assert.equal((await w.backend.cards({})).cards.length, 5)
 })
 
 test('older formats migrate forward step by step; a missing step leaves the save alone', () => {
@@ -202,8 +205,9 @@ test('calls run one at a time, and another session\'s write in between sends the
   const w = world()
   const me = await w.backend.me({})
   const [a, b] = await Promise.all([w.backend.openPack({ packId: me.packs[0]!.id }), w.backend.openPack({ packId: me.packs[1]!.id })])
-  assert.equal(a.cards.length + b.cards.length, 10)
-  assert.equal((await w.backend.cards({})).cards.length, 13)
+  assert.equal(a.cards.length, 2)
+  assert.equal(b.cards.length, 2)
+  assert.equal((await w.backend.cards({})).cards.length, 7)
 
   // a second session buys a pack while this one is charging one: neither change is lost
   let other: ReturnType<typeof world> | null = null

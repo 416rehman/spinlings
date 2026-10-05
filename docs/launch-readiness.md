@@ -1,80 +1,50 @@
 # Launch readiness
 
-Complete this checklist against the exact release being announced. Follow [releasing.md](releasing.md) and run every check in [CONTRIBUTING.md](../CONTRIBUTING.md) before each commit. Marketing posts and outreach require a separate instruction from the maintainer.
+Complete this checklist against the exact release being announced. Follow [releasing.md](releasing.md) and run every check in [CONTRIBUTING.md](../CONTRIBUTING.md) before each commit. Marketing posts and outreach require a separate maintainer instruction.
 
-Status on 2026-10-04: **v0.2.6 is published and both official installations are verified; native interaction checks remain pending.** The immutable release is exact checked source `63dbf882db1bba098b9f40f98452d587562fe350`. Source CI, server-first deployment, final production verification/smoke, tag/release, marketplace pin/CI and fresh/user file verification are complete. Final readiness commit Check/CI proof belongs in the private handoff after completion. The maintainer's earlier report was footer v0.2.5 with no card part responding to a mouse click, including its name; v0.2.5 remains immutable. No historical result is substituted for v0.2.6 evidence.
-
-Actual native v0.2.6 interaction proof is unavailable. The current computer-use selection for Claude returned captures of Chrome/Codex instead of the intended Claude window; those captures cannot establish Claude behavior. The maintainer has been asked to restart Claude, observe footer v0.2.6 and test the artwork and name; the answer is pending. That answer alone cannot verify metadata/body, Back, Close, Share or Manage account. No native card click is claimed verified. The QA world remains offline.
+Status on 2026-10-04: **v0.2.7 is the active candidate; checks and delivery are pending. Native artwork/rarity interaction verification remains pending.** The maintainer reports that names, family/level and Leads/slot open cards, while artwork and rarity do not. This report supersedes the earlier all-card failure. Earlier versions remain immutable.
 
 ## Product and compatibility
 
-- [ ] Observe footer v0.2.6 in the actual Claude Desktop pane after restarting the verified installation.
-- [ ] Verify artwork and name clicks in that loaded pane: each selects the same creature. The maintainer's answer is pending.
-- [ ] Verify card metadata and surrounding body clicks separately; artwork/name confirmation does not complete this check.
-- [ ] Verify Back returns to the originating view and root Close closes the pane.
-- [ ] Verify navigation in the loaded release: Team, Collection, Discoveries and Community, with Profile, Market, Rankings and Trading in the shared Community section bar.
-- [ ] Recheck Share profile and Manage account in the loaded release, including the current public link and account destination. Source review or SDK tests do not establish native clicks.
-- [x] Replay supported released mod traffic in the required HTTP checks. The new v0.2.6 recording contains 188 exchanges and all earlier released recordings remain unchanged.
-- [x] Verify API v1, minimum supported mod 0.1.0, rules 1, generator 2 and offline save format 1. The 960 passing Node tests cover historical engines, frozen rules, season transitions, isolation, one-time rewards, old cards, unavailable servers and capability/version behavior; production version verification agrees.
-- [x] Recheck passkey registration, rename/recovery and browser-only sign-out in the disposable v0.2.6 production smoke.
+- [ ] Packs open into exactly two cards; the second is rare or better. Price, pacing, welcome-pack count, binding and trading rules stay unchanged. Existing cards stay owned, and unopened packs use two cards when opened. Supported older online mods read the new server result; installed older offline worlds retain their bundled rules.
+- [ ] Artwork regions measure their full pixel size, and family/level and rarity/finish use separate passive text regions. Native names, controls, keyboard actions and stale-click guards remain exposed. SDK results establish source behavior, not physical Desktop clicks.
+- [ ] Restart the verified installation and observe footer v0.2.7 in Claude Desktop.
+- [ ] Confirm creature artwork and rarity/finish clicks open the same creature as its name in the loaded pane.
+- [ ] Recheck family/level, Leads/slot, wrapped names, Back and root Close in the loaded pane.
+- [ ] Recheck Share profile and Manage account in that loaded release.
+- [ ] Replay every supported immutable released reader/flow and record the new version. Variable collection lengths are resolved from observed eligible cards without manufacturing cards, changing outcomes or editing historical fixtures.
+- [ ] API v1, minimum mod 0.1.0, rules 1, generator 2 and offline save format 1 remain unchanged; no new migrations, dependencies, request fields, stored fields or public fields.
 
-Claude Code requires 2.1.287 or later. Desktop needs a compatible bundled engine; updating the CLI does not update Desktop's engine. Version 0.2.3 is the complete frozen-catalog loader baseline. Server deployment cannot repair previously installed rendering or hydration code. Recorded compatibility does not promise arbitrary future families, artwork primitives or mechanics in historical mods. See [compatibility.md](compatibility.md) and [SPEC.md, section 32](../SPEC.md#32-versioning-and-backward-compatibility).
+Claude Code requires 2.1.287 or later. Desktop needs a compatible bundled engine. Seasons and current generation rules continue without updates; arbitrary future families, artwork primitives or mechanics still require a defined compatibility contract. See [compatibility.md](compatibility.md).
 
-Welcome-pack farming restrictions (Backlog 3) and server-delivered content packs (Backlog 5) await the maintainer's decisions and remain untouched. Existing rewards, seasons and creatures retain their rules. The private launch promotion is a proposal only; no new reward is active.
+Welcome-pack farming restrictions (Backlog 3) and server-delivered content packs (Backlog 5) await the maintainer's decisions and remain untouched. The proposed FOUNDERS campaign is inactive. The QA world was last known offline; restore it after native checks with `/spin world online`.
 
-## Browser experience and sharing
+## Browser, repository and media
 
-The established public website appearance remains preserved. The card-click report concerns Claude's pane; no website click repair is requested. The existing account companion keeps its compact profile and Collection/Team/Stats tabs, rankings inside Stats, whole-collection browsing and contextual card help.
+The established public website appearance is preserved. Its pack demo and summary follow the two-card count. Account Collection/Team/Stats, passkey identity across username changes, canonical profile sharing and privacy controls remain supported.
 
-- [x] Verify production health/version, public routes and previews, robots, sitemap and the private browser collection: final v0.2.6 verification passed 158/158.
-- [x] Verify the disposable production smoke: passkey registration, rename/recovery, the same account/cards/team/stats, filters and Attack sort, browser-only sign-out, deletion and revoked access. It passed 19 mod/client requests over 10.5 seconds plus direct browser flows.
-- [x] Match smoke-created orphan rows to the run's recorded IDs before cleanup: exactly two verified smoke-owned discovery records were removed.
-- [x] Recheck private-page indexing restrictions and shared-link privacy through the production verification and smoke; shared URLs expose no session token or passkey ticket.
+- [ ] Production health/version, public pages/previews, private account, robots and sitemap: pending.
+- [ ] Disposable production smoke: pack count and rare-or-better final card, passkey registration, rename/recovery to the same collection, team/stats/filter/Attack sort, canonical sharing, browser-only signout, deletion and revocation. Pending.
+- [ ] Restricted cleanup matches each smoke-owned discovery ID before removing it. Pending; real players must remain untouched.
+- [ ] Review requirements, install links, public preview metadata, generated two-card illustrations and staged secrets/private-artifact audit.
+- [ ] Capture fresh exact-release Team, Collection, Community Profile, Market, Rankings and Pack panes with observed footer and timestamp/hash provenance. Review crops for unrelated sessions, personal data and credentials.
+- [ ] Approve final marketing assets in the separate marketing task.
 
-Established v0.2.5 browser evidence is historical: `.dev/account-share-desktop-0.2.5.png`, `.dev/account-share-mobile-0.2.5.png` and `.dev/profile-share-public-0.2.5.png` contain local test data. Its production route verification and smoke are recorded below. These are not actual v0.2.6 Desktop interaction, release or marketing proofs. No new website appearance change is claimed.
+README battle [GIF](media/desktop-duel.gif), [video](media/desktop-duel.mp4) and [still](media/desktop-duel.png) remain real v0.2.3 Desktop footage: 15 seconds, rounds 5–10, a timed Twist and win/first-pack reward. They do not establish v0.2.7 interactions. Two-card SVG/PNG scenes are illustrations rendered from the game's views. GitHub custom-preview upload proof remains private at `.dev/github-social-preview-verified.jpg`. Main/tag protections and prior security/repository review remain recorded; required PRs and main CI are a recommendation in the current direct-push workflow.
 
-## Repository and media
+## Release gate — v0.2.7
 
-The README, requirements, install links, security/contribution/self-hosting guidance, repository description/homepage/topics and security settings were reviewed for earlier releases. Custom GitHub social-preview artwork has private uploaded-setting proof at `.dev/github-social-preview-verified.jpg`. Main history and immutable tags are protected; required PRs and main CI remain a recommendation in the direct-push workflow.
+- [ ] Checked source commit/CI pending; all pre-source Checks: pending.
+- [ ] Four version constants, changelog and new compatibility recording agree; earlier fixtures, engines and generators unchanged.
+- [ ] Server-first deploy, final production verification, disposable smoke and exact owned cleanup pass. Logs: `.dev/codex-{live,prod-smoke,smoke-cleanup}-pack-final-0.2.7.log`.
+- [ ] Immutable [v0.2.7 tag/release](https://github.com/416rehman/spinlings/releases/tag/v0.2.7) points to the exact checked source with sanitized notes.
+- [ ] Marketplace pin, full pre-pin Checks and CI pending.
+- [ ] Fresh and actual user official installs pending.
+- [ ] Only the redundant new tag deployment will be cancelled after manual deployment.
+- [ ] Native artwork/rarity clicks, loaded footer, remaining navigation and actual fresh Desktop media are independently pending.
 
-- [x] Review requirements, install links, public preview metadata and the staged source/pin diff. Documentation/release tests and the staged credential/private-artifact audit passed. Review any later handoff diff again before its checked commit.
-- [ ] Capture fresh Team, Collection, Community Profile, Market, Rankings and Pack screenshots from the exact loaded v0.2.6 release, including an observed release footer and independent timestamp/hash provenance.
-- [ ] Review each new crop for unrelated work, sidebars, session titles, notifications, usage banners, personal data and credentials. Preserve native UI pixels and provide descriptive alt text and working links.
-- [ ] Approve the actual final marketing assets in the later marketing task.
+The final readiness commit's SHA, all pre-commit Checks and CI proof belong in the private handoff after completion; this document does not claim future evidence for its own commit. Source/pin/final Check logs use `.dev/codex-pack-{final,pin,handoff}-0.2.7-*.log`.
 
-The README battle [GIF](media/desktop-duel.gif), [video](media/desktop-duel.mp4) and [still](media/desktop-duel.png) are reviewed real **v0.2.3** Desktop exports: 15 seconds of rounds 5–10, a timed Twist and a win/first-pack reward. They do not show a completed evolution or prove a later release's card clicks. Their private provenance includes source/crop hashes and decoded frames; `.dev/desktop-v0.2.3/public-duel-export.json` verifies the exports. Generated creature artwork, SVG scenes and preview art remain illustrations.
+## Historical v0.2.6 evidence
 
-The private v0.2.6 still helper `.dev/desktop-v0.2.6/prepare-stills.py` and `README.txt` are prepared for exact source `63dbf882db1bba098b9f40f98452d587562fe350`; earlier helpers remain unchanged. This is preparation only: no actual v0.2.6 capture, capture manifest, image processing or export exists. Neither helpers nor the wrong-window captures satisfy the native media gates.
-
-## Release gate — v0.2.6
-
-- [x] Exact checked, committed and pushed source: `63dbf882db1bba098b9f40f98452d587562fe350`; the repair was audited across eight source files.
-- [x] All required checks before source commit: 960 Node tests with zero failures/skips, 169 isolated SDK tests with zero failures, both strict validators, 24 HTTP steps/321 requests, a 208,607-byte build and Worker dry-run. Private logs: `.dev/codex-card-final-0.2.6-*.log`.
-- [x] Four version constants agree at v0.2.6; the changelog and new 188-exchange recording accompany the checked source, and earlier released fixtures remain unchanged.
-- [x] [Source CI 37246942498](https://github.com/416rehman/spinlings/actions/runs/37246942498) passed on that exact source.
-- [x] Manual server-first deployment and final read-only production verification passed 158/158. The initial transient v0.2.5 response passed 157/158 and remains recorded at `.dev/codex-live-card-first-0.2.6.log`; subsequent ordinary and fresh-key reads returned v0.2.6 at `.dev/codex-live-card-final-0.2.6.log`.
-- [x] Disposable production smoke and restricted cleanup passed: 19 mod/client requests/10.5 seconds plus browser flows, and exactly two verified smoke-owned discovery records cleaned. Logs: `.dev/codex-prod-smoke-card-final-0.2.6.log` and `.dev/codex-smoke-cleanup-card-final-0.2.6.log`.
-- [x] Immutable [v0.2.6 tag/release](https://github.com/416rehman/spinlings/releases/tag/v0.2.6) published at the exact source SHA with sanitized notes.
-- [x] Marketplace commit `5137dc56db96dc7bff97fafa0a99c6f6d878923c` pins that exact tag/SHA. Every pre-pin Check passed: 960 Node/zero failures or skips, 169 isolated SDK/zero failures, both strict validators, 24 HTTP steps/320 requests, a 208,607-byte build and Worker dry-run. Logs: `.dev/codex-card-pin-0.2.6-*.log`.
-- [x] [Marketplace CI 37247410081](https://github.com/416rehman/spinlings/actions/runs/37247410081) passed on exact pin commit `5137dc56db96dc7bff97fafa0a99c6f6d878923c`.
-- [x] Fresh official marketplace and actual user installs both match all 92 tagged plugin files and pass strict validation. Logs: `.dev/codex-install-0.2.6-{fresh,user}-{marketplace,install,validate}.log`.
-- [x] Only the redundant v0.2.6 tag deploy `37247221231` is confirmed completed/cancelled after manual deployment.
-- [ ] Actual loaded v0.2.6 Desktop footer: pending after restart.
-- [ ] Native artwork and name clicks: pending maintainer reply.
-- [ ] Native metadata/body clicks: pending independent verification.
-- [ ] Native Back and root Close: pending independent verification.
-- [ ] Native Share profile and Manage account: pending independent verification.
-- [ ] Return the Desktop QA world to online after final native checks with `/spin world online`: pending.
-- [ ] Private kit finalized against all remaining proofs: `.dev/launch-kit-v0.2.6.md` records the completed release evidence and explicit pending gates; no marketing or campaign action is authorized.
-
-The final readiness commit's SHA, full pre-commit Check results and CI proof are recorded in the private handoff after completion. This tracked document does not claim evidence for its own future commit.
-
-Before any later docs/media/handoff commit, run every required check again after edits stop and verify that commit's CI. Earlier passing results do not cover future edits. Recheck destination rules and maker access immediately before the separate marketing task. Reddit destinations remain candidates, Product Hunt access/date require maker selection, and Hacker News submission text must be written personally under its stated rules.
-
-## Historical v0.2.5 release evidence
-
-[v0.2.5](https://github.com/416rehman/spinlings/releases/tag/v0.2.5) remains immutable at `49dacb3ddc1c6dedb7d5ba700ce47b9911aec97f`. [Source CI 37244791846](https://github.com/416rehman/spinlings/actions/runs/37244791846) passed; marketplace commit `a20310fe5a3467f2ac39af882446117d4fff26ef` pins it and [marketplace CI 37245239156](https://github.com/416rehman/spinlings/actions/runs/37245239156) passed. Both official installs matched 92 tagged files and strictly validated. Only its redundant deploy `37245055884` was cancelled.
-
-Pre-source and pre-pin checks passed 944 Node tests with zero failures/skips, 165 isolated plugin tests with zero failures, both strict validators, 24 HTTP steps (319/320 requests), a 208,607-byte build and Worker dry-run. Its 188-exchange recording remains unchanged. Production verification passed 158 checks; its smoke used 19 mod/client requests over 14.2 seconds plus direct browser/passkey/profile checks, followed by cleanup of exactly three verified smoke-owned records. Private evidence: `.dev/codex-share-{final,pin}-0.2.5-*.log`, `.dev/codex-live-share-final-0.2.5.log`, `.dev/codex-prod-smoke-share-final-0.2.5.log`, `.dev/codex-smoke-cleanup-share-final-0.2.5.log` and `.dev/codex-install-0.2.5-{fresh,user}-*.log`.
-
-Final v0.2.5 readiness commit `69d3ea4d6020eb4793ec4621712ca8c6eab0cafa` and CI `37245747095` passed their full checks (944 Node/165 SDK, both strict validators, 24 HTTP steps/322 requests, fresh build and dry-run). The later user report establishes a native click failure despite those harness and installation results. None of this historical evidence verifies the v0.2.6 repair.
+Release source `63dbf882db1bba098b9f40f98452d587562fe350`; marketplace `5137dc56db96dc7bff97fafa0a99c6f6d878923c`. Source CI37246942498, pin CI37247410081 and final readiness CI37247876854 passed. Before each of the three commits: 960 Node/zero failures or skips, 169 isolated SDK/zero failures, both strict validators, 24 HTTP steps (321/320/319 requests), fresh 208607-byte build and Worker dry-run. Production final158/158, smoke19requests/10.5s plus browser flows, exact2owned cleanup; fresh/user installs matched92files. Only redundant tag deploy37247221231 was cancelled. Initial transient version5 response157/158 remains retained. This evidence is historical and does not verify v0.2.7. The later native report confirms partial click coverage and requires this new repair.

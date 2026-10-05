@@ -23,9 +23,10 @@ const shelf = $('[data-shelf]')
 const GLOW_WORD: Record<string, string> = { common: 'face down', rare: 'face down, glowing blue', epic: 'face down, glowing purple', legendary: 'face down, glowing gold' }
 
 let slots: PackSlot[] = []
-let flipped = 0, opening = false, timer: number | undefined, packN = 0
+let opening = false, timer: number | undefined, packN = 0
 
 const rarityOf = (s: PackSlot) => ('card' in s ? s.card.rarity : 'legendary')
+const nextBack = () => $$<HTMLLIElement>('[data-fan] li').findIndex(li => !li.dataset.open)
 
 function paintPack() {
   const f = hourFamily()
@@ -38,7 +39,7 @@ function paintPack() {
 }
 
 /**
- * The opening (SPEC 13.5): the top crimp tears off in 3 frames, five backs fly out of the pack into
+ * The opening (SPEC 13.5): the top crimp tears off in 3 frames, two backs fly out of the pack into
  * the slots on the plank, each glowing in its rarity's colour, and they turn over one by one.
  */
 async function openPack() {
@@ -57,19 +58,18 @@ async function openPack() {
   pack.classList.remove('torn')
   const rng = rngFromSeed('site-pack/' + Array.from(crypto.getRandomValues(new Uint8Array(8))).join('.'))
   slots = rollPack(W, hourFamily(), rng)
-  if (W.preview?.legend === '1') slots[4] = { unfound: W.species.find(s => s.family === hourFamily() && s.legendary)! }
+  if (W.preview?.legend === '1') slots[slots.length - 1] = { unfound: W.species.find(s => s.family === hourFamily() && s.legendary)! }
   // the tear: the pack braces, and the crimp rips up and away in 3 frames
   const top = pack.querySelector('.pk-top')
   await steps(pack, ['rotate(-3deg)', 'rotate(3deg)', 'none'], 90)
   await steps(top, ['translate(2px,-2px) rotate(-4deg)', 'translate(6px,-7px) rotate(-12deg)', 'translate(11px,-12px) rotate(-24deg)'], 110, { opacity: [1, 1, 0.5] })
   pack.classList.add('torn')
-  flipped = 0
   fan.replaceChildren(...slots.map((s, i) => {
     const li = el('li')
     const r = rarityOf(s)
     const back = el('button', `back g-${r}`)
     back.type = 'button'
-    back.setAttribute('aria-label', `Card ${i + 1} of 5, ${GLOW_WORD[r]}`)
+    back.setAttribute('aria-label', `Card ${i + 1} of ${slots.length}, ${GLOW_WORD[r]}`)
     back.addEventListener('click', () => void flipAt(i))
     li.append(back)
     return li
@@ -88,9 +88,10 @@ async function openPack() {
   // they turn when Enter or f says so, never out from under the focus
   const typing = () => fan.contains(D.activeElement) && D.activeElement!.matches(':focus-visible')
   const auto = async () => {
-    if (n !== packN || flipped >= slots.length || typing()) return
-    await flipAt(flipped)
-    timer = window.setTimeout(auto, 1200)
+    const next = nextBack()
+    if (n !== packN || next < 0 || typing()) return
+    await flipAt(next)
+    if (n === packN && opening) timer = window.setTimeout(auto, 1200)
   }
   timer = window.setTimeout(auto, 900)
 }
@@ -100,8 +101,6 @@ async function flipAt(i: number, instant = false) {
   const s = slots[i]
   if (!li || !s || li.dataset.open) return
   li.dataset.open = '1'
-  if (i >= flipped) flipped = i + 1
-  else flipped = Math.max(flipped, $$('[data-fan] li[data-open]').length)
   const rare = rarityOf(s) !== 'common'
   const half = rare ? 400 : 175
   const back = li.firstElementChild as HTMLElement
@@ -109,13 +108,14 @@ async function flipAt(i: number, instant = false) {
   // the back had the focus: the card that turns up in its place takes it
   const focused = li.contains(D.activeElement)
   const card = 'card' in s ? fusable(face(s.card), s.card) : goldSilhouette(s.unfound)
+  let turn: Promise<unknown> | undefined
   if ('card' in s) {
     // the layered reveal: name, then rarity, the gene score counting up, the traits
     const parts = hideLayers(card, !instant)
     li.replaceChildren(card)
     if (focused) card.focus({ preventScroll: true })
     if (rare && !instant) await flash(card.querySelector('svg.spr'))
-    if (!instant) void card.animate([{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0)' }], { duration: half, easing: 'ease-out' })
+    if (!instant) turn = settle(card.animate([{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0)' }], { duration: half, easing: 'ease-out' }), half)
     // a focused card speaks for itself (its label is the same line)
     if (!focused) say(spoken(s.card))
     if (!instant && !RM()) void layered(card, parts, s.card)
@@ -128,7 +128,9 @@ async function flipAt(i: number, instant = false) {
   }
   li.addEventListener('pointerdown', e => dragStart(e, li, s))
   scan(li)
-  if ($$('[data-fan] li[data-open]').length === slots.length) done()
+  if (turn) await turn
+  li.dataset.revealed = '1'
+  if ($$('[data-fan] li[data-revealed]').length === slots.length) done()
 }
 
 /**
@@ -182,7 +184,7 @@ function done() {
   const kinds = new Set(slots.map(s => ('card' in s ? cardName(s.card) : s.unfound.id))).size
   const summary = $('[data-summary]')!
   summary.replaceChildren(
-    el('p', 'big', `${parts.length ? `5 cards: ${parts.join(', ')}.` : '5 cards, all common.'} ${kinds} different creatures.`),
+    el('p', 'big', `${slots.length} cards${parts.length ? `: ${parts.join(', ')}.` : ', all common.'} ${kinds} different creatures.`),
     el('p', 'soft', 'Tap one, or drag it onto the nest below, to fuse it. In the game, a pack charges for every 50 minutes Claude Code is open.'),
   )
   summary.hidden = false
@@ -390,7 +392,7 @@ export function startDen() {
   $('[data-fuse]')?.addEventListener('click', () => void fuseNow())
   keys.on('collect', {
     o: () => { if (!opening) void openPack() },
-    f: () => { if (opening) void flipAt(flipped) },
+    f: () => { if (opening) void flipAt(nextBack()) },
     '1': () => { if (!opening) void openPack() },
   })
   album()

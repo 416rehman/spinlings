@@ -250,12 +250,12 @@ The arena is the family of the attacker's current model at battle start. It is s
 ## 6. Packs and the economy
 
 ### Packs
-- A pack holds 5 cards.
+- A pack holds 2 cards.
 
   | Slots | Common | Rare | Epic | Legendary |
   |---|---|---|---|---|
-  | 1–4 | 70% | 22% | 7% | 1% |
-  | 5 | – | 75% | 21% | 4% |
+  | 1 | 70% | 22% | 7% | 1% |
+  | 2 | – | 75% | 21% | 4% |
 
 - A legendary roll gives the pack family's legendary species. Every other rarity picks uniformly from the family's 8 regular species.
 - Each card rolls shiny independently at 1/100.
@@ -413,7 +413,7 @@ Each destination has one navigation home: Collection stays in the main tab bar; 
 
 Pushed over the tabs and sections: card, fuse, species, listing and sell details; another player's profile (league, album count, stats as tiles, Challenge, their team and the offer builder); gift and reveal views; privacy and devices; Help; and Today, explaining the daily rule.
 
-**Visuals are the controls.** Every card tile, team slot, pack, listing and board row is pressable. Its native name or action button takes Tab focus and, where it matters, a hotkey. Desktop artwork and passive card text have separate local pointer regions that select the same item; these regions never cover a native button or another control. A queued selection survives a cosmetic redraw of the same item, but changing the item, action, view or active pane cancels it. A name is never cut: what does not fit a tile's column goes on a line below, and the card's page shows everything whole. On the desktop the art carries the full name as its tooltip.
+**Visuals are the controls.** Every card tile, team slot, pack, listing and board row is pressable. Its native name or action button takes Tab focus and, where it matters, a hotkey. Desktop artwork has a pointer region measured from the art's pixel dimensions; family/level, rarity/finish, notes and wrapped names each have their own passive-text region. These regions select the same item and never cover a native button or another control. A queued selection survives a cosmetic redraw of the same item, but changing the item, action, view or active pane cancels it. A name is never cut: what does not fit a tile's column goes on a line below, and the card's page shows everything whole. On the desktop the art carries the full name as its tooltip.
 
 ### Sprites
 - **Terminal:** a `Raster` of half-blocks. Cards are 16×16 pixels (16 columns × 8 rows). Minis are 8×8 (8 × 4).
@@ -612,7 +612,7 @@ Section 20 is the full privacy rule set and overrides this summary.
    - The server has already decided the outcome; the animation only adds suspense.
 5. **Pack opening ceremony (pane overlay).**
    - **Open:** the pack shows as a pixel package in its family colour. Pressing `[o] Open` plays a 3-frame tear.
-   - **Glowing backs:** five face-down cards appear, and each back glows in its rarity colour before it flips: blue for rare, purple for epic, pulsing gold for legendary. That way you see "one is glowing gold" before you know what it is.
+   - **Glowing backs:** two face-down cards appear, and each back glows in its rarity colour before it flips: blue for rare, purple for epic, pulsing gold for legendary. That way you see "one is glowing gold" before you know what it is.
    - **Flipping:** `[f]` flips the next card, and cards auto-flip every 1.2 s with no input.
      - Commons flip fast.
      - Rare and better flip slower and add a flash.
@@ -624,7 +624,7 @@ Section 20 is the full privacy rule set and overrides this summary.
      - its gene score counting up from 0 to its value;
      - its trait stamps;
      - its trinket, if any ("wears a tiny hat").
-   - **Summary:** "5 cards · 2 new species · Album 14/36 (+2)" with `[t] Set team` and `[d] Done`.
+   - **Summary:** "2 cards · 2 new species · Album 14/36 (+2)" with `[t] Set team` and `[d] Done`.
 6. **Evolution ceremony** (at level 4 and again at level 8, section 22).
    - The band shows "What? Pipkin is evolving!".
    - The current sprite then alternates with a white silhouette of the next stage, getting faster over 3 s, and ends in a flash.

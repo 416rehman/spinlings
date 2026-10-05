@@ -2,6 +2,12 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.7 (2026-10-04)
+
+- **Artwork and rarity clicks:** Claude's pointer regions now measure the artwork's full pixel size. Family/level and rarity/finish each have their own text region, so both rows open the same card as its name. Native buttons and keyboard controls remain exposed.
+- **Two cards per pack.** Every pack opens into exactly two cards, with the second rare or better. The pack price, charge pace, welcome-pack count and trading rules remain the same. Existing cards are kept; unopened packs use the new size when opened. Online packs come from the server, so older supported mods receive the same two-card result; older offline worlds keep their installed rules.
+- **Compatibility and privacy.** API v1, rules 1, generator 2, minimum client, request fields, stored game fields and public player fields are unchanged. Released compatibility recordings and historical engines remain immutable.
+
 ## 0.2.6 (2026-10-04)
 
 - **Restore card selection in Claude.** Artwork and passive card text use separate pointer regions, leaving names and other native buttons exposed. A first click no longer depends on receiving a resize event, and a queued click survives a redraw of the same card. Changing cards, views or panes still cancels stale selections.

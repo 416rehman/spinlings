@@ -9,7 +9,7 @@ import { familySpecies, getSpecies, legendaryOf, seasonSpecies } from './species
 import type { SeasonCatalog } from './species.ts'
 import { dailyRule, seasonOf, shinyChance } from './world.ts'
 
-/** Five fresh cards of the pack's family. Slots 1-4 and slot 5 use their own odds. */
+/** Two fresh cards of the pack's family. The first and last slot use their own odds. */
 export function rollPack(family: Family, season: number, rng: Rng, now: number, rule: DailyRule = dailyRule(now), catalog?: SeasonCatalog): NewCard[] {
   const p = ECONOMY.packs
   const regular = familySpecies(season, family, catalog).filter(s => !s.legendary)

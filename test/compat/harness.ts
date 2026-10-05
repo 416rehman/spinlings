@@ -7,7 +7,13 @@
 // Placeholders: every id, token, handle, gift code, poll id, page URL and cursor a server makes up is written as
 // `<kind:n>`. The replay binds each one from the current server's answer at the place it first appeared, and fills
 // it into later requests; a join's nonce is `<pow>`, solved afresh.
+// When a smaller pack omits a card the recorded mod later selected, supplemental read-only collection GETs let
+// the replay select an available replacement. These are replay bookkeeping, not added historical requests or a
+// change to the mod's wire behavior; every recorded request and its status/reader/shape checks still run.
 import { FAMILIES } from '../../plugin/hooks/core/families.ts'
+import type { CardsResponse, ListingView, MarketWant, OpenPackResponse, TraderDealView } from '../../plugin/hooks/core/api.ts'
+import type { Card } from '../../plugin/hooks/core/types.ts'
+import { wantMatches } from '../../plugin/hooks/core/market.ts'
 import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 import { proofBits, sha256 } from '../../plugin/hooks/core/sha256.ts'
 import { mintFor } from '../../plugin/hooks/core/trader.ts'
@@ -209,15 +215,60 @@ function fill<T>(v: T, bound: ReadonlyMap<string, string>): T {
   return v
 }
 
-/** Binds each placeholder at the place it first appears in a recorded answer to the current answer's value there. */
-function bind(rec: unknown, cur: unknown, bound: Map<string, string>): void {
+/** Known list entities follow their IDs, never their position. Missing pack cards wait for an explicit selection. */
+export function bindAnswer(rec: unknown, cur: unknown, bound: Map<string, string>, omitted: ReadonlySet<string> = new Set()): void {
   if (typeof rec === 'string') {
-    if (EXACT.test(rec) && !bound.has(rec) && typeof cur === 'string') bound.set(rec, cur)
+    if (EXACT.test(rec) && !bound.has(rec) && !omitted.has(rec) && typeof cur === 'string') bound.set(rec, cur)
   } else if (Array.isArray(rec)) {
-    if (Array.isArray(cur)) rec.forEach((x, i) => { if (i < cur.length) bind(x, cur[i], bound) })
+    if (Array.isArray(cur)) rec.forEach((x, i) => {
+      const id = x && typeof x === 'object' ? x.id : undefined
+      if (typeof id === 'string' && omitted.has(id)) return
+      const known = typeof id === 'string' ? bound.get(id) : undefined
+      const actual = known === undefined ? cur[i] : cur.find(v => v && typeof v === 'object' && v.id === known)
+      if (actual === undefined) return
+      // An unseen item must not acquire the identity of a different entity already returned by an action.
+      if (known === undefined && actual && typeof actual === 'object' && typeof actual.id === 'string'
+        && [...bound].some(([key, value]) => key !== id && value === actual.id)) return
+      bindAnswer(x, actual, bound, omitted)
+    })
   } else if (rec && typeof rec === 'object' && cur && typeof cur === 'object' && !Array.isArray(cur)) {
-    for (const [k, x] of Object.entries(rec)) if (Object.hasOwn(cur, k)) bind(x, (cur as Record<string, unknown>)[k], bound)
+    for (const [k, x] of Object.entries(rec)) if (Object.hasOwn(cur, k)) bindAnswer(x, (cur as Record<string, unknown>)[k], bound, omitted)
   }
+}
+
+const cardReferences = (value: unknown): string[] => [...new Set(JSON.stringify(value).match(/<card:\d+>/g) ?? [])]
+
+/**
+ * A frozen flow may select a third-to-fifth pack card that today's smaller pack never made. Reproduce the mod's
+ * selection from an actual current collection, without inventing cards or changing an established identity.
+ * Cards referenced elsewhere stay reserved, so two distinct inputs can never become the same consuming input.
+ */
+export function choosePackCards(o: {
+  refs: readonly string[]; omitted: ReadonlyMap<string, Card>; cards: readonly Card[]; team: readonly string[]; now: number
+  bound: ReadonlyMap<string, string>; referenced: ReadonlySet<string>; requirement?: MarketWant & { firstFind?: true }; market?: boolean
+}): Map<string, string> {
+  const reserved = new Set([...o.bound].filter(([key]) => o.referenced.has(key)).map(([, value]) => value))
+  const chosen = new Map<string, string>()
+  const want = o.requirement ?? {}
+  for (const ref of new Set(o.refs)) {
+    if (o.bound.has(ref)) continue
+    const recorded = o.omitted.get(ref)
+    if (!recorded) throw new Unbound(`${ref} was not omitted from a shorter pack`)
+    if (recorded.bound || recorded.state !== 'owned' || recorded.lockedUntil > o.now) {
+      throw new Unbound(`${ref} was not a free pack card in the recording`)
+    }
+    const preference = (c: Card) => Number(c.family === recorded.family) * 4 + Number(c.rarity === recorded.rarity) * 2 + Number(c.species === recorded.species)
+    const candidates = o.cards.filter(c => !c.bound && c.state === 'owned' && c.lockedUntil <= o.now
+      && c.tiredUntil <= o.now && !o.team.includes(c.id) && !reserved.has(c.id)
+      && wantMatches(want, c) && (o.market || !want.rarity || c.rarity === want.rarity)
+      && (!want.firstFind || c.firstFind))
+      .sort((a, b) => preference(b) - preference(a) || a.id.localeCompare(b.id))
+    const candidate = candidates[0]
+    if (!candidate) throw new Unbound(`${ref} was omitted from a shorter pack, and no observed free card can replace it`)
+    chosen.set(ref, candidate.id)
+    reserved.add(candidate.id)
+  }
+  return chosen
 }
 
 /** The join's proof of work as the mod solves it (client/remote.ts solvePow): a base-36 counter, leading zero bits. */
@@ -321,6 +372,12 @@ export async function replay(
 ): Promise<string[]> {
   const w = world(flow.flow)
   const bound = new Map<string, string>()
+  const omitted = new Map<string, Card>()
+  const omittedOwners = new Map<string, string>()
+  const referenced = new Set(flow.steps.flatMap(step => 'request' in step ? cardReferences(step.request) : []))
+  const teams = new Map<string, string[]>()
+  const listings = new Map<string, ListingView>()
+  const deals = new Map<string, TraderDealView>()
   const bits = new Map<string, number>()
   const problems: string[] = []
   try {
@@ -336,6 +393,45 @@ export async function replay(
           continue
         }
         const where = `${flow.flow} step ${i}, ${step.op} (${step.request.method} ${step.request.path})`
+        const missing = cardReferences(step.request).filter(ref => omitted.has(ref) && !bound.has(ref))
+        if (missing.length) {
+          if (!['fuse', 'recycle', 'setForTrade', 'traderDeal', 'buyListing', 'listCard', 'offer'].includes(step.op)
+            || missing.some(ref => omittedOwners.get(ref) !== step.player)) {
+            throw new Unbound(`${where}: no supported owned-card selection for ${missing.join(', ')}`)
+          }
+          const path = fill(step.request.path, new Map([...bound, ...missing.map(ref => [ref, ref] as const)]))
+          let requirement: MarketWant & { firstFind?: true } = {}
+          if (step.op === 'traderDeal') {
+            const deal = deals.get(path.split('/')[3]!)
+            if (!deal) throw new Unbound(`${where}: the current Trader deal was never observed`)
+            requirement = deal.give
+          } else if (step.op === 'buyListing') {
+            const listing = listings.get(path.split('/')[3]!)
+            if (!listing) throw new Unbound(`${where}: the current listing was never observed`)
+            requirement = listing.want ?? {}
+          }
+          // An action that returns the chosen card must retain optional fields the recorded answer showed.
+          if (step.op === 'setForTrade' && (step.response.body as { card?: Card }).card?.firstFind) requirement.firstFind = true
+          const headers = fill(step.request.headers, bound)
+          const cards: Card[] = []
+          let next: string | undefined
+          const cursors = new Set<string>()
+          do {
+            const answer = await w.send(step.player, 'GET', '/v1/cards' + (next ? `?after=${encodeURIComponent(next)}` : ''), headers)
+            if (answer.status !== 200 || !reader.JSON_CONTENT_TYPE.test(answer.headers['content-type'] ?? '') || bytes(answer.text) > reader.RESPONSE_MAX_BYTES) {
+              throw new Unbound(`${where}: the current collection could not be read`)
+            }
+            const page = reader.parseResponse('cards', JSON.parse(answer.text)) as CardsResponse
+            cards.push(...page.cards)
+            next = page.next
+            if (next && cursors.has(next)) throw new Unbound(`${where}: the collection repeated a page`)
+            if (next) cursors.add(next)
+          } while (next)
+          const team = teams.get(step.player)
+          if (!team) throw new Unbound(`${where}: the current team was never observed`)
+          const chosen = choosePackCards({ refs: missing, omitted, cards, team, now: w.now(), bound, referenced, requirement, market: step.op === 'buyListing' })
+          for (const [ref, id] of chosen) bound.set(ref, id)
+        }
         const req = fill(step.request, bound)
         const body = req.body as Record<string, unknown> | undefined
         if (body && body.nonce === '<pow>') body.nonce = solve(String(body.challenge), bits.get(String(body.challenge)) ?? DIFFICULTY)
@@ -375,7 +471,22 @@ export async function replay(
         const gone = new Set<string>()
         lost(shapeOf(was.body), json, '$', gone, path => optional.has(`${step.op} ${path}`))
         for (const g of gone) problems.push(`${where}: ${g}`)
-        bind(was.body, json, bound)
+        if (res.status >= 200 && res.status < 300) {
+          const body = json as { player?: { team?: string[] }; team?: string[]; listing?: ListingView; listings?: ListingView[]; deals?: TraderDealView[] }
+          if (body.player?.team) teams.set(step.player, body.player.team)
+          if (step.op === 'setTeam' && body.team) teams.set(step.player, body.team)
+          for (const listing of [...(body.listings ?? []), ...(body.listing ? [body.listing] : [])]) listings.set(listing.id, listing)
+          for (const deal of body.deals ?? []) deals.set(deal.id, deal)
+          if (step.op === 'openPack') {
+            const old = (was.body as OpenPackResponse).cards
+            const current = (json as OpenPackResponse).cards
+            for (const card of old.slice(current.length)) {
+              omitted.set(card.id, card)
+              omittedOwners.set(card.id, step.player)
+            }
+          }
+        }
+        bindAnswer(was.body, json, bound, new Set(omitted.keys()))
         if (step.op === 'challenge' && res.status === 200) {
           const c = json as { challenge: string; difficulty: number }
           bits.set(c.challenge, c.difficulty)

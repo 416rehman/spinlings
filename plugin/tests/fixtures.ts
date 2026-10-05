@@ -75,7 +75,7 @@ export function fakeServer(o: { now?: number; family?: Family; difficulty?: numb
     calls: [], me: meFor(now, cards, family), cards, down: false, poll: 'pending',
     listings: [{
       id: 'listing-for-sale', seller: 'soft-otter-42', price: 40, day: utcDay(now), state: 'open',
-      card: toBattleCard(withIds(rollPack('fable', seasonOf(now), rngFromSeed('market'), now), 'sale-')[4]!),
+      card: toBattleCard(withIds(rollPack('fable', seasonOf(now), rngFromSeed('market'), now), 'sale-').at(-1)!),
     }],
     other: { ...meFor(now, cards, family), player: { ...meFor(now, cards, family).player, handle: 'misty-lark-18', battles: 31 } },
     handle(url, init = {}) {

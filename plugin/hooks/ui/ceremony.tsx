@@ -99,7 +99,7 @@ function slot(c: Ctx, card: CardFace, up: boolean, k: number): RenderElement {
 
 /**
  * The strip of the whole pack: faces for what is turned, glowing backs for what waits (one glowing gold, say). Below
- * the five slots' width it wraps onto a second row rather than overflowing.
+ * the strip's width it wraps onto a second row rather than overflowing.
  */
 function strip(c: Ctx, r: Reveal, i: number): RenderElement {
   return <c.el.Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.tight} width={c.columns}>{...r.cards.map((x, k) => slot(c, x, k < i, k))}</c.el.Box>

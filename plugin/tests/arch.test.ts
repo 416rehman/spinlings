@@ -117,8 +117,8 @@ test('first run: joins silently, keeps the session per origin, and welcomes with
     }
   }
   const pane = await $.ui.mount({ ...PANE(80), surface: 'terminal' })
-  for (let i = 0; i < 5; i++) await pane.press({ key: 'flip' })
-  expect(cardArt(await pane.findAll({ type: 'Raster' })).length).toBe(5)
+  for (let i = 0; i < 2; i++) await pane.press({ key: 'flip' })
+  expect(cardArt(await pane.findAll({ type: 'Raster' })).length).toBe(2)
   await pane.press({ key: 'done' })
   await settle(clock)
   await pane.unmount()

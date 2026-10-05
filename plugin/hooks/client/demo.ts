@@ -53,10 +53,11 @@ function world(now: number) {
   }
   const starters = starterTeam('opus', rng, now - 3 * DAY).map(c => id(c, { tiredUntil: 0 }))
   starters[1] = { ...starters[1]!, tiredUntil: now + 12 * MIN }
-  const pack = [
+  const examples = [
     mint('opus', 2, 'common'), mint('opus', 5, 'common', { firstFind: true }), mint('opus', 1, 'rare', {}, 2),
     mint('opus', 8, 'legendary', { shiny: true }), mint('opus', 6, 'epic', { shiny: true }),
   ]
+  const pack = [examples[0]!, examples[3]!]
   const more = [
     mint('haiku', 3, 'rare', { forTrade: true }, 5), mint('sonnet', 0, 'common', {}, 4), mint('fable', 4, 'epic', { forTrade: true }, 7),
     mint('haiku', 6, 'common', {}, 9), mint('sonnet', 7, 'rare', {}, 3),
@@ -65,7 +66,7 @@ function world(now: number) {
   const mythic = id(m, { form: { ...m.form!, discoveredBy: 'brave-wren-41' } })
   const hybrid = id(fuse(more[0]!, more[2]!, rng, now - 2 * DAY))
   const promo = id(promoCard({ seed: 'founders-2026', name: 'Lanternmoth', family: 'fable', rarity: 'epic', foil: true, stamp: 'Founder · Oct 2026' }, 777, now))
-  const cards = [...starters, ...pack, ...more, mythic, hybrid, promo]
+  const cards = [...starters, ...examples, ...more, mythic, hybrid, promo]
   const theirs = [mint('fable', 2, 'rare', {}, 4), mint('haiku', 1, 'epic', {}, 6), mint('sonnet', 3, 'common', {}, 2)].map(toBattleCard)
   const offerIn: OfferView = { id: 'offer-in-1', from: 'soft-otter-42', to: 'brave-wren-41', give: [theirs[0]!, theirs[1]!], get: [toBattleCard(more[0]!)], state: 'open', createdAt: now - 2 * 60 * MIN, expiresAt: now + 2 * DAY }
   const offerIn2: OfferView = { id: 'offer-in-2', from: 'quiet-fern-07', to: 'brave-wren-41', give: [theirs[2]!], get: [toBattleCard(more[2]!)], state: 'open', createdAt: now - DAY, expiresAt: now + DAY }
@@ -160,7 +161,7 @@ function world(now: number) {
     ],
     clock: now,
   }
-  return { base, cards, starters, pack, more, mythic, hybrid, promo, profile, day, wild, rival, listings, forSale, rankings }
+  return { base, cards, starters, pack, examples, more, mythic, hybrid, promo, profile, day, wild, rival, listings, forSale, rankings }
 }
 
 type World = ReturnType<typeof world>
@@ -178,7 +179,7 @@ function reveal(w: World, kind: Reveal['kind'], cards: Card[], fresh: string[] =
 function steps(now: number): DemoStep[] {
   const w = world(now)
   const s = w.base
-  const fresh = [w.pack[1]!.species, w.pack[3]!.species]
+  const fresh = w.pack.map(c => c.species)
   const packR = reveal(w, 'pack', w.pack, fresh)
   const at = (r: Reveal, flipped: number): GameState => ({ ...view(s, { kind: 'reveal' }, { flipped }), reveal: r })
   // the offline world has no backup, no stats and no listings
@@ -197,9 +198,9 @@ function steps(now: number): DemoStep[] {
     { title: 'Cards · the collection', state: pane(s, { tab: 'cards' }) },
     { title: 'Cards · a filter with nothing in it', state: pane(s, { tab: 'cards', family: FAMILIES.find(f => !w.cards.some(c => c.family === f && c.rarity === 'legendary')) ?? 'haiku', rarity: 'legendary' }) },
     { title: 'Cards · empty collection', state: { ...pane(s, { tab: 'cards' }), cards: [] } },
-    { title: 'Card · a legendary shiny foil', state: view(s, { kind: 'card', cardId: w.pack[3]!.id }, { tab: 'cards' }) },
+    { title: 'Card · a legendary shiny foil', state: view(s, { kind: 'card', cardId: w.examples[3]!.id }, { tab: 'cards' }) },
     { title: 'Card · a starter (stays with you)', state: view(s, { kind: 'card', cardId: w.starters[0]!.id }, { tab: 'cards' }) },
-    { title: 'Card · a share to copy by hand (no clipboard here)', state: view(s, { kind: 'card', cardId: w.pack[3]!.id }, { tab: 'cards', toCopy: shareText(w.pack[3]!, 'online', 'https://spinlings.dev') }) },
+    { title: 'Card · a share to copy by hand (no clipboard here)', state: view(s, { kind: 'card', cardId: w.examples[3]!.id }, { tab: 'cards', toCopy: shareText(w.examples[3]!, 'online', 'https://spinlings.dev') }) },
     { title: 'Card · recycle armed (2-second hold)', state: view(s, { kind: 'card', cardId: w.more[1]!.id }, { tab: 'cards', hold: { action: 'recycle', target: w.more[1]!.id, startedAt: now } }) },
     { title: 'Card · a Mythic', state: view(s, { kind: 'card', cardId: w.mythic.id }, { tab: 'cards' }) },
     { title: 'Card · on the market', state: view(s, { kind: 'card', cardId: w.more[2]!.id }, { tab: 'cards' }) },
@@ -208,7 +209,7 @@ function steps(now: number): DemoStep[] {
     { title: 'Album · Opus', state: pane(s, { tab: 'album', album: 'opus' }) },
     { title: 'Album · Fable, mostly unseen', state: pane(s, { tab: 'album', album: 'fable' }) },
     { title: 'Album · the Fusion Log', state: pane(s, { tab: 'album', album: 'fusion' }) },
-    { title: 'Album · a species, craft and wishlist', state: view(s, { kind: 'species', speciesId: w.pack[2]!.species }, { tab: 'album' }) },
+    { title: 'Album · a species, craft and wishlist', state: view(s, { kind: 'species', speciesId: w.examples[2]!.species }, { tab: 'album' }) },
     { title: 'Album · an unseen legendary', state: view(s, { kind: 'species', speciesId: legendaryOf(seasonOf(now), 'haiku').id }, { tab: 'album' }) },
     { title: 'Community · the hub', state: pane(s, { tab: 'trade' }) },
     { title: 'Community · your profile', state: view(s, { kind: 'mine' }, { tab: 'trade' }) },
@@ -229,20 +230,20 @@ function steps(now: number): DemoStep[] {
     { title: 'Market · nothing listed like that', state: { ...pane(s, { tab: 'market', market: { ...MARKET_DEFAULT, kind: 'both' } }), social: { ...s.social, market: { ...s.social.market!, listings: [], next: null } } } },
     { title: 'Market · your listings', state: pane(s, { tab: 'market', market: { ...MARKET_DEFAULT, mine: true } }) },
     { title: 'Market · a listing for sparks: give and get, then Buy', state: view(s, { kind: 'listing', listingId: w.listings[0]!.id, cardId: null }, { tab: 'market' }) },
-    { title: 'Market · a swap: pick the card you give', state: view(s, { kind: 'listing', listingId: w.listings[3]!.id, cardId: w.pack[2]!.id }, { tab: 'market' }) },
+    { title: 'Market · a swap: pick the card you give', state: view(s, { kind: 'listing', listingId: w.listings[3]!.id, cardId: w.examples[2]!.id }, { tab: 'market' }) },
     { title: 'Market · too dear for now', state: view(s, { kind: 'listing', listingId: w.listings[2]!.id, cardId: null }, { tab: 'market' }) },
     { title: 'Market · your own listing, take it off armed', state: view(s, { kind: 'listing', listingId: 'listing-mine-1', cardId: null }, { tab: 'market', hold: { action: 'cancel-listing', target: 'listing-mine-1', startedAt: now } }) },
     { title: 'Sell · the price, from recent sales', state: view(s, { kind: 'sell', cardId: w.more[1]!.id, price: 0, want: null }, { tab: 'cards' }) },
-    { title: 'Sell · sparks and a card from the wishlist', state: view(s, { kind: 'sell', cardId: w.pack[4]!.id, price: 150, want: { species: s.me!.player.wishlist[0]! } }, { tab: 'cards' }) },
-    { title: 'Sell · a card only', state: view(s, { kind: 'sell', cardId: w.pack[2]!.id, price: 0, want: { family: w.pack[2]!.family, rarity: w.pack[2]!.rarity } }, { tab: 'cards' }) },
+    { title: 'Sell · sparks and a card from the wishlist', state: view(s, { kind: 'sell', cardId: w.examples[4]!.id, price: 150, want: { species: s.me!.player.wishlist[0]! } }, { tab: 'cards' }) },
+    { title: 'Sell · a card only', state: view(s, { kind: 'sell', cardId: w.examples[2]!.id, price: 0, want: { family: w.examples[2]!.family, rarity: w.examples[2]!.rarity } }, { tab: 'cards' }) },
     { title: 'Boards · rating, all time, your rank pinned', state: view(s, { kind: 'boards', board: 'rating', period: 'all' }, { tab: 'team' }) },
     { title: 'Boards · sales this season', state: { ...view(s, { kind: 'boards', board: 'sales', period: 'season' }, { tab: 'team' }), social: { ...s.social, rankings: { ...w.rankings, board: 'sales', period: 'season', top: w.rankings.top.slice(0, 4).map((r, i) => ({ ...r, value: [14, 9, 9, 3][i]! })), me: { ...w.rankings.me!, rank: 6, value: 2 } } } } },
     { title: 'Boards · hidden, and nobody yet', state: { ...view(s, { kind: 'boards', board: 'mythics', period: 'season' }, { tab: 'team' }), me: { ...s.me!, player: { ...s.me!.player, leaderboard: false } }, social: { ...s.social, rankings: { board: 'mythics', period: 'season', season: w.rankings.season, top: [] } } } },
     { title: 'Header · not backed up yet', state: { ...pane(s, { tab: 'team' }), account: { ...s.account, backedUp: false, devices: { sessions: 1, passkeys: 0 } } } },
     { title: 'Pack · sealed, waiting to tear', state: at(packR, 0) },
-    { title: 'Pack · two turned, a gold back waiting', state: at(packR, 2) },
-    { title: 'Pack · LEGENDARY!', state: at(packR, 4) },
-    { title: 'Pack · the summary', state: at(packR, 5) },
+    { title: 'Pack · one turned, a gold back waiting', state: at(packR, 1) },
+    { title: 'Pack · a legendary foil revealed', state: at(packR, 2) },
+    { title: 'Pack · the summary', state: at(packR, 2) },
     { title: 'Fusion · the egg', state: at(reveal(w, 'egg', [w.hybrid]), 0) },
     { title: 'Fusion · hatched', state: at(reveal(w, 'egg', [w.hybrid]), 1) },
     { title: 'Present · wrapped', state: at(reveal(w, 'present', [w.more[3]!]), 0) },

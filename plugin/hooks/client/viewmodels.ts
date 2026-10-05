@@ -421,7 +421,7 @@ export function packsLine(packs: Reveal['packs']): string {
   return '+' + [...by].map(([f, n]) => plural(n, `${FAMILY_INFO[f].name} pack`)).join(', ')
 }
 
-/** `5 cards · 2 new species · Album 14/36 (+2)` (SPEC 13.5). */
+/** `2 cards · 2 new species · Album 14/36 (+2)` (SPEC 13.5). */
 export function revealSummary(r: Reveal): string {
   const fresh = r.fresh.length
   const gained = r.album.after - r.album.before

@@ -17,8 +17,6 @@ import { createCanvas, encodePng, textWidth } from '../../server/src/png.ts'
 import { albumForm, eyes, shadow } from './shadows.ts'
 import { dayWith, mediaWorld } from './world.ts'
 
-const { cardBack } = await import('../../plugin/hooks/client/anim.ts')
-
 const BG = '#141a26', PANEL = '#1d2534', PLATE = '#1b1824', LINE = '#2c3547', TEXT = '#eceaf3', SOFT = '#a6a4b8', GOLD = INK.accent
 const T = -1
 const hex = (c: number) => '#' + (c & 0xffffff).toString(16).padStart(6, '0')
@@ -166,29 +164,19 @@ function unique(W: number, H: number): Canvas {
   return c
 }
 
-/** Product Hunt 3: a pack, one back glowing gold before it flips. */
+/** Product Hunt 3: a two-card pack, common and legendary foil. */
 function pack(W: number, H: number): Canvas {
   const c = frame(W, H)
   const w = mediaWorld(dayWith('calm'), 'spinlings/media/pack')
-  heading(c, W, 'Packs glow before they flip', 'Packs charge with time, never with usage. Rarer cards build up longer.')
-  const s = 10, side = 18 * s, gap = 44
-  const x0 = Math.round((W - (5 * side + 4 * gap)) / 2), y = 350
-  const faces: (Card | null)[] = [
-    w.mint('opus', 2, 'common', {}, 1, 2718281828), w.mint('opus', 1, 'rare', {}, 1, 1732050807), null,
-    w.mint('opus', 8, 'legendary', { shiny: true }, 1, 3141592653), null,
+  heading(c, W, 'Packs glow before they flip', 'Two cards in every pack. Rarer cards build up longer.')
+  const s = 12, side = 18 * s, gap = 132
+  const x0 = Math.round((W - (2 * side + gap)) / 2), y = 318
+  const faces: Card[] = [
+    w.mint('opus', 2, 'common', {}, 1, 2718281828),
+    w.mint('opus', 8, 'legendary', { foil: true }, 1, 3141592653),
   ]
-  const glow = [null, null, hexInt(RARITY_COLOR.epic), null, hexInt(RARITY_COLOR.legendary)]
   faces.forEach((card, i) => {
     const x = x0 + i * (side + gap)
-    if (!card) {
-      const back = cardBack(16, 16, i === 4 ? 'legendary' : i === 2 ? 'epic' : 'common', 1)
-      const halo = only(glowOutline(back, glow[i]!, 1), back)
-      sprite(c, halo, x + s, y + s, s)
-      sprite(c, back, x + s, y + s, s)
-      const label = i === 4 ? 'glowing gold...' : 'glowing'
-      text(c, x + centre(side, label, 2), y + side + 18, label, i === 4 ? GOLD : RARITY_COLOR.epic, 2)
-      return
-    }
     const legendary = card.rarity === 'legendary'
     let px = spriteFor(card)
     if (legendary) px = sparkles(foil(px, 1.1), 0.3, 'pack', { count: 4, color: 0xfff0a8, reach: 1 })
@@ -196,9 +184,11 @@ function pack(W: number, H: number): Canvas {
     sprite(c, px, x + s, y + s, s)
     const name = cardName(card)
     text(c, x + centre(side, name, 2), y + side + 18, name, legendary ? GOLD : RARITY_COLOR[card.rarity], 2)
+    const label = legendary ? 'Legendary · Foil' : 'Common'
+    text(c, x + centre(side, label, 2), y + side + 48, label, legendary ? GOLD : SOFT, 2)
   })
   // the legendary's rim runs the foil rainbow
-  const lx = x0 + 3 * (side + gap)
+  const lx = x0 + side + gap
   for (let k = 0; k < side; k += 6) {
     const col = hex(foilHue(k / side))
     c.fillRect(lx + k, y, 6, 6, col)

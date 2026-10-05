@@ -20,7 +20,7 @@ import { BackendError } from './types.ts'
  * This mod's version: sent as X-Spinlings-Client and compared with the server's minClient. A release bumps it with
  * plugin.json's `version` (test/e2e/manifest.test.ts holds the two, and the server's LATEST_CLIENT, equal).
  */
-export const CLIENT_VERSION = '0.2.6'
+export const CLIENT_VERSION = '0.2.7'
 /** How a player updates the mod: the one line the band, the pane's version chip and /spin version all give. */
 export const UPDATE_COMMAND = 'claude plugin update spinlings@spinlings'
 export const TIMEOUT_MS = 15_000

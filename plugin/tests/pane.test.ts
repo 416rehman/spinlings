@@ -720,7 +720,7 @@ test('view models: team places, trader picks, filters, pages, reveal words', () 
   expect(tradeSection(2, false)).toBe('trader')
   expect(tradeSection(0, true)).toBe('trader')
   const pack = steps.find(x => x.title === 'Pack · the summary')!.state.reveal!
-  expect(revealSummary(pack)).toBe('5 cards · 2 new species · Album 14/36 (+2)')
+  expect(revealSummary(pack)).toBe('2 cards · 2 new species · Album 14/36 (+2)')
   expect(holdText('recycle', outsider.id, s, NOW)).toMatch(/will be gone\. You get \d+ sparks\./)
   expect(holdText('reset-access', 'me', s, NOW)).toBe('Other machines sign out and saved passkeys are removed.')
   // one of a thing reads as one: "1 first", "1 Mythic"

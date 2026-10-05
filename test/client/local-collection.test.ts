@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Card, Family } from '../../plugin/hooks/core/types.ts'
-import { craftCost, mintCard, recycleValue } from '../../plugin/hooks/core/cards.ts'
+import { craftCost, mintCard, rarityRank, recycleValue } from '../../plugin/hooks/core/cards.ts'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 import { familySpecies, getSpecies, legendaryOf } from '../../plugin/hooks/core/species.ts'
@@ -85,7 +85,7 @@ test('presence charges a pack 45 minutes apart into a bank of 12; past 16 a day 
   await w.backend.chargePack({ family: 'haiku' })
 })
 
-test('packs cost 150 sparks with no limit; opening rolls five current-season cards into the album', async () => {
+test('packs cost 150 sparks with no limit; opening rolls exactly two current-season cards into the album', async () => {
   const w = world()
   await w.backend.me({})
   await refused(w.backend.buyPack({ family: 'sonnet' }), 'insufficient_sparks')
@@ -97,7 +97,8 @@ test('packs cost 150 sparks with no limit; opening rolls five current-season car
   assert.equal(bought.length, 5)
 
   const { cards } = await w.backend.openPack({ packId: bought[0]!.id })
-  assert.equal(cards.length, ECONOMY.packs.size)
+  assert.equal(cards.length, 2)
+  assert.ok(rarityRank(cards[1]!.rarity) >= rarityRank('rare'))
   for (const c of cards) {
     assert.deepEqual([c.family, c.season, c.origin, c.lockedUntil, c.bound], ['sonnet', seasonOf(NOW), 'pack', 0, false])
     assert.ok(getSpecies(c.species))
@@ -105,7 +106,7 @@ test('packs cost 150 sparks with no limit; opening rolls five current-season car
   const after = await w.backend.me({})
   for (const c of cards) assert.ok(after.player.seen.includes(c.species))
   assert.equal(after.packs.length, me.packs.length - 1)
-  assert.equal((await w.cards()).length, 3 + 5)
+  assert.equal((await w.cards()).length, 3 + 2)
   await refused(w.backend.openPack({ packId: bought[0]!.id }), 'not_found')
 })
 

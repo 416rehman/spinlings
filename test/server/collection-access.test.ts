@@ -195,9 +195,13 @@ describe('races, settled by guards (SPEC 16)', () => {
     const s = server({ db: r.db })
     const p = await s.join()
     const pack = (await p.call('me')).packs[0]!
-    const [results, lost] = await r.race(3, () => settle([0, 1, 2].map(() => p.call('openPack', { packId: pack.id }))))
+    const opened: Card[][] = []
+    const [results, lost] = await r.race(3, () => settle([0, 1, 2].map(() => p.call('openPack', { packId: pack.id })
+      .then(result => { opened.push(result.cards) }))))
     assert.deepEqual([results.sort(), lost], [['not_found', 'not_found', 'ok'], 2])
-    assert.equal((await counts(s.db, ['cards'])).cards, 3 + 5)
+    assert.equal(opened.length, 1)
+    assert.equal(opened[0]!.length, 2, 'the winning request returns exactly two cards')
+    assert.equal((await counts(s.db, ['cards'])).cards, 3 + 2)
   })
 
   it('pays a recycle once, and lets one of two fusions over a shared parent through', async () => {

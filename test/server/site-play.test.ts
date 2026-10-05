@@ -151,7 +151,10 @@ describe('the landing, third pass', () => {
     for (const f of ['haiku', 'sonnet', 'opus', 'fable']) assert.match(den, new RegExp(`<g class="em em-${f}"`), f)
     assert.match(den, /<g class="pk-top">/, 'the crimp that tears off')
     assert.match(den, /<svg class="stumpart"/)
-    assert.equal((den.match(/<div class="slots" aria-hidden="true">(<i><\/i>){5}<\/div>/g) ?? []).length, 1)
+    const backs = den.match(/<div class="slots" aria-hidden="true">((?:<i><\/i>)+)<\/div>/)![1]!
+    const count = [...backs.matchAll(/<i><\/i>/g)].length
+    assert.equal(count, 2, 'the pack has exactly two inert card backs')
+    assert.match(css(html), new RegExp(`\\.slots,\\.fan\\{[^}]*grid-template-columns:repeat\\(${count},var\\(--cw\\)\\)`), 'backs and revealed cards have one grid column per pack card')
     assert.equal((den.match(/<div class="hollow-room /g) ?? []).length, 2)
     assert.match(den, /<div class="hatchspot" aria-hidden="true"><i><\/i><span>Hatches here<\/span><\/div>/)
     for (const h of ['Open a pack', 'Fuse two into one']) assert.ok(textOf(den).includes(h))
@@ -200,7 +203,11 @@ describe('site creatures, third pass', () => {
     assert.ok(packDeck(w, 'fable').length >= 5)
     const rng = rngFromSeed('decks')
     for (let i = 0; i < 200; i++) {
-      const names = rollPack(w, 'fable', rng).flatMap(s => ('card' in s && s.card.rarity !== 'legendary' ? [s.card.species === 'promo' ? s.card.form!.names[0] : s.card.species] : []))
+      const pack = rollPack(w, 'fable', rng)
+      assert.equal(pack.length, 2)
+      const last = pack[1]!
+      assert.ok(!('card' in last) || last.card.rarity !== 'common', 'the second card is rare or better')
+      const names = pack.flatMap(s => ('card' in s && s.card.rarity !== 'legendary' ? [s.card.species === 'promo' ? s.card.form!.names[0] : s.card.species] : []))
       assert.equal(new Set(names).size, names.length, `pack ${i}: ${names.join(', ')}`)
     }
   })

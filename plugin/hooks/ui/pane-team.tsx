@@ -29,7 +29,7 @@ function emptySlot(c: Ctx, s: Slot, wide: boolean): RenderElement {
     return (
       <Box key={`team-${s.slot}`} position="relative" flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
         {cardHitRegion(c.el, <Text dimColor>{`Slot ${s.slot + 1} · empty`}</Text>, c.hitAreas, `team-${s.slot}-empty`, pick,
-          `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`)}
+          `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`, undefined, c.columns)}
         {btn(c, { key: `team-${s.slot}-pick`, label: 'Pick a card', on: pick })}
       </Box>
     )
@@ -41,7 +41,7 @@ function emptySlot(c: Ctx, s: Slot, wide: boolean): RenderElement {
       </Box>, c.hitAreas, `team-${s.slot}-art`, pick, `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`)}
       {btn(c, { key: `team-${s.slot}-pick`, label: 'Pick a card', on: pick })}
       {cardHitRegion(c.el, <Text dimColor>{`Slot ${s.slot + 1}`}</Text>, c.hitAreas, `team-${s.slot}-note`, pick,
-        `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`)}
+        `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`, undefined, TILE)}
     </Box>
   )
 }

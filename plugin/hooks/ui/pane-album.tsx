@@ -30,7 +30,7 @@ function entryChip(c: Ctx, e: AlbumEntry): RenderElement {
         `album-${s.id}-pick`, `${c.hitIntent}:${s.id}`)}
       {btn(c, { key: `album-${s.id}-pick`, label: fit(name, CHIP), dim: !e.seen, lit: true, on: open })}
       {cardHitRegion(c.el, <Text dimColor wrap="truncate-end" {...(s.legendary && e.seen ? { color: RARITY_COLOR.legendary } : {})}>{fit(note || ' ', CHIP)}</Text>,
-        c.hitAreas, `album-${s.id}-note`, open, `album-${s.id}-pick`, `${c.hitIntent}:${s.id}`)}
+        c.hitAreas, `album-${s.id}-note`, open, `album-${s.id}-pick`, `${c.hitIntent}:${s.id}`, undefined, CHIP)}
     </Box>
   )
 }

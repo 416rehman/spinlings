@@ -92,7 +92,7 @@ const CLAIMS: Record<string, Claim[]> = {
     ['**Starters** begin at level #, # XP short of level #', E.starter.level, L.xpPerLevel * E.starter.level - E.starter.xp, L.evolveAt[0]],
     ['About 1 wild encounter in #', oneIn(W.mythicChance)],
     ['A pack holds # cards', P.size],
-    ['| 1–4 | #% | #% | #% | #% |', ...weights(P.odds)],
+    ['| # | #% | #% | #% | #% |', 1, ...weights(P.odds)],
     ['| # | – | #% | #% | #% |', P.size, ...weights(P.lastSlotOdds)],
     ['shiny (1 in #) and foil (1 in #) on its own', oneIn(E.shiny.chance), oneIn(E.foil.chance)],
     ['Every # minutes that Claude Code is open', P.presenceMinutes],

@@ -325,11 +325,11 @@ export function card(el: El, surface: Surface, c: CardFace, size: CardSize, o: C
   const { Box, Text } = el
   const width = size === 'tile' ? CARD_WIDTH.tile : size === 'mini' ? CARD_WIDTH.mini : Math.max(10, (o.width ?? 40) - SPRITE.mini.columns - SPACE.loose)
   const region = (part: string, content: RenderElement) => cardHitRegion(el, content, surface === 'desktop' && !!o.hitArea,
-    `${o.key}-${part}`, o.on, `${o.key}-pick`, `${o.hitIntent ?? ''}:${c.id}`, c.id)
+    `${o.key}-${part}`, o.on, `${o.key}-pick`, `${o.hitIntent ?? ''}:${c.id}`, c.id, width)
   const picture = region('art', art(el, surface, c, size, o))
   const words = [
     ...name(el, c, width, o).map((line, i) => i === 0 ? line : region('name', line)),
-    region('meta', meta(el, c, width)),
+    ...meta(el, c).map((line, i) => region(i === 0 ? 'family' : 'rarity', line)),
     o.extra ?? null,
     // a note (a slot, a handle) wraps rather than cut: it may be the only place a seller's handle shows
     (size === 'tile' ? o.note !== undefined : !!o.note) ? region('note', <Text dimColor wrap="wrap">{o.note || ' '}</Text>) : null,
@@ -369,14 +369,12 @@ function name(el: El, c: CardFace, width: number, o: CardOptions): RenderElement
 /**
  * The family and level, then the full rarity and finish words: readable without knowing a colour or a glyph.
  */
-function meta(el: El, c: CardFace, width: number): RenderElement {
-  const { Box, Text } = el
-  return (
-    <Box flexDirection="column" width={width}>
-      <Text wrap="wrap">{familyMark(el, c.family)}<Text>{` ${FAMILY_INFO[c.family].name}`}</Text><Text dimColor>{` · Lv ${c.level}`}</Text></Text>
-      <Text wrap="wrap" color={rarityColor(c)}>{rarityLabel(c)}</Text>
-    </Box>
-  )
+function meta(el: El, c: CardFace): RenderElement[] {
+  const { Text } = el
+  return [
+    <Text wrap="wrap">{familyMark(el, c.family)}<Text>{` ${FAMILY_INFO[c.family].name}`}</Text><Text dimColor>{` · Lv ${c.level}`}</Text></Text>,
+    <Text wrap="wrap" color={rarityColor(c)}>{rarityLabel(c)}</Text>,
+  ]
 }
 
 function full(el: El, surface: Surface, c: CardFace, o: CardOptions): RenderElement {

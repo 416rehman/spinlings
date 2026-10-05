@@ -46,7 +46,7 @@ The Code tab in Claude Desktop needs a bundled Claude Code version that supports
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
 
 ```sh
-git clone --branch v0.2.6 https://github.com/416rehman/spinlings
+git clone --branch v0.2.7 https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 
@@ -66,12 +66,12 @@ Optional: turn on updates in `/plugin` → Marketplaces → spinlings → Enable
 
 ## See it
 
-**A pack opening.** Five backs wait face down, and the rare ones glow before they flip. This one glows gold.
+**A pack opening.** Two backs wait face down, and the rare ones glow before they flip. This one glows gold.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/pack-dark.svg">
-    <img src="docs/media/pack-light.svg" width="864" alt="Five cards emerge from an Opus pack, including a legendary foil.">
+    <img src="docs/media/pack-light.svg" width="864" alt="Two cards emerge from an Opus pack, including a legendary foil.">
   </picture>
 </p>
 

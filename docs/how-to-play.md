@@ -138,12 +138,12 @@ About 1 wild encounter in 40 is led by a **Mythic**: a creature generated on the
 
 ## Packs
 
-A pack holds 5 cards.
+A pack holds 2 cards.
 
 | Slots | Common | Rare | Epic | Legendary |
 |---|---|---|---|---|
-| 1–4 | 70% | 22% | 7% | 1% |
-| 5 | – | 75% | 21% | 4% |
+| 1 | 70% | 22% | 7% | 1% |
+| 2 | – | 75% | 21% | 4% |
 
 A legendary roll gives the family's legendary species; any other roll picks one of the family's 8 regular species. Each card also rolls shiny (1 in 100) and foil (1 in 16) on its own.
 
@@ -151,7 +151,7 @@ A legendary roll gives the family's legendary species; any other roll picks one 
 
 **Other packs:** your first win of the day, every 3rd win in a row, season rewards, the Wandering Trader, drops, a gift claimed by a new player once they have really played, and buying them for 150 sparks each, as many as you like.
 
-**Opening.** The cards are rolled when you open the pack, not when it charges. Five cards appear face down, and each back glows in its rarity colour before it flips: blue for rare, purple for epic, pulsing gold for legendary. `[f]` flips the next one, and they flip on their own anyway, taking longer over the rarer ones.
+**Opening.** The cards are rolled when you open the pack, not when it charges. Two cards appear face down, and each back glows in its rarity colour before it flips: blue for rare, purple for epic, pulsing gold for legendary. `[f]` flips the next one, and they flip on their own anyway, taking longer over the rarer ones.
 
 ## Fusion
 

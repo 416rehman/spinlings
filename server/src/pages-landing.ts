@@ -284,7 +284,7 @@ function den(w: SiteFacts, regs: Record<Family, SiteCard>): Raw {
 <h3>${pixelHeading('Open a pack')}</h3>
 <div class="packstage">
 <div class="packspot"><span class="pack" data-toy="${famName(famHour)} pack. Open it." data-keys="o" data-pack data-fam="${famHour}" style="--fam:${FAMILY_COLOR[famHour]}" role="img" aria-label="A ${famName(famHour)} pack">${raw(packSvg(w))}<span class="ptag packtag" aria-hidden="true">${famName(famHour)} pack</span></span><div class="stump" aria-hidden="true">${raw(STUMP)}</div></div>
-<div class="cards5"><div class="slots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><ol class="fan" data-fan aria-label="Pack cards"></ol></div>
+<div class="cards5"><div class="slots" aria-hidden="true">${Array.from({ length: ECONOMY.packs.size }, () => html`<i></i>`)}</div><ol class="fan" data-fan aria-label="Pack cards"></ol></div>
 </div>
 <div class="plank" aria-hidden="true"></div>
 <p class="nojs-note">Packs open inside Claude Code.</p>
@@ -964,7 +964,7 @@ html.js .foot1{display:none}
 /* a paper tag on a pin: counts and names hung up in the den and at the market */
 .ptag{position:relative;display:inline-block;padding:5px 10px 5px;background:#f1e6cf;color:#2a1d18;font-size:.875rem;font-weight:700;line-height:1.3;rotate:-2deg;box-shadow:0 3px 0 #0000004d}
 .ptag::before{content:"";position:absolute;left:50%;top:-4px;width:6px;height:6px;margin-left:-3px;background:#c2493d;box-shadow:inset -2px -2px 0 #8a2f27}
-/* the shelf: the pack on its stump, and five card-back outlines waiting on the plank */
+/* the shelf: the pack on its stump, and the card-back outlines waiting on the plank */
 .shelf{position:relative;margin-top:var(--s5)}
 .packstage{position:relative;display:grid;grid-template-columns:200px auto;justify-content:center;align-items:end;gap:var(--s4);margin-top:var(--s4)}
 @media (max-width:879px){.packstage{grid-template-columns:auto;justify-items:center;gap:var(--s3)}}
@@ -991,8 +991,8 @@ html.js .foot1{display:none}
 .pack.torn .packart .sh1,.pack.torn .packart .sh2{animation:none;opacity:0}
 .packtag{position:absolute;right:-30px;top:30px;rotate:9deg;font-size:.8125rem;white-space:nowrap}
 .packtag::after{content:"";position:absolute;left:-14px;top:6px;width:14px;height:2px;background:#d9c6b3}
-.slots,.fan{display:grid;grid-template-columns:repeat(5,var(--cw));gap:12px}
-@media (max-width:879px){.slots,.fan{grid-template-columns:repeat(3,var(--cw));gap:8px;justify-content:center}}
+.slots,.fan{display:grid;grid-template-columns:repeat(${ECONOMY.packs.size},var(--cw));gap:12px}
+@media (max-width:879px){.slots,.fan{gap:8px;justify-content:center}}
 .cards5{position:relative;display:grid}
 .cards5>*{grid-area:1/1}
 .slots i{display:block;height:var(--ch);background:#2b2440;opacity:.28;box-shadow:inset 0 0 0 3px #fffdf5,inset 0 0 0 6px #2b2440,inset 0 0 0 8px #6b6385;

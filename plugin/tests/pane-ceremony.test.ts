@@ -70,23 +70,21 @@ test('the pack: o opens, f flips, the strip glows, a summary with Set team and D
       expect((await ui.find({ key: 'flip' }))?.props).toMatchObject({ label: 'Open', hotkey: 'o', variant: 'primary' })
       expect(await ui.find({ text: /Opus pack/ })).toBeDefined()
       expect(cardArt(await ui.findAll({ type: art })).length).toBe(1)
-      // once the tear has played the five backs are out, glowing before the first one turns
+      // once the tear has played the two backs are out, glowing before the first one turns
       p.state = { ...p.state, reveal: { ...p.state.reveal!, torn: true } }
       await ui.redraw()
-      expect(cardArt(await ui.findAll({ type: art })).length).toBe(6)
+      expect(cardArt(await ui.findAll({ type: art })).length).toBe(3)
       expect((await ui.find({ key: 'flip' }))?.props).toMatchObject({ label: 'Flip next', hotkey: 'f' })
       await press(ui, 'flip')
       expect((await ui.find({ key: 'flip' }))?.props).toMatchObject({ label: 'Flip next', hotkey: 'f' })
       expect((await ui.find({ key: 'flip' }))?.props.variant).toBeUndefined()
-      // five slots and the stage; the desktop's gene bar is one more Svg
-      expect(cardArt(await ui.findAll({ type: art })).length).toBe(surface === 'terminal' ? 6 : 7)
-      expect(await ui.find({ text: /1 of 5/ })).toBeDefined()
-      for (let i = 1; i < 4; i++) await press(ui, 'flip')
-      expect(await ui.find({ text: /^LEGENDARY!$/ })).toBeDefined()
-      expect(await ui.find({ text: /FIRST IN THE WORLD|NEW/ })).toBeDefined()
+      // two slots and the stage; the desktop's gene bar is one more Svg
+      expect(cardArt(await ui.findAll({ type: art })).length).toBe(surface === 'terminal' ? 3 : 4)
+      expect(await ui.find({ text: /1 of 2/ })).toBeDefined()
+      expect(await ui.find({ text: /NEW/ })).toBeDefined()
       await press(ui, 'flip')
-      expect(await ui.find({ text: /^5 cards · 2 new species · Album 14\/36 \(\+2\)$/ })).toBeDefined()
-      expect(cardArt(await ui.findAll({ type: art })).length).toBe(5)
+      expect(await ui.find({ text: /^2 cards · 2 new species · Album 14\/36 \(\+2\)$/ })).toBeDefined()
+      expect(cardArt(await ui.findAll({ type: art })).length).toBe(2)
       expect(await ui.find({ key: 'done' })).toBeDefined()
       await press(ui, 'set-team')
       const set = p.calls.find(c => c[0] === 'setTeam')!
@@ -99,12 +97,12 @@ test('the pack: o opens, f flips, the strip glows, a summary with Set team and D
 
 test('a legendary turns the ceremony border gold', { timeoutMs: 30_000 }, async ($, on) => {
   draws(on, p)
-  p.state = step('Pack · LEGENDARY!')
+  p.state = step('Pack · a legendary foil revealed')
   const ui = await $.ui.mount(MOUNT(80, 'terminal'))
   const border = (await ui.findAll({ type: 'Box' })).find(b => b.props.borderStyle === 'round')
   expect(border?.props.borderColor).toBe('#f2b33d')
   await ui.unmount()
-  p.state = step('Pack · two turned, a gold back waiting')
+  p.state = step('Pack · one turned, a gold back waiting')
   const before = await $.ui.mount(MOUNT(80, 'terminal'))
   expect((await before.findAll({ type: 'Box' })).find(b => b.props.borderStyle === 'round')?.props.borderDimColor).toBe(true)
   expect(await before.find({ text: /backs glowing/ })).toBeUndefined()
@@ -203,16 +201,16 @@ test('the driver tears the pack, builds up, pauses and flips every card in order
   const blits: Blit[] = []
   const live: Live = { reveal: r, flipped: 0, flips: [], motion: true }
   await run(clock, ceremony(fakeFx(clock, blits, () => true), control(live, clock)))
-  expect(live.flips.map(f => f[0])).toEqual([1, 2, 3, 4, 5])
+  expect(live.flips.map(f => f[0])).toEqual([1, 2])
   const first = r.cards[0]!
   expect(live.flips[0]![1]).toBeGreaterThanOrEqual(TIMING.tearDelay + TIMING.tear + TIMING.buildup[first.rarity] + TIMING.pause + TIMING.flip[first.rarity])
-  for (let i = 1; i < 5; i++) expect(live.flips[i]![1]).toBeGreaterThan(live.flips[i - 1]![1])
+  for (let i = 1; i < r.cards.length; i++) expect(live.flips[i]![1]).toBeGreaterThan(live.flips[i - 1]![1])
   const stage = blits.filter(b => b.key === 'cer-stage')
   expect(stage.length).toBeGreaterThan(20)
   expect(stage.every(b => b.length === STAGE_CELLS)).toBe(true)
   expect(blits.filter(b => b.key.startsWith('cer-slot-')).every(b => b.length === SLOT_CELLS)).toBe(true)
-  expect(blits.some(b => b.key === 'cer-slot-3' && b.at < live.flips[3]![1])).toBe(true)
-  expect(blits.some(b => b.key === 'sum-4-art' && b.at >= live.flips[4]![1])).toBe(true)
+  expect(blits.some(b => b.key === 'cer-slot-1' && b.at < live.flips[1]![1])).toBe(true)
+  expect(blits.some(b => b.key === 'sum-1-art' && b.at >= live.flips[1]![1])).toBe(true)
   const tear = stage.filter(b => b.at >= TIMING.tearDelay && b.at <= TIMING.tearDelay + TIMING.tear)
   expect(tear.length).toBeGreaterThan(2)
   // the strip of backs comes out with the tear, and nothing is sent to it before
@@ -230,7 +228,7 @@ test('a key that refuses is left alone without stopping the others: the tear pla
   await run(clock, ceremony(fakeFx(clock, blits, key => key === 'cer-stage' || !!live.reveal?.torn), control(live, clock)))
   const tear = blits.filter(b => b.key === 'cer-stage' && b.at >= TIMING.tearDelay && b.at <= TIMING.tearDelay + TIMING.tear)
   expect(tear.length).toBeGreaterThan(2)
-  expect(live.flips.map(f => f[0])).toEqual([1, 2, 3, 4, 5])
+  expect(live.flips.map(f => f[0])).toEqual([1, 2])
 })
 
 test('the driver stops blitting where there is no Raster, and still flips', { timeoutMs: 60_000 }, async () => {
@@ -239,7 +237,7 @@ test('the driver stops blitting where there is no Raster, and still flips', { ti
   const blits: Blit[] = []
   const live: Live = { reveal: r, flipped: 0, flips: [], motion: true }
   await run(clock, ceremony(fakeFx(clock, blits, () => false), control(live, clock)))
-  expect(live.flips.map(f => f[0])).toEqual([1, 2, 3, 4, 5])
+  expect(live.flips.map(f => f[0])).toEqual([1, 2])
   // each key at most 8 times a state (sealed, torn, then one per card turned), and only the few keys a state blits
   const keys = new Set(blits.map(b => b.key))
   expect(keys.size).toBeLessThan(8)
@@ -251,7 +249,7 @@ test('motion off turns every card at once; a closed reveal stops the driver; fli
   let clock: Clock = { t: 0, timers: [], seq: 0 }
   let live: Live = { reveal: r, flipped: 0, flips: [], motion: false }
   await run(clock, ceremony(fakeFx(clock, [], () => true), control(live, clock)))
-  expect(live.flips).toEqual([[5, 0]])
+  expect(live.flips).toEqual([[2, 0]])
 
   clock = { t: 0, timers: [], seq: 0 }
   live = { reveal: r, flipped: 0, flips: [], motion: true }
@@ -264,9 +262,9 @@ test('motion off turns every card at once; a closed reveal stops the driver; fli
   const l2 = live
   let skipped = false
   await run(clock, ceremony(fakeFx(clock, [], () => true), control(live, clock)), () => {
-    if (!skipped && clock.t > 200) { skipped = true; l2.flipped = 3 }
+    if (!skipped && clock.t > 200) { skipped = true; l2.flipped = 1 }
   })
-  expect(live.flips.map(f => f[0])).toEqual([4, 5])
+  expect(live.flips.map(f => f[0])).toEqual([2])
 })
 
 test('an egg wobbles, cracks and hatches before it lands, then celebrates on the card', { timeoutMs: 60_000 }, async () => {
@@ -305,8 +303,8 @@ test('the art: 16x16 pieces, three tear frames, flip frames the stage\'s size, S
 })
 
 test('the desktop plays each state as the driver does: the turned face holds, the next back builds up and pauses, then flips', () => {
-  const r = step('Pack · two turned, a gold back waiting').reveal!
-  const prev = r.cards[1]!, next = r.cards[2]!
+  const r = step('Pack · one turned, a gold back waiting').reveal!
+  const prev = r.cards[0]!, next = r.cards[1]!
   const hold = holdMs(prev, r)
   const svg = svgTurn(next, 8, true, { card: prev, hold })
   const sec = (ms: number) => `${(ms / 1000).toFixed(2)}s`

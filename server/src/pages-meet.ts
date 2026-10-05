@@ -240,8 +240,8 @@ export function packDeck(w: SiteWorld, family: Family): Entry[] {
 }
 
 /**
- * A pack of 5 from a family's revealed pool, at the real slot odds. It deals a shuffled deck, so a
- * creature repeats only once the deck runs out (a family with fewer than 5 revealed).
+ * A pack from a family's revealed pool, at the real size and slot odds. It deals a shuffled deck, so a
+ * creature repeats only once the deck runs out (a family with fewer revealed creatures than pack slots).
  */
 export function rollPack(w: SiteWorld, family: Family, rng: Rng): PackSlot[] {
   const deck = shuffle(rng, packDeck(w, family))

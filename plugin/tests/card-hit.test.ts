@@ -52,7 +52,9 @@ function regionsLeaveButtonsExposed(tree: unknown): number {
     expect(node.props).toMatchObject({ width: '100%', flexGrow: 1 })
     expect(node.props?.height).toBeUndefined()
     expect(overlay.props).toMatchObject({ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, flexDirection: 'column' })
-    expect(region.props).toMatchObject({ position: 'relative', flexDirection: 'column' })
+    expect(region.props).toMatchObject({ position: 'relative', flexDirection: 'column', overflow: 'hidden' })
+    const content = region.children![0] as Node
+    if (content.type === 'Svg') expect((node.props?.props as { size: unknown }).size).toEqual({ pixels: { width: content.props!.width, height: content.props!.height } })
     const controls: string[] = []
     nodes(region, n => { if (['Button', 'Input', 'Select', 'Link'].includes(n.type)) controls.push(n.type) })
     expect(controls).toEqual([])
@@ -60,12 +62,27 @@ function regionsLeaveButtonsExposed(tree: unknown): number {
   return count
 }
 
-test('desktop team and collection keep distinct artwork and metadata regions at 24 and 80 columns', { timeoutMs: 60_000 }, async ($, on) => {
+async function intrinsicExtent(ui: Mounted, key: string): Promise<void> {
+  const size = ((await ui.find({ key }))!.props.props as { size: { pixels?: { width: number; height: number }; rows?: number } }).size
+  if (size.pixels) {
+    const spacers = await ui.findAll({ type: 'Svg', in: key })
+    expect(spacers).toHaveLength(1)
+    expect(spacers[0]!.props).toMatchObject({ ...size.pixels, alt: '' })
+    // No painted shapes or hidden duplicate art: only the exact intrinsic viewport establishes the hit region.
+    expect(spacers[0]!.props.source).toBe(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size.pixels.width} ${size.pixels.height}"/>`)
+  } else {
+    const spacers = await ui.findAll({ type: 'Text', in: key })
+    expect(spacers).toHaveLength(1)
+    expect(spacers[0]!.text).toBe('\n'.repeat(size.rows! - 1) + ' ')
+  }
+}
+
+test('desktop team and collection keep distinct artwork, family and rarity regions at 24 and 80 columns', { timeoutMs: 60_000 }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   engine(on)
   const probe = stateProbe(on)
   for (const title of ['Team · slots, resting, notices with Revenge', 'Cards · the collection']) {
-    for (const columns of [24, 80]) for (const part of ['art', 'meta']) {
+    for (const columns of [24, 80]) for (const part of ['art', 'family', 'rarity']) {
       const state = sample(title)
       probe.state = state
       const ui = await $.ui.mount(PANE(columns, 'desktop'))
@@ -75,8 +92,11 @@ test('desktop team and collection keep distinct artwork and metadata regions at 
       const key = await hitKey(ui, button.key!, part)
       expect((await ui.find({ key }))?.props).toMatchObject({ width: '100%', flexGrow: 1 })
       expect(regionsLeaveButtonsExposed(await ui.drawn())).toBeGreaterThan(0)
+      await intrinsicExtent(ui, key)
+      if (part === 'art') expect(((await ui.find({ key }))!.props.props as { size: unknown }).size)
+        .toEqual({ pixels: { width: columns === 24 ? 32 : 72, height: columns === 24 ? 32 : 72 } })
       expect(buttons.filter(b => b.key === button.key)).toHaveLength(1)
-      await click(ui, key, 1, 1, 18, part === 'art' ? 10 : 2)
+      await click(ui, key, 1, part === 'art' ? 1 : 0, 18, part === 'art' ? 10 : 1)
       await settle(clock)
       expect(probe.state.pane.stack).toHaveLength(1)
       expect(probe.state.pane.stack[0]?.kind).toBe('card')
@@ -85,15 +105,42 @@ test('desktop team and collection keep distinct artwork and metadata regions at 
   }
 })
 
-test('the first delivered artwork or metadata click works before a Client resize report', { timeoutMs: 30_000 }, async ($, on) => {
+test('the first delivered artwork, family or rarity click works with genuinely unreported region dimensions', { timeoutMs: 30_000 }, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   engine(on)
   const probe = stateProbe(on)
-  for (const part of ['art', 'meta']) {
+  for (const part of ['art', 'family', 'rarity']) {
     probe.state = sample('Team · slots, resting, notices with Revenge')
     const id = probe.state.me!.player.team[0]
-    const ui = await $.ui.mount(PANE(24, 'desktop'))
+    // The headless adapter otherwise sizes every Client to the entire pane viewport, bypassing native geometry.
+    const ui = await $.ui.mount({ ...PANE(24, 'desktop'), viewport: { columns: 0, rows: 0 } })
     const key = await hitKey(ui, 'team-0-pick', part)
+    await intrinsicExtent(ui, key)
+    const y = part === 'art' ? 3 : 0
+    await ui.pointer({ in: key, type: 'down', x: 1, y, button: 'left' })
+    await ui.pointer({ in: key, type: 'up', x: 1, y, button: 'left' })
+    await ui.advance(16)
+    await settle(clock)
+    expect(probe.state.pane.stack).toEqual([{ kind: 'card', cardId: id }])
+    await ui.unmount()
+  }
+})
+
+test('wrapping family and rarity rows retain their own multirow intrinsic region', { timeoutMs: 30_000 }, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  engine(on)
+  const probe = stateProbe(on)
+  for (const part of ['family', 'rarity']) {
+    probe.state = sample('Team · slots, resting, notices with Revenge')
+    const id = probe.state.me!.player.team[0]!
+    const c = probe.state.cards.find(c => c.id === id)!
+    Object.assign(c, { family: 'sonnet', level: 100, rarity: 'legendary', shiny: true, foil: true })
+    const ui = await $.ui.mount({ ...PANE(24, 'desktop'), viewport: { columns: 0, rows: 0 } })
+    const key = await hitKey(ui, 'team-0-pick', part)
+    expect(((await ui.find({ key }))!.props.props as { size: unknown }).size).toEqual({ rows: 2 })
+    await intrinsicExtent(ui, key)
+    expect(regionsLeaveButtonsExposed(await ui.drawn())).toBeGreaterThan(0)
+    // No resize act: the second row belongs to this passive line and remains a completed local selection.
     await ui.pointer({ in: key, type: 'down', x: 1, y: 1, button: 'left' })
     await ui.pointer({ in: key, type: 'up', x: 1, y: 1, button: 'left' })
     await ui.advance(16)
@@ -137,7 +184,7 @@ test('caller extra controls remain between metadata and note, outside the Client
   })
   const ui = await $.ui.mount({ ...PANE(24, 'desktop'), requestId: 'extra-probe' })
   const tree = captured as Node
-  expect(regionsLeaveButtonsExposed(tree)).toBe(3)
+  expect(regionsLeaveButtonsExposed(tree)).toBe(4)
   const children = tree.children as Node[]
   const nativeButtons = children.filter(n => n.type === 'Button').map(n => n.props?.key)
   expect(nativeButtons).toEqual(['probe-card-pick', 'extra-control'])

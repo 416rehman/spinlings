@@ -165,7 +165,7 @@ describe('buying packs', () => {
 })
 
 describe('opening packs', () => {
-  it("rolls 5 current-season cards of the pack's family when opened, the last rare or better", async () => {
+  it("rolls exactly 2 current-season cards of the pack's family when opened, the last rare or better", async () => {
     const s = server()
     const p = await s.join()
     s.tick(FIRST_CHARGE)
@@ -173,19 +173,19 @@ describe('opening packs', () => {
     const pack = packs.find(k => k.source === 'charge')!
     const before = (await p.call('me')).player.cardsVersion
     const { cards } = await p.call('openPack', { packId: pack.id })
-    assert.equal(cards.length, 5)
+    assert.equal(cards.length, 2)
     for (const c of cards) {
       assert.deepEqual([c.family, c.season, c.origin, c.bound, c.lockedUntil, c.state], ['fable', 1, 'pack', false, 0, 'owned'])
       assert.deepEqual(c.stats, cardStats(c))
     }
-    assert.ok(rarityRank(cards[4]!.rarity) >= rarityRank('rare'))
+    assert.ok(rarityRank(cards[1]!.rarity) >= rarityRank('rare'))
     const me = await p.call('me')
     assert.equal(me.player.cardsVersion, before + 1)
     assert.ok(cards.every(c => me.player.seen.includes(c.species)), 'the album fills in')
     assert.ok(!me.packs.some(k => k.id === pack.id))
     const again = await p.fails('openPack', { packId: pack.id })
     assert.deepEqual([again.status, again.code], [404, 'not_found'])
-    assert.equal((await p.call('cards')).cards.length, 8, 'a replay mints nothing')
+    assert.equal((await p.call('cards')).cards.length, 5, 'a replay mints nothing')
   })
 
   it('opens welcome packs into cards free to trade at once, and bound packs into bound cards', async () => {
@@ -477,13 +477,13 @@ describe('no daily quotas (SPEC 24)', () => {
     for (let i = 0; i < 25; i++) {
       const { packs } = await p.call('buyPack', { family: 'haiku' })
       const { cards } = await p.call('openPack', { packId: packs.find(k => k.source === 'bought')!.id })
-      await p.call('fuse', { cardId: cards[0]!.id, otherId: cards[1]!.id })
-      gained += (await p.call('recycle', { cardId: cards[2]!.id })).gained
+      const fused = await p.call('fuse', { cardId: cards[0]!.id, otherId: cards[1]!.id })
+      gained += (await p.call('recycle', { cardId: fused.card.id })).gained
       await p.call('craft', { speciesId: 's1-haiku-0', rarity: 'common' })
       s.tick(MINUTE) // the per-token request bucket is 120 a minute
     }
-    // each round: 5 opened, 2 fused into 1, 1 recycled, 1 crafted
-    assert.equal((await p.call('cards')).cards.length, 3 + 25 * 4)
+    // each round: 2 opened, fused into 1 hybrid, that hybrid recycled, 1 crafted
+    assert.equal((await p.call('cards')).cards.length, 3 + 25)
     assert.equal((await p.call('me')).player.sparks, 100_000 - 25 * (150 + 40 + 50) + gained)
   })
 })
