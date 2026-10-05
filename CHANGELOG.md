@@ -2,6 +2,11 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.11 (2026-10-05)
+
+- **Directory source review.** State calls use the directory's plain capability syntax, retaining the same defaults and atomic update retries. The card pointer component uses a named element with its fixed bundled module path. A square original-creature icon, data-handling explanation and source review notes accompany the plugin.
+- **Compatibility and privacy.** Game behavior, card selection geometry, website appearance, API v1, rules 1, generator 2, offline format 1 and minimum client 0.1.0 remain unchanged. No new runtime dependency, migration, request field, stored game field or public player field. Existing release fixtures, engines and generators remain immutable.
+
 ## 0.2.10 (2026-10-05)
 
 - **Choose a world in one place.** `/spin world` opens the chooser, `/spin world offline` resumes the local collection, `/spin world online` returns to spinlings.dev, and `/spin world <server>` reviews a community address before connecting. The header's world indicator opens the same chooser. Old `/spin server` commands remain supported; each server's session and the offline save stay separate. Cancelled or outdated choices cannot switch worlds later.

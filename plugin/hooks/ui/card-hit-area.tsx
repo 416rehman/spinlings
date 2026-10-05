@@ -24,14 +24,15 @@ function sizeOf(content: RenderElement, columns?: number): HitSize {
 }
 
 export function cardHit(el: El, enabled: boolean, key: string, on: (() => unknown) | undefined, button = `${key}-pick`, intent = key, target?: string, size: HitSize = { rows: 1 }): RenderElement | null {
-  if (!enabled || !on || !el.Client) return null
+  const { Box, Client } = el
+  if (!enabled || !on || !Client) return null
   const hit = `${key}${target ? `-${target}` : ''}-hit`
   registerCardHit(hit, button, intent, on)
   // Native sizes floor to cells; art needs one extra cell behind its clipped region for partial edges.
   const edge = 'pixels' in size ? -1 : 0
-  return <el.Box position="absolute" top={0} bottom={edge} left={0} right={edge} flexDirection="column">
-    <el.Client key={hit} module="./card-hit.tsx" props={{ intent, size }} width="100%" flexGrow={1} />
-  </el.Box>
+  return <Box position="absolute" top={0} bottom={edge} left={0} right={edge} flexDirection="column">
+    <Client key={hit} module="./card-hit.tsx" props={{ intent, size }} width="100%" flexGrow={1} />
+  </Box>
 }
 
 /** Cover only noninteractive content: the native name/action Button remains a separate, usable control. */

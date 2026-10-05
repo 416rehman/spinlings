@@ -1,10 +1,11 @@
 // Spinlings: every hook and every $ call of the mod lives in this file (SPEC 11). The hooks read only the shape of the
 // session (SPEC 10): the model's family, local effort glow, whether Claude's main turn runs, subagent counts, rate-limit fullness and
 // compaction. Never tool.call, prompt.submit or a permission request; never prompts, answers, files or
-// cost. Every hook passes the event on with next(e) and never waits on the network: the join and every request run
-// on clock callbacks, outside any hook. client/game.ts holds the game; this file only lends it $ through Fx.
-import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+// cost. Session and turn hooks pass their events on and never wait on the network: automatic requests run on clock
+// callbacks. Explicit game commands and controls may await their requested operation. client/game.ts holds the game;
+// this file only lends it $ through Fx.
+import { atom } from 'claude-code'
+import type { Atom, EngineInterface, Register } from 'claude-code'
 import type {
   BandState, BandView, BattleDriver, Chime, El, Fx, GameState, LocalBackendFactory, MomentDriver, PaneView, RevealDriver,
   Slots, StateKey, Surface,
@@ -52,12 +53,69 @@ const presenceAtom = atom({ plugin: 'spinlings', key: 'presence' } as const, INI
 const privacyAtom = atom({ plugin: 'spinlings', key: 'privacy' } as const, INITIAL.privacy)
 const clockAtom = atom({ plugin: 'spinlings', key: 'clock' } as const, INITIAL.clock)
 
-type $ = EngineInterface
+type Engine = EngineInterface
 type Fn<K extends StateKey> = (v: GameState[K]) => GameState[K]
 
 // ---------- $.state, by key (refs stay literal for the validator) ----------
 
-async function stateGet<K extends StateKey>($: $, key: K): Promise<GameState[K]> {
+/** The directory scanner requires plain API calls in this file, including state helper calls. */
+async function stateRead($: Engine, key: StateKey): Promise<{ value: unknown; version: number }> {
+  switch (key) {
+    case 'account': return $.state.get({ plugin: 'spinlings', key: 'account' })
+    case 'me': return $.state.get({ plugin: 'spinlings', key: 'me' })
+    case 'cards': return $.state.get({ plugin: 'spinlings', key: 'cards' })
+    case 'signals': return $.state.get({ plugin: 'spinlings', key: 'signals' })
+    case 'battle': return $.state.get({ plugin: 'spinlings', key: 'battle' })
+    case 'moments': return $.state.get({ plugin: 'spinlings', key: 'moments' })
+    case 'reveal': return $.state.get({ plugin: 'spinlings', key: 'reveal' })
+    case 'social': return $.state.get({ plugin: 'spinlings', key: 'social' })
+    case 'pane': return $.state.get({ plugin: 'spinlings', key: 'pane' })
+    case 'prefs': return $.state.get({ plugin: 'spinlings', key: 'prefs' })
+    case 'presence': return $.state.get({ plugin: 'spinlings', key: 'presence' })
+    case 'privacy': return $.state.get({ plugin: 'spinlings', key: 'privacy' })
+    case 'clock': return $.state.get({ plugin: 'spinlings', key: 'clock' })
+  }
+  throw new Error(`no state ${String(key)}`)
+}
+
+async function stateWrite($: Engine, key: StateKey, value: unknown, version: number): Promise<boolean> {
+  switch (key) {
+    case 'account': return (await $.state.set({ plugin: 'spinlings', key: 'account' }, value as GameState['account'], { ifVersion: version })).isSet
+    case 'me': return (await $.state.set({ plugin: 'spinlings', key: 'me' }, value as GameState['me'], { ifVersion: version })).isSet
+    case 'cards': return (await $.state.set({ plugin: 'spinlings', key: 'cards' }, value as GameState['cards'], { ifVersion: version })).isSet
+    case 'signals': return (await $.state.set({ plugin: 'spinlings', key: 'signals' }, value as GameState['signals'], { ifVersion: version })).isSet
+    case 'battle': return (await $.state.set({ plugin: 'spinlings', key: 'battle' }, value as GameState['battle'], { ifVersion: version })).isSet
+    case 'moments': return (await $.state.set({ plugin: 'spinlings', key: 'moments' }, value as GameState['moments'], { ifVersion: version })).isSet
+    case 'reveal': return (await $.state.set({ plugin: 'spinlings', key: 'reveal' }, value as GameState['reveal'], { ifVersion: version })).isSet
+    case 'social': return (await $.state.set({ plugin: 'spinlings', key: 'social' }, value as GameState['social'], { ifVersion: version })).isSet
+    case 'pane': return (await $.state.set({ plugin: 'spinlings', key: 'pane' }, value as GameState['pane'], { ifVersion: version })).isSet
+    case 'prefs': return (await $.state.set({ plugin: 'spinlings', key: 'prefs' }, value as GameState['prefs'], { ifVersion: version })).isSet
+    case 'presence': return (await $.state.set({ plugin: 'spinlings', key: 'presence' }, value as GameState['presence'], { ifVersion: version })).isSet
+    case 'privacy': return (await $.state.set({ plugin: 'spinlings', key: 'privacy' }, value as GameState['privacy'], { ifVersion: version })).isSet
+    case 'clock': return (await $.state.set({ plugin: 'spinlings', key: 'clock' }, value as GameState['clock'], { ifVersion: version })).isSet
+  }
+  throw new Error(`no state ${String(key)}`)
+}
+
+/** These atoms have no shape tags; match the SDK's undefined-only initial-value fallback. */
+async function read<T>($: Engine, source: Atom<T>): Promise<T> {
+  const held = await stateRead($, source.ref.key as StateKey)
+  return held.value === undefined ? source.initial : held.value as T
+}
+
+/** Match the SDK's atomic update: reread and rerun the pure callback on each version miss, up to 64. */
+async function update<T>($: Engine, target: Atom<T>, change: (value: T) => T): Promise<T> {
+  for (let tries = 0; tries < 64; tries += 1) {
+    const held = await stateRead($, target.ref.key as StateKey)
+    const current = held.value === undefined ? target.initial : held.value as T
+    const next = change(current)
+    if (await stateWrite($, target.ref.key as StateKey, next, held.version)) return next
+  }
+  throw new Error('update: the value was written by another every time it was read, up ' +
+    'to the bound on tries; nothing was written')
+}
+
+async function stateGet<K extends StateKey>($: Engine, key: K): Promise<GameState[K]> {
   switch (key as StateKey) {
     case 'account': return (await read($, accountAtom)) as GameState[K]
     case 'me': return (await read($, meAtom)) as GameState[K]
@@ -76,7 +134,7 @@ async function stateGet<K extends StateKey>($: $, key: K): Promise<GameState[K]>
   throw new Error(`no state ${String(key)}`)
 }
 
-async function stateUpdate<K extends StateKey>($: $, key: K, fn: (v: GameState[K]) => GameState[K]): Promise<GameState[K]> {
+async function stateUpdate<K extends StateKey>($: Engine, key: K, fn: (v: GameState[K]) => GameState[K]): Promise<GameState[K]> {
   switch (key as StateKey) {
     case 'account': return (await update($, accountAtom, fn as unknown as Fn<'account'>)) as GameState[K]
     case 'me': return (await update($, meAtom, fn as unknown as Fn<'me'>)) as GameState[K]
@@ -95,7 +153,7 @@ async function stateUpdate<K extends StateKey>($: $, key: K, fn: (v: GameState[K
   throw new Error(`no state ${String(key)}`)
 }
 
-async function readAll($: $): Promise<GameState> {
+async function readAll($: Engine): Promise<GameState> {
   const [account, me, cards, signals, battle, moments, reveal, social, pane, prefs, presence, privacy, clock] = await Promise.all([
     read($, accountAtom), read($, meAtom), read($, cardsAtom), read($, signalsAtom), read($, battleAtom),
     read($, momentsAtom), read($, revealAtom), read($, socialAtom), read($, paneAtom), read($, prefsAtom),
@@ -105,7 +163,7 @@ async function readAll($: $): Promise<GameState> {
 }
 
 /** The band also watches the inline reveal and its shared flip progress. */
-async function readBand($: $): Promise<BandState & { clock: number }> {
+async function readBand($: Engine): Promise<BandState & { clock: number }> {
   const [account, me, cards, signals, battle, moments, prefs, clock, reveal, pane] = await Promise.all([
     read($, accountAtom), read($, meAtom), read($, cardsAtom), read($, signalsAtom), read($, battleAtom), read($, momentsAtom),
     read($, prefsAtom), read($, clockAtom), read($, revealAtom), read($, paneAtom),
@@ -120,7 +178,7 @@ function random(): number {
 }
 
 /** Off by default; quiet silences it too. Playback runs on its own and a failure stays silent. */
-async function chime($: $, cue: Chime): Promise<void> {
+async function chime($: Engine, cue: Chime): Promise<void> {
   try {
     const prefs = await read($, prefsAtom)
     if (!prefs.sound || prefs.quiet) return
@@ -130,7 +188,7 @@ async function chime($: $, cue: Chime): Promise<void> {
   }
 }
 
-async function blit($: $, requestId: string | null, key: string, cells: string): Promise<boolean> {
+async function blit($: Engine, requestId: string | null, key: string, cells: string): Promise<boolean> {
   if (!requestId) return false
   try {
     return !(await $.ui.blit({ requestId, key, cells })).deny
@@ -140,7 +198,7 @@ async function blit($: $, requestId: string | null, key: string, cells: string):
 }
 
 /** The effects over `$`; `surface`, where the band or the pane drew, is where their presses copy. */
-function fxOf($: $, surface?: Surface): Fx {
+function fxOf($: Engine, surface?: Surface): Fx {
   return {
     now: () => $.clock.now(),
     random,
@@ -192,7 +250,7 @@ function fxOf($: $, surface?: Surface): Fx {
 }
 
 /** Runs a hook's own work so that nothing it does can stop the event: failures go to the debug log only. */
-async function quietly($: $, what: string, work: () => Promise<unknown>): Promise<void> {
+async function quietly($: Engine, what: string, work: () => Promise<unknown>): Promise<void> {
   try {
     await work()
   } catch (err) {
@@ -200,7 +258,7 @@ async function quietly($: $, what: string, work: () => Promise<unknown>): Promis
   }
 }
 
-async function modelOf($: $): Promise<string | null> {
+async function modelOf($: Engine): Promise<string | null> {
   try {
     return await $.session.model()
   } catch {

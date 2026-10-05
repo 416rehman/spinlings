@@ -15,6 +15,12 @@ Start a new Claude Code session, then run `/spin`. Choose the shared online worl
 
 Online players can trade, sell cards, challenge teams and share a public profile. Save a passkey to return to the same collection from the browser or another computer. Ordinary rarity and card finishes are separate: Alt colour changes the creature's colours, while Foil adds a rainbow frame.
 
+## Data handling
+
+The online world sends pseudonymous game requests to `https://spinlings.dev`: account sessions, card and pack ids, team choices, battle timing inputs and the model family for joining, pack charges and battles. It fetches game state, frozen season art, battle results and public community data. A community world sends the same game data to the server you explicitly approve. Offline play keeps its independent save on this computer and sends nothing.
+
+Spinlings reads local session signals to animate the game. It never reads or sends conversations, tool contents, files, repository paths, Claude identity or costs. Passkeys are optional and handled on the selected world's website. [Privacy and retention](https://github.com/416rehman/spinlings/blob/main/PRIVACY.md) describes saved game data, public fields and deletion. [Source review notes](REVIEW.md) explain the bundled mod, local controls, tests and assets.
+
 [Play and browse](https://spinlings.dev) · [Game guide](https://github.com/416rehman/spinlings/blob/main/docs/how-to-play.md) · [Privacy](https://github.com/416rehman/spinlings/blob/main/PRIVACY.md) · [Source and screenshots](https://github.com/416rehman/spinlings)
 
 Released under the [MIT license](LICENSE). Created by [416rehman](https://github.com/416rehman).
