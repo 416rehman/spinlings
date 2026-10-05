@@ -21,11 +21,43 @@ import { encounterDue, nextCheckIn, workedAfter } from '../../plugin/hooks/clien
 import type { Battle, Moment, Outcome } from '../../plugin/hooks/client/types.ts'
 import { HUD, calloutTimeline, hudSize, hudSvg } from '../../plugin/hooks/ui/band-art.tsx'
 import { arenaSize, arenaSvg } from '../../plugin/hooks/ui/arena-duel.ts'
+import { ARENA_PNG } from '../../plugin/hooks/ui/arena-art-data.ts'
 import { hex6 } from '../../plugin/hooks/ui/tokens.ts'
 
 const attrs = (tag: string): Record<string, string> => Object.fromEntries([...tag.matchAll(/([\w:-]+)="([^"]*)"/g)].map(m => [m[1]!, m[2]!]))
 const tags = (source: string, name: string): Record<string, string>[] => [...source.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'g'))].map(m => attrs(m[0]))
 const texts = (source: string): { p: Record<string, string>; body: string }[] => [...source.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/g)].map(m => ({ p: attrs(m[1]!), body: m[2]! }))
+
+/** Scene art may reference only its exact bundled painting or an id inside this same SVG document. */
+function localArenaArt(source: string, arena: keyof typeof ARENA_PNG): void {
+  // Inspect every tag locally; send one compact result to the SDK rather than an assertion per pixel attribute.
+  const violations = new Set<string>()
+  const images = tags(source, 'image')
+  if (images.length !== 1) violations.add('image-count')
+  if ((images[0]?.href ?? images[0]?.['xlink:href']) !== ARENA_PNG[arena]) violations.add('image-payload')
+  const elements = [...source.matchAll(/<[\w:-]+\b[^>]*>/g)].map(m => attrs(m[0]))
+  const names = elements.flatMap(p => p.id ? [p.id] : [])
+  const ids = new Set(names)
+  if (ids.size !== names.length) violations.add('duplicate-id')
+  for (const p of elements) {
+    for (const key of Object.keys(p)) if (/^on/i.test(key)) violations.add('event-attribute')
+    for (const key of ['href', 'xlink:href']) if (p[key]) {
+      const value = p[key]!
+      if (!(value === ARENA_PNG[arena] || (value.startsWith('#') && ids.has(value.slice(1))))) violations.add('href-target')
+    }
+    if (p.attributeName && /^(?:href|xlink:href|on)/i.test(p.attributeName)) violations.add('animated-href-or-event')
+    for (const [key, value] of Object.entries(p)) {
+      if (/^xmlns(?::\w+)?$/.test(key) && ['http://www.w3.org/2000/svg', 'http://www.w3.org/1999/xlink'].includes(value)) continue
+      if (/(?:https?|file|javascript):/i.test(value)) violations.add('attribute-protocol')
+      for (const ref of value.matchAll(/url\(([^)]*)\)/g)) {
+        const target = ref[1]!.trim().replace(/^['"]|['"]$/g, '')
+        if (!(target.startsWith('#') && ids.has(target.slice(1)))) violations.add('url-target')
+      }
+    }
+  }
+  if (/<(?:script|foreignObject|iframe|a)\b/i.test(source)) violations.add('active-tag')
+  expect([...violations].sort()).toEqual([])
+}
 const hpRects = (source: string) => {
   const rects = tags(source, 'rect')
   const track = rects.find(r => r.fill === '#3a3646' && r.rx !== undefined)!
@@ -279,14 +311,14 @@ test('desktop impacts and HP transitions use the round plan, resume its beats an
 
 const arenaBars = (source: string) => {
   const rects = tags(source, 'rect')
-  const tracks = rects.filter(r => r.fill === '#33404a' && r.height === '6' && r.rx === '3').sort((a, b) => Number(a.x) - Number(b.x))
+  const tracks = rects.filter(r => r.fill === '#1c2930' && r.height === '11' && r.rx === '4').sort((a, b) => Number(a.x) - Number(b.x))
   expect(tracks.length).toBe(2)
   return tracks.map(track => {
-    const fill = rects.find(r => r !== track && r.fill !== '#33404a' && r.y === track.y && r.height === track.height && r.rx === track.rx
+    const fill = rects.find(r => r !== track && r.fill !== '#1c2930' && r.y === track.y && r.height === track.height && r.rx === track.rx
       && Number(r.x) >= Number(track.x) && Number(r.x) <= Number(track.x) + Number(track.width))!
     expect(fill !== undefined).toBe(true)
     const element = [...source.matchAll(/<rect\b([^>]*[^/])>([\s\S]*?)<\/rect>/g)]
-      .find(m => { const p = attrs(m[1]!); return p.x === fill.x && p.y === fill.y && p.width === fill.width && p.height === '6' && p.rx === '3' })!
+      .find(m => { const p = attrs(m[1]!); return p.x === fill.x && p.y === fill.y && p.width === fill.width && p.height === '11' && p.rx === '4' })!
     expect(element !== undefined).toBe(true)
     return { track, fill, animation: element[2]! }
   })
@@ -310,10 +342,10 @@ function arenaRound() {
   return { ...base, fighters, hits, start: { a: 60, d: 60 }, end: { a: 48, d: 51 }, endAt: 1900, stepIn: { a: true, d: true } }
 }
 
-test('shared desktop arenas keep the full family/day matrix inside the native SVG budget, with static scenery and optional round motion', () => {
+for (const arena of ['haiku', 'sonnet', 'opus', 'fable'] as const) test(`the ${arena} arena keeps every day, width and motion state inside the native SVG budget`, () => {
   const plan = arenaRound()
   const before = JSON.stringify(plan)
-  for (const arena of ['haiku', 'sonnet', 'opus', 'fable'] as const) for (const rule of DAILY_RULES) for (const columns of [40, 80, 120, 240]) for (const motion of [false, true]) {
+  for (const rule of DAILY_RULES) for (const columns of [40, 80, 120, 240]) for (const motion of [false, true]) {
     const source = arenaSvg({ columns, arena, rule, opponent: 'MarshmallowMenaceWithAnExtremelyLongName', fighters: plan.fighters, plan, start: 0, motion })
     const size = arenaSize(columns), root = tags(source, 'svg')[0]!
     expect(new TextEncoder().encode(source).length).toBeLessThanOrEqual(131072)
@@ -321,8 +353,7 @@ test('shared desktop arenas keep the full family/day matrix inside the native SV
     expect([Number(root.width), Number(root.height)]).toEqual([size.w, size.height])
     expect(size.w).toBeLessThanOrEqual(1280)
     expect(source).toContain('clip-path="url(#arena-clip)"')
-    expect(source).not.toMatch(/<(?:script|foreignObject|image)\b|(?:href|onload|onclick)=/i)
-    expect(source.replace('xmlns="http://www.w3.org/2000/svg"', '')).not.toMatch(/https?:\/\//)
+    localArenaArt(source, arena)
     expect(source).not.toContain('repeatCount="indefinite"')
     if (!motion) expect(source).not.toMatch(/<(?:animate(?:Transform|Motion)?|set)\b/)
     else for (const damage of ['-18!', '-22!', '+7', '+5', '+3', '+4']) expect(source).toContain(damage)
@@ -330,28 +361,81 @@ test('shared desktop arenas keep the full family/day matrix inside the native SV
   expect(JSON.stringify(plan)).toBe(before)
 })
 
-test('shared arena labels sanitize server text, escape SVG markup and fit the rival between the fighter HUDs', () => {
+test('a local battle instance distinguishes identical image documents without changing the painting or round timeline', () => {
+  const plan = arenaRound()
+  const strip = (source: string) => source.replace(/<metadata id="arena-instance">[\s\S]*?<\/metadata>/, '')
+  const uri = (source: string) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source)
+  for (const motion of [false, true]) {
+    const scene = { columns: 80, arena: 'sonnet' as const, rule: 'calm' as const, opponent: 'Rival', fighters: plan.fighters, plan, start: 0, motion }
+    const first = arenaSvg({ ...scene, instance: 'battle-first/2' })
+    const second = arenaSvg({ ...scene, instance: 'battle-second/2' })
+    expect(first).toContain('<metadata id="arena-instance">battle-first/2</metadata>')
+    expect(second).toContain('<metadata id="arena-instance">battle-second/2</metadata>')
+    expect(uri(first) === uri(second)).toBe(false)
+    expect(strip(first) === strip(second)).toBe(true)
+    localArenaArt(first, 'sonnet')
+    localArenaArt(second, 'sonnet')
+    const malformed = arenaSvg({ ...scene, instance: '</metadata><image href="https://attacker.invalid/x" onload="bad"/><script>bad</script><metadata>' })
+    expect(malformed).toContain('&lt;/metadata&gt;&lt;image href=&quot;https://attacker.invalid/x&quot;')
+    expect(tags(malformed, 'metadata').length).toBe(1)
+    expect(tags(malformed, 'metadata')[0]!.id).toBe('arena-instance')
+    expect(strip(malformed) === strip(first)).toBe(true)
+    localArenaArt(malformed, 'sonnet')
+    expect(new TextEncoder().encode(malformed).length).toBeLessThanOrEqual(131072)
+  }
+})
+
+test('shared arena fighter labels sanitize server text, escape markup and remain anchored to readable HP panels', () => {
   const fighters = arenaRound().fighters
   const odd = 'A<&"B', long = 'MarshmallowMenaceWithAnExtremelyLongNameAndAnotherFortyCharacters'
   for (const columns of [40, 80, 120, 240]) {
-    const source = arenaSvg({ columns, arena: 'haiku', rule: 'calm', opponent: odd + '\u001b[31m\u202e', fighters: { a: { ...fighters.a, name: odd }, d: { ...fighters.d, name: odd } }, plan: null, start: 0, motion: false })
-    expect(source).toContain('vs A&lt;&amp;&quot;B')
+    const tainted = odd + '\u001b[31m\u202e'
+    const source = arenaSvg({ columns, arena: 'haiku', rule: 'calm', opponent: tainted, fighters: { a: { ...fighters.a, name: tainted }, d: { ...fighters.d, name: tainted } }, plan: null, start: 0, motion: false })
+    expect(source).toContain('A&lt;&amp;&quot;B')
     expect(source).not.toContain(odd)
     expect(source).not.toContain('\u001b')
     expect(source).not.toContain('\u202e')
-    expect(source).not.toMatch(/<(?:script|foreignObject|image)\b/)
+    localArenaArt(source, 'haiku')
     const fitted = arenaSvg({ columns, arena: 'haiku', rule: 'calm', opponent: long, fighters: { a: { ...fighters.a, name: long }, d: { ...fighters.d, name: long } }, plan: null, start: 0, motion: false })
     expect(fitted).not.toContain(long)
     expect(fitted).toContain('…')
-    const width = arenaSize(columns).w, hud = columns >= 80 ? 160 : Math.min(132, Math.floor(width * 0.36))
-    const rival = texts(fitted).find(t => t.body.startsWith('vs '))!
-    expect(rival.p['text-anchor']).toBe('middle')
-    expect(Number(rival.p.x)).toBe(width / 2)
-    expect(Array.from(rival.body).length * 7).toBeLessThanOrEqual(columns >= 80 ? width - 2 * (hud + 30) : width - 24)
-    for (const side of ['start', 'end']) {
-      const name = texts(fitted).find(t => t.p['font-size'] === '11' && t.p['text-anchor'] === side)!
-      expect(Array.from(name.body).length * 7).toBeLessThanOrEqual(hud)
+    const bars = arenaBars(fitted)
+    for (const [i, side] of ['start', 'end'].entries()) {
+      const name = texts(fitted).find(t => t.p['font-size'] === (columns >= 80 ? '13' : '11') && t.p['text-anchor'] === side)!
+      expect(name !== undefined).toBe(true)
+      expect(name.p['font-family']).toContain('Segoe UI')
+      const track = bars[i]!.track
+      expect(Number(name.p.x)).toBe(Number(track.x) + (i === 1 ? Number(track.width) : 0))
+      expect(Number(name.p.y)).toBeLessThan(Number(track.y))
     }
+    // Rival text belongs to the real native header; that header's sanitization is covered in band.sdk.ts.
+  }
+})
+
+test('larger shared-arena fighters retain a full crisp canvas inside the viewport at narrow and wide sizes', () => {
+  const fighters = arenaRound().fighters
+  for (const columns of [40, 60, 80, 120, 240]) {
+    const source = arenaSvg({ columns, arena: 'haiku', rule: 'calm', opponent: 'Rival', fighters, plan: null, start: 0, motion: false })
+    const size = arenaSize(columns), k = columns >= 80 ? 6 : 5, sprite = 16 * k
+    expect(size.height).toBe(144)
+    // The backdrop has its own clip; the final clipped group contains the two foreground sprites.
+    const from = source.lastIndexOf('<g clip-path="url(#arena-clip)">')
+    expect(from).toBeGreaterThanOrEqual(0)
+    const clipped = source.slice(from)
+    const placements = tags(clipped, 'g').map(g => g.transform?.match(/^translate\(([-\d.]+) ([-\d.]+)\)$/))
+      .filter((m): m is RegExpMatchArray => !!m && Number(m[2]) !== 0)
+      .map(m => ({ x: Number(m[1]), y: Number(m[2]) })).sort((a, b) => a.x - b.x)
+    expect(placements.length).toBe(2)
+    placements.forEach(({ x, y }, i) => {
+      expect(x).toBeGreaterThanOrEqual(0)
+      expect(y).toBeGreaterThanOrEqual(0)
+      expect(x + sprite).toBeLessThanOrEqual(size.w)
+      expect(y + sprite).toBeLessThanOrEqual(size.height)
+      expect(x + sprite / 2).toBe(Math.round(size.w * (i === 0 ? 0.3 : 0.7) / 2) * 2)
+    })
+    const pixels = tags(clipped, 'rect')
+    expect(pixels.length).toBeGreaterThan(0)
+    expect(pixels.every(p => Number(p.height) > 0 && Number(p.width) > 0 && Number(p.height) % k === 0 && Number(p.width) % k === 0 && Number(p.x) % k === 0 && Number(p.y) % k === 0)).toBe(true)
   }
 })
 
@@ -376,7 +460,8 @@ test('shared arena HP drains, healing and resumed digits follow each authoritati
   const seconds = (ms: number) => `${(ms / 1000).toFixed(3)}s`
   for (const columns of [40, 80, 120]) for (const start of [0, 1000, 1700, plan.endAt + TIMING.drain + 1]) {
     const source = arenaSvg({ columns, arena: 'fable', rule: 'sonnetDay', opponent: 'Rival', fighters: plan.fighters, plan, start, motion: true })
-    arenaBars(source).forEach(({ track, animation }, i) => {
+    const bars = arenaBars(source)
+    bars.forEach(({ track, animation }, i) => {
       const side = i === 0 ? 'a' : 'd', width = Number(track.width)
       const changes = [...plan.hits.map(hit => ({ at: hit.at, hp: hit.after[side] })), { at: plan.endAt, hp: plan.end[side] }]
       const steps = tags(animation, 'animate')
@@ -395,13 +480,18 @@ test('shared arena HP drains, healing and resumed digits follow each authoritati
         previous = change.hp
       }
     })
-    const digits = [...source.matchAll(/<g visibility="(visible|hidden)">((?:<set\b[^>]*\/>)*<text\b[^>]*>HP [^<]*<\/text>)<\/g>/g)]
+    const digits = [...source.matchAll(/<g visibility="(visible|hidden)">((?:<set\b[^>]*\/>)*<g\b[^>]*><text\b[^>]*>HP [^<]*<\/text><\/g>)<\/g>/g)]
     for (const side of ['a', 'd'] as const) {
-      const anchor = side === 'a' ? 'start' : 'end'
-      const group = digits.filter(m => texts(m[2]!)[0]!.p['text-anchor'] === anchor)
+      const track = bars[side === 'a' ? 0 : 1]!.track
+      const center = Number(track.x) + Number(track.width) / 2
+      const group = digits.filter(m => Number(texts(m[2]!)[0]!.p.x) === center)
       expect(group.length).toBe(4)
       const visible = group.filter(m => m[1] === 'visible')
       expect(visible.length).toBe(1)
+      const label = texts(visible[0]![2]!)[0]!
+      expect(label.p['text-anchor']).toBe('middle')
+      expect(Number(label.p.y)).toBeGreaterThan(Number(track.y))
+      expect(Number(label.p.y)).toBeLessThanOrEqual(Number(track.y) + Number(track.height))
       let hp = plan.start[side]
       for (const hit of plan.hits) if (hit.at + TIMING.drain / 2 <= start) hp = hit.after[side]
       if (plan.endAt + TIMING.drain / 2 <= start) hp = plan.end[side]
@@ -431,7 +521,7 @@ test('shared arenas explain hits and trait ownership with the terminal callouts,
     const callouts = [...source.matchAll(/<g visibility="(visible|hidden)"[^>]*>((?:<set\b[^>]*\/>)*<text\b[^>]*>[^<]*<\/text>)<\/g>/g)]
       .filter(m => texts(m[2]!)[0]!.p.y === String(height - 3))
     for (const side of ['a', 'd'] as const) {
-      const center = Math.round(width * (side === 'a' ? 0.23 : 0.77) / 2) * 2
+      const center = Math.round(width * (side === 'a' ? 0.3 : 0.7) / 2) * 2
       const groups = callouts.filter(m => texts(m[2]!)[0]!.p.x === String(center))
       const expected = lookAt(plan, side, start).callout
       const visible = groups.filter(m => m[1] === 'visible')

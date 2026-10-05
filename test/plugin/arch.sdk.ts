@@ -254,7 +254,8 @@ test('a duel plays in the band, minis and all, then settles into a result', { ti
       else {
         const scene = (await band.findAll({ type: 'Svg' }))[0]!
         expect(String(scene.props.alt)).toContain('Rival Thistlewick')
-        expect(String(scene.props.source)).toContain('vs Rival Thistlewick')
+        expect(await band.find({ type: 'Text', text: /^vs Rival Thistlewick$/ })).toBeDefined()
+        expect(scene.props.isInteractive === true).toBe(false)
       }
       if (surface === 'terminal' && columns >= 80) expect((await band.findAll({ type: 'Raster' })).length).toBe(2)
       if (surface === 'desktop') expect((await band.findAll({ type: 'Svg' })).length).toBe(1)

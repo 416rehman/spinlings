@@ -287,12 +287,27 @@ test('the terminal keeps its fighter layouts and the desktop shows one shared ba
   }
   const desk = await $.ui.mount({ ...MOUNT, surface: 'desktop', props: props(80) })
   expect((await desk.findAll({ type: 'Svg' })).length).toBe(1)
-  expect((await desk.findAll({ type: 'Svg' })).every(s => s.props.isInteractive === true)).toBe(true)
+  expect((await desk.findAll({ type: 'Svg' })).every(s => s.props.isInteractive !== true)).toBe(true)
+  expect((await desk.findAll({ type: 'Svg' })).some(s => /<(?:animate(?:Transform|Motion)?|set)\b/.test(String(s.props.source)))).toBe(true)
   await desk.unmount()
   current = { state: at({ battle: battle({ kind: 'duel', shown: 1 }), prefs: { quiet: false, motion: false, sound: false } }), now: NOW }
   const still = await $.ui.mount({ ...MOUNT, surface: 'desktop', props: props(80) })
   expect((await still.findAll({ type: 'Svg' })).some(s => s.props.isInteractive === true)).toBe(false)
   await still.unmount()
+})
+
+test('desktop image documents carry the local battle and round identity with motion on or off', LONG, async ($, on) => {
+  draws(on)
+  const b = battle({ kind: 'duel', shown: 1 })
+  for (const motion of [true, false]) {
+    current = { state: at({ battle: b, prefs: { quiet: false, motion, sound: false } }), now: NOW }
+    const ui = await $.ui.mount({ ...MOUNT, surface: 'desktop', props: props(80) })
+    const scenes = await ui.findAll({ type: 'Svg' })
+    expect(scenes.length).toBe(1)
+    expect(String(scenes[0]!.props.source)).toContain('<metadata id="arena-instance">' + b.id + '/2</metadata>')
+    expect(scenes[0]!.props.isInteractive === true).toBe(false)
+    await ui.unmount()
+  }
 })
 
 test('desktop arena sizes retain pixel bounds and reachable native actions, with compact fallbacks below 40 columns', LONG, async ($, on) => {
@@ -328,7 +343,7 @@ test('desktop arena sizes retain pixel bounds and reachable native actions, with
       // The action leads the first compact row rather than adding a third crowded row.
       if (ready && isNode(tree)) expect(walk(tree.children?.[0]).find(n => n.type === 'Button')?.props?.label).toBe('Now!')
     } else {
-      const expected = { width: Math.min(1280, columns * 8), height: columns >= 80 ? 144 : 124 }
+      const expected = { width: Math.min(1280, columns * 8), height: 144 }
       for (const svg of svgs) {
         expect({ width: svg.props.width, height: svg.props.height }).toEqual(expected)
         const source = String(svg.props.source)
@@ -336,12 +351,14 @@ test('desktop arena sizes retain pixel bounds and reachable native actions, with
         expect(new TextEncoder().encode(source).length).toBeLessThanOrEqual(131072)
         expect(String(svg.props.alt)).toMatch(/vs Rival Thistlewick/)
         expect(String(svg.props.alt)).toContain(`round ${shown + 1}`)
-        expect(svg.props.isInteractive === true).toBe(prefs.motion && !prefs.quiet)
+        expect(svg.props.isInteractive === true).toBe(false)
         if (!prefs.motion || prefs.quiet) expect(source).not.toMatch(/<(?:animate(?:Transform|Motion)?|set)\b/)
+        else expect(source).toMatch(/<(?:animate(?:Transform|Motion)?|set)\b/)
       }
       // Unlike the terminal-only gate's zero-sized SVG placeholder, account for actual intrinsic pixels here.
       expect(svgs.reduce((sum, svg) => sum + Number(svg.props.width), 0)).toBeLessThanOrEqual(columns * 8)
       expect(Math.max(...svgs.map(svg => Number(svg.props.height)))).toBeLessThanOrEqual(144)
+      expect(!!(await ui.find({ type: 'Text', text: /^vs Rival Thistlewick$/ }))).toBe(true)
       expect(textOf(tree)).toContain(`Round ${shown + 1}`)
       expect(textOf(tree)).toContain('Streak 2')
       const today = await ui.find({ key: 'battle-today' })
@@ -372,7 +389,7 @@ test('desktop battles respect the advertised height and keep the primary action 
     { phase: 'fight' as const, shown: perfectAt - 1, ready: true },
     { phase: 'finishing' as const, shown: duelLog.rounds.length, ready: false },
   ]
-  for (const { phase, shown, ready } of rounds) for (const columns of [40, 120]) for (const rows of [1, 2, 4, 8, 11, 12]) {
+  for (const { phase, shown, ready } of rounds) for (const columns of [40, 60, 120]) for (const rows of [1, 2, 4, 8, 11, 12]) {
     current = { state: at({ battle: battle({ kind: 'duel', phase, shown }) }), now: NOW }
     calls.length = 0
     const ui = await $.ui.mount({ ...MOUNT, surface: 'desktop', props: props(columns, rows) })
@@ -391,7 +408,10 @@ test('desktop battles respect the advertised height and keep the primary action 
       expect(buttons.map(n => n.props?.label)).toEqual(ready ? ['Now!'] : [])
       if (ready && isNode(tree)) expect(walk(tree.children?.[0]).find(n => n.type === 'Button')?.props?.label).toBe('Now!')
     } else {
-      // Include real SVG pixels: a 124/144px scene plus three/two native 20px lines fits the verified 184px cap.
+      // Include actual SVG pixels: one 144px scene plus one native header and footer fits the 184px cap.
+      expect(size.h).toBe(2)
+      expect(problems).toEqual([])
+      expect(size.w).toBeLessThanOrEqual(columns)
       const pixels = size.h * 20 + svgs.reduce((sum, svg) => sum + Number(svg.props.height), 0)
       expect(pixels).toBeLessThanOrEqual(184)
       expect(day!.props.hotkey).toBe('2')
@@ -405,6 +425,26 @@ test('desktop battles respect the advertised height and keep the primary action 
       await ui.press({ key: 'now', plugin: 'test' })
       expect(calls).toEqual([['press', []]])
     } else expect(calls).toEqual([])
+    await ui.unmount()
+  }
+})
+
+test('the real desktop matchup header sanitizes a rival name while native Day and Now remain reachable', LONG, async ($, on) => {
+  draws(on)
+  for (const columns of [40, 120]) {
+    const b = battle({ kind: 'duel', shown: perfectAt - 1 })
+    current = { state: at({ battle: { ...b, opponent: { kind: 'rival', name: 'A<&"B\u001b[31m\u202e', league: 'Pebble' } } }), now: NOW }
+    calls.length = 0
+    const ui = await $.ui.mount({ ...MOUNT, surface: 'desktop', props: props(columns) })
+    const tree = await ui.drawn(), shown = textOf(tree)
+    expect(!!(await ui.find({ type: 'Text', text: /^vs Rival A<&"B$/ }))).toBe(true)
+    expect(shown).not.toContain('\u001b')
+    expect(shown).not.toContain('\u202e')
+    await ui.press({ key: 'battle-today', plugin: 'test' })
+    expect(calls).toEqual([['open', [{ view: { kind: 'today', rule: 'calm' } }]]])
+    calls.length = 0
+    await ui.press({ key: 'now', plugin: 'test' })
+    expect(calls).toEqual([['press', []]])
     await ui.unmount()
   }
 })

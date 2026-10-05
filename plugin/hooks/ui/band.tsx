@@ -222,7 +222,8 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
     const special = plan?.hits.find(hit => hit.actor === 'a' && hit.action.move === 'special')
     const start = plan && b.inputs.includes(r) && special ? Math.max(0, special.at - 2 * TIMING.windup) : 0
     const scene = arenaSvg({ columns: c.columns, arena: b.setup.arena, rule: b.setup.rule,
-      opponent: opponentLabel(b.opponent, lead), fighters: f, plan, start, motion: c.motion, effort: env.state.signals.effort })
+      opponent: opponentLabel(b.opponent, lead), fighters: f, plan, start, motion: c.motion, effort: env.state.signals.effort, instance: `${b.id}/${r}` })
+    const sceneSize = arenaSize(c.columns)
     const health = (side: Side) => f[side] ? `${f[side]!.name}, ${Math.ceil(f[side]!.hp)} of ${f[side]!.maxHp} HP` : 'empty'
     const streak = env.state.me?.player.streak ?? 0
     const progress = `${words.round ? `Round ${words.round}` : 'Preparing'}${!b.friendly && streak > 0 ? ` · Streak ${streak}` : ''}`
@@ -237,13 +238,11 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
     return (
       <Box flexDirection="column" width={c.columns}>
         <Box flexDirection="row" columnGap={SPACE.tight}>
-          <Box flexGrow={1} flexShrink={1}><Text bold color={FAMILY_COLOR[b.setup.arena]} wrap="truncate-end">{`${FAMILY_MARK[b.setup.arena]} ${FAMILY_INFO[b.setup.arena].name} arena`}</Text></Box>
+          <Box flexGrow={1} flexShrink={1}><Text bold wrap="truncate-end">{`vs ${opponentLabel(b.opponent, lead)}`}</Text></Box>
           <Box flexShrink={0}><Button key="battle-today" label={RULE_INFO[b.setup.rule].name} hotkey="2" plain dimColor onPress={() => { void c.actions.open({ view: { kind: 'today', rule: b.setup.rule } }) }} /></Box>
         </Box>
-        {svg(el, scene, `${words.header}; ${health('a')}; ${health('d')}`, arenaSize(c.columns), c.motion)}
-        {kind === 'wide'
-          ? <Box flexDirection="row" columnGap={SPACE.loose}><Box flexShrink={0}><Text dimColor>{progress}</Text></Box>{storyRow}</Box>
-          : <Box flexDirection="column">{storyRow}<Text dimColor wrap="truncate-end">{progress}</Text></Box>}
+        <el.Svg source={scene} alt={`${words.header}; ${health('a')}; ${health('d')}`} width={sceneSize.w} height={sceneSize.height} />
+        <Box flexDirection="row" columnGap={SPACE.loose}>{storyRow}<Box flexShrink={0}><Text dimColor>{progress}</Text></Box></Box>
       </Box>
     )
   }
