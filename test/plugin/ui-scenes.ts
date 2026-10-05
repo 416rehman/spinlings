@@ -1,36 +1,36 @@
-// `/spin demo` (SPEC 21): every pane state and every band moment, drawn from a made-up but rule-true world, for a
-// human to review. The cards come from the same core rules the game uses (starters, pack cards, a Mythic, a fusion,
-// a drop promo), so each screen shows real sprites, stamps and numbers. Pure; the demo's buttons do nothing.
-import { FEATURES } from '../core/api.ts'
+// Maintainer-only UI fixtures (SPEC 21), outside the released plugin. Every pane state and band moment comes from
+// a made-up but rule-true world, using the game's starters, packs, Mythics, fusion and promo rules. Pure; fixture
+// actions do nothing and these scenes are never available through a player command.
+import { FEATURES } from '../../plugin/hooks/core/api.ts'
 import type {
   BoardResponse, GiftView, ListingView, MarketWant, OfferView, PlayerStats, ProfileResponse, RankingsResponse,
-} from '../core/api.ts'
-import type { BattleLog, Card, Family, NewCard, Rarity } from '../core/types.ts'
-import { RULES_VERSION, perfectRounds, simulateBattle } from '../core/battle.ts'
-import { cardName, fuse, mintCard, starterTeam, toBattleCard } from '../core/cards.ts'
-import { FAMILIES } from '../core/families.ts'
-import { promoCard } from '../core/drops.ts'
-import { generateMythic } from '../core/mythics.ts'
-import { rngFromSeed } from '../core/rng.ts'
-import { familySpecies, legendaryOf } from '../core/species.ts'
-import { traderDeals } from '../core/trader.ts'
-import { dailyRule, seasonOf, utcDay } from '../core/world.ts'
-import { EVOLVE_SHOW, catchPreMs } from './battleview.ts'
-import { INITIAL, MARKET_DEFAULT, shareText } from './game.ts'
-import { CLIENT_VERSION } from './remote.ts'
-import type { Actions, Battle, GameState, Moment, Outcome, PaneUi, Reveal, View } from './types.ts'
+} from '../../plugin/hooks/core/api.ts'
+import type { BattleLog, Card, Family, NewCard, Rarity } from '../../plugin/hooks/core/types.ts'
+import { RULES_VERSION, perfectRounds, simulateBattle } from '../../plugin/hooks/core/battle.ts'
+import { cardName, fuse, mintCard, starterTeam, toBattleCard } from '../../plugin/hooks/core/cards.ts'
+import { FAMILIES } from '../../plugin/hooks/core/families.ts'
+import { promoCard } from '../../plugin/hooks/core/drops.ts'
+import { generateMythic } from '../../plugin/hooks/core/mythics.ts'
+import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
+import { familySpecies, legendaryOf } from '../../plugin/hooks/core/species.ts'
+import { traderDeals } from '../../plugin/hooks/core/trader.ts'
+import { dailyRule, seasonOf, utcDay } from '../../plugin/hooks/core/world.ts'
+import { EVOLVE_SHOW, catchPreMs } from '../../plugin/hooks/client/battleview.ts'
+import { INITIAL, MARKET_DEFAULT, shareText } from '../../plugin/hooks/client/game.ts'
+import { CLIENT_VERSION } from '../../plugin/hooks/client/remote.ts'
+import type { Actions, Battle, GameState, Moment, Outcome, PaneUi, Reveal, View } from '../../plugin/hooks/client/types.ts'
 
 const MIN = 60_000
 const DAY = 86_400_000
 /** A mod newer than this one, for the screens that show the update chip. */
 const NEWER = CLIENT_VERSION.replace(/^(\d+)\.(\d+)\..*$/, (_, major: string, minor: string) => `${major}.${Number(minor) + 1}.0`)
 
-/** One demo state; a band step draws the band above the prompt, the rest draw the pane. */
-export type DemoStep = { title: string; state: GameState; band?: true }
+/** One UI fixture; band scenes draw above the prompt, and the rest draw the pane. */
+export type UiScene = { title: string; state: GameState; band?: true }
 
 const done = async () => undefined
 
-/** The demo's actions: every press is a no-op, so nothing in the demo touches the real game. */
+/** Fixture actions: every press is a no-op, so scene renders cannot touch the real game. */
 export const INERT: Actions = {
   community: done,
   press: done, pickCatch: done, act: done, dismiss: done, open: done, close: done, tab: done, push: done, back: done,
@@ -176,7 +176,7 @@ function reveal(w: World, kind: Reveal['kind'], cards: Card[], fresh: string[] =
   return { id: `demo-reveal-${kind}`, kind, family: kind === 'pack' ? 'opus' : null, cards, packs, fresh, album: { before: 12, after: 12 + fresh.length, total: 36 } }
 }
 
-function steps(now: number): DemoStep[] {
+function steps(now: number): UiScene[] {
   const w = world(now)
   const s = w.base
   const fresh = w.pack.map(c => c.species)
@@ -278,7 +278,7 @@ function steps(now: number): DemoStep[] {
 
 // ---------- the band: every moment above the prompt, in the order a first session meets them ----------
 
-function bandSteps(w: World, now: number): DemoStep[] {
+function bandSteps(w: World, now: number): UiScene[] {
   const s = w.base
   const team = w.starters.map(toBattleCard)
   let serial = 0
@@ -309,7 +309,7 @@ function bandSteps(w: World, now: number): DemoStep[] {
   const at = (extra: Partial<GameState>): GameState => ({ ...s, ...extra })
   const moment = (m: Moment, extra: Partial<GameState> = {}): GameState => at({ moments: [m], ...extra })
   const outcome = (o: Partial<Outcome>, until: number | null = now + 12_000, clock = now): GameState => moment({ kind: 'outcome', id: 'outcome:demo', outcome: result(o), until }, { clock })
-  const step = (title: string, state: GameState): DemoStep => ({ title: `Band · ${title}`, state, band: true })
+  const step = (title: string, state: GameState): UiScene => ({ title: `Band · ${title}`, state, band: true })
   return [
     step('something is hatching (the silent join)', { ...INITIAL, account: { ...INITIAL.account, link: 'joining' }, signals: { ...INITIAL.signals, family: 'opus' }, clock: now }),
     step('A Spinling hatched! (the welcome)', moment({ kind: 'welcome', id: 'welcome', packId: 'demo-pack-1', until: null })),
@@ -362,17 +362,11 @@ function bandSteps(w: World, now: number): DemoStep[] {
   ]
 }
 
-let cache: { minute: number; list: DemoStep[] } | null = null
+let cache: { minute: number; list: UiScene[] } | null = null
 
-/** Every demo state for this minute (the cards are minted relative to now). */
-export function demoSteps(now: number): DemoStep[] {
+/** Every internal UI fixture for this minute (the cards are minted relative to now). */
+export function uiScenes(now: number): UiScene[] {
   const minute = Math.floor(now / MIN)
   if (!cache || cache.minute !== minute) cache = { minute, list: steps(now) }
   return cache.list
-}
-
-export function demoStep(step: number, now: number): DemoStep & { index: number; count: number } {
-  const list = demoSteps(now)
-  const index = ((step % list.length) + list.length) % list.length
-  return { ...list[index]!, index, count: list.length }
 }

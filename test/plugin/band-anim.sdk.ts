@@ -2,23 +2,23 @@
 // a battle and its result read in, the stages a ceremony's text waits on, and the encounter timing the band's battles
 // start on (SPEC 13: beginner's luck, a 30% roll every 15 s after 20 s, the server's spacing kept).
 import { expect, test } from 'claude-code/testing'
-import type { Card } from '../hooks/core/types.ts'
-import { RULES_VERSION, simulateBattle } from '../hooks/core/battle.ts'
-import { mintCard, toBattleCard } from '../hooks/core/cards.ts'
-import { EYE, SHINE, spriteFor } from '../hooks/core/sprite.ts'
-import { familySpecies } from '../hooks/core/species.ts'
-import { seasonOf } from '../hooks/core/world.ts'
+import type { Card } from '../../plugin/hooks/core/types.ts'
+import { RULES_VERSION, simulateBattle } from '../../plugin/hooks/core/battle.ts'
+import { mintCard, toBattleCard } from '../../plugin/hooks/core/cards.ts'
+import { EYE, SHINE, spriteFor } from '../../plugin/hooks/core/sprite.ts'
+import { familySpecies } from '../../plugin/hooks/core/species.ts'
+import { seasonOf } from '../../plugin/hooks/core/world.ts'
 import {
   T, TIMING, cardBack, cellAt, crossfade, dissolve, easeIn, easeOut, encodeGrid, flash, foil, glowOutline, grid, gridText, offset,
   putPixels, putText, silhouette, sparkles, squash,
-} from '../hooks/client/anim.ts'
+} from '../../plugin/hooks/client/anim.ts'
 import {
   EVOLVE_SHOW, INFO, MINI, battleWords, catchFrame, catchPreMs, evolveShowsNext, evolveStage, fighterGrid, fighterLayout,
   fightersAt, foreshadowOf, lookAt, outcomeStage, restLook, roundPlan, spriteOf, streakWords,
-} from '../hooks/client/battleview.ts'
-import { INITIAL } from '../hooks/client/game.ts'
-import { encounterDue, nextCheckIn, workedAfter } from '../hooks/client/session.ts'
-import type { Battle, Moment, Outcome } from '../hooks/client/types.ts'
+} from '../../plugin/hooks/client/battleview.ts'
+import { INITIAL } from '../../plugin/hooks/client/game.ts'
+import { encounterDue, nextCheckIn, workedAfter } from '../../plugin/hooks/client/session.ts'
+import type { Battle, Moment, Outcome } from '../../plugin/hooks/client/types.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12, 0, 0)
 const card: Card = { ...mintCard({ species: familySpecies(seasonOf(NOW), 'opus').filter(s => !s.legendary)[0]!, rarity: 'rare', shiny: false, dna: 31, origin: 'pack', now: NOW, level: 3 }), id: 'a1' }

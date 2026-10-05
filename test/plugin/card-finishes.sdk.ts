@@ -1,15 +1,15 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { demoSteps } from '../hooks/client/demo.ts'
-import type { GameState } from '../hooks/client/types.ts'
-import { ECONOMY } from '../hooks/core/economy.ts'
-import { wantWords } from '../hooks/client/viewmodels.ts'
-import { frameOf, rarityLabel } from '../hooks/ui/card.tsx'
+import { uiScenes } from './ui-scenes.ts'
+import type { GameState } from '../../plugin/hooks/client/types.ts'
+import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
+import { wantWords } from '../../plugin/hooks/client/viewmodels.ts'
+import { frameOf, rarityLabel } from '../../plugin/hooks/ui/card.tsx'
 import { PANE, RUN, SESSION, engine, measure, settle, textOf } from './engine.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12)
 function sample(): GameState {
-  const s = JSON.parse(JSON.stringify(demoSteps(NOW).find(x => x.title === 'Card · a legendary shiny foil')!.state)) as GameState
+  const s = JSON.parse(JSON.stringify(uiScenes(NOW).find(x => x.title === 'Card · a legendary shiny foil')!.state)) as GameState
   const card = s.cards.find(c => !c.bound && c.rarity === 'common' && c.species.startsWith('s'))!
   card.shiny = true
   card.foil = true

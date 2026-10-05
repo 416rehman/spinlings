@@ -26,7 +26,6 @@ export type SpinCommand =
   | { kind: 'privacy' }
   | { kind: 'server'; url: string | null }
   | { kind: 'version' }
-  | { kind: 'demo' }
   | { kind: 'leaderboard'; on: boolean | null }
   | { kind: 'handle'; reroll: boolean }
   | { kind: 'help'; text: string }
@@ -53,7 +52,6 @@ export const USAGE = [
   '/spin handle [new]      your handle; draw a new one once a week',
   '/spin server [url|default]   play on a community server',
   '/spin version           this mod\'s version, and whether an update is out',
-  '/spin demo              every screen, for a look around',
 ].join('\n')
 
 const onOff = (v: string | undefined): boolean | null => (v === 'on' ? true : v === 'off' ? false : null)
@@ -112,7 +110,6 @@ export function parseCommand(args: string): SpinCommand {
     case 'privacy': return { kind: 'privacy' }
     case 'server': return { kind: 'server', url: rest[0] ?? null }
     case 'version': return { kind: 'version' }
-    case 'demo': return { kind: 'demo' }
     case 'leaderboard': {
       if (rest.length === 0) return { kind: 'leaderboard', on: null }
       const on = onOff(arg)

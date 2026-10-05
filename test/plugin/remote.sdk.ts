@@ -1,13 +1,13 @@
 // RemoteBackend and the wire: one origin, strict requests, tolerant answers, the 256 KB cap, no redirects, the
 // privacy log without the token, the join's proof of work, the version handshake, per-origin sessions.
 import { expect, test } from 'claude-code/testing'
-import { sha256 } from '../hooks/core/sha256.ts'
-import { buildRequest, readAnswer, redact, sentEntry, serverOrigin } from '../hooks/client/net.ts'
-import { CLIENT_VERSION, compareSemver, createRemoteBackend, joinServer, solvePow, versionStatus } from '../hooks/client/remote.ts'
-import type { RemoteDeps } from '../hooks/client/remote.ts'
-import { KEYS, readCache, readPrefs, readToken, serverKeys } from '../hooks/client/store.ts'
-import type { Sent, Timer } from '../hooks/client/types.ts'
-import { BackendError } from '../hooks/client/types.ts'
+import { sha256 } from '../../plugin/hooks/core/sha256.ts'
+import { buildRequest, readAnswer, redact, sentEntry, serverOrigin } from '../../plugin/hooks/client/net.ts'
+import { CLIENT_VERSION, compareSemver, createRemoteBackend, joinServer, solvePow, versionStatus } from '../../plugin/hooks/client/remote.ts'
+import type { RemoteDeps } from '../../plugin/hooks/client/remote.ts'
+import { KEYS, readCache, readPrefs, readToken, serverKeys } from '../../plugin/hooks/client/store.ts'
+import type { Sent, Timer } from '../../plugin/hooks/client/types.ts'
+import { BackendError } from '../../plugin/hooks/client/types.ts'
 import { NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
 
 const answer = (status: number, body: unknown, headers: Record<string, string> = { 'content-type': 'application/json' }) => ({

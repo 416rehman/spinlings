@@ -80,4 +80,4 @@ jobs:
           claude plugin validate --strict plugin
 
       - name: The mod's own tests
-        run: claude plugin test plugin
+        run: node scripts/test-plugin.ts

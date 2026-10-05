@@ -3,16 +3,16 @@
 // and the desktop blit nothing, a server log is awaited before it plays, and the ceremonies after a battle change
 // their words exactly when their beats end.
 import { expect, test } from 'claude-code/testing'
-import type { BattleLog, Card, Family, Rarity } from '../hooks/core/types.ts'
-import { RULES_VERSION, perfectRounds, simulateBattle } from '../hooks/core/battle.ts'
-import { mintCard, toBattleCard } from '../hooks/core/cards.ts'
-import { familySpecies, legendaryOf } from '../hooks/core/species.ts'
-import { seasonOf } from '../hooks/core/world.ts'
-import { TIMING } from '../hooks/client/anim.ts'
-import { EVOLVE_SHOW, catchPreMs, noteLayout, revealHoldMs, roundPlan, rustleMs } from '../hooks/client/battleview.ts'
-import { INITIAL, battleLog } from '../hooks/client/game.ts'
-import { ceremonies, momentDriver, playBattle } from '../hooks/client/scheduler.ts'
-import type { Battle, BattleControl, Fx, GameState, Moment, Outcome } from '../hooks/client/types.ts'
+import type { BattleLog, Card, Family, Rarity } from '../../plugin/hooks/core/types.ts'
+import { RULES_VERSION, perfectRounds, simulateBattle } from '../../plugin/hooks/core/battle.ts'
+import { mintCard, toBattleCard } from '../../plugin/hooks/core/cards.ts'
+import { familySpecies, legendaryOf } from '../../plugin/hooks/core/species.ts'
+import { seasonOf } from '../../plugin/hooks/core/world.ts'
+import { TIMING } from '../../plugin/hooks/client/anim.ts'
+import { EVOLVE_SHOW, catchPreMs, noteLayout, revealHoldMs, roundPlan, rustleMs } from '../../plugin/hooks/client/battleview.ts'
+import { INITIAL, battleLog } from '../../plugin/hooks/client/game.ts'
+import { ceremonies, momentDriver, playBattle } from '../../plugin/hooks/client/scheduler.ts'
+import type { Battle, BattleControl, Fx, GameState, Moment, Outcome } from '../../plugin/hooks/client/types.ts'
 
 // The test runner has timers (a hooks module never does): a zero wait lets every pending continuation run.
 declare const setTimeout: (fn: () => void, ms: number) => unknown

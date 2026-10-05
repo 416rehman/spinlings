@@ -1,16 +1,16 @@
-// The pane's quality gate (SPEC 21, 35): every screen of /spin demo mounts at 50, 80 and 120 columns on the terminal
+// The pane's quality gate (SPEC 21, 35): every internal UI fixture mounts at 50, 80 and 120 columns on the terminal
 // and the desktop with no refused tree, no overflow, one meaning per key, a primary action only on 1 (or o), a hint
 // row, guidance in every empty state and art wherever cards show. Then the screens are walked by pressing keys.
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import type { Actions, El, GameState, View } from '../hooks/client/types.ts'
-import { INITIAL, MARKET_DEFAULT, communitySection, nameOf } from '../hooks/client/game.ts'
-import { demoSteps } from '../hooks/client/demo.ts'
+import type { Actions, El, GameState, View } from '../../plugin/hooks/client/types.ts'
+import { INITIAL, MARKET_DEFAULT, communitySection, nameOf } from '../../plugin/hooks/client/game.ts'
+import { uiScenes } from './ui-scenes.ts'
 import {
   bestTeam, cardCan, collection, holdText, paged, revealSummary, statTiles, teamPlace, tradeSection, traderPicks,
-} from '../hooks/client/viewmodels.ts'
-import { traderDeals } from '../hooks/core/trader.ts'
-import { pane } from '../hooks/ui/pane.tsx'
+} from '../../plugin/hooks/client/viewmodels.ts'
+import { traderDeals } from '../../plugin/hooks/core/trader.ts'
+import { pane } from '../../plugin/hooks/ui/pane.tsx'
 import { cardArt, measure } from './engine.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12, 0, 0)
@@ -136,7 +136,7 @@ const p: Probe = { state: INITIAL, calls: [] }
 
 test('pack art, waiting count, Open and countdown stay together in Team at narrow and wide sizes', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const base = demoSteps(NOW).find(s => s.title === 'Team · slots, resting, notices with Revenge')!.state
+  const base = uiScenes(NOW).find(s => s.title === 'Team · slots, resting, notices with Revenge')!.state
   for (const surface of SURFACES) for (const columns of [24, 32, 80]) {
     p.state = base
     p.calls = []
@@ -167,7 +167,7 @@ test('pack art, waiting count, Open and countdown stay together in Team at narro
 
 test('the world control opens its chooser and wraps full community addresses at 24 columns', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const base = demoSteps(NOW).find(s => s.title === 'Team · slots, resting, notices with Revenge')!.state
+  const base = uiScenes(NOW).find(s => s.title === 'Team · slots, resting, notices with Revenge')!.state
   const host = 'a-very-long-community-name.example.org'
   const accounts = [
     base.account,
@@ -194,9 +194,9 @@ test('the world control opens its chooser and wraps full community addresses at 
   }
 })
 
-test('every screen of /spin demo draws at 50, 80 and 120 columns on the terminal and the desktop', { timeoutMs: 240_000 }, async ($, on) => {
+test('every UI fixture draws at 50, 80 and 120 columns on the terminal and the desktop', { timeoutMs: 240_000 }, async ($, on) => {
   draws(on, p)
-  const steps = demoSteps(NOW)
+  const steps = uiScenes(NOW)
   expect(steps.length).toBeGreaterThan(40)
   for (const step of steps) {
     for (const surface of SURFACES) {
@@ -216,9 +216,9 @@ test('every screen of /spin demo draws at 50, 80 and 120 columns on the terminal
   }
 })
 
-test('every pane demo screen fits 24 columns, including its wrapped text and fixed controls', { timeoutMs: 120_000 }, async ($, on) => {
+test('every real pane screen fits 24 columns, including its wrapped text and fixed controls', { timeoutMs: 120_000 }, async ($, on) => {
   draws(on, p)
-  for (const step of demoSteps(NOW).filter(s => !s.band)) {
+  for (const step of uiScenes(NOW).filter(s => !s.band)) {
     for (const surface of SURFACES) {
       p.state = step.state
       const where = `${step.title} @24 ${surface}`
@@ -244,7 +244,7 @@ function namesIn(s: GameState): string[] {
 
 test('names are never cut; selectable card tiles have controls and the current team slot is explicitly disabled', { timeoutMs: 300_000 }, async ($, on) => {
   draws(on, p)
-  for (const step of demoSteps(NOW).filter(s => !s.band)) {
+  for (const step of uiScenes(NOW).filter(s => !s.band)) {
     const names = namesIn(step.state)
     for (const surface of SURFACES) {
       for (const columns of WIDTHS) {
@@ -296,7 +296,7 @@ test('names are never cut; selectable card tiles have controls and the current t
 
 test('empty states carry guidance on both surfaces', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const steps = demoSteps(NOW)
+  const steps = uiScenes(NOW)
   const guidance: [string, RegExp][] = [
     ['Cards · empty collection', /Creatures show up while Claude works/],
     ['Team · a brand-new player', /Your team forms as your first cards arrive/],
@@ -320,7 +320,7 @@ test('empty states carry guidance on both surfaces', { timeoutMs: 60_000 }, asyn
 
 test('the clipboard is named only when a copy took: otherwise a gift\'s two lines and a share\'s text show, to copy by hand', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const steps = demoSteps(NOW)
+  const steps = uiScenes(NOW)
   const textAt = async (title: string, surface: (typeof SURFACES)[number]) => {
     p.state = steps.find(s => s.title === title)!.state
     const ui = await $.ui.mount(MOUNT(80, surface))
@@ -342,7 +342,7 @@ test('the clipboard is named only when a copy took: otherwise a gift\'s two line
 
 test('cards show as art wherever they appear: the grid, the team, the album', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const steps = demoSteps(NOW)
+  const steps = uiScenes(NOW)
   const art = (title: string) => steps.find(s => s.title === title)!.state
   for (const surface of SURFACES) {
     const kind = surface === 'terminal' ? 'Raster' : 'Svg'
@@ -366,7 +366,7 @@ test('cards show as art wherever they appear: the grid, the team, the album', { 
 
 test('tabs switch with 1-4 on a tab, and a pushed view keeps the digits for its own choices', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const team = demoSteps(NOW).find(s => s.title === 'Team · slots, resting, notices with Revenge')!.state
+  const team = uiScenes(NOW).find(s => s.title === 'Team · slots, resting, notices with Revenge')!.state
   p.state = team
   p.calls = []
   const ui = await $.ui.mount(MOUNT(80, 'terminal'))
@@ -397,7 +397,7 @@ test('tabs switch with 1-4 on a tab, and a pushed view keeps the digits for its 
 
 test('a card page: choose a team slot, mark for trade, recycle and gift behind a 2-second hold', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const s = demoSteps(NOW).find(x => x.title === 'Card · a legendary shiny foil')!.state
+  const s = uiScenes(NOW).find(x => x.title === 'Card · a legendary shiny foil')!.state
   p.state = s
   p.calls = []
   const cardId = (s.pane.stack[0] as { cardId: string }).cardId
@@ -425,7 +425,7 @@ test('a card page: choose a team slot, mark for trade, recycle and gift behind a
     expect(await ui.find({ text: /wrapped and held until someone claims it/ })).toBeDefined()
     await ui.unmount()
   }
-  const starter = demoSteps(NOW).find(x => x.title === 'Card · a starter (stays with you)')!.state
+  const starter = uiScenes(NOW).find(x => x.title === 'Card · a starter (stays with you)')!.state
   p.state = starter
   const ui = await $.ui.mount(MOUNT(50, 'terminal'))
   expect(await ui.find({ key: 'recycle' })).toBeUndefined()
@@ -436,7 +436,7 @@ test('a card page: choose a team slot, mark for trade, recycle and gift behind a
 
 test('fusing: pick a partner with 1-3, then fuse behind a hold with the cost in view', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const s = demoSteps(NOW).find(x => x.title === 'Fuse · pick a partner')!.state
+  const s = uiScenes(NOW).find(x => x.title === 'Fuse · pick a partner')!.state
   p.state = s
   p.calls = []
   const ui = await $.ui.mount(MOUNT(80, 'terminal'))
@@ -458,7 +458,7 @@ test('fusing: pick a partner with 1-3, then fuse behind a hold with the cost in 
 
 test('the album: families, silhouettes, a species page that crafts and wishes', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const s = demoSteps(NOW).find(x => x.title === 'Album · Opus')!.state
+  const s = uiScenes(NOW).find(x => x.title === 'Album · Opus')!.state
   p.state = s
   p.calls = []
   const ui = await $.ui.mount(MOUNT(80, 'terminal'))
@@ -485,7 +485,7 @@ test('the album: families, silhouettes, a species page that crafts and wishes', 
 
 test('trading: sections load on demand, offers accept, decline and counter, and gift codes are checked', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const s = demoSteps(NOW).find(x => x.title === 'Trade · inbox')!.state
+  const s = uiScenes(NOW).find(x => x.title === 'Trade · inbox')!.state
   p.state = s
   p.calls = []
   const ui = await $.ui.mount(MOUNT(120, 'terminal'))
@@ -525,7 +525,7 @@ test('trading: sections load on demand, offers accept, decline and counter, and 
 
 test('four tabs lead to Community sections without duplicate links or pushed navigation in tiny panes', { timeoutMs: 90_000 }, async ($, on) => {
   draws(on, p)
-  const base = demoSteps(NOW).find(x => x.title === 'Community · the hub')!.state
+  const base = uiScenes(NOW).find(x => x.title === 'Community · the hub')!.state
   for (const surface of SURFACES) {
     for (const columns of [24, 32, 50]) {
       p.state = base
@@ -597,7 +597,7 @@ test('four tabs lead to Community sections without duplicate links or pushed nav
 
 test('Profile shares publicly, while confirmed private browser access belongs only in Settings', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const base = demoSteps(NOW).find(x => x.title === 'Community · the hub')!.state
+  const base = uiScenes(NOW).find(x => x.title === 'Community · the hub')!.state
   const cases = [
     { world: 'online' as const, features: ['browser-account'], browser: true },
     { world: 'online' as const, features: ['passkey', 'stats'], browser: false },
@@ -628,7 +628,7 @@ test('Profile shares publicly, while confirmed private browser access belongs on
 
 test('tiny Team, Collection, Discoveries, Today and Help panes explain their icons without duplicate footer shortcuts', { timeoutMs: 90_000 }, async ($, on) => {
   draws(on, p)
-  const steps = demoSteps(NOW)
+  const steps = uiScenes(NOW)
   for (const title of ['Team · the daily hello', 'Team · a brand-new player', 'Team · slots, resting, notices with Revenge', 'Cards · the collection', 'Album · Opus', 'Today · the meadow rule', 'Help · the field guide']) {
     for (const surface of SURFACES) {
       for (const columns of [24, 32]) {
@@ -659,7 +659,7 @@ test('tiny Team, Collection, Discoveries, Today and Help panes explain their ico
 
 test('older Market tabs and profile, ranking and trading views remain readable in Community', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const base = demoSteps(NOW).find(x => x.title === 'Community · your profile')!.state
+  const base = uiScenes(NOW).find(x => x.title === 'Community · your profile')!.state
   const oldStates: { patch: Partial<GameState['pane']>; control: string }[] = [
     { patch: { tab: 'market', community: undefined }, control: 'market-mine' },
     { patch: { tab: 'team', community: undefined, stack: [{ kind: 'mine' }] }, control: 'profile-privacy' },
@@ -680,7 +680,7 @@ test('older Market tabs and profile, ranking and trading views remain readable i
 
 test('the offer builder picks up to three cards a side and sends only with one of yours', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const s = demoSteps(NOW).find(x => x.title === 'Trade · a profile and an offer being built')!.state
+  const s = uiScenes(NOW).find(x => x.title === 'Trade · a profile and an offer being built')!.state
   p.state = { ...s, pane: { ...s.pane, stack: [{ kind: 'profile', handle: 'soft-otter-42', give: [], get: [], counterOf: null }] } }
   p.calls = []
   const ui = await $.ui.mount(MOUNT(80, 'desktop'))
@@ -697,7 +697,7 @@ test('the offer builder picks up to three cards a side and sends only with one o
 
 test('privacy shows what is read and sent, never the token, and deletes only behind a hold', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const s = demoSteps(NOW).find(x => x.title === 'Privacy · online')!.state
+  const s = uiScenes(NOW).find(x => x.title === 'Privacy · online')!.state
   p.state = s
   p.calls = []
   for (const surface of SURFACES) {
@@ -713,7 +713,7 @@ test('privacy shows what is read and sent, never the token, and deletes only beh
     expect(await ui.find({ text: /are gone for good\. Press x again in 2 s to delete\./ })).toBeDefined()
     await ui.unmount()
   }
-  p.state = demoSteps(NOW).find(x => x.title === 'Offline · privacy')!.state
+  p.state = uiScenes(NOW).find(x => x.title === 'Offline · privacy')!.state
   const ui = await $.ui.mount(MOUNT(50, 'terminal'))
   expect(await ui.find({ key: 'delete-account' })).toBeUndefined()
   expect(await ui.find({ key: 'reset-access' })).toBeUndefined()
@@ -724,7 +724,7 @@ test('privacy shows what is read and sent, never the token, and deletes only beh
 
 test('devices: a passkey page shows only on the server\'s own origin', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  const s = demoSteps(NOW).find(x => x.title === 'Devices · a passkey page open')!.state
+  const s = uiScenes(NOW).find(x => x.title === 'Devices · a passkey page open')!.state
   p.state = s
   let ui = await $.ui.mount(MOUNT(80, 'terminal'))
   expect(await ui.find({ type: 'Link' })).toBeDefined()
@@ -743,7 +743,7 @@ test('devices: a passkey page shows only on the server\'s own origin', { timeout
 
 test('offline: trading with players is one line away, the Trader still deals', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
-  p.state = demoSteps(NOW).find(x => x.title === 'Offline · the Trade tab')!.state
+  p.state = uiScenes(NOW).find(x => x.title === 'Offline · the Trade tab')!.state
   p.calls = []
   const ui = await $.ui.mount(MOUNT(50, 'terminal'))
   expect(await ui.find({ text: /needs the online world/ })).toBeDefined()
@@ -755,29 +755,8 @@ test('offline: trading with players is one line away, the Trader still deals', {
   await ui.unmount()
 })
 
-test('/spin demo steps through every state over inert actions', { timeoutMs: 60_000 }, async ($, on) => {
-  draws(on, p)
-  const base = demoSteps(NOW)[0]!.state
-  p.state = { ...base, pane: { ...base.pane, stack: [{ kind: 'demo', step: 0 }] } }
-  p.calls = []
-  const ui = await $.ui.mount(MOUNT(80, 'terminal'))
-  expect(await ui.find({ text: /^Demo 1\/\d+ · Team · the daily hello$/ })).toBeDefined()
-  await press(ui, 'demo-next')
-  expect(p.state.pane.stack).toEqual([{ kind: 'demo', step: 1 }])
-  await press(ui, 'demo-prev')
-  await press(ui, 'demo-prev')
-  expect((p.state.pane.stack[0] as { step: number }).step).toBe(demoSteps(NOW).length - 1)
-  // the last steps are band moments; the first is a pane screen with tabs to press
-  await press(ui, 'demo-next')
-  const before = p.calls.length
-  await press(ui, 'tab-cards')
-  expect(p.calls.length).toBe(before)
-  gate(await ui.drawn(), 80, 'demo')
-  await ui.unmount()
-})
-
 test('view models: team places, trader picks, filters, pages, reveal words', () => {
-  const steps = demoSteps(NOW)
+  const steps = uiScenes(NOW)
   const s = steps.find(x => x.title === 'Team · slots, resting, notices with Revenge')!.state
   const me = s.me!
   const outsider = s.cards.find(c => !me.player.team.includes(c.id) && c.rarity === 'legendary')!

@@ -65,13 +65,13 @@ function raster(el: El, key: string, px: Pixels): RenderElement {
   return <el.Raster key={key} columns={r.columns} rows={r.rows} cells={r.cells} />
 }
 
-function svg(el: El, source: string, alt: string, size: { w: number; h: number }, motion: boolean): RenderElement {
+function svg(el: El, source: string, alt: string, size: { w: number; height: number }, motion: boolean): RenderElement {
   return motion
-    ? <el.Svg source={source} alt={alt} width={size.w} height={size.h} isInteractive={true} />
-    : <el.Svg source={source} alt={alt} width={size.w} height={size.h} />
+    ? <el.Svg source={source} alt={alt} width={size.w} height={size.height} isInteractive={true} />
+    : <el.Svg source={source} alt={alt} width={size.w} height={size.height} />
 }
 
-const plateSize = (k = ART_K) => ({ w: artSide(k), h: artSide(k) })
+const plateSize = (k = ART_K) => ({ w: artSide(k), height: artSide(k) })
 
 /**
  * Art beside a column of rows, the moment's actions last: the band's one shape for moments. In a window shorter than

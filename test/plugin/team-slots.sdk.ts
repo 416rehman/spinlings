@@ -1,16 +1,16 @@
 // Choose a real slot before sending the existing team request, keep every card, and reject stale or pending choices.
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import type { Backend, Fx, GameState } from '../hooks/client/types.ts'
-import { BackendError } from '../hooks/client/types.ts'
-import { createGame, nameOf } from '../hooks/client/game.ts'
-import { demoSteps } from '../hooks/client/demo.ts'
-import { teamSlotChoices } from '../hooks/client/team-slots.ts'
-import { GENERATOR_VERSION, seasonSpecies } from '../hooks/core/species.ts'
+import type { Backend, Fx, GameState } from '../../plugin/hooks/client/types.ts'
+import { BackendError } from '../../plugin/hooks/client/types.ts'
+import { createGame, nameOf } from '../../plugin/hooks/client/game.ts'
+import { uiScenes } from './ui-scenes.ts'
+import { teamSlotChoices } from '../../plugin/hooks/client/team-slots.ts'
+import { GENERATOR_VERSION, seasonSpecies } from '../../plugin/hooks/core/species.ts'
 import { NOW, ORIGIN, TOKEN } from './fixtures.ts'
 import { PANE, engine, measure, settle, textOf } from './engine.ts'
 
-const sample = () => JSON.parse(JSON.stringify(demoSteps(NOW).find(s => s.title === 'Card · a legendary shiny foil')!.state)) as GameState
+const sample = () => JSON.parse(JSON.stringify(uiScenes(NOW).find(s => s.title === 'Card · a legendary shiny foil')!.state)) as GameState
 const cardIdOf = (s: GameState) => (s.pane.stack[0] as { cardId: string }).cardId
 
 function stateProbe(on: On) {

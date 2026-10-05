@@ -14,6 +14,6 @@ Online game requests use the fixed default origin `https://spinlings.dev`, or an
 
 ## Tests
 
-Files under `tests/` run only through `claude plugin test plugin`. They provide mock engine handlers, in-memory fake servers, synthetic session strings and fixture tokens. They intentionally exercise signals, commands, failure paths and UI pointer controls to prove behavior and the privacy boundary. They are not registered game modules and their mock handlers never run in an installed game session. The repository's Node tests separately check content blindness, allowed hooks and methods, network payloads, offline isolation and historical compatibility.
+SDK tests and QA scenes live outside the installed plugin, under the repository's `test/plugin/`. The test runner stages the unchanged plugin files alongside these tests and invokes Claude Code's official test command. Mock engine handlers, in-memory fake servers and fixture credentials stay in that test workspace. The installed game has no QA preview command or QA scenes. The repository's Node tests separately check content blindness, allowed hooks and methods, network payloads, offline isolation and historical compatibility.
 
 See [PRIVACY.md](https://github.com/416rehman/spinlings/blob/main/PRIVACY.md) for the exact request fields, public fields, retention schedule and account deletion behavior.

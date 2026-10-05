@@ -44,12 +44,12 @@ The mod reloads when you save. In that session, `/spin world http://localhost:87
 
 ```sh
 node --test "test/**/*.test.ts"   # every core, server, compat, docs and release test (npm test runs the same)
-npm run test:plugin                # claude plugin test plugin
+npm run test:plugin                # full SDK suite against an unchanged copy of the installable mod
 npm run validate                   # claude plugin validate --strict on the marketplace and the mod
 npm run e2e                        # two players through every flow over real HTTP; add -- --d1 for local D1
 ```
 
-Pass the test path as a quoted glob: `node --test test/` does not work. Test files must be named `*.test.ts`.
+Pass the test path as a quoted glob: `node --test test/` does not work. Node test files must be named `*.test.ts`. Claude SDK suites live in `test/plugin/*.sdk.ts`, with their helpers alongside them. `npm run test:plugin` copies the exact installable `plugin/` into an ignored workspace directory, adds the SDK suites as `tests/*.test.ts` there, and adjusts only those copied test imports. It requires every suite to execute with no failures or skips, and verifies that the runtime files remain byte-identical. Tests and test fixtures are never included in the installed mod. Set `SPINLINGS_CLAUDE` to a compatible Claude Code executable to override `claude` on PATH.
 
 CI runs the tests, `validate`, `test:plugin` and a `wrangler deploy --dry-run` on every pull request, with one pinned, hash-checked Claude Code build, and fails if any test is skipped. Two kinds of test skip on a machine that lacks their tools: the real-D1 suites need wrangler's local workerd, and the validator check in `test/e2e/manifest.test.ts` needs a Claude Code with `plugin validate --json` (point `SPINLINGS_CLAUDE` at one if the `claude` on your PATH is older).
 

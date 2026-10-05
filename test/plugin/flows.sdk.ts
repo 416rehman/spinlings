@@ -8,8 +8,8 @@ import { expect, mock, test } from 'claude-code/testing'
 import { NEXT, NOW, ORIGIN, OTHER_TOKEN, TOKEN, fakeServer } from './fixtures.ts'
 import { BAND, PANE, RUN, SESSION, engine, settle, textOf, walk } from './engine.ts'
 import type { Engine } from './engine.ts'
-import type { Card } from '../hooks/core/types.ts'
-import { parseResponse } from '../hooks/core/schemas.ts'
+import type { Card } from '../../plugin/hooks/core/types.ts'
+import { parseResponse } from '../../plugin/hooks/core/schemas.ts'
 
 const LONG = { timeoutMs: 120_000 }
 
@@ -29,6 +29,7 @@ test('every /spin subcommand answers {} and does what it says', LONG, async ($, 
   expect(w.opened).toBe(1)
   await run('help')
   expect(w.logs.at(-1)).toMatch(/\/spin leaderboard \[on\|off\][\s\S]*\/spin handle \[new\]/)
+  expect(w.logs.at(-1)).not.toContain('/spin demo')
   await run('pack')
   expect(sent(w)).not.toContain('POST /v1/packs/open')
   const preview = await $.ui.mount(BAND(80))
@@ -86,7 +87,11 @@ test('every /spin subcommand answers {} and does what it says', LONG, async ($, 
   expect(w.requests.length).toBe(worldRequests)
   expect(JSON.stringify(w.store.get('prefs'))).toBe(worldPrefs)
   await chooser.unmount()
+  const beforeDebug = { requests: w.requests.length, opened: w.opened, prefs: JSON.stringify(w.store.get('prefs')) }
   await run('demo')
+  expect(w.logs.at(-1)).toMatch(/^There is no \/spin demo\./)
+  expect(w.logs.at(-1)).not.toMatch(/\/spin demo\s+every screen/)
+  expect({ requests: w.requests.length, opened: w.opened, prefs: JSON.stringify(w.store.get('prefs')) }).toEqual(beforeDebug)
   await run('battle')
   expect(bodyOf(w, 'POST /v1/battles')).toEqual({ kind: 'duel', family: 'opus' })
   // nothing a command did ever carried the token anywhere but the header

@@ -2,13 +2,13 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { Mounted } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { demoSteps } from '../hooks/client/demo.ts'
-import type { El, GameState } from '../hooks/client/types.ts'
-import { card } from '../hooks/ui/card.tsx'
+import { uiScenes } from './ui-scenes.ts'
+import type { El, GameState } from '../../plugin/hooks/client/types.ts'
+import { card } from '../../plugin/hooks/ui/card.tsx'
 import { PANE, engine, settle } from './engine.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12)
-const sample = (title: string) => JSON.parse(JSON.stringify(demoSteps(NOW).find(s => s.title === title)!.state)) as GameState
+const sample = (title: string) => JSON.parse(JSON.stringify(uiScenes(NOW).find(s => s.title === title)!.state)) as GameState
 
 function stateProbe(on: On) {
   const probe = { state: sample('Team · slots, resting, notices with Revenge'), version: 0 }
@@ -263,7 +263,7 @@ test('a wrapping name leaves its Button exposed and makes its passive overflow l
   const id = probe.state.me!.player.team[0]!
   const c = probe.state.cards.find(c => c.id === id)!
   c.species = 'fusion'
-  c.form = { ...demoSteps(NOW).find(s => s.state.cards.some(c => c.form))!.state.cards.find(c => c.form)!.form!, kind: 'fusion', names: ['A Long Creature Name', 'A Long Creature Name', 'A Long Creature Name'] }
+  c.form = { ...uiScenes(NOW).find(s => s.state.cards.some(c => c.form))!.state.cards.find(c => c.form)!.form!, kind: 'fusion', names: ['A Long Creature Name', 'A Long Creature Name', 'A Long Creature Name'] }
   const ui = await $.ui.mount(PANE(24, 'desktop'))
   expect(regionsLeaveButtonsExposed(await ui.drawn())).toBeGreaterThan(0)
   expect((await ui.find({ key: 'team-0-pick' }))?.props.label).toBe('A Long')

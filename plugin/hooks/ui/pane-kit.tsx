@@ -35,8 +35,6 @@ export type Ctx = {
   root: boolean
   offline: boolean
   motion: boolean
-  /** the footer's version chip takes `u`: everywhere but inside /spin demo, whose own Previous is on u */
-  versionKey: boolean
   /** the actual desktop pane forwards tile pointer messages; inert previews need no route */
   hitAreas: boolean
   hitIntent: string
@@ -68,7 +66,7 @@ export function tabsOf(s: GameState): { tab: Tab; label: string; hotkey: string 
 /** The hint for the four main tab keys. */
 export const tabsHint = (s: GameState) => `1-${tabsOf(s).length} Tabs`
 
-/** `next pack ███░░ 18 min`, or why it waits (SPEC 13.8): the words a meter's tooltip and the demo read. */
+/** `next pack ███░░ 18 min`, or why it waits (SPEC 13.8): the words a meter's tooltip reads. */
 export function packMeter(p: Presence, width = 5): string {
   if (p.blocked === 'bank') return 'Open some packs to make room'
   const left = Math.max(0, p.need - p.minutes)
@@ -397,7 +395,7 @@ export function versionChip(c: Ctx): { node: RenderElement; width: number; chip:
   }
   const open = c.state.pane.showUpdate
   const label = open ? CHIP_HIDE : fit(c.columns >= CHIP_WIDE ? `Update to ${latest}` : `Update ${latest}`, Math.max(8, Math.floor(c.columns / 2)))
-  const hotkey = c.versionKey && !open ? 'u' : undefined
+  const hotkey = !open ? 'u' : undefined
   const node = btn(c, { key: 'version', label, hotkey, dim: open, on: () => c.actions.pane(p => ({ ...p, showUpdate: !p.showUpdate, message: '' })) })
   return { node, width: cells(label) + (hotkey ? 3 : 0), chip: true }
 }
@@ -409,7 +407,7 @@ export function updateRow(c: Ctx): RenderElement | null {
   return (
     <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
       <Text wrap="wrap"><Text dimColor>In a terminal: </Text><Text>{UPDATE_COMMAND}</Text></Text>
-      {btn(c, { key: 'copy-update', label: 'Copy', hotkey: c.versionKey ? 'u' : undefined, on: () => c.actions.copyUpdate() })}
+      {btn(c, { key: 'copy-update', label: 'Copy', hotkey: 'u', on: () => c.actions.copyUpdate() })}
     </Box>
   )
 }

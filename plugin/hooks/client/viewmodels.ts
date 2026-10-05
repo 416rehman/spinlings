@@ -25,7 +25,7 @@ export function screenOf(p: PaneUi): Screen {
   return p.stack[p.stack.length - 1] ?? { kind: 'tab', tab: p.tab }
 }
 
-/** Replaces the top view of the stack (a picker's choice, the offer being built, the demo's step). */
+/** Replaces the top view of the stack (a picker's choice or the offer being built). */
 export function withTop(p: PaneUi, fn: (v: View) => View): PaneUi {
   if (p.stack.length === 0) return p
   return { ...p, stack: [...p.stack.slice(0, -1), fn(p.stack[p.stack.length - 1]!)] }

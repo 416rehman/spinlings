@@ -2228,7 +2228,6 @@ export function createGame(o: GameOptions): Game {
       case 'privacy': return openPane(fx, { view: { kind: 'privacy' } })
       case 'server': return setServer(fx, cmd.url, undefined, packHere)
       case 'version': return versionCommand(fx)
-      case 'demo': return openPane(fx, { view: { kind: 'demo', step: 0 } })
       case 'leaderboard': return leaderboardCommand(fx, cmd.on)
       case 'handle': return handleCommand(fx, cmd.reroll)
       case 'help': fx.ui.log(cmd.text); return

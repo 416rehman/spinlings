@@ -6,7 +6,7 @@
   },
   "scripts": {
     "test": "node --test \"test/**/*.test.ts\"",
-    "test:plugin": "claude plugin test plugin",
+    "test:plugin": "node scripts/test-plugin.ts",
     "e2e": "node scripts/e2e.ts",
     "validate": "claude plugin validate --strict . && claude plugin validate --strict plugin",
     "dev:server": "node server/src/node.ts",

@@ -67,7 +67,7 @@ jobs:
         run: |
           claude plugin validate --strict .
           claude plugin validate --strict plugin
-          claude plugin test plugin
+          node scripts/test-plugin.ts
 
       - name: Worker builds
         run: npx --no -- wrangler deploy --dry-run

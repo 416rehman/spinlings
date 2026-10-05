@@ -442,7 +442,6 @@ Pushed over the tabs and sections: card, fuse, species, listing and sell details
   - `privacy`
   - `server [url|default]` (no argument reports the current host; URL and default are supported switching aliases, default means the default online world)
   - `version`
-  - `demo`
 - Every command answers `{}`. Output that is text goes to `$.ui.log`, so the model never reads it.
 
 ### Shares
@@ -483,7 +482,6 @@ spinlings/
     hooks/client/local/             LocalBackend: the offline world, built from core rules only (section 28)
     hooks/ui/                       view builders and local Desktop card pointer regions
     types/index.d.ts                $.state contract
-    tests/                          `claude plugin test plugin`
   server/
     src/worker.ts                   Cloudflare Worker entry (D1 binding DB)
     src/app.ts                      request handlers over the async Db
@@ -492,7 +490,8 @@ spinlings/
     src/node.ts                     self-hosting entry (node:http + node:sqlite)
     src/pages.ts, src/png.ts        HTML pages and og:image PNGs
     src/schema.ts                   the SQL schema
-    test/                           `node --test`
+  test/                             `node --test "test/**/*.test.ts"`
+    plugin/                         repository-only SDK suites; `npm run test:plugin`
   SPEC.md, README.md, PRIVACY.md, LICENSE
 ```
 
@@ -1011,7 +1010,7 @@ A key never means two things on the same screen.
   - overflow;
   - an empty-state screen with no guidance;
   - a primary action without hotkey `1`.
-- **Preview.** `/spin demo` shows every state for human review.
+- **QA scenes.** Repository-only fixtures exercise every state through the real pane and band renderers. The installed plugin contains no QA preview command, scene data or SDK tests.
 
 ## 22. Three evolution stages (overrides every earlier mention of stages)
 

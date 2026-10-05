@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { INITIAL, createGame } from '../../plugin/hooks/client/game.ts'
 import type { Fx } from '../../plugin/hooks/client/types.ts'
-import { fakeServer } from '../../plugin/tests/fixtures.ts'
+import { fakeServer } from '../plugin/fixtures.ts'
 
 function profile(copies = true) {
   const state = structuredClone(INITIAL)

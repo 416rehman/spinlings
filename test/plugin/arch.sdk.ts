@@ -5,13 +5,13 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type {
   ListingView, MarketWant, MeResponse, Notice, OfferView, PlayerStats, PlayerView, ProfileResponse, RankingsResponse, SaleView,
-} from '../hooks/core/api.ts'
-import type { BattleCard, BattleLog, BattleSetup, Card, CardForm } from '../hooks/core/types.ts'
+} from '../../plugin/hooks/core/api.ts'
+import type { BattleCard, BattleLog, BattleSetup, Card, CardForm } from '../../plugin/hooks/core/types.ts'
 import type {
   SpinBattleCard, SpinBattleLog, SpinBattleSetup, SpinCard, SpinCardForm, SpinListing, SpinMarketWant, SpinMe, SpinNotice, SpinOffer,
   SpinPlayer, SpinPlayerStats, SpinProfile, SpinRankings, SpinSale,
-} from '../types/index.d.ts'
-import { CLIENT_VERSION } from '../hooks/client/remote.ts'
+} from '../../plugin/types/index.d.ts'
+import { CLIENT_VERSION } from '../../plugin/hooks/client/remote.ts'
 import { AFTER_NEXT, NEXT, NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
 import type { FakeServer } from './fixtures.ts'
 import { cardArt } from './engine.ts'

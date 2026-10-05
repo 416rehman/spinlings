@@ -1,11 +1,11 @@
 // Inline pack previews award nothing until Open; sidebar and Close keep the same authoritative collection.
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { INITIAL, createGame } from '../hooks/client/game.ts'
-import type { Actions, El, Fx, GameState } from '../hooks/client/types.ts'
-import { createLocalBackend } from '../hooks/client/local/index.ts'
-import { demoSteps } from '../hooks/client/demo.ts'
-import { band } from '../hooks/ui/band.tsx'
+import { INITIAL, createGame } from '../../plugin/hooks/client/game.ts'
+import type { Actions, El, Fx, GameState } from '../../plugin/hooks/client/types.ts'
+import { createLocalBackend } from '../../plugin/hooks/client/local/index.ts'
+import { uiScenes } from './ui-scenes.ts'
+import { band } from '../../plugin/hooks/ui/band.tsx'
 import { BAND, PANE, RUN, SESSION, engine, settle } from './engine.ts'
 import { NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
 
@@ -193,7 +193,7 @@ test('a battle or catch choice keeps its controls when it starts after an inline
   await settle(clock)
   const preview = p.state.reveal!.id, ui = await $.ui.mount(BAND(40, 'desktop'))
   expect(await ui.find({ key: 'inline-pack-open' })).toBeDefined()
-  const fight = JSON.parse(JSON.stringify(demoSteps(NOW).find(s => s.title.includes('the special is ready:'))!.state)) as GameState
+  const fight = JSON.parse(JSON.stringify(uiScenes(NOW).find(s => s.title.includes('the special is ready:'))!.state)) as GameState
   p.state.battle = fight.battle
   await ui.redraw()
   expect(await ui.find({ key: 'now' })).toBeDefined()
@@ -201,7 +201,7 @@ test('a battle or catch choice keeps its controls when it starts after an inline
   await ui.press({ key: 'now' })
   await settle(clock)
   expect(p.state.battle!.inputs.length).toBe(1)
-  const choice = JSON.parse(JSON.stringify(demoSteps(NOW).find(s => s.title === 'Band · pick one to keep')!.state)) as GameState
+  const choice = JSON.parse(JSON.stringify(uiScenes(NOW).find(s => s.title === 'Band · pick one to keep')!.state)) as GameState
   p.state.battle = null; p.state.moments = choice.moments
   await ui.redraw()
   for (let i = 0; i < 3; i++) expect(await ui.find({ key: `catch-${i}` })).toBeDefined()
@@ -218,7 +218,7 @@ test('requesting a pack during a battle or catch choice places its sealed previe
   const clock = mock.clock(on, { now: NOW }), w = engine(on), p = probe(on)
   await $.session.start(SESSION)
   await settle(clock)
-  const samples = demoSteps(NOW)
+  const samples = uiScenes(NOW)
   p.state.battle = JSON.parse(JSON.stringify(samples.find(s => s.title.includes('the special is ready:'))!.state.battle))
   await $.command.run(RUN('pack'))
   await settle(clock)

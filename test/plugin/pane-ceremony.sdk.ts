@@ -4,15 +4,15 @@
 // stops when the reveal closes and follows a player who flips ahead.
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import type { Actions, El, Fx, GameState, Reveal, RevealControl, View } from '../hooks/client/types.ts'
-import { INITIAL } from '../hooks/client/game.ts'
-import { demoSteps } from '../hooks/client/demo.ts'
-import { TIMING } from '../hooks/client/anim.ts'
-import { ceremony, holdMs } from '../hooks/ui/ceremony.tsx'
+import type { Actions, El, Fx, GameState, Reveal, RevealControl, View } from '../../plugin/hooks/client/types.ts'
+import { INITIAL } from '../../plugin/hooks/client/game.ts'
+import { uiScenes } from './ui-scenes.ts'
+import { TIMING } from '../../plugin/hooks/client/anim.ts'
+import { ceremony, holdMs } from '../../plugin/hooks/ui/ceremony.tsx'
 import {
   backOf, eggPixels, flipStage, packagePixels, presentPixels, singleMs, svgFace, svgPackage, svgSingle, svgTurn,
-} from '../hooks/ui/ceremony-art.tsx'
-import { pane } from '../hooks/ui/pane.tsx'
+} from '../../plugin/hooks/ui/ceremony-art.tsx'
+import { pane } from '../../plugin/hooks/ui/pane.tsx'
 import { cardArt } from './engine.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12, 0, 0)
@@ -56,7 +56,7 @@ async function press(ui: Ui, key: string): Promise<void> {
   await ui.redraw()
 }
 
-const step = (title: string) => demoSteps(NOW).find(s => s.title === title)!.state
+const step = (title: string) => uiScenes(NOW).find(s => s.title === title)!.state
 const historicalPack = (): Reveal => {
   const r = step('Pack · a gold back waiting').reveal!
   return { ...r, torn: false, cards: [step('Pack · sealed, waiting to tear').reveal!.cards[0]!, ...r.cards] }

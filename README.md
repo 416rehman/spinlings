@@ -186,7 +186,6 @@ Open a card and choose **Set in team** or **Change slot**, then choose the teamm
 | `/spin privacy` | See exactly what the mod has sent, and delete your account |
 | `/spin server [url\|default]` | Report the current host; URL and default remain aliases for community and default online switching |
 | `/spin version` | This mod's version, and whether an update is out |
-| `/spin demo` | Step through every screen of the game |
 
 There is no `/spin wild`. Wild creatures only ever find you.
 
@@ -321,7 +320,6 @@ spinlings/
     hooks/client/                   pure client logic (presence, scheduling, view models)
     hooks/client/local/             the offline world, built from the same core rules
     hooks/ui/                       view builders and local Desktop card pointer regions
-    tests/                          claude plugin test plugin
   server/
     src/worker.ts                   the Cloudflare Worker (D1 binding DB)
     src/app.ts                      request handlers over an async Db
@@ -330,6 +328,7 @@ spinlings/
     src/pages.ts, src/png.ts        card, profile and gift pages, and their preview images
     migrations/                     SQL migrations for D1 and Node
   test/                             node:test suites: core, client, server, end to end, docs and release
+    plugin/                         repository-only SDK suites; npm run test:plugin
   scripts/                          the two-player end-to-end run, the drop tool, media and chimes
   docs/                             how to play, self-hosting and releasing
   Dockerfile                        the Node server as a non-root container

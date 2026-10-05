@@ -1,8 +1,8 @@
 // A confirmed server choice is an online switch; naming/cancelling it is local, and every save stays at its origin.
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { openSave } from '../hooks/client/local/save.ts'
-import { cardName } from '../hooks/core/cards.ts'
+import { openSave } from '../../plugin/hooks/client/local/save.ts'
+import { cardName } from '../../plugin/hooks/core/cards.ts'
 import { NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
 import { BAND, RUN, SESSION, engine, settle } from './engine.ts'
 

@@ -1,14 +1,16 @@
-// The SPEC 21 quality gate, end to end through the plugin: `/spin demo` is walked with its own Next button on the
-// terminal and the desktop at 40, 80 and 120 columns, and every pane screen and every band moment it shows must draw
+// The SPEC 21 quality gate mounts the real pane and band render functions against internal UI fixtures on the
+// terminal and the desktop at 40, 80 and 120 columns. Every pane screen and every band moment must draw
 // with no refused tree, no overflow, one meaning per key, a primary action only on 1 (o opens, in the header and the
 // ceremonies), a hint row, art on its own surface only (Raster on the terminal, Svg on the desktop), and guidance in
 // every empty state. Each band moment is then drawn as the band itself: four rows at most, every button on a digit.
-import { expect, mock, test } from 'claude-code/testing'
-import type { El } from '../hooks/client/types.ts'
-import { demoSteps } from '../hooks/client/demo.ts'
-import { band } from '../hooks/ui/band.tsx'
+import { expect, test } from 'claude-code/testing'
+import type { El } from '../../plugin/hooks/client/types.ts'
+import { INERT, uiScenes } from './ui-scenes.ts'
+import { band } from '../../plugin/hooks/ui/band.tsx'
+import { pane } from '../../plugin/hooks/ui/pane.tsx'
+import { statusLine } from '../../plugin/hooks/client/game.ts'
 import { NOW } from './fixtures.ts'
-import { BAND, PANE, RUN, SESSION, engine, measure, settle, textOf, walk } from './engine.ts'
+import { BAND, PANE, measure, textOf, walk } from './engine.ts'
 import type { Node } from './engine.ts'
 
 const WIDTHS = [40, 80, 120] as const
@@ -35,10 +37,9 @@ function gate(tree: unknown, columns: number, surface: string, where: string, fa
   if (problems.length > 0) failures.push(`${where}: ${problems.join('; ')}`)
 }
 
-/** The screen under the demo's own title row: its last line is the hint row. */
+/** A real pane screen ends with its hint row. */
 function hintOf(tree: unknown): string {
-  const screen = (tree as Node).children?.at(-1)
-  return textOf((screen as Node | undefined)?.children?.at(-1)).trim()
+  return textOf((tree as Node).children?.at(-1)).trim()
 }
 
 const GUIDED: [string, RegExp][] = [
@@ -55,42 +56,41 @@ const GUIDED: [string, RegExp][] = [
   ['Band · Claude is resting: only the status line speaks', /Claude is resting until/],
 ]
 
-test('/spin demo: every pane screen and band moment passes the gate at 40, 80 and 120 columns on both surfaces', { timeoutMs: 600_000 }, async ($, on) => {
-  const clock = mock.clock(on, { now: NOW })
-  const w = engine(on)
-  // offline from the start: the world a player chose with /spin world, as the store keeps it
-  w.store.set('prefs', { world: 'offline' })
-  await $.session.start(SESSION)
-  await settle(clock)
-  expect(await $.command.run(RUN('demo'))).toEqual({})
-  const steps = demoSteps(NOW)
+test('every real pane screen passes the gate at 40, 80 and 120 columns on both surfaces', { timeoutMs: 600_000 }, async ($, on) => {
+  const steps = uiScenes(NOW)
   expect(steps.filter(s => s.band).length).toBeGreaterThan(30)
   expect(steps.filter(s => !s.band).length).toBeGreaterThan(40)
+  let state = steps[0]!.state
+  // A separate site avoids the registered player's pane answering before this fixture render hook.
+  on('ui.render', { component: 'Pane', requestId: 'gate-probe' }, async ($, e) => pane({
+    el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns, rows: e.props.scroll.bodyRows,
+    now: state.clock, actions: INERT, focused: true, placement: e.props.placement, state,
+  }))
   const failures: string[] = []
   for (const surface of SURFACES) {
     for (const columns of WIDTHS) {
-      const ui = await $.ui.mount(PANE(columns, surface))
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i]!
+        if (step.band) continue
+        state = step.state
+        // Fixture state is a local closure, not reactive $.state: each scene needs a fresh render instance.
+        const ui = await $.ui.mount({ ...PANE(columns, surface), requestId: 'gate-probe' })
         const where = `${i + 1} ${step.title} @${columns} ${surface}`
         const tree = await ui.drawn()
         const text = textOf(tree)
-        if (!text.includes(`Demo ${i + 1}/${steps.length} · ${step.title}`)) failures.push(`${where}: not the step the demo shows`)
         gate(tree, columns, surface, where, failures)
         if (!/\S/.test(hintOf(tree))) failures.push(`${where}: no hint row`)
         const guided = GUIDED.find(([title]) => title === step.title)
         if (guided && !guided[1].test(text)) failures.push(`${where}: an empty state without its guidance`)
-        await ui.press({ key: 'demo-next' })
-        await ui.redraw()
+        await ui.unmount()
       }
-      await ui.unmount()
     }
   }
   expect(failures).toEqual([])
 })
 
-test('every band moment of the demo draws as the band itself: four rows at most (fewer in a shorter window), buttons on digits, 1 the primary', { timeoutMs: 300_000 }, async ($, on) => {
-  let state = demoSteps(NOW)[0]!.state
+test('every real band moment fits four rows (fewer in a shorter window), with digit controls and primary on 1', { timeoutMs: 300_000 }, async ($, on) => {
+  let state = uiScenes(NOW)[0]!.state
   const actions = new Proxy({}, { get: () => () => Promise.resolve() }) as never
   // beneath the plugin (whose own band is empty before a session starts), as register.tsx's BAND slot draws it
   on('ui.render', { component: 'AbovePrompt' }, async ($, e) => band({
@@ -98,7 +98,7 @@ test('every band moment of the demo draws as the band itself: four rows at most 
     actions, isWorking: true, state,
   }) ?? { type: 'Text', props: {}, children: ['engine band'] })
   const failures: string[] = []
-  for (const step of demoSteps(NOW).filter(s => s.band)) {
+  for (const step of uiScenes(NOW).filter(s => s.band)) {
     state = step.state
     for (const surface of SURFACES) {
       for (const columns of WIDTHS) {
@@ -108,6 +108,8 @@ test('every band moment of the demo draws as the band itself: four rows at most 
         await ui.unmount()
         if (textOf(tree) === 'engine band') {
           if (!/resting/.test(step.title)) failures.push(`${where}: the band is hidden`)
+          const guided = GUIDED.find(([title]) => title === step.title)
+          if (guided && !guided[1].test(statusLine(state) ?? '')) failures.push(`${where}: no resting guidance in the status line`)
           continue
         }
         gate(tree, columns, surface, where, failures)

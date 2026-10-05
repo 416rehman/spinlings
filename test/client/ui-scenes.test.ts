@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { it } from 'node:test'
-import { demoSteps } from '../../plugin/hooks/client/demo.ts'
+import { uiScenes } from '../plugin/ui-scenes.ts'
 import { revealSummary } from '../../plugin/hooks/client/viewmodels.ts'
 
 const NOW = Date.UTC(2026, 9, 2, 12)
 
-it('pack demo states contain one card and stop at their actual reveal count', () => {
-  const scenes = demoSteps(NOW).filter(s => s.title.startsWith('Pack ·'))
+it('pack UI fixtures contain one card and stop at their actual reveal count', () => {
+  const scenes = uiScenes(NOW).filter(s => s.title.startsWith('Pack ·'))
   assert.equal(scenes.length, 4)
   for (const scene of scenes) {
     const r = scene.state.reveal!
@@ -27,7 +27,7 @@ it('pack demo states contain one card and stop at their actual reveal count', ()
 })
 
 it('collection, fusion and market examples keep valid cards outside the shortened pack', () => {
-  const scenes = demoSteps(NOW)
+  const scenes = uiScenes(NOW)
   const summary = scenes.find(s => s.title === 'Pack · the summary')!
   const packIds = new Set(summary.state.reveal!.cards.map(c => c.id))
   for (const title of ['Album · a species, craft and wishlist', 'Market · a swap: pick the card you give', 'Sell · sparks and a card from the wishlist', 'Sell · a card only']) {

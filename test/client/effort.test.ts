@@ -7,7 +7,7 @@ import type { Effort } from '../../plugin/hooks/client/effort.ts'
 import { createLocalBackend } from '../../plugin/hooks/client/local/index.ts'
 import { playBattle } from '../../plugin/hooks/client/scheduler.ts'
 import type { Fx, GameState, HttpInit } from '../../plugin/hooks/client/types.ts'
-import { NOW, ORIGIN, TOKEN, fakeServer } from '../../plugin/tests/fixtures.ts'
+import { NOW, ORIGIN, TOKEN, fakeServer } from '../plugin/fixtures.ts'
 
 type Timer = { at: number; seq: number; fn: () => void; active: boolean }
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise<void>(done => setImmediate(done)) }

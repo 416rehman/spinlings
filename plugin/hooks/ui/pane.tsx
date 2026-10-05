@@ -1,15 +1,12 @@
 // The /spin pane (SPEC 9, 13, 14, 21, 25, 28, 30, 33): the same frame on every screen (header, body, hint row), the
 // four tabs, the views pushed over them (card, fuse, species, profile, gift, privacy, devices), the reveal ceremonies,
-// the daily hello and /spin demo. Registered in register.tsx's PANE slot; draws only from the state it is handed.
+// and the daily hello. Registered in register.tsx's PANE slot; draws only from the state it is handed.
 import type { RenderElement } from 'claude-code'
 import type { GameState, PaneView } from '../client/types.ts'
-import { drawnLayout, noteLayout } from '../client/battleview.ts'
-import { INERT, demoStep } from '../client/demo.ts'
-import { hasFeature, statusLine } from '../client/game.ts'
+import { hasFeature } from '../client/game.ts'
 import { catalogOf } from '../client/frozen.ts'
-import { fit, safe } from '../client/text.ts'
-import { band } from './band.tsx'
-import { hello, screenOf, withTop } from '../client/viewmodels.ts'
+import { safe } from '../client/text.ts'
+import { hello, screenOf } from '../client/viewmodels.ts'
 import { ceremonyScreen } from './ceremony.tsx'
 import { privacyScreen, devicesScreen } from './pane-account.tsx'
 import { worldScreen } from './pane-world.tsx'
@@ -34,12 +31,12 @@ function startsHere(s: GameState): boolean {
   return !playable(s) && top !== 'privacy' && top !== 'devices' && top !== 'world'
 }
 
-function ctxOf(env: Env, inDemo = false): Ctx {
+function ctxOf(env: Env): Ctx {
   const s = env.state
   return {
     el: env.el, surface: env.surface, columns: Math.max(20, Math.floor(env.columns)), rows: env.rows, now: env.now || s.clock,
     actions: env.actions, state: s, root: screenOf(s.pane).kind === 'tab' && !startsHere(s), offline: s.account.world === 'offline',
-    motion: s.prefs.motion, versionKey: !inDemo, hitAreas: !!env.hitAreas && !inDemo,
+    motion: s.prefs.motion, hitAreas: !!env.hitAreas,
     hitIntent: JSON.stringify([s.account.world, s.account.server, s.pane.tab, s.pane.community, s.pane.stack]),
   }
 }
@@ -145,60 +142,18 @@ function route(c: Ctx): Shown {
     case 'mine': return communityScreen(c, { section: 'profile' })
     case 'help': return helpScreen(c)
     case 'today': return todayScreen(c)
-    case 'demo': return tabScreen({ ...c, root: true })
     case 'boards': return c.offline ? onlineOnly(c) : communityScreen(c, { section: 'boards', boards: top })
     case 'listing': return c.offline ? onlineOnly(c) : listingScreen(c, top)
     case 'sell': return c.offline ? onlineOnly(c) : sellScreen(c, top)
   }
+  return tabScreen({ ...c, root: true })
 }
 
-/** One screen of the pane, framed: what the demo draws for each of its states too (`inDemo`: u is the demo's own). */
-export function draw(env: Env, inDemo = false): RenderElement {
-  const c = ctxOf(env, inDemo)
+/** One screen of the pane, framed. */
+export function draw(env: Env): RenderElement {
+  const c = ctxOf(env)
   return frame(c, route(c))
 }
 
-/**
- * A band moment as the demo shows it: the band itself at the pane's width, then the status line that goes with it.
- * The band notes the layout it was drawn at for the battle driver's blits, so the real band's note is put back.
- */
-function bandDemo(c: Ctx, env: Env, state: GameState): RenderElement {
-  const { Box, Text } = c.el
-  const held = drawnLayout()
-  const tree = band({ ...env, columns: c.columns, rows: 4, now: state.clock, actions: INERT, isWorking: state.signals.working, state })
-  noteLayout(held.columns, held.surface)
-  const status = statusLine(state)
-  return (
-    <Box flexDirection="column" width={c.columns} rowGap={SPACE.tight}>
-      {line(c, 'Above the prompt', { dim: true })}
-      {tree ?? para(c, 'Nothing is live, so the band stays hidden.', { dim: true })}
-      {para(c, status ? `Status line · ${status}` : 'Status line · empty', { dim: true })}
-      <Text dimColor wrap="truncate-end">{fit('v Next · u Previous · esc Close', c.columns)}</Text>
-    </Box>
-  )
-}
-
-/** `/spin demo`: every state, one at a time, over inert actions (SPEC 21 quality gate). */
-function demo(env: Env, step: number): RenderElement {
-  const c = ctxOf(env)
-  const d = demoStep(step, c.now)
-  const go = (by: number) => env.actions.pane(p => withTop(p, v => (v.kind === 'demo' ? { ...v, step: (d.index + by + d.count) % d.count } : v)))
-  const { Box, Text } = c.el
-  return (
-    <Box flexDirection="column" width={c.columns} rowGap={SPACE.tight}>
-      <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
-        <Text color={INK.accent} wrap="truncate-end">{`Demo ${d.index + 1}/${d.count} · ${d.title}`}</Text>
-        {btn(c, { key: 'demo-next', label: 'Next', hotkey: 'v', on: () => go(1) })}
-        {btn(c, { key: 'demo-prev', label: 'Previous', hotkey: 'u', on: () => go(-1) })}
-      </Box>
-      {d.band ? bandDemo(c, env, d.state) : draw({ ...env, state: d.state, actions: INERT }, true)}
-    </Box>
-  )
-}
-
 /** The pane (register.tsx's PANE slot). */
-export const pane: PaneView = env => {
-  const top = env.state.pane.stack[env.state.pane.stack.length - 1]
-  if (top?.kind === 'demo') return demo(env, top.step)
-  return draw(env)
-}
+export const pane: PaneView = draw

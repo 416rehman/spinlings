@@ -1,6 +1,6 @@
 // A shot is one state of the game held for a while; a scene is that shot drawn in the Code tab: the band above the
 // prompt, or the pane docked there, each from the mod's own view functions. A recording lays shots end to end.
-import { INERT } from '../../plugin/hooks/client/demo.ts'
+import { INERT } from '../../test/plugin/ui-scenes.ts'
 import { spinnerSuffix, statusLine } from '../../plugin/hooks/client/game.ts'
 import type { GameState } from '../../plugin/hooks/client/types.ts'
 import type { Scene } from './clock.ts'

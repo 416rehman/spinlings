@@ -4,11 +4,11 @@
 // from the offline save: no card id, no DNA, no name, no count. Every body is one the strict request schemas accept.
 // Naming a community server asks it nothing: confirming Connect explicitly enters its online world.
 import { expect, mock, test } from 'claude-code/testing'
-import type { ApiOp } from '../hooks/core/api.ts'
-import { API_ROUTES } from '../hooks/core/api.ts'
-import { cardName } from '../hooks/core/cards.ts'
-import { parseRequest } from '../hooks/core/schemas.ts'
-import { openSave } from '../hooks/client/local/save.ts'
+import type { ApiOp } from '../../plugin/hooks/core/api.ts'
+import { API_ROUTES } from '../../plugin/hooks/core/api.ts'
+import { cardName } from '../../plugin/hooks/core/cards.ts'
+import { parseRequest } from '../../plugin/hooks/core/schemas.ts'
+import { openSave } from '../../plugin/hooks/client/local/save.ts'
 import { NOW, ORIGIN } from './fixtures.ts'
 import { BAND, RUN, SESSION, engine, settle } from './engine.ts'
 import type { Engine, Request } from './engine.ts'

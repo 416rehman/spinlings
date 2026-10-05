@@ -5,18 +5,18 @@
 // read-only and offline. Then every pane screen keeps its way out (`esc …`) whole, and u for the chip alone.
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import type { VersionResponse } from '../hooks/core/api.ts'
-import { RULES_VERSION } from '../hooks/core/battle.ts'
-import { GENERATOR_VERSION } from '../hooks/core/species.ts'
-import { utcDay } from '../hooks/core/world.ts'
-import { demoSteps } from '../hooks/client/demo.ts'
-import { INITIAL, newerMod, statusLine, versionReport } from '../hooks/client/game.ts'
-import { CLIENT_VERSION, UPDATE_COMMAND, versionStatus } from '../hooks/client/remote.ts'
-import { KEYS } from '../hooks/client/store.ts'
-import type { El, GameState } from '../hooks/client/types.ts'
-import { pane } from '../hooks/ui/pane.tsx'
-import { CHIP_HIDE, fitHints } from '../hooks/ui/pane-kit.tsx'
-import { INK } from '../hooks/ui/tokens.ts'
+import type { VersionResponse } from '../../plugin/hooks/core/api.ts'
+import { RULES_VERSION } from '../../plugin/hooks/core/battle.ts'
+import { GENERATOR_VERSION } from '../../plugin/hooks/core/species.ts'
+import { utcDay } from '../../plugin/hooks/core/world.ts'
+import { uiScenes } from './ui-scenes.ts'
+import { INITIAL, newerMod, statusLine, versionReport } from '../../plugin/hooks/client/game.ts'
+import { CLIENT_VERSION, UPDATE_COMMAND, versionStatus } from '../../plugin/hooks/client/remote.ts'
+import { KEYS } from '../../plugin/hooks/client/store.ts'
+import type { El, GameState } from '../../plugin/hooks/client/types.ts'
+import { pane } from '../../plugin/hooks/ui/pane.tsx'
+import { CHIP_HIDE, fitHints } from '../../plugin/hooks/ui/pane-kit.tsx'
+import { INK } from '../../plugin/hooks/ui/tokens.ts'
 import { NEXT, NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
 import { PANE, RUN, SESSION, engine, measure, settle, textOf, walk } from './engine.ts'
 import type { Engine, Node } from './engine.ts'
@@ -401,7 +401,7 @@ test('on every pane screen at 40, 80 and 120, current, with an update and with i
     await ui.unmount()
     return tree
   }
-  const steps = demoSteps(NOW).filter(s => !s.band)
+  const steps = uiScenes(NOW).filter(s => !s.band)
   expect(steps.length).toBeGreaterThan(40)
   const failures: string[] = []
   for (const step of steps) {

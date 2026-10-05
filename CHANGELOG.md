@@ -4,6 +4,7 @@ One entry per release (SPEC 32), newest first. Each says what changed in plain w
 
 ## 0.2.11 (2026-10-05)
 
+- **Keep QA out of the installed game.** Remove `/spin demo` and its preview screens, scene data and special controls. SDK tests and visual fixtures stay in the repository and run against an unchanged staged copy of the plugin; players install only the game and its assets.
 - **Directory source review.** State calls use the directory's plain capability syntax, retaining the same defaults and atomic update retries. Local height variables avoid reserved JSX names, and the card pointer component keeps its fixed bundled module path. A square original-creature icon, data-handling explanation and source review notes accompany the plugin.
 - **Compatibility and privacy.** Game behavior, card selection geometry, website appearance, API v1, rules 1, generator 2, offline format 1 and minimum client 0.1.0 remain unchanged. No new runtime dependency, migration, request field, stored game field or public player field. Existing release fixtures, engines and generators remain immutable.
 

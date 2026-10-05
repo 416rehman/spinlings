@@ -1,16 +1,16 @@
 // A retained ceremony callback and a delayed backup nudge belong to the reveal that created them.
 import { expect, test } from 'claude-code/testing'
-import type { ApiOp } from '../hooks/core/api.ts'
-import { GENERATOR_VERSION, seasonSpecies } from '../hooks/core/species.ts'
-import { createGame } from '../hooks/client/game.ts'
-import { demoSteps } from '../hooks/client/demo.ts'
-import { KEYS } from '../hooks/client/store.ts'
-import type { Backend, El, Fx } from '../hooks/client/types.ts'
-import { pane } from '../hooks/ui/pane.tsx'
+import type { ApiOp } from '../../plugin/hooks/core/api.ts'
+import { GENERATOR_VERSION, seasonSpecies } from '../../plugin/hooks/core/species.ts'
+import { createGame } from '../../plugin/hooks/client/game.ts'
+import { uiScenes } from './ui-scenes.ts'
+import { KEYS } from '../../plugin/hooks/client/store.ts'
+import type { Backend, El, Fx } from '../../plugin/hooks/client/types.ts'
+import { pane } from '../../plugin/hooks/ui/pane.tsx'
 import { NOW, ORIGIN } from './fixtures.ts'
 
 function subject() {
-  const state = structuredClone(demoSteps(NOW).find(s => s.title === 'Pack · a legendary foil revealed')!.state)
+  const state = structuredClone(uiScenes(NOW).find(s => s.title === 'Pack · a legendary foil revealed')!.state)
   state.account = { ...state.account, backedUp: false, devices: { sessions: 1, passkeys: 0 } }
   state.reveal = { ...state.reveal!, id: 'original', kind: 'craft' }
   const me = structuredClone(state.me!)

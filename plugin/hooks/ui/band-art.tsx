@@ -58,8 +58,8 @@ const rarityHex = (c: Pick<BattleCard, 'species' | 'rarity'>) => (c.species === 
 export type HudSize = { k: number; pad: number; info: number; font: number }
 export const HUD = { wide: { k: 3, pad: 6, info: 112, font: 11 }, narrow: { k: 2, pad: 6, info: 84, font: 10 } } as const
 
-export function hudSize(s: HudSize): { w: number; h: number } {
-  return { w: s.pad * 3 + 16 * s.k + s.info, h: 16 * s.k + s.pad * 2 }
+export function hudSize(s: HudSize): { w: number; height: number } {
+  return { w: s.pad * 3 + 16 * s.k + s.info, height: 16 * s.k + s.pad * 2 }
 }
 
 const barWidth = (s: HudSize) => Math.round(s.info * 0.62)
@@ -69,7 +69,7 @@ const barWidth = (s: HudSize) => Math.round(s.info * 0.62)
  * and the special's charge, with the round's beats played by SMIL. `start` resumes the round that far in.
  */
 export function hudSvg(f: Fighter | null, plan: RoundPlan | null, side: Side, s: HudSize, o: { start?: number; motion: boolean; effort?: unknown }): string {
-  const { w, h: height } = hudSize(s)
+  const { w, height } = hudSize(s)
   if (!f) return doc(w, height, plate(w, height, '#3a3646'))
   const start = o.start ?? 0
   const mirror = side === 'd'

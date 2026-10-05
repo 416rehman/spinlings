@@ -1,9 +1,9 @@
 // Canonical world choices, visible community consent, separate saves and cancelled asynchronous choices.
 import { expect, mock, test } from 'claude-code/testing'
-import { INITIAL, createGame } from '../hooks/client/game.ts'
-import { createLocalBackend } from '../hooks/client/local/index.ts'
-import type { Actions, El, Fx, GameState } from '../hooks/client/types.ts'
-import { band as drawBand } from '../hooks/ui/band.tsx'
+import { INITIAL, createGame } from '../../plugin/hooks/client/game.ts'
+import { createLocalBackend } from '../../plugin/hooks/client/local/index.ts'
+import type { Actions, El, Fx, GameState } from '../../plugin/hooks/client/types.ts'
+import { band as drawBand } from '../../plugin/hooks/ui/band.tsx'
 import { NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
 import { PANE, BAND, RUN, SESSION, engine, settle, textOf, measure } from './engine.ts'
 

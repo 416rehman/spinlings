@@ -73,6 +73,8 @@ Done once by hand, never from CI:
 
    Every required check must pass before each commit, including the later marketplace commit, with no failures or skips. Keep the strict validator output for the release note and strip local paths. `npm run e2e` plays two players through every flow over real HTTP; `npm run e2e -- --d1` does the same on a local D1. Run the plugin SDK suite by itself if concurrent suites exceed its hook clock budget; a timeout is not a pass.
 
+   The SDK command stages the exact installable plugin with repository-only `test/plugin/*.sdk.ts` suites. It verifies unchanged runtime bytes and requires every suite to execute with zero failures or skips; a bare `claude plugin test plugin` would find no shipped tests and is not a release check.
+
    Inspect the compatibility results, including historical rules and generator hashes, multiple server catalogs, more than eight referenced seasons, future battle labels, below-minimum read access, and season rewards paid exactly once. Released fixtures, frozen engines and frozen generators are immutable. Register a new rules engine before raising `RULES_VERSION`; keep the old engine while its battles may exist. A new generator must preserve saved offline generator versions. Read [compatibility.md](compatibility.md) before adding content.
 
    Check the staged diff for secrets, private smoke records and local artifacts. Verify requirements, install links, release media and public preview metadata. Existing footage must not be passed off as a capture of new screens.

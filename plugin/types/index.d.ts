@@ -1,6 +1,6 @@
 // The $.state contract of the Spinlings mod: every value the band, the pane and the status line read.
 // A contract is self-contained (types only, no imports), so the wire and domain shapes are restated from
-// hooks/core/types.ts and hooks/core/api.ts under a `Spin` prefix; tests/arch.test.ts holds each restatement
+// hooks/core/types.ts and hooks/core/api.ts under a `Spin` prefix; the repository SDK suite holds each restatement
 // equal to its original, so the copies cannot drift. client/types.ts re-exports these under plain names.
 // Every value written here came through core/schemas.ts (online) or the offline save's own checks.
 
@@ -439,7 +439,6 @@ export type SpinView =
   | { kind: 'mine' }
   | { kind: 'help' }
   | { kind: 'today' }
-  | { kind: 'demo'; step: number }
   /** the leaderboards: one board at a time, all time or this season */
   | { kind: 'boards'; board: SpinBoardName; period: SpinBoardPeriod }
   /** one listing: what you give and what you get, then Buy; `cardId` the card of yours picked for a listing that wants one */

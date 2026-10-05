@@ -1,16 +1,16 @@
 // A small in-memory Spinlings server for the mod's tests: it answers the routes a first session uses, from real core
 // rules, so every answer passes the same tolerant schemas a real server's would. Not a test file itself.
-import type { ListingView, MarketWant, MeResponse, StartBattleResponse } from '../hooks/core/api.ts'
-import { FEATURES } from '../hooks/core/api.ts'
-import type { Card, Family, NewCard } from '../hooks/core/types.ts'
-import { RULES_VERSION, simulateBattle } from '../hooks/core/battle.ts'
-import { starterTeam, toBattleCard } from '../hooks/core/cards.ts'
-import { generateMythic } from '../hooks/core/mythics.ts'
-import { rollPack } from '../hooks/core/packs.ts'
-import { rngFromSeed } from '../hooks/core/rng.ts'
-import { GENERATOR_VERSION } from '../hooks/core/species.ts'
-import { seasonOf, utcDay } from '../hooks/core/world.ts'
-import { CLIENT_VERSION } from '../hooks/client/remote.ts'
+import type { ListingView, MarketWant, MeResponse, StartBattleResponse } from '../../plugin/hooks/core/api.ts'
+import { FEATURES } from '../../plugin/hooks/core/api.ts'
+import type { Card, Family, NewCard } from '../../plugin/hooks/core/types.ts'
+import { RULES_VERSION, simulateBattle } from '../../plugin/hooks/core/battle.ts'
+import { starterTeam, toBattleCard } from '../../plugin/hooks/core/cards.ts'
+import { generateMythic } from '../../plugin/hooks/core/mythics.ts'
+import { rollPack } from '../../plugin/hooks/core/packs.ts'
+import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
+import { GENERATOR_VERSION } from '../../plugin/hooks/core/species.ts'
+import { seasonOf, utcDay } from '../../plugin/hooks/core/world.ts'
+import { CLIENT_VERSION } from '../../plugin/hooks/client/remote.ts'
 
 export const NOW = Date.UTC(2026, 9, 2, 12, 0, 0)
 export const ORIGIN = 'https://spinlings.dev'

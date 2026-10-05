@@ -7,9 +7,9 @@
 import { expect, mock, test } from 'claude-code/testing'
 import { NOW, ORIGIN, fakeServer } from './fixtures.ts'
 import { BAND, PANE, RUN, SESSION, cardArt, engine, settle, textOf, walk } from './engine.ts'
-import { nameOf, pairMarketNotices, soldPrice } from '../hooks/client/game.ts'
-import { toBattleCard } from '../hooks/core/cards.ts'
-import type { ListingView, Notice } from '../hooks/core/api.ts'
+import { nameOf, pairMarketNotices, soldPrice } from '../../plugin/hooks/client/game.ts'
+import { toBattleCard } from '../../plugin/hooks/core/cards.ts'
+import type { ListingView, Notice } from '../../plugin/hooks/core/api.ts'
 import type { Engine } from './engine.ts'
 import type { TestBody } from 'claude-code/testing'
 
