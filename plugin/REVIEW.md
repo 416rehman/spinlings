@@ -8,6 +8,8 @@ The mod's state atoms hold game views; its plugin store holds settings, independ
 
 Audio plays the four bundled WAV chimes only when the player enables sound. SVG strings use the standard W3C namespace as an identifier; it is not a network destination. Creature parts include a curled tail, and frozen naming modules contain word lists. Those pure data modules do not run shell commands, access credentials or download code. The strict schema parser inspects game response fields and supplies compatibility defaults; it does not evaluate code.
 
+The manifest's `types` field declares the mod's state contract, as specified in Claude Code's [manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference) and [state declaration guide](https://code.claude.com/docs/en/plugins/mods/interface#point-the-manifest-at-the-declaration). The strict CLI validates the declared keys. The schema parser uses `Object.getPrototypeOf` only to reject non-plain response objects; accepting custom prototypes would weaken that validation. These supported constructs may still be named by the directory's conservative checks.
+
 ## Network
 
 Online game requests use the fixed default origin `https://spinlings.dev`, or an origin explicitly selected and approved through the world chooser. Secure origins are required except loopback development servers. The game API is documented in the repository's privacy policy and specification. Sessions and catalogs stay separate for each origin. Automatic background requests run on game clock callbacks; session and turn hooks do not wait for network calls. Explicit game commands and controls can wait for their requested API operation. Offline saves never enter online requests.

@@ -288,15 +288,15 @@ export function statusLine(s: Pick<GameState, 'account' | 'me' | 'battle' | 'pre
 }
 
 function statusText(s: Pick<GameState, 'account' | 'me' | 'battle' | 'signals'>): string {
-  if (s.signals.restingUntil !== null) return `spinlings · ${comfortLine(s.signals.restingUntil)}`
+  if (s.signals.restingUntil !== null) return comfortLine(s.signals.restingUntil)
   if (s.battle) {
     const lead = s.battle.setup.defender[0] ?? null
-    return `spinlings · ${s.battle.opponent.kind === 'wild' ? opponentLabel(s.battle.opponent, lead) : 'vs ' + opponentLabel(s.battle.opponent, lead)}`
+    return s.battle.opponent.kind === 'wild' ? opponentLabel(s.battle.opponent, lead) : 'vs ' + opponentLabel(s.battle.opponent, lead)
   }
   const world = s.account.world === 'online' ? 'Online' : 'Offline'
   // a signed-out machine's cached packs are not its to open
   const packs = s.account.link === 'signed-out' ? 0 : s.me?.packs.length ?? 0
-  return dots('spinlings', world, packs > 0 && plural(packs, 'pack'))
+  return dots(world, packs > 0 && plural(packs, 'pack'))
 }
 
 /** The spinner's suffix during a battle (SPEC 10): only the phase mode is read, never the spinner's words. */
@@ -412,6 +412,8 @@ export type Game = {
   /** ui.close for the pane: true keeps it open (esc went back one view) */
   paneClosing(fx: Fx, byPerson: boolean): Promise<boolean>
   actions(fx: Fx): Actions
+  /** A supported prompt launcher replaces the host's plain-text status row for this module load. */
+  launcherDrawn(fx: Fx): void
   /** the band and pane instances last drawn, for blit */
   site(kind: 'band' | 'pane', requestId: string): void
   sites(): { band: string | null; pane: string | null }
@@ -456,6 +458,7 @@ export function createGame(o: GameOptions): Game {
     /** when the Market section's listings were last read in this load of the module (0: never) */
     marketAt: 0,
     status: null as string | undefined | null,
+    launcher: false,
     /** server clock minus local clock, from the last me() */
     skew: 0,
     lastRefresh: 0,
@@ -531,7 +534,7 @@ export function createGame(o: GameOptions): Game {
     const [account, me, battle, prefs, signals] = await Promise.all([
       get(fx, 'account'), get(fx, 'me'), get(fx, 'battle'), get(fx, 'prefs'), get(fx, 'signals'),
     ])
-    const text = statusLine({ account, me, battle, prefs, signals })
+    const text = rt.launcher ? undefined : statusLine({ account, me, battle, prefs, signals })
     if (text !== rt.status) {
       rt.status = text
       fx.ui.status(text)
@@ -2777,6 +2780,10 @@ export function createGame(o: GameOptions): Game {
     boot, reseed, end, turnStarted, turnStep, turnCompleted, agentStarted, agentFinished, measured, compacted,
     heartbeat: fx => { enter(fx); return heartbeat(fx) },
     command, paneClosing, actions,
+    launcherDrawn: fx => {
+      rt.launcher = true
+      if (rt.status !== undefined) { rt.status = undefined; fx.ui.status(undefined) }
+    },
     site: (kind, requestId) => { rt.sites[kind] = requestId },
     sites: () => ({ ...rt.sites }),
   }

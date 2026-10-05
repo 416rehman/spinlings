@@ -137,16 +137,16 @@ test('a pre-release is never offered: its tag is a server\'s free text, and the 
 
 test('the status line gains ` · update {latest}` only when an update exists, online, and stays empty while quiet', () => {
   const online = { ...INITIAL, account: { ...INITIAL.account, link: 'ready' as const } }
-  expect(statusLine(online)).toBe('spinlings · Online')
+  expect(statusLine(online)).toBe('Online')
   const update = { ...online, account: { ...online.account, latest: NEWER } }
-  expect(statusLine(update)).toBe(`spinlings · Online · update ${NEWER}`)
-  expect(statusLine({ ...update, signals: { ...update.signals, restingUntil: NOW + 60_000 } })).toMatch(new RegExp(`^spinlings · .+ · update ${NEWER.replaceAll('.', '\\.')}$`))
+  expect(statusLine(update)).toBe(`Online · update ${NEWER}`)
+  expect(statusLine({ ...update, signals: { ...update.signals, restingUntil: NOW + 60_000 } })).toMatch(new RegExp(`^.+ · update ${NEWER.replaceAll('.', '\\.')}$`))
   expect(statusLine({ ...update, prefs: { ...update.prefs, quiet: true } })).toBeUndefined()
   // the offline world never shows what a server said
-  expect(statusLine({ ...update, account: { ...update.account, world: 'offline' } })).toBe('spinlings · Offline')
+  expect(statusLine({ ...update, account: { ...update.account, world: 'offline' } })).toBe('Offline')
   // a $.state value from before the field existed
   const old = { ...online, account: { ...online.account, latest: undefined as unknown as null } }
-  expect(statusLine(old)).toBe('spinlings · Online')
+  expect(statusLine(old)).toBe('Online')
   expect(newerMod(old.account)).toBeNull()
 })
 
@@ -189,7 +189,7 @@ test('hints fit whole: the way out always stays, the middle gives way from the e
 
 test('current: a dim version at the hint row\'s right end where the hints leave room, the way out always whole', LONG, async ($, on) => {
   const { clock, w } = await started($, on)
-  expect(w.status.at(-1)).toBe('spinlings · Online · 2 packs')
+  expect(w.status.at(-1)).toBe('Online · 2 packs')
   for (const surface of SURFACES) {
     for (const columns of WIDTHS) {
       const where = `current @${columns} ${surface}`
@@ -216,7 +216,7 @@ test('current: a dim version at the hint row\'s right end where the hints leave 
 
 test('update available: the chip is a verb with the version, u shows the command, u copies it, esc or the chip hides it', LONG, async ($, on) => {
   const { clock, w } = await started($, on, fakeServer({ latestClient: NEWER }))
-  expect(w.status.at(-1)).toBe(`spinlings · Online · 2 packs · update ${NEWER}`)
+  expect(w.status.at(-1)).toBe(`Online · 2 packs · update ${NEWER}`)
   for (const surface of SURFACES) {
     for (const columns of WIDTHS) {
       const where = `update @${columns} ${surface}`
@@ -294,7 +294,7 @@ test('read-only below minClient: the warning above, the chip to the version the 
   w.store.set(`server:${ORIGIN}:session`, TOKEN)
   await $.session.start(SESSION)
   await settle(clock)
-  expect(w.status.at(-1)).toBe(`spinlings · Online · 2 packs · update ${NEWER}`)
+  expect(w.status.at(-1)).toBe(`Online · 2 packs · update ${NEWER}`)
   for (const surface of SURFACES) {
     for (const columns of WIDTHS) {
       const where = `read-only @${columns} ${surface}`
@@ -321,7 +321,7 @@ test('read-only below minClient: the warning above, the chip to the version the 
 
 test('offline: the plain version where there is room, no update, and /spin version names no server and sends nothing', LONG, async ($, on) => {
   const { clock, w } = await started($, on, fakeServer({ latestClient: NEWER }), { world: 'offline' })
-  expect(w.status.at(-1)).toBe('spinlings · Offline · 2 packs')
+  expect(w.status.at(-1)).toBe('Offline · 2 packs')
   for (const surface of SURFACES) {
     for (const columns of WIDTHS) {
       const where = `offline @${columns} ${surface}`
@@ -345,13 +345,13 @@ test('switching worlds: the update shows online only, and comes back from the da
   const { clock, w } = await started($, on, fakeServer({ latestClient: NEWER }))
   await $.command.run(RUN('world offline'))
   await settle(clock)
-  expect(w.status.at(-1)).toBe('spinlings · Offline · 2 packs')
+  expect(w.status.at(-1)).toBe('Offline · 2 packs')
   let ui = await $.ui.mount(PANE(80))
   expect(await ui.find({ key: 'version' })).toBeUndefined()
   await ui.unmount()
   await $.command.run(RUN('world online'))
   await settle(clock)
-  expect(w.status.at(-1)).toBe(`spinlings · Online · 2 packs · update ${NEWER}`)
+  expect(w.status.at(-1)).toBe(`Online · 2 packs · update ${NEWER}`)
   ui = await $.ui.mount(PANE(80))
   expect((await ui.find({ key: 'version' }))?.props.label).toBe(CHIP_FULL)
   await ui.unmount()

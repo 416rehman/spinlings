@@ -373,12 +373,13 @@ Everything here works while the other player is away. **No account limits:** any
 
 ## 9. Surfaces
 
-### Status line
-- Empty by default.
-- `spinlings · 2 packs` when packs are waiting.
-- `spinlings · vs soft-otter-42` during a duel, and `spinlings · wild Fogmaw` during a wild encounter.
-- Appends ` · update 0.2.0` when the server names a newer release (SPEC 32).
-- Never shows a sparks count.
+### Prompt launcher and status
+- In the supported `PromptHint` site below the composer, a native `Spinlings` button opens the existing pane. Waiting packs add a dot and explicit count (`Spinlings ▪ 2 packs`); the button never opens or consumes a pack itself.
+- Compose Claude's own hint from `next(e)` without reading its text. Take no composer hotkey or focus. Wrap the row at narrow widths.
+- Online is implicit. Offline/community, connection states, battle opponents, resting guidance and available updates keep concise words beside the button. Starting, joining and signed-out accounts never advertise cached packs.
+- Quiet returns Claude's own hint unchanged. Once the host draws this launcher, clear the separate passive status row for the module's life.
+- A host that never draws `PromptHint` keeps the plain-text fallback: `Online · 2 packs`, `Offline`, `vs soft-otter-42`, or `wild Fogmaw`, plus resting and update guidance. Do not repeat the plugin name Claude supplies.
+- Never show sparks in either place.
 
 ### Band (above the prompt; hidden by default)
 
@@ -458,8 +459,9 @@ Pushed over the tabs and sections: card, fuse, species, listing and sell details
 | Claude working | `turn.start` and `turn.complete` (main thread, where `agentId` is undefined) | Waiting battles |
 | Turn ending | `turn.complete` `reason` | A one-line reaction only (e.g. the creature flinches on Esc) |
 | Spinner phase | `ui.render` Spinner `e.props.mode` | Spinner suffix during a battle |
+| Prompt hint render site | `ui.render`, filtered to `PromptHint`; only `e.surface` is read, never its hint or draft text | A native launcher composed beside Claude's unread `next(e)` drawing, using only the game's own state |
 | Subagents | `agent.spawn` (count only) | Cheering line in the band (cosmetic) |
-| Context fill, rate limits | `session.measure` | Status line comfort note only ("your team is napping until 3:40 PM" at a 100% limit) |
+| Context fill, rate limits | `session.measure` | Launcher or fallback status comfort note only ("your team is napping until 3:40 PM" at a 100% limit) |
 | Compaction | `session.compact` `trigger` | A one-line reaction only |
 | Session open | `session.start`, `session.end`, a `$.clock.every(60s)` heartbeat with a `$.store` lease | Presence minutes for pack charging |
 | Desktop card or world-control selection | `ui.message`, filtered to the Spinlings Pane and its card-hit module; `e.element` and `e.data` only (`null`) | Dispatch the registered card action or open the world chooser for a key in the currently rendered pane; reject other payloads, unknown keys and terminal messages. Pointer coordinates stay in the renderer, never saved or sent. |
@@ -842,7 +844,7 @@ Every row a player can change has a `version` column. One-shot actions (open a p
 | Duels (`/spin battle`, revenge) | No; the same duel spacing applies |
 
 ### Limits
-- When a rate-limit window reaches 100%, the status line reads `Claude is resting until {time} · your team is napping too`.
+- When a rate-limit window reaches 100%, the launcher hint or fallback status reads `Claude is resting until {time} · your team is napping too`.
 - There is no reward and no penalty for hitting a limit.
 
 ### Rested bonus
@@ -1248,7 +1250,7 @@ Section 30 removed link codes and recovery codes; a passkey is the only way to b
 - **First run** asks nothing: the world is online (section 34). Either way the welcome flow (section 6) starts in that world.
 - **`/spin world`** opens an interactive chooser for the default online world, the offline save or a community URL. Opening the chooser does not change worlds or contact a proposed community server.
 - **`/spin world online`** returns to the online world on `https://spinlings.dev`, even from a community server. **`/spin world offline`** returns to the local save. **`/spin world <url>`** selects a community server under section 33's confirmation rules. Each world keeps its own collection; switching never deletes anything. Visiting an online server for the first time creates its own account with the normal starter team and welcome packs.
-- **Always visible:** the pane header and the status line show the active world (`Offline` / `Online`). The header's world button opens the same chooser.
+- **World control:** the pane header shows the active world (`Offline` / `Online`) and opens the same chooser. Online is implicit beside the prompt launcher; Offline and community hosts retain labels. Hosts without the launcher keep the world in their fallback status (section 9).
 - **Online-only actions in offline mode** show one line instead: `This needs the online world · [1] Join online (fresh collection) · esc Stay offline`.
 
 ### One rulebook, two backends (mod architecture)
@@ -1379,7 +1381,7 @@ Passkeys are bound to `rp.id` forever. The production domain must be final befor
   - shows `Spinlings {latest} is out · claude plugin update spinlings@spinlings` once per new version in the band (dismissible, never repeated);
   - below `minClient`: online actions are read-only with a clear one-line message; the offline world keeps working.
   - Features missing from `features` are hidden, not broken (for self-hosted servers lagging behind).
-  - **Version indicator (never nags):** the pane's footer shows the installed version beside Back or Close and optional Help, wrapping in narrow panes. When the server names a newer release (`latestClient`, or `minClient` when only that is newer; never a pre-release) a chip `Update to 0.2.0` (`Update 0.2.0` under 60 columns) always shows; `u` opens `In a terminal: claude plugin update spinlings@spinlings` and `u` again copies it; while that is open the chip reads `Hide update`, and esc closes the row before the pane. The status line appends ` · update 0.2.0`. `/spin version` logs the mod's version, the world, and the server's host with its server, rules and generator versions, then "Up to date." or the update line. It logs `Asking {host}…` before any request, and when the server is out of reach it reports the last answer at once with its day. Offline it names no server and sends nothing.
+  - **Version indicator (never nags):** the pane's footer shows the installed version beside Back or Close and optional Help, wrapping in narrow panes. When the server names a newer release (`latestClient`, or `minClient` when only that is newer; never a pre-release) a chip `Update to 0.2.0` (`Update 0.2.0` under 60 columns) always shows; `u` opens `In a terminal: claude plugin update spinlings@spinlings` and `u` again copies it; while that is open the chip reads `Hide update`, and esc closes the row before the pane. The launcher adds `update 0.2.0` beside its button; the fallback status appends ` · update 0.2.0`. `/spin version` logs the mod's version, the world, and the server's host with its server, rules and generator versions, then "Up to date." or the update line. It logs `Asking {host}…` before any request, and when the server is out of reach it reports the last answer at once with its day. Offline it names no server and sends nothing.
 
 ### Numbers come from the server
 - **`Card.stats`** (server-computed `Stats`) is sent on every card. `BattleCard.stats` is part of every battle setup. The client displays these and passes them to the simulator, and never recomputes stats for online cards.

@@ -21,6 +21,8 @@ The online world sends pseudonymous game requests to `https://spinlings.dev`: ac
 
 Spinlings reads local session signals to animate the game. It never reads or sends conversations, tool contents, files, repository paths, Claude identity or costs. Passkeys are optional and handled on the selected world's website. [Privacy and retention](https://github.com/416rehman/spinlings/blob/main/PRIVACY.md) describes saved game data, public fields and deletion. [Source review notes](REVIEW.md) explain the bundled mod, local controls, tests and assets.
 
+Game responses pass strict schema checks. `Object.getPrototypeOf` rejects custom-prototype objects before their fields are read; it does not evaluate code. The manifest's supported `types` field declares the mod's state contract for Claude Code's strict validator.
+
 [Play and browse](https://spinlings.dev) · [Game guide](https://github.com/416rehman/spinlings/blob/main/docs/how-to-play.md) · [Privacy](https://github.com/416rehman/spinlings/blob/main/PRIVACY.md) · [Source and screenshots](https://github.com/416rehman/spinlings)
 
 Released under the [MIT license](LICENSE). Created by [416rehman](https://github.com/416rehman).

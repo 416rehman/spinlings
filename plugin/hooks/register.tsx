@@ -16,10 +16,11 @@ import { momentDriver, playBattle } from './client/scheduler.ts'
 import { band } from './ui/band.tsx'
 import { ceremony } from './ui/ceremony.tsx'
 import { pane } from './ui/pane.tsx'
+import { launcher } from './ui/launcher.tsx'
 import { prepareCardHit, clearCardHits } from './ui/card-hit-state.ts'
 
-// The slots: the band (ui/band*.tsx, client/scheduler.ts), the pane and its ceremonies (ui/pane*.tsx, ui/ceremony*.tsx)
-// and the offline world (client/local/**).
+// The slots: the band (ui/band*.tsx, client/scheduler.ts), prompt launcher, pane and its ceremonies
+// (ui/pane*.tsx, ui/ceremony*.tsx), and the offline world (client/local/**).
 const BAND: BandView = band
 const BATTLE_DRIVER: BattleDriver = playBattle
 const MOMENT_DRIVER: MomentDriver = momentDriver
@@ -368,6 +369,14 @@ export const register: Register = on => {
       el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns, rows: e.props.scroll.bodyRows,
       now: state.clock, actions: game.actions(fxOf($, e.surface)), focused: e.props.isFocused, placement: e.props.placement, state, hitAreas: e.surface === 'desktop',
     })
+  })
+
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    const theirs = await next(e)
+    const state = await readBand($)
+    const fx = fxOf($, e.surface)
+    game.launcherDrawn(fx)
+    return launcher({ el: $.ui.resolve(e) as unknown as El, state, theirs, open: () => { void game.actions(fx).open() } })
   })
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {

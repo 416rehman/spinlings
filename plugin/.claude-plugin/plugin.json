@@ -7,8 +7,11 @@
     "name": "416rehman",
     "url": "https://github.com/416rehman"
   },
-  "homepage": "https://github.com/416rehman/spinlings",
+  "homepage": "https://spinlings.dev",
   "repository": "https://github.com/416rehman/spinlings",
+  "documentationUrl": "https://github.com/416rehman/spinlings/blob/main/docs/how-to-play.md",
+  "privacyPolicyUrl": "https://spinlings.dev/privacy",
+  "supportUrl": "https://github.com/416rehman/spinlings/issues",
   "license": "MIT",
   "keywords": [
     "game",

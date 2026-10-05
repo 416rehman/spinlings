@@ -7,6 +7,7 @@ Status: **v0.2.11 has passed local Checks; release delivery is pending.**
 ## Product and compatibility
 
 - [x] The installed plugin contains only player runtime files. Internal QA scenes, preview navigation and SDK suites stay in the repository; /spin demo is unsupported. The staging runner checks unchanged runtime bytes and every SDK suite, and a release regression guards this packaging boundary.
+- [x] A native Spinlings composer button opens the pane and shows waiting packs with a dot and explicit count. Claude's own hint is composed unread, no hotkey/focus is taken, quiet hides it, cached packs are guarded, and hosts that do not render PromptHint retain concise fallback status. SDK coverage includes 20/40/80/120 columns on both surfaces; native appearance remains unverified.
 - [x] Directory static-scan-compatible capability registration and a repository-owned square listing icon. The runtime capability/event allowlist and content-blind privacy contract remain unchanged; conservative scanner holds are presented for human review rather than hidden.
 - [x] One world chooser from the interactive header or /spin world: offline, Spinlings online/default, or a reviewed community address. /spin world online returns to spinlings.dev. Existing server aliases remain supported. Community Connect is explicit; Cancel/Back send nothing to the proposed server. Saved sessions, caches and offline collection remain separate; stale and delayed choices cannot switch worlds.
 - [x] Team groups waiting packs, Open, artwork and countdown in one section. The header contains tabs, the daily rule and the world control. Full community addresses wrap at narrow sizes; no duplicate global pack action.
@@ -30,7 +31,7 @@ Existing main rules block deletion/force pushes; required PR/CI rules are not co
 
 ## Release gate
 
-- [x] All pre-source Checks: 1074 Node tests, zero failures/skips; 213 isolated SDK tests, zero failures/skips; both strict validators; 24 HTTP steps/358 requests; fresh 208672-byte site build; Worker dry-run.
+- [x] All pre-source Checks: 1075 Node tests, zero failures/skips; 216 isolated SDK tests, zero failures/skips; both strict validators; 24 HTTP steps/359 requests; fresh 208672-byte site build; Worker dry-run.
 - [ ] Source commit/CI pending; server-first deployment and production verification pending.
 - [ ] Immutable [v0.2.11 release](https://github.com/416rehman/spinlings/releases/tag/v0.2.11) on the checked source, with sanitized strict-validator notes.
 - [ ] Marketplace exact tag/SHA pin, all pre-pin Checks and CI pending.

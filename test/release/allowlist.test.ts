@@ -68,4 +68,9 @@ describe('the content-blind allowlist (SPEC 10, 12)', () => {
     assert.ok(reads.length > 0)
     for (const path of reads) assert.ok(FIELDS.has(path), `register.tsx reads e.${path}`)
   })
+
+  it('the prompt launcher composes Claude\'s drawing without reading prompt hint or draft content', () => {
+    assert.match(register, /on\('ui\.render', \{ component: 'PromptHint' \}/)
+    assert.doesNotMatch(register, /\be\.props\.(hint|tail|isDraft)\b/)
+  })
 })

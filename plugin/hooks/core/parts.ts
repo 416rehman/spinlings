@@ -7,7 +7,7 @@ import { rngFromSeed, weighted } from './rng.ts'
 export type Head = 'merged' | 'round' | 'wide' | 'small'
 export type Ears = 'none' | 'pointy' | 'round' | 'long' | 'floppy' | 'nubs' | 'antennae' | 'crest' | 'tuft' | 'sprout' | 'fins'
 export type Wings = 'none' | 'small' | 'large' | 'leaf' | 'bat'
-export type Tail = 'none' | 'curl' | 'spike' | 'fluffy' | 'fin'
+export type Tail = (typeof TAILS)[number]
 export type Legs = 'none' | 'stubby' | 'long' | 'many'
 export type Arms = 'none' | 'nubs' | 'wave'
 export type Muzzle = 'none' | 'snout' | 'beak'
@@ -15,7 +15,7 @@ export type Muzzle = 'none' | 'snout' | 'beak'
 export const HEADS: readonly Head[] = ['merged', 'round', 'wide', 'small']
 export const EARS: readonly Ears[] = ['none', 'pointy', 'round', 'long', 'floppy', 'nubs', 'antennae', 'crest', 'tuft', 'sprout', 'fins']
 export const WINGS: readonly Wings[] = ['none', 'small', 'large', 'leaf', 'bat']
-export const TAILS: readonly Tail[] = ['none', 'curl', 'spike', 'fluffy', 'fin']
+export const TAILS = ['none', 'curl', 'spike', 'fluffy', 'fin'] as const
 export const LEGS: readonly Legs[] = ['none', 'stubby', 'long', 'many']
 export const ARMS: readonly Arms[] = ['none', 'nubs', 'wave']
 export const MUZZLES: readonly Muzzle[] = ['none', 'snout', 'beak']

@@ -75,7 +75,7 @@ test('every /spin subcommand answers {} and does what it says', LONG, async ($, 
   await run('quiet on')
   expect(w.status.at(-1)).toBeUndefined()
   await run('quiet off')
-  expect(w.status.at(-1)).toMatch(/^spinlings · Online/)
+  expect(w.status.at(-1)).toMatch(/^Online/)
   await run('server')
   expect(w.logs.at(-1)).toBe('Server: spinlings.dev')
   const worldRequests = w.requests.length, worldPrefs = JSON.stringify(w.store.get('prefs'))

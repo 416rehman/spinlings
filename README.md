@@ -142,7 +142,9 @@ Legendary is the highest ordinary rarity. Mythics are rarer still: online, named
 | Trading, the market, gifts, claims | No. Players buy your listings while you are away. |
 | Duels (`/spin battle`, revenge, challenges) | No. Duels start at least 2 minutes apart. |
 
-Hitting a rate limit is neither rewarded nor punished: packs keep charging as usual. The status line just says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
+The **Spinlings** button below the input opens your pane; a dot and count show when packs are waiting. It keeps Claude's own hint and composer keys. Offline, connection problems, battles and updates retain short explanations beside it. Hosts without this control keep a plain status line.
+
+Hitting a rate limit is neither rewarded nor punished: packs keep charging as usual. The launcher or fallback status says `Claude is resting until 3:40 PM · your team is napping too`. After 4 or more hours without a battle, the first wild encounter when you come back is guaranteed rare or better, so breaks are rewarded and heavy use is not.
 
 ### When nobody else is around
 
