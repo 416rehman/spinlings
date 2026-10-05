@@ -2,7 +2,7 @@
 
 Follow [releasing.md](releasing.md) and every Check in [CONTRIBUTING.md](../CONTRIBUTING.md) before each commit. Marketing remains a separate task.
 
-Status: **v0.2.10 has checked source and server delivery; marketplace delivery is pending.**
+Status: **v0.2.10 is released, deployed and officially installed.**
 
 ## Product and compatibility
 
@@ -30,9 +30,9 @@ Existing main rules block deletion/force pushes; required PR/CI rules are not co
 
 - [x] All pre-source Checks: 1059 Node tests, zero failures/skips; 214 isolated SDK tests, zero failures/skips; both strict validators; 24 HTTP steps/358 requests; fresh 208672-byte site build; Worker dry-run.
 - [x] Source `4571118eb07af5f28f263885702e76abb0f5ebe8`; [CI 37272931841](https://github.com/416rehman/spinlings/actions/runs/37272931841); server-first deployment and production verification passed.
-- [ ] Immutable [v0.2.10 release](https://github.com/416rehman/spinlings/releases/tag/v0.2.10) on the checked source, with sanitized strict-validator notes.
-- [ ] Marketplace exact tag/SHA pin, all pre-pin Checks and CI pending.
-- [ ] Fresh and actual user official installs pending. No candidate preview or saved-game files were edited for this task.
-- [ ] Only this release's redundant tag deployment will be cancelled after manual delivery.
+- [x] Immutable [v0.2.10 release](https://github.com/416rehman/spinlings/releases/tag/v0.2.10) on the checked source, with sanitized strict-validator notes.
+- [x] Marketplace `9de602b782f93c06f6ccf1eb304ccbf599daf78b`; [CI 37273904069](https://github.com/416rehman/spinlings/actions/runs/37273904069); 1059 Node tests, zero failures/skips; 214 isolated SDK tests, zero failures/skips; both strict validators; 24 HTTP steps/365 requests; fresh 208672-byte site build; Worker dry-run.
+- [x] Fresh and actual user official installs match all 103 tagged plugin files and strictly validate. No candidate preview or saved-game files were edited for this task.
+- [x] Only this release's redundant tag deployment 37273471827 is confirmed cancelled.
 
 Final handoff commit/Checks/CI are recorded privately after completion. Evidence: .dev/codex-world-{final,pin,handoff}-0.2.10-*.log.
