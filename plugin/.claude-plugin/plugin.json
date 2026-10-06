@@ -1,7 +1,7 @@
 {
   "name": "spinlings",
   "displayName": "Spinlings",
-  "version": "0.2.15",
+  "version": "0.2.16",
   "description": "A creature card game above your prompt. Wild creatures, Rivals and other players' teams come to battle while Claude works. Catch, fuse, trade and gift one-of-a-kind cards.",
   "author": {
     "name": "416rehman",
@@ -9,9 +9,6 @@
   },
   "homepage": "https://spinlings.dev",
   "repository": "https://github.com/416rehman/spinlings",
-  "documentationUrl": "https://github.com/416rehman/spinlings/blob/main/docs/how-to-play.md",
-  "privacyPolicyUrl": "https://spinlings.dev/privacy",
-  "supportUrl": "https://github.com/416rehman/spinlings/issues",
   "license": "MIT",
   "keywords": [
     "game",

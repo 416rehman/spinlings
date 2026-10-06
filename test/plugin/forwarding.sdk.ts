@@ -1,15 +1,20 @@
-// The agent hook must pass the complete event to Claude and wait for its decision. These injected engine events
-// perform no actual prompt/model/tool work; both an approved result and a refusal must reach the caller unchanged.
+// Spinlings never observes agent creation or changes its outcome. These injected engine events perform no actual
+// prompt/model/tool work; an approved result and a refusal reach the caller without changing the game or networking.
 import { expect, mock, test } from 'claude-code/testing'
 import type { AgentSpawnInput, AgentSpawnResult } from 'claude-code'
 import { engine } from './engine.ts'
 import { NOW } from './fixtures.ts'
 
-test('agent spawn forwards its original event and waits for the engine decision, including refusals', { timeoutMs: 60_000 }, async ($, on) => {
+test('agent spawn bypasses Spinlings and preserves engine decisions without cosmetic state changes', { timeoutMs: 60_000 }, async ($, on) => {
   mock.clock(on, { now: NOW })
   const allowed = { model: 'claude-haiku-4-5', agentId: 'approved-fixture-agent' } as const
   const denied = { deny: 'Fixture engine refused this agent' } as const
   const forwarded: AgentSpawnInput[] = []
+  const gameWrites: string[] = []
+  on('state.set', (_$, event, next) => {
+    gameWrites.push(event.key)
+    return next(event)
+  })
   let release!: (result: AgentSpawnResult) => void
   let entered!: () => void
   const reachedEngine = new Promise<void>(resolve => { entered = resolve })
@@ -34,9 +39,11 @@ test('agent spawn forwards its original event and waits for the engine decision,
   release(allowed)
   expect(await spawning).toEqual(allowed)
   expect(completed).toBe(true)
+  expect(gameWrites).toEqual([])
   expect(await $.agent.spawn(args)).toEqual(denied)
   expect(forwarded).toHaveLength(2)
   expect(forwarded[1]).toEqual(args)
+  expect(gameWrites).toEqual([])
   expect(w.requests).toEqual([])
   expect(w.opened).toBe(0)
 })

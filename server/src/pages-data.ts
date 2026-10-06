@@ -69,11 +69,12 @@ export type Drop = {
   supply: number | null
   /** its cards can never be traded, gifted or recycled */
   bound: boolean
+  endsAt: number
   ended: boolean
 }
 
 /**
- * A public (vanity-code) drop that has started: its reward and counts only, never who redeemed
+ * A public (vanity-code) drop that has started: its reward, counts and closing date, never who redeemed
  * (SPEC 25). Unique codes have no page, and an unknown code, a unique code and one not yet open
  * look the same.
  */
@@ -89,7 +90,7 @@ export async function publicDrop(db: Db, code: string, now: number): Promise<Dro
     return null
   }
   const gone = d.supply !== null && d.redeemed >= d.supply
-  return { code: norm, reward, redeemed: d.redeemed, supply: d.supply, bound: d.bound === 1, ended: now >= d.ends_at || gone }
+  return { code: norm, reward, redeemed: d.redeemed, supply: d.supply, bound: d.bound === 1, endsAt: d.ends_at, ended: now >= d.ends_at || gone }
 }
 
 // ---- the boards and the market -------------------------------------------------------------------

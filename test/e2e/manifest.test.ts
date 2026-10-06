@@ -44,7 +44,7 @@ describe('the validator\'s view of the mod (SPEC 2, 10, 12)', () => {
     const line = (label: string) => notes.find(n => n.includes(` ${label}: `))?.split(`${label}: `)[1] ?? ''
     const hooks = line('hooks').split(/,\s*(?![^{]*})/).map(h => h.trim().replace(/\{.*$/, ''))
     assert.ok(hooks.length > 0, 'the validator listed the hooks')
-    for (const never of ['tool.call', 'prompt.submit', 'classic.PermissionRequest']) assert.ok(!hooks.includes(never), `never hooks ${never}`)
+    for (const never of ['agent.spawn', 'tool.call', 'prompt.submit', 'classic.PermissionRequest']) assert.ok(!hooks.includes(never), `never hooks ${never}`)
     const calls = [...line('calls').matchAll(/\$\.(\w+)\.(\w+)/g)].map(m => [m[1]!, m[2]!] as const)
     assert.ok(calls.length > 0, 'the validator listed the $ calls')
     // SPEC 12's nouns, plus audio for the chimes (SPEC 13.12)

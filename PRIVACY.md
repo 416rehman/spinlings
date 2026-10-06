@@ -33,7 +33,6 @@ The mod reads only the shape of your Claude Code session:
 | How a turn ended | `turn.complete` `reason` | A one-line reaction |
 | Spinner phase | the spinner's `mode` in `ui.render` | A spinner suffix during a battle |
 | Composer render site | `ui.render` filtered to Desktop `SessionMode` or terminal `PromptHint`; only its surface, never its modes, hint or draft text | A clickable Spinlings launcher using game state. Claude's own drawing passes through unchanged and unread. |
-| Subagents | `agent.spawn` (a count only) | A cheering line in the band |
 | Rate limits | `session.measure` (the rate-limit percentages only) | One Team pane note when you hit a limit |
 | Compaction | `session.compact` `trigger` | A one-line reaction |
 | Session open | `session.start`, `session.end`, a once-a-minute clock tick | Presence minutes for packs |
@@ -42,7 +41,7 @@ The mod reads only the shape of your Claude Code session:
 | A Desktop card or world-control click | `ui.message` from the Spinlings pane's own registered regions: an element key and a null payload | Selecting the displayed card or opening the world chooser; pointer coordinates remain local to the renderer |
 | The `/spin` command | `command.run` (the command's arguments) | The game's one command |
 
-It never hooks `tool.call`, `prompt.submit` or `classic.PermissionRequest`.
+It never hooks `tool.call`, `prompt.submit`, `agent.spawn` or `classic.PermissionRequest`.
 
 Some of the events above carry content the mod does not need, and it never reads those fields:
 - the prompt `text` on `turn.start`;
@@ -50,7 +49,6 @@ Some of the events above carry content the mod does not need, and it never reads
 - the `answer` and `usage` on `turn.complete`;
 - `cost` and context fill from `session.measure`;
 - `cwd` on `session.start`;
-- the `prompt`, `description` and `cwd` on `agent.spawn`;
 - the `messages` and `instructions` on `session.compact`.
 
 From `$.session` the mod calls only `model()`. It never uses `$.fs`, `$.process`, `$.model`, `$.prompt`, `$.tool`, `$.agent`, `$.mcp` or `$.env`. So it cannot read files, run programs, call a model, submit prompts, call tools, start agents, reach MCP servers or read environment variables. Run `claude plugin validate plugin` on a checkout to see every hook and every call it makes.
@@ -150,7 +148,7 @@ Cards other players see show the creature, its level, stats and traits, and noth
 - **First discoveries:** the first card of a species anyone in the world obtains in a season carries a `First Discovered` stamp wherever that card is shown. The game never says who found it.
 - **Mythics:** if you catch a Mythic, its card says "Discovered by" your handle, and the public "Mythics found" list shows your handle and the Mythic's name, nothing else. If you change your handle or delete your account, your handle comes off the card and the list.
 
-**Public pages** (profiles, card pages at `{server}/c/{id}` and gift pages) show only what a profile shows, plus Mythic discoveries as handle and name. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. Passkey pages and the browser collection use `connect-src 'self'` to talk only to the same server; the collection shell contains no player data until you sign in.
+**Public pages** (profiles, card pages at `{server}/c/{id}` and gift pages) show only what a profile shows, plus Mythic discoveries as handle and name. Public drop pages show the code, reward, aggregate claims, supply, binding and closing time in UTC; they identify no claimants. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. Passkey pages and the browser collection use `connect-src 'self'` to talk only to the same server; the collection shell contains no player data until you sign in.
 
 `/spin share` only copies text to your clipboard. Claude's Share profile copies only your public profile URL, or shows it for manual copying. Browser Share profile sends only that canonical public URL to your device's share sheet when you press it, with clipboard or manual-copy fallback. It never shares the private account URL, session or passkey data. Nothing is posted automatically.
 

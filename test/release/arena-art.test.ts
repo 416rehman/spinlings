@@ -64,6 +64,11 @@ function indexedPixels(chunks: Chunk[], width: number, height: number, paletteSi
 }
 
 describe('the bundled chunky arena artwork', () => {
+  it('keeps generated local image data in inspectable source lines', () => {
+    const source = readFileSync(new URL('../../plugin/hooks/ui/arena-art-data.ts', import.meta.url), 'utf8')
+    assert.ok(source.split('\n').every(line => line.length <= 128), 'generated PNG data must remain readable without minified-length lines')
+  })
+
   it('ships exactly four family backgrounds and distinct local data payloads', () => {
     assert.deepEqual(Object.keys(ARENA_PNG).sort(), [...FAMILIES].sort())
     assert.deepEqual(readdirSync(ART).filter(name => name.endsWith('.png')).sort(), FAMILIES.map(f => f + '.png').sort())

@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { HOOKS as PRIVACY_HOOKS } from '../../plugin/hooks/client/viewmodels.ts'
 
 const HOOKS_DIR = fileURLToPath(new URL('../../plugin/hooks/', import.meta.url))
 const register = readFileSync(`${HOOKS_DIR}register.tsx`, 'utf8')
@@ -15,7 +16,7 @@ const sources = (readdirSync(HOOKS_DIR, { recursive: true }) as string[])
   .map(f => ({ file: f.replaceAll('\\', '/'), text: readFileSync(HOOKS_DIR + f, 'utf8') }))
 
 const HOOKS = [
-  'session.start', 'classic.SessionStart', 'session.end', 'turn.start', 'turn.step', 'turn.complete', 'agent.spawn',
+  'session.start', 'classic.SessionStart', 'session.end', 'turn.start', 'turn.step', 'turn.complete',
   'session.measure', 'session.compact', 'command.run', 'ui.close', 'ui.render', 'ui.message',
 ]
 
@@ -47,11 +48,15 @@ describe('the content-blind allowlist (SPEC 10, 12)', () => {
     assert.deepEqual(JSON.parse(readFileSync(`${HOOKS_DIR}hooks.json`, 'utf8')), { modules: ['./register.tsx'] })
   })
 
-  it('register.tsx registers exactly the SPEC 10 hooks, and never tool.call, prompt.submit or a permission hook', () => {
+  it('the privacy pane lists the exact active hooks', () => {
+    assert.deepEqual([...PRIVACY_HOOKS].sort(), [...HOOKS].sort())
+  })
+
+  it('register.tsx registers exactly the SPEC 10 hooks, and never agent.spawn, tool.call, prompt.submit or a permission hook', () => {
     const hooks = [...register.matchAll(/\bon\(\s*(['"`])([\w.]+)\1/g)].map(m => m[2]!)
     assert.deepEqual([...new Set(hooks)].sort(), [...HOOKS].sort())
     for (const { file, text } of sources) {
-      assert.doesNotMatch(text, /['"`](tool\.call|prompt\.submit|classic\.Permission\w*|classic\.UserPromptSubmit|classic\.PreToolUse|classic\.PostToolUse)['"`]/, file)
+      assert.doesNotMatch(text, /['"`](agent\.spawn|tool\.call|prompt\.submit|classic\.Permission\w*|classic\.UserPromptSubmit|classic\.PreToolUse|classic\.PostToolUse)['"`]/, file)
     }
   })
 

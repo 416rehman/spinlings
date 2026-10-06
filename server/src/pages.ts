@@ -418,20 +418,22 @@ function dropBody(d: Drop): Raw {
   const stage = d.ended ? 3 : d.supply ? Math.min(2, Math.floor((d.redeemed / d.supply) * 3)) : Math.min(2, Math.floor(d.redeemed / 500))
   const fam = egg?.family ?? 'fable'
   const shade = egg ? raw(shadowSvg(spriteFor({ form: promoForm(egg), stage: egg.rarity === 'legendary' ? 3 : 1 }), 'eggshadow')) : ''
+  const closes = Number.isSafeInteger(d.endsAt) && d.endsAt >= 0 && d.endsAt <= 8.64e15 ? new Date(d.endsAt).toISOString() : null
   return html`${placeStrip(fam)}
 <section class="wrap gift drop">
 <div class="nestbox" style="--fam:${FAMILY_COLOR[fam]}">
-${d.ended
+${!egg ? html`<div class="drop-present" role="img" aria-label="A wrapped reward">${raw(PRESENT)}<div class="giftmat" aria-hidden="true"></div></div>` : d.ended
     ? html`<div class="egg shell" role="img" aria-label="An empty eggshell">${raw(eggSvg(3))}</div>`
     : html`<button class="egg js-only" type="button" data-egg data-crack="${stage}" aria-label="A creature still in its egg. Tap it.">${raw(eggSvg(stage))}</button><div class="egg nojs" role="img" aria-label="A creature still in its egg">${raw(eggSvg(stage))}</div>`}
-<div class="nest" aria-hidden="true"></div>
+${egg ? html`<div class="nest" aria-hidden="true"></div>` : ''}
 ${egg && !d.ended ? html`<div class="peek" aria-hidden="true">${shade}</div>` : ''}
 </div>
 <div class="how">
 <p class="k">Drop code</p>
 <h1 class="code">${d.code}</h1>
 <p class="lede">${dropLine(d)}${egg ? ' Everyone gets the same creature, but each one hatches with its own look.' : ''}${d.bound ? ' It stays in your collection: drop cards cannot be traded or gifted.' : ''}</p>
-<p class="fence"><b>${d.redeemed.toLocaleString('en-US')}</b> hatched so far${left !== null ? html`, <b>${left.toLocaleString('en-US')}</b> left in the nest` : ''}.</p>
+<p class="fence"><b>${d.redeemed.toLocaleString('en-US')}</b> ${egg ? 'hatched' : 'claimed'} so far${left !== null ? html`, <b>${left.toLocaleString('en-US')}</b> ${egg ? 'left in the nest' : 'left'}` : ''}.</p>
+<p class="fine">Once per account.${closes ? html` Closing date: <time datetime="${closes}">${closes.replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC')}</time>.` : ''}</p>
 ${d.ended
     ? html`<p class="ended">This drop has ended. There will be others.</p>${installBlock('install')}`
     : html`<ol class="signposts">
@@ -592,6 +594,7 @@ html.js .giftstall.open .present,html.js .giftstall.open .tapme{display:none}
 
 const DROP_CSS = `
 .nestbox{position:relative;display:grid;place-items:center;min-height:280px}
+.drop-present{width:160px}.drop-present .presentart{display:block}
 .egg{position:relative;z-index:2;width:128px;height:160px;padding:0;border:0;background:none;cursor:pointer}
 .egg svg{width:128px;height:160px}
 .eggart .es{fill:#f4ecdc}.eggart .ec{fill:#2a1d18}

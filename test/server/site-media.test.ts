@@ -1,9 +1,10 @@
 // Real captures stay optional; synthetic PNGs below exercise the build/serve contract without shipping placeholders.
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { describe, it } from 'node:test'
 import { crc32, deflateSync } from 'node:zlib'
-import { CAPTURES, MAX_CAPTURE_BYTES, MEDIA_OUT, buildMedia, captureSize } from '../../scripts/site-media.ts'
+import { CAPTURES, HISTORICAL_ASSETS, MAX_CAPTURE_BYTES, MEDIA_DIR, MEDIA_OUT, buildMedia, captureSize } from '../../scripts/site-media.ts'
 import { captureResponse, desktopGallery } from '../../server/src/pages-media.ts'
 import { LANDING_CSS } from '../../server/src/pages-landing.ts'
 import { createCanvas, encodePng } from '../../server/src/png.ts'
@@ -27,11 +28,11 @@ describe('first-party native Desktop screenshots', () => {
       if (file !== CAPTURES[1].file) throw absent()
       return bytes
     })
-    assert.deepEqual(reads, CAPTURES.map(c => c.file))
+    assert.deepEqual(reads, [...CAPTURES, ...HISTORICAL_ASSETS].map(c => c.file))
     assert.match(built, /"width":3,"height":2/)
     assert.ok(built.includes(`new Uint8Array([${bytes.join(',')}])`), 'the file bytes are embedded unchanged')
     assert.ok(built.includes(CAPTURES[1].file))
-    for (const c of CAPTURES.filter(c => c !== CAPTURES[1])) assert.ok(!built.includes(c.file), c.file)
+    for (const c of [...CAPTURES.filter(c => c !== CAPTURES[1]), ...HISTORICAL_ASSETS]) assert.ok(!built.includes(c.file), c.file)
     const empty = await buildMedia(async () => { throw absent() })
     assert.match(empty, /DESKTOP_CAPTURES: readonly DesktopCapture\[\] = \[\]/)
     assert.match(empty, /MEDIA_FILES: Readonly<Record<string, Uint8Array>> = \{\}/)
@@ -55,6 +56,10 @@ describe('first-party native Desktop screenshots', () => {
     const padded = Buffer.concat([bytes.subarray(0, 33), chunk('tEXt', Buffer.alloc(700 * 1024, 32)), bytes.subarray(33)])
     assert.deepEqual(captureSize(padded), { width: 3, height: 2 })
     await assert.rejects(buildMedia(async () => padded), /exceed 2 MiB together/)
+    await assert.rejects(buildMedia(async file => {
+      if (file !== HISTORICAL_ASSETS[0].file) throw absent()
+      return bytes
+    }), /Historical Desktop capture bytes changed/)
   })
 
   it('serves the exact whitelisted bytes with immutable PNG caching and rejects inherited names', async () => {
@@ -72,7 +77,7 @@ describe('first-party native Desktop screenshots', () => {
 
   it('registers only available image routes; missing names are plain 404s and actual files retain security/cache headers', async () => {
     const s = server()
-    for (const c of CAPTURES) {
+    for (const c of [...CAPTURES, ...HISTORICAL_ASSETS]) {
       const res = await s.request('GET', `/media/${c.file}`, { client: null })
       if (Object.hasOwn(MEDIA_FILES, c.file)) {
         assert.equal(res.status, 200, c.file)
@@ -89,10 +94,29 @@ describe('first-party native Desktop screenshots', () => {
       assert.equal(res.headers.get('x-content-type-options'), 'nosniff')
       assert.equal(res.headers.get('set-cookie'), null)
     }
-    for (const file of ['constructor', '__proto__', 'toString', 'desktop-team-0.2.8.png', '%2e%2e%2fprivate.png']) {
+    for (const file of ['constructor', '__proto__', 'toString', 'desktop-team-0.2.8.png', 'team-v0.2.15-source.png',
+      'desktop-team-0.2.15-source.png', 'github-social.png', 'desktop-duel.png', '%2e%2e%2fprivate.png',
+      '%2e%2e%2f%2e%2e%2f.dev%2flaunch-2026-10%2fnative%2fcard-v0.2.15-source.png']) {
       const res = await s.request('GET', `/media/${file}?ignored=private-value`, { client: null })
       assert.equal(res.status, 404, file)
       assert.doesNotMatch(await res.text(), /private-value/)
+    }
+  })
+
+  it('shows four reviewed v0.2.15 scenes while preserving the published v0.2.9 asset bytes', async () => {
+    assert.equal(DESKTOP_CAPTURES.length, 4)
+    assert.deepEqual(DESKTOP_CAPTURES.map(c => c.file), CAPTURES.map(c => c.file))
+    const gallery = desktopGallery().__html
+    assert.equal((gallery.match(/<figure>/g) ?? []).length, 4)
+    for (const capture of DESKTOP_CAPTURES) {
+      assert.match(capture.file, /^desktop-(team|team-picker|card|collection)-0\.2\.15\.png$/)
+      assert.match(capture.alt, /Claude Desktop v0\.2\.15/)
+    }
+    for (const asset of HISTORICAL_ASSETS) {
+      const bytes = await readFile(MEDIA_DIR + asset.file)
+      assert.equal(createHash('sha256').update(bytes).digest('hex'), asset.sha256, asset.file)
+      assert.deepEqual(MEDIA_FILES[asset.file], new Uint8Array(bytes), 'immutable URLs retain their original PNG bytes')
+      assert.ok(!gallery.includes(asset.file), 'historical assets do not become gallery cards')
     }
   })
 
@@ -117,7 +141,7 @@ describe('first-party native Desktop screenshots', () => {
 
   it('keeps the generated payload exactly fresh for the captures present in the checkout', async () => {
     assert.equal(await readFile(MEDIA_OUT, 'utf8'), await buildMedia(), 'run node scripts/site-media.ts after adding or replacing a capture')
-    assert.deepEqual(Object.keys(MEDIA_FILES), DESKTOP_CAPTURES.map(c => c.file))
+    assert.deepEqual(Object.keys(MEDIA_FILES), [...DESKTOP_CAPTURES, ...HISTORICAL_ASSETS].map(c => c.file))
     for (const c of DESKTOP_CAPTURES) assert.deepEqual(captureSize(MEDIA_FILES[c.file]!), { width: c.width, height: c.height })
   })
 })

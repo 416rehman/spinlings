@@ -572,9 +572,15 @@ describe('drop pages', () => {
     assert.ok(text.includes('204 hatched so far, 1,296 left in the nest.'))
     assert.ok(text.includes('/spin redeem FOUNDERS'))
     assert.ok(text.includes('Founder, Oct 2026'))
+    assert.ok(text.includes('Once per account.'))
+    assert.match(p.html, new RegExp(`<time datetime="${new Date(s.now() + 7 * DAY).toISOString()}">`))
+    assert.ok(text.includes('UTC'))
     assert.ok(!text.includes('Founderling'), 'the creature stays a silhouette until it hatches')
     assert.ok(!text.includes(a.me.player.handle))
     assert.match(p.html, /role="img" aria-label="A creature still in its egg"/)
+    assert.match(p.html, /data-egg data-crack="0"/)
+    assert.match(p.html, /class="egg nojs"/)
+    assert.match(p.html, /class="peek" aria-hidden="true"/)
     assert.equal(p.headers.get('cache-control'), 'public, max-age=30')
     // the count is live, and codes are read the way the mod normalises them
     await s.db.batch([stmt('UPDATE drops SET redeemed = 205')])
@@ -585,7 +591,59 @@ describe('drop pages', () => {
     p = await get(s, '/d/FOUNDERS')
     assert.equal(p.status, 200)
     assert.match(textOf(p.html), /This drop has ended/)
+    assert.match(p.html, /aria-label="An empty eggshell"/)
+    assert.doesNotMatch(p.html, /data-egg|data-crack/)
     assert.ok(!textOf(p.html).includes('/spin redeem'))
+  })
+
+  it('show pack and card rewards as static presents with claim counts, account terms and a UTC close', async () => {
+    const { s, a } = await world()
+    const closing = s.now() + 7 * DAY + 13 * MINUTE
+    await drop(s, { plain: 'PACKGIFT', reward: { type: 'pack', count: 1 }, supply: 500, redeemed: 17, endsIn: closing - s.now() })
+    await drop(s, { plain: 'CARDGIFT', reward: [{ type: 'card', rarity: 'rare', family: 'haiku' }, { type: 'pack', count: 1 }], supply: null, redeemed: 4 })
+    await s.db.batch([stmt('INSERT INTO redemptions (drop_id, player_id, day) VALUES (?, ?, ?)', 'd-PACKGIFT', a.id, utcDay(s.now()))])
+    const before = await counts(s.db, ['drops', 'redemptions', 'cards', 'packs', 'players'])
+    for (const [code, reward, counter] of [
+      ['PACKGIFT', 'a pack', '17 claimed so far, 483 left.'],
+      ['CARDGIFT', 'a rare Haiku card and a pack', '4 claimed so far.'],
+    ]) {
+      const p = await get(s, `/d/${code}`), shown = textOf(p.html)
+      assert.equal(p.status, 200)
+      assertSiteScripts(p)
+      assertSelfContained(p.html)
+      assert.equal(p.headers.get('cache-control'), 'public, max-age=30')
+      assert.ok(shown.includes(`Redeem ${code} in Spinlings for ${reward}.`))
+      assert.ok(shown.includes(`/spin redeem ${code}`))
+      assert.ok(shown.includes(counter))
+      assert.ok(shown.includes('Once per account.'))
+      assert.match(p.html, /<time datetime="2026-[^"]+">[^<]+ UTC<\/time>/)
+      assert.match(p.html, /<div class="drop-present" role="img" aria-label="A wrapped reward"><svg class="presentart"/)
+      assert.doesNotMatch(p.html, /data-egg|data-crack|data-present|class="egg[ "]/)
+      assert.doesNotMatch(shown, /hatched|nest|Tap it|same creature|hatches/)
+      assert.ok(!p.html.includes(a.me.player.handle), 'the drop does not identify a redeemer')
+      assert.ok(!p.html.includes(a.id), 'the drop does not identify an account')
+      assert.ok(!p.html.includes(a.token), 'no game session token in drop HTML')
+    }
+    const open = await get(s, '/d/PACKGIFT')
+    assert.ok(open.html.includes(`datetime="${new Date(closing).toISOString()}"`), 'the UTC deadline is the configured existing timestamp')
+    assert.deepEqual(await counts(s.db, ['drops', 'redemptions', 'cards', 'packs', 'players']), before, 'viewing a drop never creates game records')
+    assert.equal((await s.db.get<{ redeemed: number }>('SELECT redeemed FROM drops WHERE code_plain = ?', 'PACKGIFT'))!.redeemed, 17, 'viewing the page does not redeem the code')
+
+    await s.db.batch([stmt('UPDATE drops SET redeemed = 500 WHERE code_plain = ?', 'PACKGIFT')])
+    const exhausted = await get(s, '/d/PACKGIFT')
+    assertSiteScripts(exhausted)
+    assertSelfContained(exhausted.html)
+    assert.match(textOf(exhausted.html), /500 claimed so far, 0 left\./)
+    assert.match(textOf(exhausted.html), /This drop has ended/)
+    assert.doesNotMatch(exhausted.html, /data-egg|data-crack|class="egg[ "]/)
+    assert.ok(!textOf(exhausted.html).includes('/spin redeem'))
+
+    s.tick(7 * DAY)
+    const expired = await get(s, '/d/CARDGIFT')
+    assertSiteScripts(expired)
+    assert.match(textOf(expired.html), /This drop has ended/)
+    assert.ok(!textOf(expired.html).includes('/spin redeem'))
+    assert.doesNotMatch(expired.html, /data-egg|data-crack|class="egg[ "]/)
   })
 
   it('end on time, say nothing before they start, and have no page for unique or broken codes', async () => {
@@ -605,7 +663,8 @@ describe('drop pages', () => {
     assert.match(textOf((await get(s, '/d/over')).html), /This drop has ended/)
     const packs = textOf((await get(s, '/d/packs')).html)
     assert.ok(packs.includes('Redeem PACKS in Spinlings for 2 Opus packs.'))
-    assert.ok(packs.includes('204 hatched so far.'), 'no supply, no "left"')
+    assert.ok(packs.includes('204 claimed so far.'), 'no supply, no "left"')
+    assert.doesNotMatch(packs, /hatched|nest/)
   })
 })
 

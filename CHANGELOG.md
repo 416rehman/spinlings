@@ -2,6 +2,15 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.16 (2026-10-06)
+
+- **Clear redeem-code pages.** Pack and card rewards use present artwork and claim counts instead of egg hatching. Egg rewards keep their interactive nest. Every code page explains one claim per account, binding when applicable, and its closing date in UTC. The existing website appearance stays intact.
+- **Current source audit.** The README's audit command checks out this release, matching the version players install.
+- **Patch the development image decoder.** A scoped npm override updates Miniflare's Sharp dependency to 0.35.5 for the librsvg security fix in GHSA-wq5f-xc86-pv6w. Wrangler 4.147.0 and workerd 1.20261001.1 remain pinned. This repository override affects development tooling only; the installed mod and production Worker have no runtime dependencies.
+- **Clearer directory source.** Optional guide, privacy and support links live in the installed README. Local chime calls explicitly pass WAV bytes; arena PNG data uses readable short chunks while preserving every image byte. The cosmetic subagent observer is removed, reducing the session signals read. Privacy lists match the actual hooks. Supported state declarations and strict object validation remain intact; a new directory scan and reviewer approval are still pending.
+- **Fresh Desktop stills.** README and gallery now show real v0.2.15 Team, Collection, Card and team-slot chooser captures without the computer-use cursor. The prior v0.2.9 images keep their immutable routes; duel footage remains honestly labeled v0.2.3. These stills do not establish arena motion or v0.2.16 native behavior.
+- **Compatibility and privacy.** API v1, minimum client 0.1.0, rules 1, generator 2 and offline format 1 remain unchanged. The code page shows the closing date from its existing expiry; no new requests, player fields, storage, migrations or runtime dependencies. Battle rules, pack odds and artwork are unchanged, supported older mods stay playable, and released fixtures, engines and generators remain immutable. Native arena verification and Claude directory approval remain separate launch gates.
+
 ## 0.2.15 (2026-10-05)
 
 - **Arena names follow the model family.** Duel landscapes now say Haiku arena, Sonnet arena, Opus arena or Fable arena, using the same family names as cards and the battle setup. The arena remains the model family captured when the fight starts. Wide scenes show its name over the landscape; narrower Desktop scenes reserve room for the name in the existing header beside the rival and Day control. The family-specific artwork, scene height and battle controls stay the same.

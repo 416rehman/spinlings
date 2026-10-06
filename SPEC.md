@@ -385,7 +385,7 @@ Everything here works while the other player is away. **No account limits:** any
 
 | State | Size | Contents |
 |---|---|---|
-| Battle | Terminal: up to 4 rows. Desktop fight: one 144px scene and native header/footer, 184px total. | Both active creatures share a painted landscape for the arena family, with larger crisp sprites, compact names/HP and damage/healing effects. Each local PNG is embedded once in SVG image mode, with timed SMIL and no script, external asset request or filesystem access. Narrow views blend local camera positions to preserve proportions and stage alignment. The native header identifies the opponent and offers Day to explain the duel's fixed rule, including across midnight. One footer shows round/streak and the real `[1] Now!` button during the attacker's special round (Perfect timing), with cheering while subagents run. Below 40 columns or 12 host rows, compact words keep actions first. Rustle/reveal ceremonies and the terminal's 8×8 mini sprites/four-row layout remain. Authoritative HP, battle ticks, special timing and Perfect windows are unchanged; motion off draws still frames and quiet keeps a player-started battle still while hiding other moments. |
+| Battle | Terminal: up to 4 rows. Desktop fight: one 144px scene and native header/footer, 184px total. | Both active creatures share a painted landscape for the arena family, with larger crisp sprites, compact names/HP and damage/healing effects. Each local PNG is embedded once in SVG image mode, with timed SMIL and no script, external asset request or filesystem access. Narrow views blend local camera positions to preserve proportions and stage alignment. The native header identifies the opponent and offers Day to explain the duel's fixed rule, including across midnight. One footer shows round/streak and the real `[1] Now!` button during the attacker's special round (Perfect timing). Below 40 columns or 12 host rows, compact words keep actions first. Rustle/reveal ceremonies and the terminal's 8×8 mini sprites/four-row layout remain. Authoritative HP, battle ticks, special timing and Perfect windows are unchanged; motion off draws still frames and quiet keeps a player-started battle still while hiding other moments. |
 | Result | 1 row, 12 s | e.g. `Won vs wild Fogmaw · caught Fogmaw! · +10 sparks · Pipkin evolved into Pipmaw`, with `[Open]` |
 | Catch choice | 1 row | When a wild win allows a catch: `[1] Fogmaw  [2] Tuftbun  [3] Mintling` (auto-picks the rarest after 20 s) |
 | Welcome | 2 rows, once ever | See "First run" in section 6 |
@@ -462,13 +462,12 @@ Pushed over the tabs and sections: card, fuse, species, listing and sell details
 | Turn ending | `turn.complete` `reason` | A one-line reaction only (e.g. the creature flinches on Esc) |
 | Spinner phase | `ui.render` Spinner `e.props.mode` | Spinner suffix during a battle |
 | Composer render site | `ui.render`, filtered to Desktop `SessionMode` or terminal `PromptHint`; only `e.surface` is read, never its modes, hint or draft text | A native launcher composed beside Claude's unread `next(e)` drawing, using only the game's own state |
-| Subagents | `agent.spawn` (count only) | Cheering line in the band (cosmetic) |
 | Context fill, rate limits | `session.measure` | Team pane comfort note only ("your team is napping until 3:40 PM" at a 100% limit) |
 | Compaction | `session.compact` `trigger` | A one-line reaction only |
 | Session open | `session.start`, `session.end`, a `$.clock.every(60s)` heartbeat with a `$.store` lease | Presence minutes for pack charging |
 | Desktop card or world-control selection | `ui.message`, filtered to the Spinlings Pane and its card-hit module; `e.element` and `e.data` only (`null`) | Dispatch the registered card action or open the world chooser for a key in the currently rendered pane; reject other payloads, unknown keys and terminal messages. Pointer coordinates stay in the renderer, never saved or sent. |
 
-**Never hooked:** `tool.call`, `prompt.submit`, `classic.PermissionRequest`.
+**Never hooked:** `tool.call`, `prompt.submit`, `agent.spawn`, `classic.PermissionRequest`.
 
 **Never read:** `answer`, prompt text, tool data, paths, cwd, repo, `cost`.
 
@@ -1169,7 +1168,7 @@ The seam's blocklist (`isBlocked`) has the last word: a blocked species or fusio
   - Errors: `not_found` (a wrong code; the same message whether the code never existed or has expired, to avoid probing), `cap_reached` (supply gone), `conflict` (already redeemed).
   - Attempts are limited per token and per IP hash, against guessing.
 - **Mod:** `/spin redeem <code>` plays the egg ceremony (wobble, crack, hatch) for eggs and the pack ceremony for packs, then offers `/spin share`.
-- **Pages:** `/d/:code`, for public codes only, shows the promo creature as a silhouette, the live redemption count (an aggregate only), the remaining supply if limited, and install and redeem instructions. Unique codes have no page.
+- **Pages:** `/d/:code`, for public codes only, shows the reward (a creature silhouette for eggs, a present for other rewards), the live claim count (an aggregate only), remaining supply if limited, binding, the closing time in UTC if set, and install and once-per-account redeem instructions. Unique codes have no page.
 - **Privacy:** no record of who redeemed is ever exposed, only counts.
 
 ### Launch plan (suggested)

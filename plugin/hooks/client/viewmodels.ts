@@ -465,6 +465,6 @@ export function today(now: number): string {
 
 /** The hooks this mod registers, for /spin privacy (SPEC 12): never tool.call, prompt.submit or a permission request. */
 export const HOOKS = [
-  'session.start', 'session.end', 'turn.start', 'turn.step', 'turn.complete', 'agent.spawn', 'session.measure',
-  'session.compact', 'command.run', 'ui.close', 'ui.render',
+  'session.start', 'classic.SessionStart', 'session.end', 'turn.start', 'turn.step', 'turn.complete', 'session.measure',
+  'session.compact', 'command.run', 'ui.close', 'ui.message', 'ui.render',
 ] as const

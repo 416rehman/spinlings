@@ -23,6 +23,6 @@ Spinlings reads local session signals to animate the game. It never reads or sen
 
 Game responses pass strict schema checks. `Object.getPrototypeOf` rejects custom-prototype objects before their fields are read; it does not evaluate code. The manifest's supported `types` field declares the mod's state contract for Claude Code's strict validator.
 
-[Play and browse](https://spinlings.dev) · [Game guide](https://github.com/416rehman/spinlings/blob/main/docs/how-to-play.md) · [Privacy](https://github.com/416rehman/spinlings/blob/main/PRIVACY.md) · [Source and screenshots](https://github.com/416rehman/spinlings)
+[Play and browse](https://spinlings.dev) · [Game guide](https://github.com/416rehman/spinlings/blob/main/docs/how-to-play.md) · [Privacy policy](https://spinlings.dev/privacy) · [Privacy details](https://github.com/416rehman/spinlings/blob/main/PRIVACY.md) · [Support](https://github.com/416rehman/spinlings/issues) · [Private security reports](https://github.com/416rehman/spinlings/security/advisories/new) · [Source and screenshots](https://github.com/416rehman/spinlings)
 
 Released under the [MIT license](LICENSE). Created by [416rehman](https://github.com/416rehman).

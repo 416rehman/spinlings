@@ -46,7 +46,7 @@ The Code tab in Claude Desktop needs a bundled Claude Code version that supports
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
 
 ```sh
-git clone --branch v0.2.9 https://github.com/416rehman/spinlings
+git clone --branch v0.2.16 https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 
@@ -67,10 +67,10 @@ Optional: turn on updates in `/plugin` → Marketplaces → spinlings → Enable
 ## See it
 
 <p align="center">
-  <img src="docs/media/desktop-team-0.2.9.png" width="644" alt="A three-creature team in Claude Desktop.">
-  <img src="docs/media/desktop-team-picker-0.2.9.png" width="644" alt="Choose which teammate to replace or swap.">
-  <img src="docs/media/desktop-market-0.2.9.png" width="622" alt="Set an exact selling price in Claude Desktop.">
-  <img src="docs/media/desktop-pack-0.2.9.png" width="768" alt="A pack preview above the Claude Desktop input, with Open, Close and Sidebar.">
+  <img src="docs/media/desktop-team-0.2.15.png" width="644" alt="A three-creature team and its ready packs in Claude Desktop.">
+  <img src="docs/media/desktop-team-picker-0.2.15.png" width="644" alt="Choose which teammate to replace or swap in Claude Desktop.">
+  <img src="docs/media/desktop-card-0.2.15.png" width="644" alt="Inspect a creature's combat stats and traits in Claude Desktop.">
+  <img src="docs/media/desktop-collection-0.2.15.png" width="644" alt="Browse and filter pixel creature cards in Claude Desktop.">
 </p>
 
 **A pack opening.** One card waits face down. Every pack rolls freely, with no guaranteed rarity; a rare result glows before it flips.
@@ -203,7 +203,6 @@ The game runs on the rhythm of your session, never its content. This is everythi
 | `classic.SessionStart` (only `clear`, `resume` and `fork`) | that the session started over | Picking the game back up |
 | `turn.start`, `turn.complete` (main thread only) | that Claude started or stopped, and how the turn ended (`reason`) | Encounters; a one-line reaction when you press Esc |
 | `turn.step` | `model`, `effort` (main thread only) | The arena and pack family; effort changes only the local band's ink and creature-frame glow |
-| `agent.spawn` | that a subagent started (a count) | A `+2 cheering` line in the band |
 | `session.measure` | rate-limit percentages only | One Team pane note when you hit a limit |
 | `session.compact` | `trigger` | A one-line reaction |
 | `ui.render` | the spinner's `mode`; the band's and pane's size; the composer's surface, never hint text or session modes | A spinner suffix, the band and pane, and a launcher beside Claude's unread composer controls |
@@ -211,7 +210,7 @@ The game runs on the rhythm of your session, never its content. This is everythi
 | `ui.message` (Spinlings pane regions only) | the current registered region's element key and a null payload | Selecting a card or opening the world chooser from its mark or host in Desktop |
 | `command.run` | `/spin` and its arguments | The game's one command |
 
-**Never hooked:** `tool.call`, `prompt.submit`, `classic.PermissionRequest`. The mod never sees a tool name, a shell command, a file or a path.
+**Never hooked:** `tool.call`, `prompt.submit`, `agent.spawn`, `classic.PermissionRequest`. The mod never sees a tool name, a shell command, a file or a path.
 
 Some of those events carry content the mod does not need. It never reads these fields:
 
@@ -222,7 +221,6 @@ Some of those events carry content the mod does not need. It never reads these f
 | `turn.complete` | `answer`, `usage` |
 | `session.measure` | `cost`, context fill |
 | `session.start` | `cwd` |
-| `agent.spawn` | `prompt`, `description`, `cwd` |
 | `session.compact` | `messages`, `instructions` |
 
 **What it calls.** Only the `ui`, `state`, `store`, `clock`, `command`, `http` and `session` parts of the mod API, plus `audio` if you turn sound on. From `session` it calls only `model`, and only the model's family ever reaches the server. It never uses `$.fs`, `$.process`, `$.model`, `$.prompt`, `$.tool`, `$.agent`, `$.mcp` or `$.env`. CI fails if any of those, or any hook outside this table, shows up in the source or in `claude plugin validate --json`.

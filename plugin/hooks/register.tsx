@@ -1,5 +1,5 @@
 // Spinlings: every hook and every $ call of the mod lives in this file (SPEC 11). The hooks read only the shape of the
-// session (SPEC 10): the model's family, local effort glow, whether Claude's main turn runs, subagent counts, rate-limit fullness and
+// session (SPEC 10): the model's family, local effort glow, whether Claude's main turn runs, rate-limit fullness and
 // compaction. Never tool.call, prompt.submit or a permission request; never prompts, answers, files or
 // cost. Session and turn hooks pass their events on and never wait on the network: automatic requests run on clock
 // callbacks. Explicit game commands and controls may await their requested operation. client/game.ts holds the game;
@@ -185,7 +185,8 @@ async function chime($: Engine, cue: Chime): Promise<void> {
   try {
     const prefs = await read($, prefsAtom)
     if (!prefs.sound || prefs.quiet) return
-    await $.audio.play(chimeClip(cue), { gain: 0.8 })
+    const clip = chimeClip(cue)
+    await $.audio.play({ base64: clip.base64, mime: 'audio/wav' }, { gain: 0.8 })
   } catch {
     // no player on this machine, or the clip could not play
   }
@@ -304,14 +305,7 @@ export const register: Register = on => {
 
   on('turn.complete', async ($, e, next) => {
     if (e.agentId === undefined) await quietly($, 'turn', () => game.turnCompleted(fxOf($), e.reason))
-    else { const id = e.agentId; await quietly($, 'agent', () => game.agentFinished(fxOf($), id)) }
     return next(e)
-  })
-
-  on('agent.spawn', async ($, spawnEvent, continueSpawn) => {
-    const spawnResult = await continueSpawn(spawnEvent)
-    if ('agentId' in spawnResult && typeof spawnResult.agentId === 'string') { const id = spawnResult.agentId; await quietly($, 'agent', () => game.agentStarted(fxOf($), id)) }
-    return spawnResult
   })
 
   on('session.measure', async ($, e, next) => {
