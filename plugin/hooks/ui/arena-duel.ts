@@ -1,5 +1,6 @@
 // A shared desktop battlefield. Scenery is cosmetic; health and every animation beat use the round on screen.
 import type { DailyRule, Family } from '../core/types.ts'
+import { FAMILY_INFO } from '../core/families.ts'
 import type { Fighter, RoundPlan, Side } from '../client/battleview.ts'
 import { spriteOf } from '../client/battleview.ts'
 import { TIMING } from '../client/anim.ts'
@@ -93,7 +94,7 @@ export function arenaSvg(o: {
   const ownX = Math.round(w * 0.3 / 2) * 2, foeX = Math.round(w * 0.7 / 2) * 2
   let body = arenaBackdrop(o.arena, o.rule, w, height)
   const rivalSpace = w - 2 * (ownX + hudWidth / 2 + 6)
-  if (wide) body += `<g stroke="#102019" stroke-width="2" paint-order="stroke">${text(w / 2, 17, fit(theme.name, Math.max(8, Math.floor(rivalSpace / 6))), theme.accent, 12, 'middle', true)}</g>`
+  if (wide) body += `<g stroke="#102019" stroke-width="2" paint-order="stroke">${text(w / 2, 17, fit(`${FAMILY_INFO[o.arena].name} arena`, Math.max(8, Math.floor(rivalSpace / 6))), theme.accent, 12, 'middle', true)}</g>`
   for (const side of ['a', 'd'] as const) {
     const f = o.fighters[side]
     if (!f) continue

@@ -213,7 +213,7 @@ dmg = max(1, round(raw * typeMult * arenaMult * variance * crit * moveMult * tra
 - **`inputs`** is the sorted list of 1-based round numbers on which the player pressed. A press counts only in a round where the attacker's special fires; other presses are ignored. Inputs change nothing before their round.
 
 ### Arena
-The arena is the family of the attacker's current model at battle start. It is symmetric: creatures of that family on both sides get the arena bonus.
+The arena is the family of the attacker's current model at battle start. It is symmetric: creatures of that family on both sides get the arena bonus. Its visible name is the model family: Haiku arena, Sonnet arena, Opus arena or Fable arena. Scenery follows that same fixed family; switching models during a battle does not change its arena. Desktop scenes show the name in the landscape at wide sizes and in the native header at narrower sizes.
 
 ### Outcomes
 | | Win | Draw | Loss |

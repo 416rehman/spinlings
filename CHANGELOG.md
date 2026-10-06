@@ -2,6 +2,11 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## 0.2.15 (2026-10-05)
+
+- **Arena names follow the model family.** Duel landscapes now say Haiku arena, Sonnet arena, Opus arena or Fable arena, using the same family names as cards and the battle setup. The arena remains the model family captured when the fight starts. Wide scenes show its name over the landscape; narrower Desktop scenes reserve room for the name in the existing header beside the rival and Day control. The family-specific artwork, scene height and battle controls stay the same.
+- **Compatibility and privacy.** API v1, minimum client 0.1.0, rules 1, generator 2 and offline format 1 remain unchanged. No new requests, event data, stored/public game fields, migrations or runtime dependencies. Existing cards, supported older mods, immutable fixtures/generators and website appearance are preserved. Native Desktop appearance and controls require separate verification.
+
 ## 0.2.14 (2026-10-05)
 
 - **Arenas that match the creatures.** Moss Grove, Moonlit Water, Ember Cliffs and Floating Isles use chunky pixel clusters, bold outlines and a compact 32-color palette. Each landscape is authored on a 160×30 logical grid and stored with exact 3× pixel expansion. Muted distant shapes, overlapping scenery and clear fighting platforms give the world depth while the creature pixels stay sharp. Contact shadows fade on the existing knockout beat, and soft world edges blend into Claude's background. Responsive camera positions keep the platforms beneath both creatures in narrow panes. Local artwork stays inside SVG image mode; no image downloads or filesystem access are needed.

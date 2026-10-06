@@ -239,6 +239,7 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
       <Box flexDirection="column" width={c.columns}>
         <Box flexDirection="row" columnGap={SPACE.tight}>
           <Box flexGrow={1} flexShrink={1}><Text bold wrap="truncate-end">{`vs ${opponentLabel(b.opponent, lead)}`}</Text></Box>
+          {c.columns < 80 ? <Box flexShrink={0}><Text color={FAMILY_COLOR[b.setup.arena]}>{`${FAMILY_INFO[b.setup.arena].name} arena`}</Text></Box> : null}
           <Box flexShrink={0}><Button key="battle-today" label={RULE_INFO[b.setup.rule].name} hotkey="2" plain dimColor onPress={() => { void c.actions.open({ view: { kind: 'today', rule: b.setup.rule } }) }} /></Box>
         </Box>
         <el.Svg source={scene} alt={`${words.header}; ${health('a')}; ${health('d')}`} width={sceneSize.w} height={sceneSize.height} />

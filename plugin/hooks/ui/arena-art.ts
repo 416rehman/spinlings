@@ -3,14 +3,14 @@ import type { DailyRule, Family } from '../core/types.ts'
 import { ARENA_PNG } from './arena-art-data.ts'
 
 export type ArenaTheme = {
-  name: string; sky: string; far: string; middle: string; ground: string; edge: string; accent: string; glow: string
+  sky: string; far: string; middle: string; ground: string; edge: string; accent: string; glow: string
 }
 
 const THEMES: Record<Family, ArenaTheme> = {
-  haiku: { name: 'Moss Grove', sky: '#102522', far: '#1d4039', middle: '#345c46', ground: '#152b29', edge: '#659564', accent: '#b1daa1', glow: '#e9e9b5' },
-  sonnet: { name: 'Moonlit Water', sky: '#141f37', far: '#263c57', middle: '#45617b', ground: '#1c2d42', edge: '#8aa7b8', accent: '#bad9e5', glow: '#edf3f4' },
-  opus: { name: 'Ember Cliffs', sky: '#2b1a23', far: '#55353c', middle: '#81513f', ground: '#2d252e', edge: '#c88252', accent: '#ffc98b', glow: '#fff0bb' },
-  fable: { name: 'Floating Isles', sky: '#201c38', far: '#3d365a', middle: '#69618b', ground: '#342b48', edge: '#a99abd', accent: '#dec3f1', glow: '#f5e1fb' },
+  haiku: { sky: '#102522', far: '#1d4039', middle: '#345c46', ground: '#152b29', edge: '#659564', accent: '#b1daa1', glow: '#e9e9b5' },
+  sonnet: { sky: '#141f37', far: '#263c57', middle: '#45617b', ground: '#1c2d42', edge: '#8aa7b8', accent: '#bad9e5', glow: '#edf3f4' },
+  opus: { sky: '#2b1a23', far: '#55353c', middle: '#81513f', ground: '#2d252e', edge: '#c88252', accent: '#ffc98b', glow: '#fff0bb' },
+  fable: { sky: '#201c38', far: '#3d365a', middle: '#69618b', ground: '#342b48', edge: '#a99abd', accent: '#dec3f1', glow: '#f5e1fb' },
 }
 export const arenaTheme = (arena: Family): ArenaTheme => THEMES[arena]
 
