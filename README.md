@@ -41,7 +41,7 @@ claude plugin install spinlings@spinlings
 
 **Requires Claude Code 2.1.287 or later.** Run `claude --version` to check, or `claude update` to update the CLI. Restart Claude and start a new session after installing, then run `/spin` to open your team.
 
-**Launch gift.** [FIRSTSPIN](https://spinlings.dev/d/FIRSTSPIN) gives one ordinary random pack containing one bound card, with no rarity guarantee, once per online account. Up to 500 total claims, ending October 13, 2026 at 17:02:02 UTC. Run `/spin redeem FIRSTSPIN`, then open the pack from Team. Use `/spin world online` first if you're offline or on a community server; the link shows live availability.
+**Launch gift:** run `/spin redeem FIRSTSPIN` for one random pack. [Redeem instructions and live availability](https://spinlings.dev/d/FIRSTSPIN).
 
 The Code tab in Claude Desktop needs a bundled Claude Code version that supports mods too. Updating the CLI does not update Desktop's bundled version; update the desktop app if the mod is unavailable there.
 

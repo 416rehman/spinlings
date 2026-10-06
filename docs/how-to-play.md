@@ -6,7 +6,7 @@ There are no daily quotas anywhere. Every finished battle pays, and the only wai
 
 There is nothing to set up either. After installing, the game starts on its own the first time you open Claude Code, and `/spin` is optional.
 
-**Launch gift.** [FIRSTSPIN](https://spinlings.dev/d/FIRSTSPIN) gives one ordinary random pack containing one bound card, with no rarity guarantee, once per online account. Up to 500 total claims, ending October 13, 2026 at 17:02:02 UTC. Run `/spin redeem FIRSTSPIN`, then open the pack from Team. Use `/spin world online` first if you're offline or on a community server; the link shows live availability.
+**Launch gift:** run `/spin redeem FIRSTSPIN` for one random pack. [Redeem instructions and live availability](https://spinlings.dev/d/FIRSTSPIN).
 
 ## Where the game lives
 
