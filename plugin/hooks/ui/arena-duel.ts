@@ -1,11 +1,12 @@
 // A shared desktop battlefield. Scenery is cosmetic; health and every animation beat use the round on screen.
 import type { DailyRule, Family } from '../core/types.ts'
 import type { Fighter, RoundPlan, Side } from '../client/battleview.ts'
+import { spriteOf } from '../client/battleview.ts'
 import { TIMING } from '../client/anim.ts'
 import { effortLook } from '../client/effort.ts'
 import { fit, safe } from '../client/text.ts'
 import { calloutTimeline, fighterSvg } from './band-art.tsx'
-import { arenaBackdrop, arenaTheme } from './arena-art.ts'
+import { arenaBackdrop, arenaEdgeDefinitions, arenaForeground, arenaTheme } from './arena-art.ts'
 import { FAMILY_COLOR, FAMILY_MARK, hex6, hpColor } from './tokens.ts'
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -15,6 +16,33 @@ const text = (x: number, y: number, value: string, color: string, size = 11, anc
   `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${size}" fill="${color}"${bold ? ' font-weight="700"' : ''} ${FONT}>${esc(value)}</text>`
 
 export const arenaSize = (columns: number) => ({ w: Math.min(1280, columns * 8), height: 144 })
+
+/** Ground the visible feet rather than the transparent edge of the sprite canvas. */
+export function arenaFighterPlacement(f: Fighter, center: number, floor: number, k: number, height = 144) {
+  const px = spriteOf(f.card, 'full'), sprite = 16 * k
+  const bottom = px.findLastIndex(row => row.some(color => color >= 0))
+  const x = center - sprite / 2
+  const y = Math.max(0, Math.min(height - sprite, floor - (bottom < 0 ? 16 : bottom + 1) * k))
+  let left = 16, right = -1
+  for (const row of px.slice(Math.max(0, bottom - 1), bottom + 1)) for (let i = 0; i < row.length; i++) {
+    if (row[i]! >= 0) { left = Math.min(left, i); right = Math.max(right, i) }
+  }
+  return {
+    x, y, contactX: right < 0 ? center : x + (left + right + 1) * k / 2,
+    contactY: bottom < 0 ? floor : y + (bottom + 1) * k,
+    shadowRadius: Math.min(sprite * 0.4, Math.max(12, (right - left + 1) * k * 0.48)),
+    hasInk: bottom >= 0,
+  }
+}
+
+function contactShadow(f: Fighter, plan: RoundPlan | null, side: Side, center: number, floor: number, k: number, height: number, start: number, motion: boolean): string {
+  if ((plan?.start[side] ?? f.hp) <= 0) return ''
+  const p = arenaFighterPlacement(f, center, floor, k, height)
+  if (!p.hasInk) return ''
+  const knockOut = motion ? plan?.hits.find(hit => hit.target === side && hit.action.targetFainted) : null
+  const fade = knockOut ? `<animate attributeName="opacity" from="1" to="0" begin="${seconds(knockOut.at + TIMING.ko - start)}" dur="0.2s" fill="freeze"/>` : ''
+  return `<g id="arena-contact-${side}">${fade}<ellipse cx="${p.contactX}" cy="${p.contactY + 1}" rx="${p.shadowRadius * 1.25}" ry="4" fill="#060b12" opacity="0.25"/><ellipse cx="${p.contactX}" cy="${p.contactY}" rx="${p.shadowRadius}" ry="2.5" fill="#060b12" opacity="0.6"/></g>`
+}
 
 function health(f: Fighter, plan: RoundPlan | null, side: Side, x: number, y: number, width: number, start: number, motion: boolean): string {
   const mirror = side === 'd'
@@ -65,7 +93,7 @@ export function arenaSvg(o: {
   const ownX = Math.round(w * 0.3 / 2) * 2, foeX = Math.round(w * 0.7 / 2) * 2
   let body = arenaBackdrop(o.arena, o.rule, w, height)
   const rivalSpace = w - 2 * (ownX + hudWidth / 2 + 6)
-  if (wide) body += text(w / 2, 17, fit(theme.name, Math.max(8, Math.floor(rivalSpace / 6))), theme.accent, 12, 'middle', true)
+  if (wide) body += `<g stroke="#102019" stroke-width="2" paint-order="stroke">${text(w / 2, 17, fit(theme.name, Math.max(8, Math.floor(rivalSpace / 6))), theme.accent, 12, 'middle', true)}</g>`
   for (const side of ['a', 'd'] as const) {
     const f = o.fighters[side]
     if (!f) continue
@@ -76,9 +104,18 @@ export function arenaSvg(o: {
     body += text(tx, nameY, fit(`${FAMILY_MARK[f.card.family]} ${safe(f.name, 40)}`, Math.floor(hudWidth / (wide ? 7.5 : 6.5))), '#f3f5ee', wide ? 13 : 11, anchor, true)
     body += health(f, o.plan, side, x, barY, hudWidth, o.start, o.motion)
   }
-  body += `<ellipse id="effort-a" cx="${ownX}" cy="${floor + 2}" rx="${sprite * 0.55}" ry="5" fill="none" stroke="${FAMILY_COLOR[o.arena]}" stroke-opacity="${look.opacity}" stroke-width="${look.width}"/>`
-  body += `<ellipse cx="${foeX}" cy="${floor + 2}" rx="${sprite * 0.55}" ry="5" fill="none" stroke="${theme.accent}" stroke-opacity="0.45"/>`
-  body += `<g clip-path="url(#arena-clip)">${fighterSvg(o.fighters.a, o.plan, 'a', { x: ownX - sprite / 2, y: floor - sprite, k, start: o.start, motion: o.motion })}${fighterSvg(o.fighters.d, o.plan, 'd', { x: foeX - sprite / 2, y: floor - sprite, k, start: o.start, motion: o.motion })}</g>`
+  let support = '', actors = ''
+  for (const side of ['a', 'd'] as const) {
+    const f = o.fighters[side]
+    if (!f) continue
+    const center = side === 'a' ? ownX : foeX
+    const p = arenaFighterPlacement(f, center, floor, k, height)
+    support += contactShadow(f, o.plan, side, center, floor, k, height, o.start, o.motion)
+    if (side === 'a') support += `<ellipse id="effort-a" cx="${p.contactX}" cy="${p.contactY + 1}" rx="${sprite * 0.46}" ry="4" fill="none" stroke="${FAMILY_COLOR[o.arena]}" stroke-opacity="${look.opacity}" stroke-width="${look.width}"/>`
+    actors += fighterSvg(f, o.plan, side, { x: p.x, y: p.y, k, start: o.start, motion: o.motion })
+  }
+  body += `<g id="arena-support" clip-path="url(#arena-clip)">${support}</g><g id="arena-actors" clip-path="url(#arena-clip)">${actors}</g>`
+  body += arenaForeground(o.arena, w, height)
   if (o.motion && o.plan) for (const side of ['a', 'd'] as const) {
     const list = calloutTimeline(o.plan, side)
     const font = wide ? 10 : 9, limit = Math.floor(w * 0.43 / (font * 0.62))
@@ -91,5 +128,5 @@ export function arenaSvg(o: {
   }
   // Image-mode SVGs share cached documents by URI. Distinguish rounds without restarting on unrelated UI updates.
   const instance = o.instance ? `<metadata id="arena-instance">${esc(safe(o.instance, 120))}</metadata>` : ''
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${height}" width="${w}" height="${height}">${instance}<defs><clipPath id="arena-clip"><rect width="${w}" height="${height}" rx="6"/></clipPath></defs>${body}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${height}" width="${w}" height="${height}">${instance}<defs><clipPath id="arena-clip"><rect width="${w}" height="${height}" rx="6"/></clipPath>${arenaEdgeDefinitions(w, height)}</defs>${body}</svg>`
 }

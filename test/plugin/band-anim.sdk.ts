@@ -20,13 +20,29 @@ import { INITIAL } from '../../plugin/hooks/client/game.ts'
 import { encounterDue, nextCheckIn, workedAfter } from '../../plugin/hooks/client/session.ts'
 import type { Battle, Moment, Outcome } from '../../plugin/hooks/client/types.ts'
 import { HUD, calloutTimeline, hudSize, hudSvg } from '../../plugin/hooks/ui/band-art.tsx'
-import { arenaSize, arenaSvg } from '../../plugin/hooks/ui/arena-duel.ts'
+import { arenaFighterPlacement, arenaSize, arenaSvg } from '../../plugin/hooks/ui/arena-duel.ts'
 import { ARENA_PNG } from '../../plugin/hooks/ui/arena-art-data.ts'
 import { hex6 } from '../../plugin/hooks/ui/tokens.ts'
 
 const attrs = (tag: string): Record<string, string> => Object.fromEntries([...tag.matchAll(/([\w:-]+)="([^"]*)"/g)].map(m => [m[1]!, m[2]!]))
 const tags = (source: string, name: string): Record<string, string>[] => [...source.matchAll(new RegExp(`<${name}\\b[^>]*>`, 'g'))].map(m => attrs(m[0]))
 const texts = (source: string): { p: Record<string, string>; body: string }[] => [...source.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/g)].map(m => ({ p: attrs(m[1]!), body: m[2]! }))
+
+/** A balanced group lookup keeps scenery added after the actors out of sprite-pixel assertions. */
+function groupOf(source: string, id: string): { p: Record<string, string>; body: string; from: number; to: number } | undefined {
+  const opening = [...source.matchAll(/<g\b[^>]*>/g)].find(m => attrs(m[0]).id === id)
+  if (!opening) return undefined
+  const from = opening.index!, content = from + opening[0].length
+  const groups = /<\/?g\b[^>]*>/g
+  groups.lastIndex = content
+  let depth = 1, next: RegExpExecArray | null
+  while ((next = groups.exec(source))) {
+    if (next[0].startsWith('</')) depth--
+    else if (!next[0].endsWith('/>')) depth++
+    if (!depth) return { p: attrs(opening[0]), body: source.slice(content, next.index), from, to: groups.lastIndex }
+  }
+  return undefined
+}
 
 /** Scene art may reference only its exact bundled painting or an id inside this same SVG document. */
 function localArenaArt(source: string, arena: keyof typeof ARENA_PNG): void {
@@ -418,10 +434,10 @@ test('larger shared-arena fighters retain a full crisp canvas inside the viewpor
     const source = arenaSvg({ columns, arena: 'haiku', rule: 'calm', opponent: 'Rival', fighters, plan: null, start: 0, motion: false })
     const size = arenaSize(columns), k = columns >= 80 ? 6 : 5, sprite = 16 * k
     expect(size.height).toBe(144)
-    // The backdrop has its own clip; the final clipped group contains the two foreground sprites.
-    const from = source.lastIndexOf('<g clip-path="url(#arena-clip)">')
-    expect(from).toBeGreaterThanOrEqual(0)
-    const clipped = source.slice(from)
+    const actors = groupOf(source, 'arena-actors')
+    expect(actors !== undefined).toBe(true)
+    expect(actors!.p['clip-path']).toBe('url(#arena-clip)')
+    const clipped = actors!.body
     const placements = tags(clipped, 'g').map(g => g.transform?.match(/^translate\(([-\d.]+) ([-\d.]+)\)$/))
       .filter((m): m is RegExpMatchArray => !!m && Number(m[2]) !== 0)
       .map(m => ({ x: Number(m[1]), y: Number(m[2]) })).sort((a, b) => a.x - b.x)
@@ -436,6 +452,106 @@ test('larger shared-arena fighters retain a full crisp canvas inside the viewpor
     const pixels = tags(clipped, 'rect')
     expect(pixels.length).toBeGreaterThan(0)
     expect(pixels.every(p => Number(p.height) > 0 && Number(p.width) > 0 && Number(p.height) % k === 0 && Number(p.width) % k === 0 && Number(p.x) % k === 0 && Number(p.y) % k === 0)).toBe(true)
+  }
+})
+
+test('the chunky arena keeps its raw camera behind crisp actors and feathers only the world edges', () => {
+  const plan = arenaRound(), violations = new Set<string>()
+  for (const arena of ['haiku', 'sonnet', 'opus', 'fable'] as const) for (const columns of [40, 60, 80, 120, 240]) {
+    const source = arenaSvg({ columns, arena, rule: 'calm', opponent: 'Rival', fighters: plan.fighters, plan, start: 0, motion: true })
+    const { w, height } = arenaSize(columns), sprite = columns >= 80 ? 96 : 80
+    const far = groupOf(source, 'arena-depth-far'), support = groupOf(source, 'arena-support')
+    const actors = groupOf(source, 'arena-actors'), near = groupOf(source, 'arena-foreground')
+    if (!far || !support || !actors || !near) { violations.add('missing-depth-layer'); continue }
+    if (!(far.to < support.from && support.to <= actors.from && actors.to <= near.from)) violations.add('depth-layer-order')
+    for (const layer of [support, actors]) {
+      if (layer.p['clip-path'] !== 'url(#arena-clip)') violations.add('layer-clip')
+      if (/\b(?:filter|mask)=/.test(layer.body) || layer.p.filter || layer.p.mask) violations.add('filtered-foreground')
+    }
+    if (!(near.p['clip-path'] === 'url(#arena-clip)' && near.p.mask === 'url(#arena-edge-mask)') || /\b(?:filter|mask)=/.test(near.body)) violations.add('near-edge-mask')
+    if (tags(source, 'g').filter(p => p['clip-path'] === 'url(#arena-clip)' && p.mask === 'url(#arena-edge-mask)').length !== 2) violations.add('world-only-edge-mask')
+    for (const id of ['arena-edge-mask', 'arena-edge-vertical-mask']) {
+      const mask = tags(source, 'mask').find(p => p.id === id)
+      if (!(mask && mask.maskUnits === 'userSpaceOnUse' && Number(mask.x) === 0 && Number(mask.y) === 0 && Number(mask.width) === w && Number(mask.height) === height)) violations.add('edge-mask-bounds')
+    }
+    for (const id of ['arena-edge-horizontal', 'arena-edge-vertical']) {
+      const gradient = [...source.matchAll(/<linearGradient\b([^>]*)>([\s\S]*?)<\/linearGradient>/g)].find(m => attrs(m[1]!).id === id)
+      const stops = gradient ? tags(gradient[2]!, 'stop') : []
+      if (!(stops.length >= 4 && Number(stops[0]!.offset) === 0 && Number(stops.at(-1)!.offset) === 1 && Number(stops[0]!['stop-opacity']) === 0 && Number(stops.at(-1)!['stop-opacity']) === 0)) violations.add('edge-opacity-endpoints')
+      if (!stops.slice(1, -1).every(p => Number(p['stop-opacity']) === 1 && Number(p.offset) > 0 && Number(p.offset) < 1)) violations.add('opaque-world-center')
+      if (!stops.every((p, i) => i === 0 || Number(p.offset) >= Number(stops[i - 1]!.offset))) violations.add('edge-stop-order')
+      if (gradient && /<(?:animate(?:Transform|Motion)?|set)\b/.test(gradient[2]!)) violations.add('animated-world-edge')
+    }
+    if (/<(?:filter|feGaussianBlur|feColorMatrix|feComponentTransfer)\b/.test(source) || far.p.filter || /\bfilter=/.test(far.body)) violations.add('softened-pixel-art')
+    if (/<(?:animate(?:Transform|Motion)?|set|feImage)\b/.test(far.body + near.body)) violations.add('active-depth-layer')
+    if (!tags(far.body, 'use').some(p => p.href === '#arena-camera-scene' && !p.filter)) violations.add('raw-camera-reference')
+    if (!tags(source, 'image')[0]?.style?.includes('image-rendering:pixelated')) violations.add('smoothed-image')
+    const left = Math.round(w * 0.3 / 2) * 2 - sprite / 2, right = Math.round(w * 0.7 / 2) * 2 + sprite / 2
+    // Roots may continue offstage; the scene's clip and feather mask bound their visible pixels.
+    const clearPoint = (x: number, y: number) => Number.isFinite(x) && Number.isFinite(y) && x >= 0 && x <= w && y >= 38 && (x < left || x > right)
+    for (const p of tags(near.body, 'path')) for (const point of (p.d ?? '').matchAll(/[ML]([\d.-]+) ([\d.-]+)/g)) {
+      if (!clearPoint(Number(point[1]), Number(point[2]))) violations.add('near-path-overlap')
+    }
+    for (const p of tags(near.body, 'rect')) {
+      if (!(clearPoint(Number(p.x), Number(p.y)) && clearPoint(Number(p.x) + Number(p.width), Number(p.y) + Number(p.height)))) violations.add('near-rect-overlap')
+    }
+    if (!near.body.includes('shape-rendering="crispEdges"')) violations.add('soft-near-layer')
+    for (const label of source.matchAll(/<text\b([^>]*)>/g)) if (attrs(label[1]!).y === String(height - 3) && label.index! < near.to) violations.add('covered-callout')
+  }
+  expect([...violations].sort()).toEqual([])
+})
+
+test('daily scenery accents cannot change the current fighters, health labels or authoritative animation beats', () => {
+  const plan = arenaRound(), scene = { columns: 80, arena: 'sonnet' as const, opponent: 'Rival', fighters: plan.fighters, plan, start: 550, motion: true }
+  const baseline = arenaSvg({ ...scene, rule: 'calm' }), violations = new Set<string>()
+  const motionTags = (source: string) => [...source.matchAll(/<(?:animate(?:Transform|Motion)?|set)\b[^>]*>/g)].map(m => m[0])
+  for (const rule of DAILY_RULES) {
+    const source = arenaSvg({ ...scene, rule })
+    if (groupOf(source, 'arena-actors')?.body !== groupOf(baseline, 'arena-actors')?.body) violations.add('rule-changes-actors')
+    if (groupOf(source, 'arena-support')?.body !== groupOf(baseline, 'arena-support')?.body) violations.add('rule-changes-contact')
+    if (JSON.stringify(texts(source)) !== JSON.stringify(texts(baseline))) violations.add('rule-changes-health-or-callouts')
+    if (JSON.stringify(motionTags(source)) !== JSON.stringify(motionTags(baseline))) violations.add('rule-changes-timeline')
+    if (rule === 'glassDay' && source === baseline) violations.add('missing-day-accent')
+  }
+  expect([...violations].sort()).toEqual([])
+})
+
+test('varied creature feet meet the support plane and their contact shadows follow visible footprints', () => {
+  const base = arenaRound().fighters.a, violations = new Set<string>()
+  for (const family of ['haiku', 'sonnet', 'opus', 'fable'] as const) for (const stage of [1, 2, 3] as const) for (const columns of [40, 80]) {
+    const c = mintCard({ species: familySpecies(seasonOf(NOW), family).find(s => !s.legendary)!, rarity: 'common', shiny: false, dna: 31, origin: 'pack', now: NOW, level: 3 })
+    const f = { ...base, card: { ...toBattleCard(c), stage } }, k = columns >= 80 ? 6 : 5
+    const { w, height } = arenaSize(columns), center = Math.round(w * 0.3 / 2) * 2, floor = Math.round(height * 0.88 / 2) * 2
+    const px = spriteOf(f.card, 'full'), ink = px.flatMap((row, y) => row.flatMap((color, x) => color === T ? [] : [{ x, y }]))
+    const bottom = Math.max(...ink.map(p => p.y)), placement = arenaFighterPlacement(f, center, floor, k, height)
+    if (!placement.hasInk || !ink.length) { violations.add('missing-real-sprite'); continue }
+    if (!(placement.x >= 0 && placement.y >= 0 && placement.x + 16 * k <= w && placement.y + 16 * k <= height)) violations.add('sprite-canvas-clipped')
+    const visibleBottom = placement.y + (bottom + 1) * k
+    if (!(placement.contactY === visibleBottom && visibleBottom <= floor && (visibleBottom === floor || placement.y + 16 * k === height))) violations.add('floating-feet')
+    const feet = ink.filter(p => p.y >= bottom - 1)
+    if (!(placement.contactX >= placement.x + Math.min(...feet.map(p => p.x)) * k && placement.contactX <= placement.x + (Math.max(...feet.map(p => p.x)) + 1) * k)) violations.add('detached-contact-center')
+    const source = arenaSvg({ columns, arena: family, rule: 'calm', opponent: 'Rival', fighters: { a: f, d: null }, plan: null, start: 0, motion: false })
+    const actor = groupOf(source, 'arena-actors'), contact = groupOf(source, 'arena-contact-a')
+    if (!actor || !tags(actor.body, 'g').some(p => p.transform === `translate(${placement.x} ${placement.y})`)) violations.add('rendered-placement')
+    const shadows = contact ? tags(contact.body, 'ellipse') : []
+    if (!(shadows.length === 2 && shadows.every(p => Number(p.cx) === placement.contactX && Number(p.cy) >= visibleBottom && Number(p.cy) <= visibleBottom + 1 && Number(p.rx) > 0 && Number(p.rx) <= 16 * k * 0.5))) violations.add('contact-shadow-footprint')
+    if (/<(?:animate(?:Transform|Motion)?|set)\b/.test(source)) violations.add('motion-off-animation')
+  }
+  const blank = arenaSvg({ columns: 40, arena: 'haiku', rule: 'calm', opponent: 'Rival', fighters: { a: null, d: null }, plan: null, start: 0, motion: false })
+  if (groupOf(blank, 'arena-support')?.body !== '' || groupOf(blank, 'arena-actors')?.body !== '') violations.add('empty-slot-support')
+  expect([...violations].sort()).toEqual([])
+})
+
+test('contact shadows fade at the existing knockout beat and resume with the creature timeline', () => {
+  const seconds = (ms: number) => `${(ms / 1000).toFixed(3)}s`
+  const ordinary = arenaRound(), hit = ordinary.hits[0]!
+  const plan = { ...ordinary, hits: [{ ...hit, after: { a: 67, d: 0 }, action: { ...hit.action, targetFainted: true } }], end: { a: 67, d: 0 } }
+  for (const start of [0, hit.at + TIMING.ko + 100, plan.ms]) {
+    const source = arenaSvg({ columns: 80, arena: 'opus', rule: 'calm', opponent: 'Rival', fighters: plan.fighters, plan, start, motion: true })
+    const shadow = groupOf(source, 'arena-contact-d')!, actors = groupOf(source, 'arena-actors')!
+    const fade = tags(shadow.body, 'animate')
+    expect(fade).toEqual([{ attributeName: 'opacity', from: '1', to: '0', begin: seconds(hit.at + TIMING.ko - start), dur: '0.2s', fill: 'freeze' }])
+    expect(tags(actors.body, 'animate').some(p => p.attributeName === 'opacity' && p.begin === fade[0]!.begin && p.dur === fade[0]!.dur && p.fill === 'freeze')).toBe(true)
   }
 })
 

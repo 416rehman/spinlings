@@ -63,14 +63,14 @@ function indexedPixels(chunks: Chunk[], width: number, height: number, paletteSi
   return pixels
 }
 
-describe('the bundled arena paintings', () => {
-  it('ships exactly four family paintings and distinct local data payloads', () => {
+describe('the bundled chunky arena artwork', () => {
+  it('ships exactly four family backgrounds and distinct local data payloads', () => {
     assert.deepEqual(Object.keys(ARENA_PNG).sort(), [...FAMILIES].sort())
     assert.deepEqual(readdirSync(ART).filter(name => name.endsWith('.png')).sort(), FAMILIES.map(f => f + '.png').sort())
     assert.equal(new Set(Object.values(ARENA_PNG)).size, FAMILIES.length)
   })
 
-  for (const family of FAMILIES) it(family + ' embeds its exact public, valid 480 by 90 PNG within 36 KiB', () => {
+  for (const family of FAMILIES) it(family + ' embeds its exact public 32-color, 160 by 30 logical-cell PNG within 36 KiB', () => {
     const uri = ARENA_PNG[family]
     assert.match(uri, /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/)
     const encoded = uri.slice(PREFIX.length), png = Buffer.from(encoded, 'base64')
@@ -86,7 +86,7 @@ describe('the bundled arena paintings', () => {
     const firstPixels = chunks.findIndex(c => c.type === 'IDAT')
     assert.ok(firstPixels > chunks.findIndex(c => c.type === 'PLTE'), 'the palette must precede image data')
     const palette = palettes[0]!.data
-    assert.ok(palette.length >= 6 && palette.length <= 256 * 3 && palette.length % 3 === 0)
+    assert.ok(palette.length >= 6 && palette.length <= 32 * 3 && palette.length % 3 === 0, 'the arena palette has at most 32 entries')
     const alpha = chunks.find(c => c.type === 'tRNS')?.data
     if (alpha) {
       assert.ok(chunks.findIndex(c => c.type === 'tRNS') < firstPixels, 'transparency must precede image data')
@@ -95,5 +95,9 @@ describe('the bundled arena paintings', () => {
     }
     const pixels = indexedPixels(chunks, 480, 90, palette.length / 3)
     assert.ok(new Set(pixels).size > 1, 'the embedded painting must not decode as a blank solid color')
+    assert.ok(pixels.every((value, i) => {
+      const x = i % 480, y = Math.floor(i / 480)
+      return value === pixels[(y - y % 3) * 480 + x - x % 3]
+    }), 'every 3 by 3 block is exactly one pixel of the 160 by 30 logical canvas')
   })
 })
