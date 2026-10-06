@@ -501,8 +501,9 @@ describe('data-world', () => {
   })
 
   it("never carries the day of a first find: a card's first-find stamp cannot be dated from the page", async () => {
-    // A joins on day 2 and B five days later; both teams' starters became first finds the day they joined
-    const s = server()
+    // Fixed starter rolls keep both joins' first finds in the fixture, five days apart.
+    const rng = rngFromSeed('data-world-first-find-days')
+    const s = server({ randomBytes: n => Uint8Array.from({ length: n }, () => Math.floor(rng() * 256)) })
     const a = await s.join('haiku')
     s.tick(5 * DAY)
     const b = await s.join('opus')
