@@ -18,8 +18,11 @@ const colours = new Set(species.flatMap(s => ([1, 2, 3] as const).flatMap(stage 
   .filter(c => c >= 0 && c !== EYE && c !== SHINE).map(hex))
 
 it('the README embeds the Desktop capture and themed docs/media relatively, with alt text', () => {
-  const hero = /<img src="docs\/media\/desktop-duel\.gif"[^>]*>/.exec(readme)?.[0]
-  assert.ok(hero, 'the hero is the Claude Desktop duel capture')
+  for (const scene of ['player-duel', 'duel-win']) {
+    const hero = new RegExp(`<img src="docs/media/desktop-${scene}-2026-10-06\\.png"[^>]*>`).exec(readme)?.[0]
+    assert.ok(hero, `the hero includes the supplied Claude Desktop ${scene} capture`)
+    assert.doesNotMatch(hero, /v0\.2\./, 'the supplied captures have no version footer')
+  }
   const pictures = [...readme.matchAll(/<picture>([\s\S]*?)<\/picture>/g)].map(m => m[1]!)
   assert.ok(pictures.length >= 3, 'the "See it" recordings have both themes')
   for (const p of pictures) {
