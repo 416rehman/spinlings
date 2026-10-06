@@ -6,6 +6,8 @@ There are no daily quotas anywhere. Every finished battle pays, and the only wai
 
 There is nothing to set up either. After installing, the game starts on its own the first time you open Claude Code, and `/spin` is optional.
 
+**Launch gift.** [FIRSTSPIN](https://spinlings.dev/d/FIRSTSPIN) gives one ordinary random pack containing one bound card, with no rarity guarantee, once per online account. Up to 500 total claims, ending October 13, 2026 at 17:02:02 UTC. Run `/spin redeem FIRSTSPIN`, then open the pack from Team. Use `/spin world online` first if you're offline or on a community server; the link shows live availability.
+
 ## Where the game lives
 
 - **The band** sits above the prompt and is hidden unless something is live: a battle, a result, a catch choice, a pack or a gift. `/spin pack` previews a waiting pack here. **Open** reveals its card, **Sidebar** moves the same opening into the pane, and **Close** dismisses it. Closing before Open keeps the pack unopened; closing after Open keeps the awarded card.
@@ -264,7 +266,7 @@ Every UTC day has one rule for every battle, the same for everyone:
 
 ## Drops
 
-Now and then a code such as `FOUNDERS` is posted. `/spin redeem <code>` hatches the drop's creature with your own DNA, so everyone's copy looks different, or opens its packs. Each account redeems a drop once. Most drop cards are bound, so they stay with you.
+Now and then a drop code is posted. Run `/spin redeem CODE`, replacing `CODE` with the announced code. An egg hatches with your own DNA, so everyone's copy looks different; a pack reward waits to be opened from Team. Each account redeems a drop once. Most drop cards are bound, so they stay with you. Drops need the online world on the server that issued the code; `/spin world online` returns to spinlings.dev.
 
 ## Your account and the two worlds
 
