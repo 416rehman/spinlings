@@ -55,7 +55,8 @@ describe('first-party native Desktop screenshots', () => {
     assert.throws(() => captureSize(new Uint8Array(MAX_CAPTURE_BYTES + 1)), /exceeds 1 MiB/)
     const padded = Buffer.concat([bytes.subarray(0, 33), chunk('tEXt', Buffer.alloc(700 * 1024, 32)), bytes.subarray(33)])
     assert.deepEqual(captureSize(padded), { width: 3, height: 2 })
-    await assert.rejects(buildMedia(async () => padded), /exceed 2 MiB together/)
+    const atLimit = Buffer.concat([bytes.subarray(0, 33), chunk('tEXt', Buffer.alloc(MAX_CAPTURE_BYTES - bytes.length - 12, 32)), bytes.subarray(33)])
+    await assert.rejects(buildMedia(async file => CAPTURES.some(c => c.file === file) ? atLimit : readFile(MEDIA_DIR + file)), /exceed 2 MiB together/)
     await assert.rejects(buildMedia(async file => {
       if (file !== HISTORICAL_ASSETS[0].file) throw absent()
       return bytes
@@ -103,14 +104,15 @@ describe('first-party native Desktop screenshots', () => {
     }
   })
 
-  it('shows four reviewed v0.2.15 scenes while preserving the published v0.2.9 asset bytes', async () => {
-    assert.equal(DESKTOP_CAPTURES.length, 4)
+  it('shows the supplied duel and win scenes while preserving every published screenshot URL', async () => {
+    assert.equal(DESKTOP_CAPTURES.length, 2)
     assert.deepEqual(DESKTOP_CAPTURES.map(c => c.file), CAPTURES.map(c => c.file))
     const gallery = desktopGallery().__html
-    assert.equal((gallery.match(/<figure>/g) ?? []).length, 4)
+    assert.equal((gallery.match(/<figure>/g) ?? []).length, 2)
     for (const capture of DESKTOP_CAPTURES) {
-      assert.match(capture.file, /^desktop-(team|team-picker|card|collection)-0\.2\.15\.png$/)
-      assert.match(capture.alt, /Claude Desktop v0\.2\.15/)
+      assert.match(capture.file, /^desktop-(player-duel|duel-win)-2026-10-06\.png$/)
+      assert.match(capture.alt, /Claude Desktop/)
+      assert.doesNotMatch(capture.alt + capture.caption, /v0\.2\./, 'the supplied captures have no version footer')
     }
     for (const asset of HISTORICAL_ASSETS) {
       const bytes = await readFile(MEDIA_DIR + asset.file)

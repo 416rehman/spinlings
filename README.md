@@ -14,7 +14,8 @@ Spinlings is a creature card game that lives inside Claude Code. While Claude wo
 The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your machine if you play offline.
 
 <p align="center">
-  <img src="docs/media/desktop-duel.gif" width="864" alt="A Spinlings duel above the prompt in Claude Desktop.">
+  <img src="docs/media/desktop-player-duel-2026-10-06.png" width="672" alt="A player duel with an optional special-hit cue in Claude Desktop.">
+  <img src="docs/media/desktop-duel-win-2026-10-06.png" width="656" alt="A duel win and streak reward above the prompt in Claude Desktop.">
 </p>
 
 - **Your team is ready.** Start with three creatures and a random handle like `soft-otter-42`. A passkey brings your collection to another computer.
@@ -67,13 +68,6 @@ claude plugin validate spinlings/plugin
 Optional: turn on updates in `/plugin` → Marketplaces → spinlings → Enable auto-update. Claude loads the new version in your next session; [Anthropic's update guide](https://code.claude.com/docs/en/discover-plugins#turn-auto-update-on-or-off-for-a-marketplace) has the details.
 
 ## See it
-
-<p align="center">
-  <img src="docs/media/desktop-team-0.2.15.png" width="644" alt="A three-creature team and its ready packs in Claude Desktop.">
-  <img src="docs/media/desktop-team-picker-0.2.15.png" width="644" alt="Choose which teammate to replace or swap in Claude Desktop.">
-  <img src="docs/media/desktop-card-0.2.15.png" width="644" alt="Inspect a creature's combat stats and traits in Claude Desktop.">
-  <img src="docs/media/desktop-collection-0.2.15.png" width="644" alt="Browse and filter pixel creature cards in Claude Desktop.">
-</p>
 
 **A pack opening.** One card waits face down. Every pack rolls freely, with no guaranteed rarity; a rare result glows before it flips.
 

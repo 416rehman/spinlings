@@ -10,14 +10,16 @@ export const MEDIA_OUT = fileURLToPath(new URL('../server/static/media.gen.ts', 
 export const MAX_CAPTURE_BYTES = 1024 * 1024
 export const MAX_MEDIA_BYTES = 2 * 1024 * 1024
 export const CAPTURES = [
-  { file: 'desktop-team-0.2.15.png', alt: 'Your Spinlings team, rating and waiting packs in Claude Desktop v0.2.15', caption: 'Your team' },
-  { file: 'desktop-team-picker-0.2.15.png', alt: 'All three team slots and their current creatures in Claude Desktop v0.2.15', caption: 'Choose a team spot' },
-  { file: 'desktop-card-0.2.15.png', alt: 'A Spinling with stats, traits and collection actions in Claude Desktop v0.2.15', caption: 'Meet your creature' },
-  { file: 'desktop-collection-0.2.15.png', alt: 'Your Spinlings collection with family and rarity filters in Claude Desktop v0.2.15', caption: 'Browse your collection' },
+  { file: 'desktop-player-duel-2026-10-06.png', alt: 'A player duel with an optional special-hit cue in Claude Desktop', caption: 'Player duel in Claude Desktop' },
+  { file: 'desktop-duel-win-2026-10-06.png', alt: 'A duel win and streak reward above the prompt in Claude Desktop', caption: 'Duel win and streak reward' },
 ] as const
 
 // Already published under immutable URLs: retained assets, never extra gallery entries.
 export const HISTORICAL_ASSETS = [
+  { file: 'desktop-team-0.2.15.png', sha256: '9f9bd8e9a9feabd83cc00edbd46a9aee62354b28f6f772bf3e3ec0c0c85b582d' },
+  { file: 'desktop-team-picker-0.2.15.png', sha256: '76a6713d348fda6c817daa1b31d62ab7390712a64e8cf80511d12ac8e2ff92fa' },
+  { file: 'desktop-card-0.2.15.png', sha256: '3ac0c498a4aeaf568bb50953582cc8970499becb3d683c0fcccb2a200c320302' },
+  { file: 'desktop-collection-0.2.15.png', sha256: '563ee37230a398771e9f3fada05fb1cfd654ade2215eacb9a515673a397b3249' },
   { file: 'desktop-team-0.2.9.png', sha256: 'f3a52e13537b4c198fced5508e2f36dc132a78e3f81992f6c3da7d9bbbf4bd26' },
   { file: 'desktop-team-picker-0.2.9.png', sha256: 'cd16d43ebe1a1d3943a66a19a48edd192c6a8c693e0da66b49f85814724a6241' },
   { file: 'desktop-market-0.2.9.png', sha256: '76a2fcbcc32cc70a766fd914d4aecab147f4dad537b40f5a0a2eaff5b6b563db' },
