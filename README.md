@@ -41,6 +41,8 @@ claude plugin install spinlings@spinlings
 
 **Requires Claude Code 2.1.287 or later.** Run `claude --version` to check, or `claude update` to update the CLI. Restart Claude and start a new session after installing, then run `/spin` to open your team.
 
+**Launch gift.** [FIRSTSPIN](https://spinlings.dev/d/FIRSTSPIN) gives one ordinary random pack containing one bound card, with no rarity guarantee, once per online account. Up to 500 total claims, ending October 13, 2026 at 17:02:02 UTC. Run `/spin redeem FIRSTSPIN`, then open the pack from Team. Use `/spin world online` first if you're offline or on a community server; the link shows live availability.
+
 The Code tab in Claude Desktop needs a bundled Claude Code version that supports mods too. Updating the CLI does not update Desktop's bundled version; update the desktop app if the mod is unavailable there.
 
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
@@ -177,7 +179,7 @@ Open a card and choose **Set in team** or **Change slot**, then choose the teamm
 | `/spin trade <handle>` | Open a player's profile to make an offer |
 | `/spin gift <card>` / `/spin claim <code>` | Make a gift code, or claim one |
 | `/spin share [card]` | Copy a short text with an emoji mosaic of the card and a link |
-| `/spin redeem <code>` | Redeem a drop code, such as `FOUNDERS` |
+| `/spin redeem <code>` | Redeem an announced drop code |
 | `/spin world [online\|offline\|url]` | Choose a world; online returns to spinlings.dev, offline uses your local save, a URL selects a community server |
 | `/spin devices` | Your devices, and saving a passkey to play on another computer |
 | `/spin leaderboard [on\|off]` | Open Community → Rankings (rating, players beaten, duel wins, species, Mythics, sales; all time or this season), or hide or show yourself on them (every player is on them unless they hide) |
