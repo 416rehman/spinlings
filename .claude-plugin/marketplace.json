@@ -4,19 +4,19 @@
     "name": "416rehman",
     "url": "https://github.com/416rehman"
   },
-  "description": "Spinlings, a creature card game mod for Claude Code.",
+  "description": "Spinlings, a shared creature card game mod for Claude Code.",
   "plugins": [
     {
       "name": "spinlings",
-      "description": "Pixel creatures battle above your prompt while Claude works. Catch, trade and duel.",
+      "description": "Collect creatures, duel other players' teams and trade cards inside Claude Code. Shared rankings, profiles and offline play.",
       "homepage": "https://github.com/416rehman/spinlings",
       "license": "MIT",
       "source": {
         "source": "git-subdir",
         "url": "https://github.com/416rehman/spinlings.git",
         "path": "plugin",
-        "ref": "v0.2.15",
-        "sha": "b675bc15c058da3c5c031463783d8909cbeac0cb"
+        "ref": "v0.2.16",
+        "sha": "a0fcb72c58ef5d919e58cb9c0194ea5648c01e4a"
       }
     }
   ]

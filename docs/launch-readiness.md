@@ -2,7 +2,7 @@
 
 Follow [releasing.md](releasing.md) and every Check in [CONTRIBUTING.md](../CONTRIBUTING.md) before each commit. Marketing has separate maintainer authorization; release delivery alone is not proof of publication.
 
-Status: **v0.2.16 has passed local Checks; release delivery is pending.**
+Status: **v0.2.16 has checked source and server delivery; marketplace delivery is pending.**
 
 ## Product and compatibility
 
@@ -25,17 +25,17 @@ Seasons and ordinary generated species continue without a mod update; new famili
 
 - [x] Existing website appearance preserved. README images, install links, requirements, badges, preview metadata, media budgets, content blindness, privacy and staged artifacts reviewed. Plugin-folder README and unchanged MIT license meet directory source requirements.
 - [x] Four reviewed native Claude Desktop v0.2.15 stills (Team, Collection, Card and team-slot chooser) appear in README/gallery, with no computer-use pointer or overlays. Four v0.2.9 route assets remain immutable for compatibility; real duel footage remains v0.2.3. These stills are not v0.2.16 captures and do not verify arena appearance/motion. Code-rendered pack/evolution/season art remains illustration.
-- [ ] Claude directory review submission explicitly requested by the maintainer. The preceding v0.2.16 candidate 83131a3284e637eb64c274b2d4b3635c730db8dd received an actual scan with two warnings, seven policy holds and zero blockers. Its CI failed at a random starter setup assertion. The current correction makes that fixture deterministic while preserving every privacy assertion, and documents the actual portal remedies in the installed README. This prior-candidate scan is not clearance for corrected source. A matching scan and zero-warning/zero-hold gate remain required; no form submitted or listing published, automatic publishing off.
-- [ ] Production read-only health/version, pages, account, previews, robots/sitemap and gallery routes: pending.
-- [ ] Disposable production smoke verifies one-card packs and browser-facing HTTP/passkey protocol/HTML, chosen username, fresh same-account sign-in/team/stats, filters/Attack, sharing, signout and deletion/revocation: pending.
-- [ ] Strictly smoke-owned cleanup: pending; real players remain untouched.
+- [ ] Claude directory review submission explicitly requested by the maintainer. The actual source scan completed: main at a0fcb72c58ef5d919e58cb9c0194ea5648c01e4a: seven checks, two warnings, seven policy holds, zero blockers. The requested README explanations are present. The remaining supported state declaration, strict prototype guard and bundled SVG/naming-source findings still need reviewer clearance; the maintainer requires zero warnings and holds and declined support contact; nothing has been submitted or published and automatic publishing is off.
+- [x] Production read-only health/version, pages, account, previews, robots/sitemap and gallery routes: v0.2.16: 298 of 298 read-only checks passed, including all current and immutable historical media routes.
+- [x] Disposable production smoke verifies one-card packs and browser-facing HTTP/passkey protocol/HTML, chosen username, fresh same-account sign-in/team/stats, filters/Attack, sharing, signout and deletion/revocation: All 19 game requests and browser-facing HTTP/passkey protocol, username change, fresh same-account sign-in and sign-out passed; disposable account deleted and session revoked.
+- [x] Strictly smoke-owned cleanup: Exact smoke-owned null-owner records were verified and removed; no other player records were touched.
 
-Existing main rules block deletion/force pushes; required PR/CI rules are not configured. This task keeps the established direct-main release workflow and does not claim that stricter setup is complete. Marketing is authorized separately; no publication proof is recorded here.
+Main now requires pull requests and exact test/plugin CI from GitHub Actions on the latest base, with no bypass actors. Deletion and force pushes remain blocked. GitHub safeguards for unattributed changes remain enabled. The final marketplace pin uses a checked pull request; resulting-main CI must pass before official installs. Secret scanning, push protection, Dependabot, private reporting, full-SHA Actions and the existing production reviewer/tag policy are verified. The maintainer authorized launch posts and wants player duels/trading prominent. The Product Hunt draft now leads with social play; an educational Reddit post is prepared with a clean real capture. No launch posts, live reward code or directory approval are claimed yet.
 
 ## Release gate
 
 - [x] All pre-source Checks: 1155 Node tests, zero failures/skips; 243 isolated SDK tests, zero failures/skips; both strict validators; 24 HTTP steps/372 requests; fresh 208672-byte site build; Worker dry-run.
-- [ ] Source commit/CI pending; server-first deployment and production verification pending.
+- [x] Source `a0fcb72c58ef5d919e58cb9c0194ea5648c01e4a`; [CI 37494402197](https://github.com/416rehman/spinlings/actions/runs/37494402197); server-first deployment and production verification passed.
 - [ ] Immutable [v0.2.16 release](https://github.com/416rehman/spinlings/releases/tag/v0.2.16) on the checked source, with sanitized strict-validator notes.
 - [ ] Marketplace exact tag/SHA pin, all pre-pin Checks and CI pending.
 - [ ] Fresh and actual user official installs pending. No candidate preview or saved-game files were edited for this task.
