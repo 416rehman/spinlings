@@ -204,7 +204,17 @@ describe('site craft', () => {
     const { s, a } = await world()
     const m = await mythicFor(s, a, 'ns01')
     for (const path of ['/', `/u/${a.me.player.handle}`, `/c/${m.id}`]) {
-      const all = tags((await get(s, path)).html)
+      let markup = (await get(s, path)).html
+      if (path.startsWith('/u/')) {
+        const form = markup.match(/<form class="collection-filters"[\s\S]*?<\/form>/)?.[0]
+        assert.ok(form?.includes(`method="get" action="${path}#collection"`), 'profile filters submit natively without script')
+        const submit = tags(form).filter(t => t.tag === 'button')
+        assert.equal(submit.length, 1)
+        assert.match(submit[0]!.attrs, /type="submit"/)
+        assert.doesNotMatch(form, /\sonsubmit=|\sonchange=/)
+        markup = markup.replace(form, '')
+      }
+      const all = tags(markup)
       // the album's nooks are the one exception: focus shows each one's tip, script or not
       const dead = all.filter(t => t.tag === 'button' && !t.jsOnly && !/\bclass="nook"/.test(t.attrs))
       assert.deepEqual(dead.map(t => t.attrs), [], `${path}: every other button is js-only`)

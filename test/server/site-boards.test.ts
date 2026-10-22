@@ -10,6 +10,7 @@ import { mintCards } from '../../server/src/game/mint.ts'
 import { count } from '../../server/src/game/stats.ts'
 import { BOARD_COMMAND, MARKET_COMMAND, wantWords } from '../../server/src/pages-boards.ts'
 import { REPO, SITE_CSP } from '../../server/src/pages-html.ts'
+import { PROFILE_CSP } from '../../server/src/pages-profile.ts'
 import { SITE_ASSETS } from '../../server/static/site.gen.ts'
 import { DAY, server } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
@@ -27,14 +28,22 @@ const handle = (p: Player) => p.me.player.handle
 const nextMidnight = (s: Server) => s.set((Math.floor(s.now() / DAY) + 1) * DAY)
 
 /** A strict site page: SITE_CSP (connect-src 'none'), our two scripts only, nothing from elsewhere, no inline code. */
-function assertSitePage(p: Page) {
+function assertSitePage(p: Page, profilePath?: string) {
   assert.equal(p.status, 200)
-  assert.equal(p.headers.get('content-security-policy'), SITE_CSP)
+  assert.equal(p.headers.get('content-security-policy'), profilePath ? PROFILE_CSP : SITE_CSP)
   assert.match(SITE_CSP, /connect-src 'none'/)
   assert.equal(p.headers.get('set-cookie'), null)
   const scripts = [...p.html.matchAll(/<script\b([^>]*)>/g)].map(m => m[1])
   assert.deepEqual(scripts, [` src="/static/${SITE_ASSETS.sky}"`, ` type="module" src="/static/${SITE_ASSETS.site}"`])
-  assert.doesNotMatch(p.html, /\son[a-z]+\s*=|javascript:|<form\b|<iframe\b/i)
+  let markup = p.html
+  if (profilePath) {
+    const forms = [...markup.matchAll(/<form\b[\s\S]*?<\/form>/g)].map(match => match[0])
+    assert.equal(forms.length, 1)
+    assert.ok(forms[0]!.includes(`method="get" action="${profilePath}#collection"`))
+    assert.doesNotMatch(forms[0]!, /\son[a-z]+\s*=|javascript:/i)
+    markup = markup.replace(forms[0]!, '')
+  }
+  assert.doesNotMatch(markup, /\son[a-z]+\s*=|javascript:|<form\b|<iframe\b/i)
   for (const [url] of p.html.matchAll(/https?:\/\/[^\s"'<>)]+/gi)) assert.ok(url.startsWith(REPO) || url.startsWith('http://localhost:8787/'), url)
 }
 
@@ -155,7 +164,7 @@ describe('the market page', () => {
     const lots = [...p.html.matchAll(/<li class="lot">([\s\S]*?)<\/li>/g)].map(m => m[1]!)
     assert.equal(lots.length, 3)
     for (const c of [x, y, z]) assert.ok(p.html.includes(`<a class="cardlink" href="/c/${c!.id}"`), 'each card links to its page')
-    const texts = lots.map(l => textOf(l.slice(l.indexOf('<div class="ptagbox">'), l.indexOf('<details class="card-inspect">')).replace(/<p class="card-discovery">[\s\S]*?<\/p>/, '')).trim())
+    const texts = lots.map(l => textOf(l.slice(l.indexOf('<div class="ptagbox">')).replace(/<p class="card-discovery">[\s\S]*?<\/p>/, '')).trim())
     assert.deepEqual(texts.sort(), [
       `120 sparks from ${handle(a)}`,
       `40 sparks and a shiny Haiku from ${handle(a)}`,
@@ -225,7 +234,7 @@ describe('stats and listings on a camp', () => {
     nextMidnight(s)
     await s.db.batch(count(a.id, s.now(), { catches: 5 }))
     const p = await get(s, `/u/${handle(a)}`)
-    assertSitePage(p)
+    assertSitePage(p, `/u/${handle(a)}`)
     const grid = p.html.match(/<ul class="statgrid">([\s\S]*?)<\/ul>/)![1]!
     assert.deepEqual([...grid.matchAll(/<li class="stat[^"]*">([\s\S]*?)<\/li>/g)].map(m => textOf(m[1]!).trim()), [
       '12 - 4 12 wins and 4 losses: Duel wins and losses', '6 Players beaten', '40 Wild wins', '17 Catches', '2 First finds', '1 Mythics found', '3 Market sales',

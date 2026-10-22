@@ -33,7 +33,7 @@ import { CAMP_CSS, LANDING_CSS, landingBody, teamCamp } from './pages-landing.ts
 import { captureResponse } from './pages-media.ts'
 import { registerCatalogue } from './pages-catalogue.ts'
 import { registerPlayers } from './pages-players.ts'
-import { profileBody, PROFILE_COLLECTION_CSS, publicStanding } from './pages-profile.ts'
+import { profileBody, PROFILE_COLLECTION_CSS, PROFILE_CSP, publicStanding } from './pages-profile.ts'
 import { discoveryCredits, publicInventory } from './public-collection.ts'
 import { ENTRY_RE, meet, SEED_RE } from './pages-meet.ts'
 import { imageCache, meadowPng, postcardPng } from './pages-og.ts'
@@ -228,12 +228,14 @@ export function pages(api: Api): void {
     ])
     if (!inventory) return missing(ctx, 'No trainer by that name', 'That profile is not here.')
     const credits = await discoveryCredits(ctx.db, [...p.team, ...p.forTrade, ...inventory.cards, ...selling.map(l => l.card)])
-    return layout({
+    const response = layout({
       kind: 'site', title: `${handle}'s camp: Spinlings`, description: `${handle}'s creatures, collection, team and game stats.`,
       path: `/u/${p.handle}`, origin: ctx.origin, noindex: true, cache: 'no-store', now: ctx.now,
       css: SITE_CSS + CAMP_CSS + PROFILE_CSS + PROFILE_COLLECTION_CSS + (p.stats ? STATS_CSS : '') + (selling.length ? LOTS_CSS : ''),
       body: html`${placeStrip(lead?.family ?? 'fable')}${profileBody(p, inventory, standing, selling, credits, ctx.url.searchParams, ctx.db)}`,
     })
+    response.headers.set('Content-Security-Policy', PROFILE_CSP)
+    return response
   }, 'profile')
 
   page('/c/:id', async ctx => {

@@ -9,7 +9,7 @@ import { seasonOf, utcDay } from '../../plugin/hooks/core/world.ts'
 import { stmt } from '../../server/src/db.ts'
 import { mintCards } from '../../server/src/game/mint.ts'
 import { publish } from '../../server/src/game/stats.ts'
-import { SITE_CSP } from '../../server/src/pages-html.ts'
+import { PROFILE_CSP } from '../../server/src/pages-profile.ts'
 import { PUBLIC_INVENTORY_PAGE } from '../../server/src/public-collection.ts'
 import { DAY, server } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
@@ -54,7 +54,7 @@ describe('the public profile route', () => {
     while (path) {
       const { response, html } = await get(s, path)
       assert.equal(response.status, 200)
-      assert.equal(response.headers.get('content-security-policy'), SITE_CSP)
+      assert.equal(response.headers.get('content-security-policy'), PROFILE_CSP)
       assert.equal(response.headers.get('set-cookie'), null)
       assert.equal(response.headers.get('cache-control'), 'no-store')
       assert.match(html, /noindex/)
@@ -88,7 +88,7 @@ describe('the public profile route', () => {
     while (path) {
       const { response, html } = await get(s, path)
       assert.equal(response.status, 200)
-      assert.match(collection(html), /aria-current="true">Haiku<\/a>/)
+      assert.match(collection(html), /<option value="haiku" selected>Haiku<\/option>/)
       found.push(...ids(html)); page++
       if (page > 1) {
         assert.ok(collection(html).includes(`href="${pathFor(owner)}?family=haiku&amp;sort=level#collection">Back to first page`))
@@ -112,7 +112,8 @@ describe('the public profile route', () => {
     const cursor = new URL(cursorPath, 'http://localhost:8787').searchParams.get('after')!
     const reflected = await get(s, pathFor(owner) + '?q=' + encodeURIComponent('"<img src=x onerror=x>'))
     assert.equal(reflected.response.status, 200)
-    assert.doesNotMatch(reflected.html, /<img src=x|\sonerror=x|href="javascript:/i)
+    assert.match(reflected.html, /value="&quot;&lt;img src=x onerror=x&gt;"/)
+    assert.doesNotMatch(reflected.html.replace(/\bvalue="[^"]*"/g, ''), /<img src=x|\sonerror=x|href="javascript:/i)
     for (const query of ['?owner=' + other.id, '?family=unknown', '?family=haiku&family=opus', '?after=' + cursor]) {
       const target = query.startsWith('?after=') ? other : owner
       const invalid = await get(s, pathFor(target) + query)
@@ -209,5 +210,38 @@ describe('the public profile route', () => {
     assert.match(html, /<a\b[^>]*id="profile-open"[^>]*>View public profile<\/a>/)
     assert.ok(html.indexOf('id="profile-open"') > html.indexOf('id="dashboard" hidden'), 'the action lives in the signed-in dashboard')
     for (const privateValue of [handle(owner), owner.id, owner.token]) assert.ok(!html.includes(privateValue))
+  })
+
+  it('uses one compact native filter form, preserving selections while resetting pagination', async () => {
+    const { s, owner } = await setup(4)
+    const query = new URLSearchParams({ q: 'plum', family: 'haiku', rarity: 'rare', sort: 'atk', kind: 'species', finish: 'foil', trait: 'sturdy' })
+    const page = await get(s, pathFor(owner) + '?' + query)
+    assert.equal(page.response.status, 200)
+    assert.equal(page.response.headers.get('content-security-policy'), PROFILE_CSP)
+    assert.ok(PROFILE_CSP.includes("form-action 'self'") && PROFILE_CSP.includes("connect-src 'none'"))
+    const form = collection(page.html).match(/<form\b[\s\S]*?<\/form>/)?.[0]
+    assert.ok(form)
+    assert.ok(form.includes(`method="get" action="${pathFor(owner)}#collection"`))
+    assert.match(form, /role="search" aria-label="Filter collection"/)
+    assert.deepEqual([...form.matchAll(/<(?:input|select)\b[^>]*name="([^"]+)"/g)].map(match => match[1]).sort(), ['family', 'finish', 'kind', 'q', 'rarity', 'sort', 'trait'])
+    assert.doesNotMatch(form, /name="after"|\sonchange=|filter-links/)
+    assert.match(form, /id="collection-search"[^>]*maxlength="40"[^>]*value="plum"/)
+    for (const [key, value] of query) {
+      if (key === 'q') continue
+      const select = form.match(new RegExp(`<select id="collection-${key}"[^>]*>([\\s\\S]*?)<\\/select>`))![1]!
+      assert.ok(select.includes(`<option value="${value}" selected>`), `${key} stays selected`)
+      assert.ok(form.includes(`for="collection-${key}"`), `${key} has a visible associated label`)
+    }
+    assert.match(form, /<details class="collection-more" open>/)
+    assert.ok(form.includes(`href="${pathFor(owner)}#collection">Reset</a>`))
+    assert.match(form, /<button class="pbtn" type="submit"><span class="face">Apply<\/span>/)
+    const plain = await get(s, pathFor(owner))
+    assert.match(plain.html, /<details class="collection-more">/)
+    assert.doesNotMatch(collection(plain.html), /card-inspect|inspect-body|Card details/)
+    assert.equal(ids(plain.html).length, 4, 'each whole card still links to its dedicated page')
+    for (const path of ['/c/' + ids(plain.html)[0], '/market', '/odds']) {
+      const other = await get(s, path)
+      assert.match(other.response.headers.get('content-security-policy')!, /form-action 'none'/, 'filter permission is scoped to profiles')
+    }
   })
 })

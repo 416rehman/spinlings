@@ -270,48 +270,34 @@ describe('the private browser collection', () => {
     assert.equal((await p.call('devices',{})).sessions,1)
   })
 
-  it('shows combat stats immediately and explains attributes and real trait effects by pointer, focus and tap', async () => {
+  it('puts combat stats, gene quality and traits in one linked card face, with deeper help on its page', async () => {
     const s = server(); const p = await s.join(); const auth = await softAuthenticator(); await saved(s,p,auth)
     const [target] = await give(s,p,[{...mintFor('opus','epic',rngFromSeed('browser-help'),s.now(),'pack'),traits:['sleepy','quickCharge'],genes:[0,5,10,15]}])
     const view = browser(s,auth); await view.node('signin').act()
     const card = view.node('collection').children.find(c => c.attributes.get('data-card-id') === target!.id)!
     assert.ok(card)
-    const face = card.children[0], plaque = card.children[1]
+    const link = card.children[0], face = link.children[0]
+    assert.equal(link.tagName,'a')
+    assert.equal(link.href,'/c/'+target!.id)
+    assert.equal(link.attributes.get('aria-label'),'View '+cardName(target!))
     assert.match(face.className,/^cf/)
-    const stats = plaque.children[0]
-    for (const [i,key] of (['hp','atk','def','spd'] as const).entries()) assert.equal(stats.children[i].children[0].attributes.get('aria-label'),`${CARD_HELP.stats[key].label} ${target!.stats[key]}`)
-    const attack = stats.children[1], button = attack.children[0], tip = attack.children[1]
-    assert.equal(tip.textContent,CARD_HELP.stats.atk.text)
-    assert.equal(tip.attributes.get('role'),'tooltip')
-    assert.equal(button.attributes.get('aria-describedby'),tip.id)
-    assert.equal(tip.hidden,true)
-    await button.act('pointerenter',{pointerType:'mouse'}); assert.equal(tip.hidden,false)
-    await attack.act('pointerleave'); assert.equal(tip.hidden,true)
-    await button.act('focus'); assert.equal(tip.hidden,false)
-    await attack.act('keydown',{key:'Escape'}); assert.equal(tip.hidden,true)
-    await button.act(); assert.equal(tip.hidden,false)
-    await button.act(); assert.equal(tip.hidden,true)
-    await button.act('pointerenter',{pointerType:'mouse'}); await view.document.act('keydown',{key:'Escape',target:view.node('q')})
-    assert.equal(tip.hidden,true,'Escape dismisses pointer help even when focus is elsewhere')
-    assert.equal(view.document.prevented,true)
-    await button.act(); await view.document.act('pointerdown',{target:tip})
-    assert.equal(tip.hidden,false,'touching the tooltip itself keeps it available to read')
-    await view.document.act('pointerdown',{target:view.node('q')})
-    assert.equal(tip.hidden,true,'touching outside dismisses a pinned tooltip')
-    await button.act(); await button.act('blur')
-    assert.equal(tip.hidden,true,'Tab to an unrelated link dismisses pinned help')
-    assert.ok(plaque.textContent.includes(CARD_HELP.traits.sleepy.text))
-    assert.ok(plaque.textContent.includes(CARD_HELP.traits.quickCharge.text))
-    assert.ok(plaque.textContent.includes(CARD_HELP.genes))
-    const more = plaque.children.find(n => n.tagName === 'details')!
-    assert.ok(more.textContent.includes(CARD_HELP.damage),'damage explanations stay inside More about this card')
-    const genes = more.children.find(n => n.tagName === 'dl')!
-    assert.deepEqual(genes.children.map(n => n.textContent),['HP gene 0/15','Attack gene 5/15','Defense gene 10/15','Speed gene 15/15'])
-    assert.match(plaque.textContent,/Fires automatically after 1 normal attack\./)
-    assert.doesNotMatch(plaque.textContent,/Stats & traits|Damage \d/)
-    const sleepy = descendants(plaque).find(n => n.tagName === 'button' && n.textContent === 'Sleepy')!
-    await button.act(); await sleepy.act('focus')
-    assert.equal(tip.hidden,true,'opening another explanation closes the first')
+    assert.ok(descendants(link).some(n => n.tagName === 'img'),'the artwork is inside the same card link')
+    const stats = face.children.find(n => n.className === 'cf-combat')!
+    assert.equal(stats.tagName,'dl')
+    for (const [i,key] of (['hp','atk','def','spd'] as const).entries()) {
+      assert.equal(stats.children[i].children[0].textContent,CARD_HELP.stats[key].label)
+      assert.equal(stats.children[i].children[1].textContent,String(target!.stats[key]))
+    }
+    assert.match(face.textContent,/Genes 50%/)
+    assert.match(face.textContent,/Sleepy, Quick Charge/)
+    assert.ok(!descendants(card).some(n => ['button','details','summary'].includes(n.tagName)))
+    assert.ok(!descendants(link).some(n => n.tagName === 'a'),'the face has no nested interactive controls')
+    assert.doesNotMatch(card.textContent,/More about this card|How damage works|Stats & traits/)
+    const page = await (await s.request('GET','/c/'+target!.id,{client:null})).text()
+    for (const phrase of [CARD_HELP.stats.atk.text,CARD_HELP.traits.sleepy.text,CARD_HELP.traits.quickCharge.text,CARD_HELP.genes,CARD_HELP.damage]) assert.ok(page.includes(phrase),'the opened card page retains its full explanation')
+    assert.match(page,/HP gene<\/dt><dd>0\/15/)
+    assert.match(page,/Speed gene<\/dt><dd>15\/15/)
+    assert.match(page,/Fires automatically after 1 normal attack\./)
   })
 
   it('names Mythics as one of one and does not call a bound pack card a starter', async () => {
