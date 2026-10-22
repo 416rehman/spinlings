@@ -46,7 +46,9 @@ describe('migrations', () => {
   })
 
   it('carry no transaction statements, which D1 refuses', () => {
-    for (const f of loadMigrations()) assert.doesNotMatch(f.sql, /\b(BEGIN|COMMIT|ROLLBACK|SAVEPOINT)\b/i, f.name)
+    // BEGIN inside CREATE TRIGGER is SQLite's trigger body, not a transaction statement.
+    for (const f of loadMigrations()) assert.doesNotMatch(f.sql.replace(/--[^\n]*/g, ''),
+      /(?:^|;)\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT)\b/im, f.name)
   })
 })
 

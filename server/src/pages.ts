@@ -25,12 +25,16 @@ import {
 import { board, leadsOf, listingsByHandle, marketPage, mythicsShown, openGift, profile, publicCardById, publicDrop } from './pages-data.ts'
 import type { Drop } from './pages-data.ts'
 import {
-  cardFace, cardTiles, FULL_CSS, fullCard, heading, html, installBlock, layout, notice, pixelHeading, PLACE, PLACE_CSS, promptLine, raw, rarityWord, text,
+  cardFace, cardTiles, discoveryCredit, FULL_CSS, fullCard, heading, html, installBlock, layout, notice, pixelHeading, PLACE, PLACE_CSS, promptLine, raw, rarityWord, text,
 } from './pages-html.ts'
 import type { Raw } from './pages-html.ts'
 import { oddsBody, privacyBody, PROSE_CSS } from './pages-info.ts'
 import { CAMP_CSS, LANDING_CSS, landingBody, teamCamp } from './pages-landing.ts'
 import { captureResponse } from './pages-media.ts'
+import { registerCatalogue } from './pages-catalogue.ts'
+import { registerPlayers } from './pages-players.ts'
+import { profileBody, PROFILE_COLLECTION_CSS, publicStanding } from './pages-profile.ts'
+import { discoveryCredits, publicInventory } from './public-collection.ts'
 import { ENTRY_RE, meet, SEED_RE } from './pages-meet.ts'
 import { imageCache, meadowPng, postcardPng } from './pages-og.ts'
 import type { ImageCache } from './pages-og.ts'
@@ -70,6 +74,8 @@ function previewOf(ctx: Ctx): Preview | null {
 }
 
 export function pages(api: Api): void {
+  registerCatalogue(api)
+  registerPlayers(api)
   const page = (path: string, handler: (ctx: Ctx) => Promise<Response> | Response, limit?: string) =>
     api.add({ method: 'GET', path, public: true, ...(limit ? { limit } : {}), handler })
 
@@ -86,7 +92,7 @@ export function pages(api: Api): void {
     }
     return layout({
       kind: 'home', title: TITLE, description: DESCRIPTION, path: '/', origin: ctx.origin, css: LANDING_CSS,
-      cache: preview ? 'no-store' : MINUTE_CACHE, now: ctx.now, team: true,
+      cache: 'no-store', now: ctx.now, team: true,
       og: {
         title: 'Spinlings', description: 'Wild creatures find you while Claude works. A creature card game inside Claude Code.',
         image: `${ctx.origin}/og/meadow.png`, imageAlt: 'A team of Spinlings on a lamp-lit path as a wild one rustles in the grass.',
@@ -176,8 +182,8 @@ export function pages(api: Api): void {
     path: '/privacy', origin: ctx.origin, cache: HOUR_CACHE, now: ctx.now, css: PROSE_CSS, body: privacyBody(),
   }))
 
-  // The boards: one board and period per address, so each is a plain link (no script needed). Every number is
-  // as of the last UTC midnight, so the page can be cached for a while.
+  // Every number is as of the last UTC midnight. Identity-bearing HTML stays uncached so hiding
+  // stats, renaming or deleting a player is reflected on the next visit.
   page('/boards', async ctx => {
     const q = ctx.url.searchParams
     const name = (BOARD_IDS as readonly string[]).includes(q.get('board') ?? '') ? q.get('board') as BoardName : 'rating'
@@ -187,7 +193,7 @@ export function pages(api: Api): void {
     const tab = BOARDS.find(b => b.id === name)!.tab
     return layout({
       kind: 'site', title: 'Leaderboards: Spinlings', description: 'The top Spinlings trainers by rating, players beaten, duel wins, species, Mythics and market sales.',
-      path: '/boards', origin: ctx.origin, cache: 'public, max-age=300', now: ctx.now, css: SITE_CSS + BOARDS_CSS + RANKS_CSS,
+      path: '/boards', origin: ctx.origin, cache: 'no-store', now: ctx.now, css: SITE_CSS + BOARDS_CSS + RANKS_CSS,
       og: { title: `Spinlings leaderboards: ${tab}`, description: 'The top trainers of every board, all time and this season.' },
       body: boardsBody({ res, leads }),
     })
@@ -202,11 +208,12 @@ export function pages(api: Api): void {
     const sort = (SORTS as readonly string[]).includes(q.get('sort') ?? '') ? q.get('sort') as MarketSort : 'newest'
     const after = q.get('after') ?? undefined
     const res = await marketPage(ctx.db, ctx.now, { ...(family ? { family } : {}), sort, ...(after ? { after } : {}) })
+    const credits = await discoveryCredits(ctx.db, res.listings.map(l => l.card))
     return layout({
       kind: 'site', title: 'The market: Spinlings', description: 'One-of-a-kind Spinlings cards up for sparks or a swap. Buy them inside Claude Code.',
-      path: '/market', origin: ctx.origin, cache: MINUTE_CACHE, now: ctx.now, css: SITE_CSS + MARKET_CSS + LOTS_CSS + RANKS_CSS,
+      path: '/market', origin: ctx.origin, cache: 'no-store', now: ctx.now, css: SITE_CSS + MARKET_CSS + LOTS_CSS + RANKS_CSS,
       og: { title: 'The Spinlings market', description: 'One-of-a-kind cards up for sparks or a swap.' },
-      body: marketBody(res, { ...(family ? { family } : {}), sort }, after !== undefined, catalogOf(ctx.db)),
+      body: marketBody(res, { ...(family ? { family } : {}), sort }, after !== undefined, catalogOf(ctx.db), credits),
     })
   }, 'browse')
 
@@ -215,33 +222,17 @@ export function pages(api: Api): void {
     if (!p) return missing(ctx, 'No trainer by that name', 'Usernames can change once a week, so an old link may point nowhere.')
     const handle = text(p.handle, 40)
     const lead = p.team[0]
-    const selling = await listingsByHandle(ctx.db, p.handle, ctx.now)
+    const [selling, inventory, standing] = await Promise.all([
+      listingsByHandle(ctx.db, p.handle, ctx.now), publicInventory(ctx.db, p.handle, ctx.now, ctx.url.searchParams),
+      publicStanding(ctx.db, p.handle, ctx.now),
+    ])
+    if (!inventory) return missing(ctx, 'No trainer by that name', 'That profile is not here.')
+    const credits = await discoveryCredits(ctx.db, [...p.team, ...p.forTrade, ...inventory.cards, ...selling.map(l => l.card)])
     return layout({
-      kind: 'site', title: `${handle}'s camp: Spinlings`, description: `${handle}'s team and cards marked for trade.`,
-      path: `/u/${p.handle}`, origin: ctx.origin, noindex: true, cache: MINUTE_CACHE, now: ctx.now,
-      css: SITE_CSS + CAMP_CSS + PROFILE_CSS + (p.stats ? STATS_CSS : '') + (selling.length ? LOTS_CSS : ''),
-      body: html`${placeStrip(lead?.family ?? 'fable')}
-<section class="wrap profile">
-<p class="pennant">${p.league} league</p>
-<h1>${heading(`${handle}'s camp`)}</h1>
-<p class="chips"><span class="ptag">${p.seenCount} species in their album</span><button class="pbtn js-only" type="button" data-profile-share="/u/${encodeURIComponent(p.handle)}"><span class="face">↗ Share profile</span></button></p>
-<p id="profile-share-status" role="status" aria-live="polite" style="overflow-wrap:anywhere"></p>
-</section>
-${p.team.length ? teamCamp(p.team) : html`<div class="wrap"><p class="empty doze">${raw(spriteSvg(spriteFor({ form: regulars()[2]!, stage: 1 }), { cls: 'shut' }))}<span>No team saved right now. Everyone's off in the grass.</span></p></div>`}
-<section class="wrap profile">
-${p.stats ? html`<h2>${heading('Stats')}</h2>${statTiles(p.stats)}` : ''}
-${selling.length ? html`<h2>${heading('On the market')}</h2><div class="stall">${lots(selling, [], { seller: false, catalog: catalogOf(ctx.db) })}</div><p class="more"><a href="/market">See the whole market</a></p>` : ''}
-<h2>${heading('Pinned for trade')}</h2>
-${p.forTrade.length ? html`<div class="board">${cardTiles(p.forTrade, { link: true })}</div>` : html`<p class="empty doze">${raw(spriteSvg(spriteFor(lead ?? { form: regulars()[2]!, stage: 1 }), { cls: 'shut' }))}<span>Nothing pinned for trade yet. Check back soon.</span></p>`}
-<div class="cta">
-<h2>${heading(`Trade with ${handle}`)}</h2>
-<p>Type this inside Claude Code to see their cards and make an offer.</p>
-${promptLine(`/spin trade ${handle}`, 'The trade command')}
-<p class="duelask">Or try your team against theirs, just for fun.</p>
-${promptLine(`/spin duel ${handle}`, 'The challenge command')}
-<div class="newhere"><h3>New here?</h3>${installBlock('install', 'Install Spinlings first. Your own starter team hatches right away.')}</div>
-</div>
-</section>`,
+      kind: 'site', title: `${handle}'s camp: Spinlings`, description: `${handle}'s creatures, collection, team and game stats.`,
+      path: `/u/${p.handle}`, origin: ctx.origin, noindex: true, cache: 'no-store', now: ctx.now,
+      css: SITE_CSS + CAMP_CSS + PROFILE_CSS + PROFILE_COLLECTION_CSS + (p.stats ? STATS_CSS : '') + (selling.length ? LOTS_CSS : ''),
+      body: html`${placeStrip(lead?.family ?? 'fable')}${profileBody(p, inventory, standing, selling, credits, ctx.url.searchParams, ctx.db)}`,
     })
   }, 'profile')
 
@@ -253,10 +244,11 @@ ${promptLine(`/spin duel ${handle}`, 'The challenge command')}
     if (isPng) return png(await cardPng(card, new URL(ctx.origin).host), HOUR_CACHE)
     const name = text(cardName(card), 48)
     const traits = card.traits.map(t => TRAITS[t]?.name ?? t).join(', ')
+    const credits = await discoveryCredits(ctx.db, [card])
     return layout({
       kind: 'site', title: `${name}: Spinlings`,
       description: `${name}, ${a(rarityWord(card))} ${describeCard(card)} in Spinlings.`,
-      path: `/c/${card.id}`, origin: ctx.origin, noindex: true, cache: 'public, max-age=300', css: SITE_CSS + FULL_CSS + CARD_CSS, now: ctx.now,
+      path: `/c/${card.id}`, origin: ctx.origin, noindex: true, cache: 'no-store', css: SITE_CSS + FULL_CSS + CARD_CSS, now: ctx.now,
       og: {
         title: `${name}, ${a(rarityWord(card))} ${describeCard(card)}`,
         description: `Level ${card.level}, genes ${geneScore(card.genes)}%${traits ? `, ${traits}` : ''}. Every Spinling is one of a kind. Find your own while Claude works.`,
@@ -264,7 +256,7 @@ ${promptLine(`/spin duel ${handle}`, 'The challenge command')}
       },
       body: html`${placeStrip(card.family)}
 <section class="wrap cardpage">
-${fullCard(card)}
+${fullCard(card, { credits })}
 <div class="cta"><p class="big">Every Spinling is one of a kind. Find your own while Claude works.</p>${installBlock('install')}</div>
 </section>`,
     })
@@ -277,6 +269,7 @@ ${fullCard(card)}
       return missing(ctx, 'This gift is not waiting any more', 'It may have been claimed already, or its link ran out after 14 days.', 'no-store')
     }
     const name = text(cardName(card), 48)
+    const credits = await discoveryCredits(ctx.db, [card])
     return layout({
       kind: 'site', title: 'A Spinling is waiting for you', description: `Someone sent you ${a(rarityWord(card))} ${describeCard(card)}. Claim it inside Claude Code.`,
       path: `/g/${code}`, origin: ctx.origin, noindex: true, css: SITE_CSS + GIFT_CSS, now: ctx.now,
@@ -295,6 +288,7 @@ ${fullCard(card)}
 <div class="how">
 <h1>${heading('A Spinling is waiting for you.')}</h1>
 <p class="lede">Someone sent you ${name}, ${a(rarityWord(card).toLowerCase())} ${describeCard(card)}. It's yours once you claim it.</p>
+${discoveryCredit(credits.get(card.id))}
 <ol class="signposts">
 <li><h2>Install Spinlings</h2>${installBlock('install')}</li>
 <li><h2>Start a new Claude Code session</h2><p>Your own starter team hatches right away.</p></li>

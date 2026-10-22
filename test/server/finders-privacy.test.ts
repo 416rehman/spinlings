@@ -1,7 +1,7 @@
 // Who found what (SPEC 13, 18, 20.1, 20.7, 20.8): a Mythic's card never stores its finder's handle.
 // The server keeps the finder by id and names them as the card is read, only while the handle is
 // the one they found it under, so a reroll or a deletion leaves nothing that puts an old handle
-// beside a new one. First discoveries never name anyone on the public pages.
+// beside a new one. Website-only species credit links the original finder, separately from v1 cards.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { mintCard, toBattleCard } from '../../plugin/hooks/core/cards.ts'
@@ -74,7 +74,7 @@ describe('a Mythic names its finder only as it is read (SPEC 18, 20.1)', () => {
     const listed = (await x.call('profile', { handle: handle(o) })).forTrade.find(c => c.id === m.id)
     assert.equal(listed?.form?.discoveredBy, handle(f))
     const text = textOf(await page(s, `/c/${m.id}`))
-    assert.ok(text.includes(`Discovered by ${handle(f)}`))
+    assert.ok(text.includes(`First discovered by ${handle(f)}`))
     assert.ok(!text.includes(handle(o)), 'never its owner')
   })
 
@@ -95,7 +95,7 @@ describe('a Mythic names its finder only as it is read (SPEC 18, 20.1)', () => {
     for (const c of [kept, given]) {
       assert.ok(textOf(landing).includes(`${nameOf(c)} found by a trainer`))
       const card = await page(s, `/c/${c.id}`)
-      assert.ok(textOf(card).includes('Discovered by a trainer'))
+      assert.ok(textOf(card).includes('First discovered by a trainer'))
       for (const html of [landing, card]) assert.ok(!html.includes(old) && !html.includes(renamed))
     }
     assert.deepEqual(await holding(s, old), ['retired_handles'], 'only the retired list remembers the old handle')
@@ -118,7 +118,7 @@ describe('a Mythic names its finder only as it is read (SPEC 18, 20.1)', () => {
     await f.call('deleteMe')
     assert.ok((await o.call('me')).player.cardsVersion > before)
     assert.equal(await finderOf(o, m), undefined)
-    assert.ok(textOf(await page(s, `/c/${m.id}`)).includes('Discovered by a trainer'))
+    assert.ok(textOf(await page(s, `/c/${m.id}`)).includes('First discovered by a trainer'))
     assert.ok(textOf(await page(s, '/')).includes(`${nameOf(m)} found by a trainer`))
     assert.deepEqual(await s.db.get('SELECT finder_id, handle FROM mythics WHERE card_id = ?', m.id), { finder_id: null, handle: null })
     assert.deepEqual(await holding(s, f.id), [])
@@ -142,7 +142,7 @@ describe('a Mythic names its finder only as it is read (SPEC 18, 20.1)', () => {
 })
 
 describe('first discoveries on the public pages (SPEC 13, 20.8)', () => {
-  it('say "first found by a trainer", never by whom, so a deletion changes nothing a visitor sees', async () => {
+  it('link the original species finder, preserve the individual First Discovered label, and unlink deleted identities', async () => {
     const s = server()
     const [f, o] = [await s.join(), await s.join()]
     const found = new Set((await s.db.all<{ species: string }>('SELECT species FROM firsts')).map(r => r.species))
@@ -158,14 +158,30 @@ describe('first discoveries on the public pages (SPEC 13, 20.8)', () => {
     const gallery = (html: string) => html.slice(html.indexOf('id="season"'), html.indexOf('id="mythics"'))
     const card = await page(s, `/c/${first.id}`)
     const landing = gallery(await page(s, '/'))
-    assert.ok(textOf(card).includes('First found by a trainer'))
-    assert.ok(textOf(await page(s, `/u/${handle(o)}`)).includes('First discovered'))
+    assert.ok(textOf(card).includes('First Discovered'))
+    assert.ok(textOf(card).includes(`First discovered by ${handle(f)}`))
+    assert.ok(card.includes(`href="/u/${handle(f)}"`))
+    assert.ok(!card.includes(handle(o)), 'credit never names the current card owner')
+    const profile = await page(s, `/u/${handle(o)}`)
+    assert.ok(textOf(profile).includes(`First discovered by ${handle(f)}`))
+    const speciesPage = await page(s, `/species/${species.id}`)
+    assert.ok(textOf(speciesPage).includes(`First discovered by ${handle(f)}`))
     assert.ok(textOf(landing).includes(` ${species.names[0]} `), 'the species shows as found')
-    for (const html of [card, landing]) assert.ok(!html.includes(handle(f)) && !html.includes(handle(o)))
+    assert.ok(landing.includes(`href="/species/${species.id}"`), 'found portraits open their species details')
+    for (const markup of [card, landing, profile, speciesPage]) {
+      for (const id of [f.id, o.id]) assert.ok(!markup.includes(id), 'player ids remain private')
+      assert.doesNotMatch(markup, /"(?:owner_id|mintedAt|lockedUntil|tiredUntil|raisedIn|escrowRef)"/)
+    }
 
     await f.call('deleteMe')
     assert.equal((await s.db.get<{ player_id: string | null }>('SELECT player_id FROM firsts WHERE species = ?', species.id))!.player_id, null)
-    assert.equal(await page(s, `/c/${first.id}`), card)
+    const after = await page(s, `/c/${first.id}`)
+    assert.ok(textOf(after).includes('First Discovered') && textOf(after).includes('First discovered by a trainer'))
+    const face = (markup: string) => markup.slice(markup.indexOf('<div class="bigcard'), markup.indexOf('<div class="plaque">'))
+    assert.equal(face(after), face(card), 'the surviving card and its First Discovered label remain')
+    for (const markup of [after, await page(s, `/species/${species.id}`), await page(s, `/u/${handle(o)}`)]) {
+      assert.ok(!markup.includes(handle(f)) && !markup.includes(f.id), 'the deleted discovery identity is gone everywhere')
+    }
     assert.equal(gallery(await page(s, '/')), landing)
   })
 })

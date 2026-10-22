@@ -15,6 +15,8 @@ import { cardOf } from './game/mint.ts'
 import { b64urlDecode, b64urlEncode } from './game/passkeys.ts'
 import { fail, json } from './http.ts'
 import type { CardRow, SeasonRow } from './schema.ts'
+import { discoveryCredits } from './public-collection.ts'
+import type { DiscoveryCredit } from './public-collection.ts'
 
 export const ACCOUNT_CARDS_PAGE = 24
 const SORTS = ['newest', 'oldest', 'name', 'rarity', 'level', 'genes', 'hp', 'atk', 'def', 'spd'] as const
@@ -23,7 +25,7 @@ type Selection = {
   q?: string; family?: Family; rarity?: Rarity; trait?: TraitId; finish?: 'foil' | 'shiny' | 'both'
   scope?: 'all' | 'team' | 'forTrade' | 'available'; sort?: Sort; after?: string
 }
-export type AccountCardsResponse = { cards: Card[]; team: Card[]; version: number; total: number; matched: number; next?: string }
+export type AccountCardsResponse = { cards: Card[]; team: Card[]; discoveryCredits: Record<string, DiscoveryCredit>; version: number; total: number; matched: number; next?: string }
 
 const selectionSchema = S.obj<Selection>({
   q: S.optional(S.str({ max: 40, re: /^[^\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]*$/ })),
@@ -55,19 +57,30 @@ function selection(params: URLSearchParams): Selection {
 
 type Key = number | string
 type PageRow = CardRow & { sort_key: Key }
-type Cursor = [number, string, Key, string]
+type Cursor = [number, string, Key, string, string]
 
-function cursor(value: string, sort: Sort, fingerprint: string, version: number): Cursor {
+function cursor(value: string, sort: Sort, fingerprint: string, version: number, discovery: string): Cursor {
   let at: unknown
   try { at = JSON.parse(decode.decode(b64urlDecode(value))) } catch { fail('bad_request', BAD_CURSOR) }
-  if (!Array.isArray(at) || at.length !== 4 || !Number.isInteger(at[0]) || at[0] < 0 || at[0] > 1e9 ||
-    at[1] !== fingerprint || typeof at[3] !== 'string' || !/^[a-z2-7]{26}$/.test(at[3])) fail('bad_request', BAD_CURSOR)
+  if (!Array.isArray(at) || (at.length !== 4 && at.length !== 5) || !Number.isInteger(at[0]) || at[0] < 0 || at[0] > 1e9 ||
+    at[1] !== fingerprint || typeof at[3] !== 'string' || !/^[a-z2-7]{26}$/.test(at[3]) ||
+    (at.length === 5 && (typeof at[4] !== 'string' || !/^[a-f0-9]{64}$/.test(at[4])))) fail('bad_request', BAD_CURSOR)
   const key = at[2]
   const stringKey = sort === 'name' || sort === 'newest' || sort === 'oldest'
   if (stringKey ? typeof key !== 'string' || key.length > 48 || (sort !== 'name' && !DAY_RE.test(key))
     : typeof key !== 'number' || !Number.isSafeInteger(key) || key < 0 || key > 1e9) fail('bad_request', BAD_CURSOR)
-  if (at[0] !== version) fail('conflict', CHANGED)
+  if (at[0] !== version || at[4] !== discovery) fail('conflict', CHANGED)
   return at as Cursor
+}
+
+/** Website credit changes invalidate browser pages without changing the released v1 card version. */
+async function creditDigest(db: Db, owner: string): Promise<string> {
+  const rows = await db.all<{ species: string; handle: string | null }>(
+    `SELECT f.species, p.handle FROM (SELECT DISTINCT species FROM cards WHERE owner_id = ?) held
+     JOIN firsts f ON f.species = held.species LEFT JOIN players p ON p.id = f.player_id AND p.handle = f.handle
+     ORDER BY f.species`, owner,
+  )
+  return sha256Hex(JSON.stringify(rows))
 }
 
 const NAME = `COALESCE(json_extract(c.form, '$.names[' || (c.stage - 1) || ']'),
@@ -130,7 +143,8 @@ async function browse(ctx: PlayerCtx): Promise<AccountCardsResponse> {
   const fingerprint = sha256Hex(JSON.stringify([
     ctx.player.id, q.q, q.family, q.rarity, q.trait, q.finish, q.scope, sort, q.scope === 'team' ? team : [],
   ])).slice(0, 16)
-  const at = q.after ? cursor(q.after, sort, fingerprint, ctx.player.cards_version) : null
+  const discovery = await creditDigest(ctx.db, ctx.player.id)
+  const at = q.after ? cursor(q.after, sort, fingerprint, ctx.player.cards_version, discovery) : null
   const named = `WITH named AS (SELECT c.*${q.q || sort === 'name' ? `, ${NAME} AS label` : ''} FROM cards c WHERE c.owner_id = ?)`
   const where: string[] = []
   const params: SqlParam[] = [ctx.player.id]
@@ -161,15 +175,18 @@ async function browse(ctx: PlayerCtx): Promise<AccountCardsResponse> {
     `SELECT * FROM cards WHERE owner_id = ? AND id IN (${marks(team.length)})`, ctx.player.id, ...team,
   ) : []
   const cards = await wireCards(ctx.db, [...page, ...teamRows])
+  const credits = await discoveryCredits(ctx.db, [...cards.values()])
   const current = await ctx.db.get<{ cards_version: number; team: string }>('SELECT cards_version, team FROM players WHERE id = ?', ctx.player.id)
   if (!current) fail('unauthorized', 'Sign in again to see your collection')
   if (current.cards_version !== ctx.player.cards_version || current.team !== ctx.player.team) fail('conflict', CHANGED)
+  if (await creditDigest(ctx.db, ctx.player.id) !== discovery) fail('conflict', CHANGED)
   const last = page.at(-1)
   const next = rows.length > ACCOUNT_CARDS_PAGE && last
-    ? b64urlEncode(encode.encode(JSON.stringify([ctx.player.cards_version, fingerprint, last.sort_key, last.id])))
+    ? b64urlEncode(encode.encode(JSON.stringify([ctx.player.cards_version, fingerprint, last.sort_key, last.id, discovery])))
     : null
   return {
     cards: page.map(r => cards.get(r.id)!), team: team.flatMap(id => cards.has(id) ? [cards.get(id)!] : []),
+    discoveryCredits: Object.fromEntries(credits),
     version: ctx.player.cards_version, ...counts, ...(next ? { next } : {}),
   }
 }

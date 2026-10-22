@@ -5,7 +5,7 @@
 // Nothing loads from another origin.
 import { cardName, geneScore } from '../../plugin/hooks/core/cards.ts'
 import { FAMILY_INFO } from '../../plugin/hooks/core/families.ts'
-import { cleanText } from '../../plugin/hooks/core/schemas.ts'
+import { cleanText, HANDLE_RE } from '../../plugin/hooks/core/schemas.ts'
 import { EYE, miniSprite, SHINE, spriteFor } from '../../plugin/hooks/core/sprite.ts'
 import { TRAITS } from '../../plugin/hooks/core/traits.ts'
 import type { BattleCard, Family } from '../../plugin/hooks/core/types.ts'
@@ -20,6 +20,7 @@ import { spriteSvg } from './pages-sprite.ts'
 import { regulars } from './pages-world.ts'
 import { SITE_ASSETS } from '../static/site.gen.ts'
 import { ACCOUNT_HASH } from '../static/account.ts'
+import type { DiscoveryCredit } from './public-collection.ts'
 
 // ---- escaping by construction ------------------------------------------------------------------
 
@@ -244,6 +245,7 @@ html.js .home .walker.on{opacity:1}
 .nb svg{width:20px;height:20px;transition:transform .2s var(--spring)}
 .nb:hover{text-decoration:underline}.nb:hover svg{transform:translateY(-3px) rotate(-8deg)}
 .nb[aria-current]{text-decoration:underline;text-decoration-thickness:2px}
+.profile-access{justify-content:center;width:36px;padding:0}
 .ghl{display:none}
 @media (min-width:1024px){.ghl{display:inline}}
 .home .top{background:var(--sky1);color:var(--ink)}
@@ -261,6 +263,7 @@ html.js .home .walker.on{opacity:1}
 .end{gap:var(--s2)}.gh{--fy:8px}
 .home .nbl{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 }
+@media(max-width:400px){.top .end{gap:4px}.top .end .nbl{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.top .end .nb{padding:0 5px}.top .end .gh{padding-left:5px;padding-right:5px}.home .top .team{display:none}}
 
 /* footer */
 .foot{position:relative;margin-top:0;background:#1f1512;color:#cdb9a6;font-size:.9375rem}
@@ -321,6 +324,8 @@ clip-path:polygon(40% 0,60% 0,60% 20%,80% 20%,80% 40%,100% 40%,100% 60%,80% 60%,
 .card-inspect>summary::-webkit-details-marker{display:none}
 .card-inspect .inspect-body{padding:12px;background:var(--paper);color:var(--pink);border:2px solid var(--pline)}
 .card-inspect .inspect-body>*+*{margin-top:8px}
+.card-discovery{margin-top:8px;font-size:.8125rem;line-height:1.5;overflow-wrap:anywhere}
+.card-discovery a{font-weight:700}
 .card-help{position:relative;min-width:0}
 .card-help>summary{position:relative;min-height:44px;padding:8px 0;cursor:pointer;font-weight:700;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:4px}
 .card-help .help-body{margin-top:4px;font-weight:400;line-height:1.5;overflow-wrap:anywhere}
@@ -528,7 +533,8 @@ function header(kind: PageKind, team: boolean, path = ''): Raw {
 <button class="slot" type="button" data-slot="1"><span class="in2"></span></button>
 <button class="slot" type="button" data-slot="2"><span class="in2"></span></button>
 </div>` : ''}
-<a class="nb" href="/boards"${path.startsWith('/boards') ? html` aria-current="page"` : ''}>${raw(TROPHY)}<span class="nbl">Boards</span></a>
+<a class="nb" href="/players" aria-label="Browse players" title="Browse players"${path === '/players' ? html` aria-current="page"` : ''}><svg viewBox="0 0 20 20" aria-hidden="true" shape-rendering="crispEdges"><path fill="currentColor" d="M4 2h5v2h1v5H9v1H4V9H3V4h1zM13 4h3v1h1v4h-1v1h-3V9h-1V5h1zM3 12h7v1h2v5H1v-5h2zM14 12h3v1h2v5h-5z"/></svg><span class="nbl">Players</span></a>
+<a class="nb profile-access" href="/account" aria-label="Your profile" title="Your profile"${path === '/account' ? html` aria-current="page"` : ''}><svg viewBox="0 0 20 20" aria-hidden="true" shape-rendering="crispEdges"><path fill="currentColor" d="M7 2h6v1h1v6h-1v1H7V9H6V3h1zM5 12h10v1h2v5H3v-5h2z"/></svg></a>
 <a class="gh" href="${REPO}" aria-label="${SOURCE_NAME}">${raw(GITHUB_MARK)}<span class="ghl">Open source</span></a></div>
 </div>
 <div class="hdz" aria-hidden="true">${raw(HEADER_DITHER)}</div>
@@ -554,7 +560,7 @@ ${!scripted ? html`<span class="napper" aria-hidden="true">${raw(napper())}</spa
 <div class="in wrap">
 <p>A creature card game for Claude Code. Free and open source. Not affiliated with Anthropic.</p>
 <p>Season ${season}, day ${day}.</p>
-<nav aria-label="More"><a href="/boards">Leaderboards</a><a href="/market">Market</a><a href="/odds">Odds</a><a href="/privacy">Privacy</a><a href="${REPO}">Source code</a><a href="${REPO}/issues">Report a problem</a><a href="${REPO}/blob/main/SECURITY.md">Report a security issue</a><a href="${REPO}/blob/main/docs/self-hosting.md">Run your own server</a></nav>
+<nav aria-label="More"><a href="/players">Players</a><a href="/account">Your profile</a><a href="/boards">Leaderboards</a><a href="/market">Market</a><a href="/mythics">Mythics</a><a href="/odds">Odds</a><a href="/privacy">Privacy</a><a href="${REPO}">Source code</a><a href="${REPO}/issues">Report a problem</a><a href="${REPO}/blob/main/SECURITY.md">Report a security issue</a><a href="${REPO}/blob/main/docs/self-hosting.md">Run your own server</a></nav>
 ${scripted ? html`<button class="tbtn keys js-only" type="button" aria-pressed="true" data-keys>Key shortcuts</button>` : ''}
 </div>
 </footer>`
@@ -648,15 +654,14 @@ export const familyStyle = (c: Pick<BattleCard, 'family'>) => `--fam:${FAMILY_CO
 
 /**
  * What else a card is, in words (never colour alone, SPEC 21.9). Finishes live in the rarity line.
- * A first discovery never names its finder here (SPEC 20.8), and a Mythic names its finder only
- * while the loaders still do: once they reroll or leave, it was found by "a trainer". The full card
- * spells the first discovery out; the tile keeps it short.
+ * The stamp belongs to this particular card. Species-level discovery credit is rendered separately,
+ * outside any card link. Mythic readers clear the old handle when its finder renames or leaves.
  */
-export function stamps(c: BattleCard, o: { full?: boolean } = {}): string[] {
+export function stamps(c: BattleCard, o: { full?: boolean; finder?: boolean } = {}): string[] {
   const out: string[] = []
-  if (c.firstFind) out.push(`${MARK.first} ${o.full ? 'First found by a trainer' : 'First discovered'}`)
+  if (c.firstFind) out.push(`${MARK.first} First Discovered`)
   if (isMythic(c)) out.push(`${MARK.mythic} Mythic, 1 of 1`)
-  if (c.form?.kind === 'mythic') out.push(`Discovered by ${c.form.discoveredBy ? text(c.form.discoveredBy, 40) : 'a trainer'}`)
+  if (c.form?.kind === 'mythic' && o.finder !== false) out.push(`Discovered by ${c.form.discoveredBy ? text(c.form.discoveredBy, 40) : 'a trainer'}`)
   if (c.form?.kind === 'promo' && c.form.stamp) out.push(text(c.form.stamp, 40))
   return out
 }
@@ -670,7 +675,16 @@ export const rarityLine = (c: Pick<BattleCard, 'species' | 'rarity' | 'shiny' | 
 /** What the gene bar means, on hover. */
 export const GENE_TIP = 'How good its four genes are. Each gene lifts or lowers one stat by up to 12%.'
 
-export type FaceOptions = { big?: boolean; level?: boolean; genes?: boolean; traits?: boolean; stamps?: boolean; dna?: boolean; poke?: boolean; combat?: boolean }
+export type FaceOptions = { big?: boolean; level?: boolean; genes?: boolean; traits?: boolean; stamps?: boolean; finder?: boolean; dna?: boolean; poke?: boolean; combat?: boolean }
+
+export type DiscoveryCredits = ReadonlyMap<string, DiscoveryCredit>
+
+/** Current public discovery credit only: a missing or invalid handle never becomes a profile link. */
+export function discoveryCredit(credit?: DiscoveryCredit): Raw {
+  if (!credit) return html``
+  const handle = credit.handle && HANDLE_RE.test(credit.handle) ? credit.handle : null
+  return html`<p class="card-discovery">First discovered by ${handle ? html`<a href="/u/${encodeURIComponent(handle)}">${handle}</a>` : 'a trainer'}</p>`
+}
 
 /**
  * The card face (SPEC 21's one component), server-side; the client builds the same markup in card.ts.
@@ -683,7 +697,7 @@ export function cardFace(c: BattleCard, o: FaceOptions = {}): Raw {
   const art = o.poke
     ? html`<button class="poke js-only" type="button" aria-label="${name}. Poke it.">${raw(spriteSvg(spriteFor(c)))}</button><span class="nojs">${raw(spriteSvg(spriteFor(c), { label: name }))}</span>`
     : raw(spriteSvg(spriteFor(c)))
-  const marks = o.stamps ? stamps(c) : []
+  const marks = o.stamps ? stamps(c, { finder: o.finder }) : []
   return html`<div class="${cls}" style="${familyStyle(c)};--rar:${rarityColor(c)};--psky:${PLACE[c.family][0]}">
 <div class="cf-art">${art}</div>
 <p class="cf-name">${o.big && pixelable(name) ? html`${raw(boldWords(name))}<span class="sr">${name}</span>` : name}</p>
@@ -699,13 +713,14 @@ ${marks.length ? html`<p class="cf-stamps">${marks.map(s => html`<span>${s}</spa
 }
 
 /** The tile: art, name, rarity, family and level (SPEC 21's one card component). */
-export function cardTile(c: BattleCard, o: { link?: boolean } = {}): Raw {
+export function cardTile(c: BattleCard, o: { link?: boolean; credits?: DiscoveryCredits } = {}): Raw {
   const name = text(cardName(c), 40)
-  const face = cardFace(c, { level: true, stamps: true, genes: true, combat: true, traits: true })
-  return html`<li class="tile">${o.link ? html`<a class="cardlink" href="/c/${c.id}" aria-label="${name}, ${rarityLine(c)}">${face}</a>` : face}${cardDetails(c)}</li>`
+  const credit = o.credits?.get(c.id)
+  const face = cardFace(c, { level: true, stamps: true, finder: !credit, genes: true, combat: true, traits: true })
+  return html`<li class="tile">${o.link ? html`<a class="cardlink" href="/c/${c.id}" aria-label="${name}, ${rarityLine(c)}">${face}</a>` : face}${discoveryCredit(credit)}${cardDetails(c)}</li>`
 }
 
-export const cardTiles = (cards: readonly BattleCard[], o: { link?: boolean } = {}): Raw =>
+export const cardTiles = (cards: readonly BattleCard[], o: { link?: boolean; credits?: DiscoveryCredits } = {}): Raw =>
   html`<ul class="cards">${cards.map(c => cardTile(c, o))}</ul>`
 
 /** Hover or focus previews help; native disclosure keeps the same explanation available on tap. */
@@ -747,10 +762,11 @@ export function dnaSwatches(c: BattleCard, n = 5): string[] {
  * foil and shiny, shimmering under the pointer). The plaque beside it holds only what the face does
  * not: its stats, its traits and its story (form, season, finds and stamps).
  */
-export function fullCard(c: BattleCard): Raw {
+export function fullCard(c: BattleCard, o: { credits?: DiscoveryCredits } = {}): Raw {
   const name = text(cardName(c), 48)
   const st = c.stats
-  const marks = stamps(c, { full: true })
+  const credit = o.credits?.get(c.id)
+  const marks = stamps(c, { full: true, finder: !credit })
   const move = cardMove(c)
   return html`<article class="full" style="${familyStyle(c)};--rar:${rarityColor(c)}">
 <div class="bigcard${isMythic(c) ? ' mythic' : ''}" data-bigcard>${cardFace(c, { big: true, poke: true, level: true, genes: true, dna: true })}</div>
@@ -762,6 +778,7 @@ export function fullCard(c: BattleCard): Raw {
 <li>Season ${c.season}.</li>
 ${marks.map(s => html`<li${s.startsWith(MARK.first) || s.startsWith(MARK.mythic) ? html` class="seal"` : ''}>${s}</li>`)}
 </ul>
+${discoveryCredit(credit)}
 <dl class="stats">${STAT_KEYS.map(k => html`<div><dt>${cardHelp(CARD_HELP.stats[k].label, CARD_HELP.stats[k].text)}</dt><dd>${st[k]}</dd></div>`)}</dl>
 ${c.traits.length ? html`<ul class="traits">${c.traits.map(t => html`<li>${cardHelp(TRAITS[t]?.name ?? t, TRAITS[t]?.text ?? '')}</li>`)}</ul>` : ''}
 <div class="combat-guide">${cardHelp(`${FAMILY_INFO[c.family].name} matchups`, CARD_HELP.families[c.family].text)}${cardHelp(move.name, move.text)}${cardHelp('Four genes', CARD_HELP.genes)}${cardGenes(c)}${cardHelp('How damage works', CARD_HELP.damage)}${c.shiny || c.foil ? cardHelp('Shiny & foil', CARD_HELP.finishes) : ''}</div>

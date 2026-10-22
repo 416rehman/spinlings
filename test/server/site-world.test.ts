@@ -539,7 +539,7 @@ describe('data-world', () => {
     const s = server()
     const plain = await html(s, '/')
     const asked = await html(s, '/?preview=rule:wildBloom,found:all,mythics:5')
-    assert.equal(asked.res.headers.get('cache-control'), 'public, max-age=60')
+    assert.equal(asked.res.headers.get('cache-control'), 'no-store')
     assert.equal(worldOfPage(asked.text).rule, worldOfPage(plain.text).rule)
     assert.ok(!('preview' in worldOfPage(asked.text)))
   })

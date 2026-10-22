@@ -135,14 +135,14 @@ describe('site craft', () => {
     }
   })
 
-  it('makes the album one Tab stop per family, each row named by its count', async () => {
+  it('makes every album entry keyboard-accessible without script, each row named by its count', async () => {
     const { s } = await world()
     const p = await get(s, '/')
     const rows = [...p.html.matchAll(/<p class="blabel" id="row-([a-z]+)">[\s\S]*?<\/span> ([A-Z][a-z]+): (\d) of 9 found<\/p>\n<ul class="nooks" aria-labelledby="row-\1" data-roving>([\s\S]*?)<\/ul>/g)]
     assert.deepEqual(rows.map(r => r[1]), ['haiku', 'sonnet', 'opus', 'fable'])
     for (const r of rows) {
-      assert.equal((r[4]!.match(/tabindex="0"/g) ?? []).length, 1, `${r[1]}: one stop`)
-      assert.equal((r[4]!.match(/tabindex="-1"/g) ?? []).length, 8, `${r[1]}: the rest by arrow keys`)
+      assert.equal((r[4]!.match(/<a class="nook" href="\/species\//g) ?? []).length, 9, `${r[1]}: nine native links`)
+      assert.doesNotMatch(r[4]!, /tabindex="-1"/, `${r[1]}: every link stays reachable before script`)
       assert.equal((r[4]!.match(/<li class="nk found/g) ?? []).length, Number(r[3]))
     }
   })

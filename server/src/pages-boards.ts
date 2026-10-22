@@ -12,8 +12,8 @@ import { spriteFor } from '../../plugin/hooks/core/sprite.ts'
 import type { BattleCard, Family, LeagueName } from '../../plugin/hooks/core/types.ts'
 import { FAMILY_COLOR, LEAGUE_COLOR, MYTHIC_COLOR } from '../../plugin/hooks/ui/tokens.ts'
 import { boldWords } from './pages-font.ts'
-import { cardDetails, cardFace, heading, html, installBlock, promptLine, raw, rarityLine, text } from './pages-html.ts'
-import type { Raw } from './pages-html.ts'
+import { cardDetails, cardFace, discoveryCredit, heading, html, installBlock, promptLine, raw, rarityLine, text } from './pages-html.ts'
+import type { DiscoveryCredits, Raw } from './pages-html.ts'
 import { grassSvg, hillSvg, marketTopSvg, peaksSvg } from './pages-scene.ts'
 import { spriteSvg } from './pages-sprite.ts'
 import { regulars } from './pages-world.ts'
@@ -232,7 +232,7 @@ export function wantWords(w: MarketWant, catalog?: SeasonCatalog): string {
 }
 
 /** One listing: the card (linking to its page), a paper price tag, what it wants, and who put it up. */
-function lot(l: ListingView, last?: number, seller = true, catalog?: SeasonCatalog): Raw {
+function lot(l: ListingView, last?: number, seller = true, catalog?: SeasonCatalog, credits?: DiscoveryCredits): Raw {
   const c = l.card
   const name = text(cardName(c), 40)
   return html`<li class="lot">
@@ -241,13 +241,14 @@ function lot(l: ListingView, last?: number, seller = true, catalog?: SeasonCatal
 ${l.want ? html`<p class="want">${l.price ? 'and ' : 'for '}${wantWords(l.want, catalog)}</p>` : ''}</div>
 ${seller ? html`<p class="seller">from <a href="/u/${l.seller}">${text(l.seller, 40)}</a></p>` : ''}
 ${last !== undefined ? html`<p class="last">Last one sold for ${num(last)}</p>` : ''}
+${discoveryCredit(credits?.get(c.id))}
 ${cardDetails(c)}
 </li>`
 }
 
-export const lots = (listings: readonly ListingView[], prices: MarketResponse['prices'] = [], o: { seller?: boolean; catalog?: SeasonCatalog } = {}): Raw => {
+export const lots = (listings: readonly ListingView[], prices: MarketResponse['prices'] = [], o: { seller?: boolean; catalog?: SeasonCatalog; credits?: DiscoveryCredits } = {}): Raw => {
   const last = new Map(prices.map(p => [p.species, p.sales[0]?.price]))
-  return html`<ul class="lots">${listings.map(l => lot(l, last.get(l.card.species), o.seller !== false, o.catalog))}</ul>`
+  return html`<ul class="lots">${listings.map(l => lot(l, last.get(l.card.species), o.seller !== false, o.catalog, o.credits))}</ul>`
 }
 
 export const LOTS_CSS = `
@@ -268,6 +269,7 @@ export const LOTS_CSS = `
 .seller{margin-top:var(--s2);font-size:.8125rem;color:#f1e6cf;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .seller a{color:#fffdf5;font-weight:700}
 .last{font-size:.75rem;color:#e0cdb8}
+.lot .card-discovery{color:#f1e6cf;text-align:center}
 `
 
 // ---- the market page ---------------------------------------------------------------------------
@@ -280,7 +282,7 @@ const marketHref = (v: MarketView, after?: string) => {
   return `/market${q ? `?${q}` : ''}`
 }
 
-export function marketBody(res: MarketResponse, v: MarketView, paged: boolean, catalog?: SeasonCatalog): Raw {
+export function marketBody(res: MarketResponse, v: MarketView, paged: boolean, catalog?: SeasonCatalog, credits?: DiscoveryCredits): Raw {
   const n = res.listings.length
   return html`<section class="mkthead" aria-labelledby="market-h">
 <div class="wrap">
@@ -296,7 +298,7 @@ export function marketBody(res: MarketResponse, v: MarketView, paged: boolean, c
 <nav class="period" aria-label="Sort">${SORTS.map(s => html`<a href="${marketHref({ ...v, sort: s })}"${current(v.sort === s)}>${cap(s)}</a>`)}</nav>
 </div>
 ${n
-    ? html`<div class="stall">${lots(res.listings, res.prices, { catalog })}</div>
+    ? html`<div class="stall">${lots(res.listings, res.prices, { catalog, credits })}</div>
 ${res.next || paged ? html`<p class="pages">${paged ? html`<a class="tbtn" href="${marketHref(v)}">Back to the start</a>` : ''}${res.next ? html`<a class="pbtn" href="${marketHref(v, res.next)}"><span class="face">More cards</span></a>` : ''}</p>` : ''}`
     : html`<div class="nobody">${raw(spriteSvg(spriteFor({ form: regulars()[6]!, stage: 1 }), { cls: 'shut' }))}<div><p class="big">${v.family ? `No ${FAMILY_INFO[v.family].name} cards up right now.` : 'The stalls are empty right now.'}</p><p>Put one of yours up from Claude Code and it shows here.</p></div></div>`}
 <div class="join"><div><h2>${heading('Not playing yet?')}</h2>${installBlock('install', 'Install Spinlings. Your starter team hatches right away.')}</div></div>

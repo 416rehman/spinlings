@@ -23,7 +23,7 @@ describe('named Mythics', () => {
   })
 
   it('adds only an owner-free reservation table to an already released database', () => {
-    const sqlite = new DatabaseSync(':memory:'), files = loadMigrations()
+    const sqlite = new DatabaseSync(':memory:'), files = loadMigrations().filter(f => f.name < '0005_')
     const old = files.filter(f => f.name < '0004_')
     migrateSqlite(sqlite, old)
     const schema = () => sqlite.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT IN ('d1_migrations', 'named_mythic_encounters') ORDER BY name").all()
