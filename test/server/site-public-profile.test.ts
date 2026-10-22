@@ -207,7 +207,7 @@ describe('the public profile route', () => {
     const response = await s.request('GET', '/account', { token: owner.token, client: null })
     const html = await response.text()
     assert.equal(response.status, 200)
-    assert.match(html, /<a\b[^>]*id="profile-open"[^>]*>View public profile<\/a>/)
+    assert.match(html, /<a\b[^>]*id="profile-open"[^>]*>Public profile<\/a>/)
     assert.ok(html.indexOf('id="profile-open"') > html.indexOf('id="dashboard" hidden'), 'the action lives in the signed-in dashboard')
     for (const privateValue of [handle(owner), owner.id, owner.token]) assert.ok(!html.includes(privateValue))
   })
