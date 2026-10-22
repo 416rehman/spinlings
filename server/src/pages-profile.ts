@@ -2,18 +2,20 @@
 import type { ListingView, ProfileResponse } from '../../plugin/hooks/core/api.ts'
 import { RARITIES } from '../../plugin/hooks/core/cards.ts'
 import { FAMILIES, FAMILY_INFO } from '../../plugin/hooks/core/families.ts'
+import { TRAITS, TRAIT_IDS } from '../../plugin/hooks/core/traits.ts'
 import { seasonOf } from '../../plugin/hooks/core/world.ts'
 import type { Db } from './db.ts'
 import { catalogOf } from './game/ctx.ts'
 import { publicRow, rankings } from './game/stats.ts'
 import { lots, statTiles } from './pages-boards.ts'
-import { cardTiles, heading, html, installBlock, promptLine, raw, text } from './pages-html.ts'
+import { cardTiles, heading, html, installBlock, promptLine, raw, SITE_CSP, text } from './pages-html.ts'
 import type { DiscoveryCredits, Raw } from './pages-html.ts'
 import { teamCamp } from './pages-landing.ts'
 import type { publicInventory } from './public-collection.ts'
 import type { PlayerRow } from './schema.ts'
 
 type Inventory = NonNullable<Awaited<ReturnType<typeof publicInventory>>>
+export const PROFILE_CSP = SITE_CSP.replace("form-action 'none'", "form-action 'self'")
 export type PublicStanding = {
   rating: number; rank: number | null; season: number
   seasonStats: { duelWins: number; playersBeaten: number; species: number; mythics: number; sales: number }
@@ -44,21 +46,26 @@ function collectionHref(handle: string, q: URLSearchParams, change: Record<strin
   return `/u/${encodeURIComponent(handle)}${query ? '?' + query : ''}#collection`
 }
 
-function choices(handle: string, q: URLSearchParams, key: string, title: string, values: readonly (readonly [string, string])[]): Raw {
-  const selected = q.get(key) ?? ''
-  return html`<div class="collection-choice"><h3>${title}</h3><div class="filter-links">${[['', 'All'], ...values].map(([v, label]) => html`<a href="${collectionHref(handle, q, { [key]: v })}"${selected === v ? html` aria-current="true"` : ''}>${label}</a>`)}</div></div>`
+function select(q: URLSearchParams, key: string, label: string, values: readonly (readonly [string, string])[], all?: string): Raw {
+  const selected = q.get(key) ?? (key === 'sort' ? 'name' : '')
+  const options = all ? [['', all], ...values] : values
+  return html`<label class="filter-field" for="collection-${key}"><span id="collection-${key}-label">${label}</span><select id="collection-${key}" name="${key}" aria-labelledby="collection-${key}-label">${options.map(([value, title]) => html`<option value="${value}"${selected === value ? html` selected` : ''}>${title}</option>`)}</select></label>`
 }
 
 function filters(handle: string, q: URLSearchParams): Raw {
-  const active = FILTER_KEYS.some(k => k !== 'sort' && q.get(k))
-  return html`<details class="collection-filters"${active ? html` open` : ''}><summary>Filter &amp; sort${active ? ' · filters on' : ''}</summary>
-${choices(handle, q, 'family', 'Family', FAMILIES.map(f => [f, FAMILY_INFO[f].name] as const))}
-${choices(handle, q, 'rarity', 'Rarity', RARITIES.map(r => [r, cap(r)] as const))}
-${choices(handle, q, 'kind', 'Creature', [['species', 'Season species'], ['mythic', 'Mythics'], ['fusion', 'Hybrids'], ['promo', 'Special cards']])}
-${choices(handle, q, 'finish', 'Finish', [['foil', 'Foil'], ['shiny', 'Shiny'], ['both', 'Shiny foil']])}
-<div class="collection-choice"><h3>Sort by</h3><div class="filter-links">${[['name', 'Name'], ['rarity', 'Rarity'], ['level', 'Level'], ['power', 'Power'], ['genes', 'Genes'], ['hp', 'HP'], ['atk', 'Attack'], ['def', 'Defense'], ['spd', 'Speed']].map(([sort, label]) => html`<a href="${collectionHref(handle, q, { sort })}"${(q.get('sort') ?? 'name') === sort ? html` aria-current="true"` : ''}>${label}</a>`)}</div></div>
-${active || q.get('sort') ? html`<p><a href="/u/${encodeURIComponent(handle)}#collection">Reset filters</a></p>` : ''}
-</details>`
+  const active = FILTER_KEYS.some(k => q.get(k) && (k !== 'sort' || q.get(k) !== 'name'))
+  const more = ['kind', 'finish', 'trait'].filter(k => q.get(k)).length
+  return html`<form class="collection-filters" method="get" action="/u/${encodeURIComponent(handle)}#collection" role="search" aria-label="Filter collection">
+<div class="filter-primary"><label class="filter-field filter-search" for="collection-search"><span>Search cards</span><input id="collection-search" type="search" name="q" maxlength="40" autocomplete="off" placeholder="Creature name" value="${q.get('q') ?? ''}"></label>
+${select(q, 'family', 'Family', FAMILIES.map(f => [f, FAMILY_INFO[f].name] as const), 'All families')}
+${select(q, 'rarity', 'Rarity', RARITIES.map(r => [r, cap(r)] as const), 'All rarities')}
+${select(q, 'sort', 'Sort by', [['name', 'Name'], ['rarity', 'Rarity'], ['level', 'Level'], ['power', 'Power'], ['genes', 'Genes'], ['hp', 'Health'], ['atk', 'Attack'], ['def', 'Defense'], ['spd', 'Speed']])}</div>
+<div class="filter-footer"><details class="collection-more"${more ? html` open` : ''}><summary>More filters${more ? ` · ${more} active` : ''}</summary><div class="filter-secondary">
+${select(q, 'kind', 'Creature', [['species', 'Season species'], ['mythic', 'Mythics'], ['fusion', 'Hybrids'], ['promo', 'Special cards']], 'All creatures')}
+${select(q, 'finish', 'Finish', [['foil', 'Foil'], ['shiny', 'Shiny'], ['both', 'Shiny foil']], 'All finishes')}
+${select(q, 'trait', 'Trait', TRAIT_IDS.map(id => [id, TRAITS[id].name] as const), 'All traits')}
+</div></details><div class="filter-actions">${active ? html`<a class="filter-reset" href="/u/${encodeURIComponent(handle)}#collection">Reset</a>` : ''}<button class="pbtn" type="submit"><span class="face">Apply</span></button></div></div>
+</form>`
 }
 
 export function profileBody(p: ProfileResponse, inventory: Inventory, standing: PublicStanding | null, selling: readonly ListingView[], credits: DiscoveryCredits, q: URLSearchParams, db: Db): Raw {
@@ -83,18 +90,27 @@ ${p.forTrade.length ? html`<section class="wrap profile" id="trade"><h2>${headin
 }
 
 export const PROFILE_COLLECTION_CSS = `
-.camp-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:var(--s4)}
-.camp-nav a,.filter-links a{display:inline-flex;align-items:center;min-height:40px;padding:7px 12px;background:#1c2333;border:1px solid #46526c;color:#f4f2fb;border-radius:5px;text-decoration:none}
-.camp-nav a:hover,.filter-links a:hover,.filter-links [aria-current]{background:#344365;border-color:#f2b33d}
+.camp-nav{display:flex;flex-wrap:wrap;gap:24px;margin-top:var(--s4);border-bottom:1px solid #354059}
+.camp-nav a{display:inline-flex;align-items:center;min-height:44px;border-bottom:2px solid transparent;color:#c9c3d6;text-decoration:none}
+.camp-nav a:hover{color:#ffe2a0;border-bottom-color:#f2b33d}
 .profile-head .chips a{text-decoration:none}
 .profile section,.profile[id]{scroll-margin-top:90px}
-.section-title{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}
-.collection-filters{margin:var(--s3) 0 var(--s4);padding:var(--s3);background:#1c2333;border:1px solid #354059;border-radius:7px}
-.collection-filters summary{cursor:pointer;font-weight:700;min-height:32px}
-.collection-choice h3{margin:var(--s3) 0 6px;font-size:.875rem}
-.filter-links{display:flex;flex-wrap:wrap;gap:6px}
-.filter-links a{min-height:36px;padding:5px 10px;font-size:.875rem}
-.collection-filters>p{margin-top:var(--s3)}
+.section-title{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;padding-top:24px}
+.section-title h2,.section-title p{margin:0}
+.collection-filters{margin:var(--s3) 0 24px;padding-bottom:20px;border-bottom:1px solid #354059}
+.filter-primary{display:grid;grid-template-columns:minmax(180px,2fr) repeat(3,minmax(110px,1fr));gap:12px}
+.filter-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.filter-field>span{font-size:.75rem;font-weight:700;color:#c9c3d6}
+.filter-field input,.filter-field select{width:100%;min-width:0;min-height:44px;padding:10px 12px;border:0;border-bottom:2px solid #46526c;border-radius:0;background:#1c2333;color:#f4f2fb;font:inherit;font-size:.875rem;color-scheme:dark}
+.filter-field :is(input,select):focus-visible,.camp-nav a:focus-visible,.collection-more summary:focus-visible{outline:2px solid #f2b33d;outline-offset:3px}
+.filter-footer{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:12px}
+.collection-more{flex:1 1 160px;min-width:0}
+.collection-more summary{display:list-item;width:fit-content;min-height:44px;padding:12px 0;cursor:pointer;font-size:.875rem;color:#c9c3d6}
+.collection-more[open]{flex-basis:100%}
+.filter-secondary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:4px 0 12px}
+.filter-actions{display:flex;align-items:center;gap:16px;margin-left:auto;min-height:44px}
+.filter-actions .pbtn{min-width:88px}.filter-reset{display:inline-flex;align-items:center;min-height:44px;color:#c9c3d6}
+.collection .cards{margin-top:0}
 .collection-pages{display:flex;justify-content:space-between;flex-wrap:wrap;gap:var(--s3);margin-top:var(--s4)}
 .profile .cards{grid-template-columns:repeat(auto-fill,minmax(min(100%,176px),1fr));align-items:start}
 .profile .cards .cardlink{min-width:0}
@@ -103,5 +119,7 @@ export const PROFILE_COLLECTION_CSS = `
 .season-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:var(--s2)}
 .season-stats>div{padding:var(--s3);background:#1c2333;border:1px solid #354059;border-radius:6px}
 .season-stats dt{font-size:.8125rem;color:#c9c3d6}.season-stats dd{font-size:1.5rem;font-weight:800;margin:4px 0 0}
-@media(max-width:400px){.profile .cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.profile .cards .cf{--cs:2px;padding:6px}.profile .cards .cf-name{font-size:.875rem}.profile .cards .cf-combat{grid-template-columns:1fr}.profile .cards .cf-combat>div{display:flex;justify-content:space-between;gap:4px}.profile .cards .card-inspect{font-size:.75rem}.profile .cards .card-discovery{font-size:.75rem}.camp-nav a{padding:7px 9px}}
+@media(max-width:800px){.filter-primary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:479px){.filter-secondary{grid-template-columns:1fr}.camp-nav{gap:20px}}
+@media(max-width:400px){.profile .cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.profile .cards .cf{--cs:2px;padding:6px}.profile .cards .cf-name{font-size:.875rem}.profile .cards .cf-combat{grid-template-columns:1fr}.profile .cards .cf-combat>div{display:flex;justify-content:space-between;gap:4px}.profile .cards .card-discovery{font-size:.75rem}}
 `

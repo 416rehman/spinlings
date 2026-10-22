@@ -318,19 +318,13 @@ clip-path:polygon(40% 0,60% 0,60% 20%,80% 20%,80% 40%,100% 40%,100% 60%,80% 60%,
 .cf-combat div{display:flex;justify-content:space-between;gap:4px;padding:4px;background:#eee8dd}
 .cf-combat dt{color:#4a4458}.cf-combat dd{margin:0;font-weight:800;font-variant-numeric:tabular-nums}
 .tile .cf-kind.traits{font-weight:600;line-height:1.35}
-.card-inspect{margin-top:8px;font-size:.875rem;line-height:1.5}
-.card-inspect>summary{min-height:44px;display:flex;align-items:center;gap:8px;font-weight:700;cursor:pointer}
-.card-inspect>summary::before{content:"+";font-family:var(--mono)}.card-inspect[open]>summary::before{content:"−"}
-.card-inspect>summary::-webkit-details-marker{display:none}
-.card-inspect .inspect-body{padding:12px;background:var(--paper);color:var(--pink);border:2px solid var(--pline)}
-.card-inspect .inspect-body>*+*{margin-top:8px}
 .card-discovery{margin-top:8px;font-size:.8125rem;line-height:1.5;overflow-wrap:anywhere}
 .card-discovery a{font-weight:700}
 .card-help{position:relative;min-width:0}
 .card-help>summary{position:relative;min-height:44px;padding:8px 0;cursor:pointer;font-weight:700;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:4px}
 .card-help .help-body{margin-top:4px;font-weight:400;line-height:1.5;overflow-wrap:anywhere}
 .card-help .help-peek{display:none;position:absolute;z-index:6;bottom:calc(100% + 6px);left:0;width:min(260px,75vw);padding:10px 12px;border:2px solid var(--inkd);background:var(--cream);color:var(--inkd);box-shadow:0 4px 0 #0003;font:400 .8125rem/1.5 var(--sans);text-align:left;pointer-events:none;text-decoration:none}
-.card-inspect .help-peek,.combat-guide .help-peek{width:min(260px,100%)}
+.combat-guide .help-peek{width:min(260px,100%)}
 .card-help:not([open])>summary:focus-visible .help-peek{display:block}
 @media (hover:hover){.card-help:not([open])>summary:hover .help-peek{display:block}}
 .inspect-genes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin:8px 0;font-variant-numeric:tabular-nums}
@@ -717,7 +711,7 @@ export function cardTile(c: BattleCard, o: { link?: boolean; credits?: Discovery
   const name = text(cardName(c), 40)
   const credit = o.credits?.get(c.id)
   const face = cardFace(c, { level: true, stamps: true, finder: !credit, genes: true, combat: true, traits: true })
-  return html`<li class="tile">${o.link ? html`<a class="cardlink" href="/c/${c.id}" aria-label="${name}, ${rarityLine(c)}">${face}</a>` : face}${discoveryCredit(credit)}${cardDetails(c)}</li>`
+  return html`<li class="tile">${o.link ? html`<a class="cardlink" href="/c/${c.id}" aria-label="${name}, ${rarityLine(c)}">${face}</a>` : face}${discoveryCredit(credit)}</li>`
 }
 
 export const cardTiles = (cards: readonly BattleCard[], o: { link?: boolean; credits?: DiscoveryCredits } = {}): Raw =>
@@ -730,20 +724,6 @@ export function cardHelp(label: string, explanation: string): Raw {
 
 export function cardGenes(c: Pick<BattleCard, 'genes'>): Raw {
   return html`<dl class="inspect-genes">${STAT_KEYS.map((k, i) => html`<div><dt>${CARD_HELP.stats[k].label} gene</dt><dd>${c.genes[i]}/15 · ${geneChange(c.genes[i]!)}</dd></div>`)}</dl>`
-}
-
-/** Inspect public card facts only, outside the linked and clipped card face. */
-export function cardDetails(c: BattleCard): Raw {
-  const move = cardMove(c)
-  return html`<details class="card-inspect"><summary>Card details<span class="sr"> for ${text(cardName(c), 48)}</span></summary><div class="inspect-body">
-${STAT_KEYS.map(k => cardHelp(`${CARD_HELP.stats[k].label} ${c.stats[k]}`, CARD_HELP.stats[k].text))}
-${c.traits.map(t => cardHelp(TRAITS[t]?.name ?? t, TRAITS[t]?.text ?? ''))}
-${cardHelp(`${FAMILY_INFO[c.family].name} matchups`, CARD_HELP.families[c.family].text)}
-${cardHelp(move.name, move.text)}
-${cardHelp(`Gene quality ${geneScore(c.genes)}%`, CARD_HELP.genes)}${cardGenes(c)}
-${cardHelp('How damage works', CARD_HELP.damage)}
-${c.shiny || c.foil ? cardHelp('Shiny & foil', CARD_HELP.finishes) : ''}
-</div></details>`
 }
 
 /**

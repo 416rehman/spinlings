@@ -7,7 +7,7 @@ import { TRAITS } from '../../plugin/hooks/core/traits.ts'
 import { CARD_HELP, cardMove, geneChange } from '../../server/src/card-guide.ts'
 import { mintCards } from '../../server/src/game/mint.ts'
 import { lots } from '../../server/src/pages-boards.ts'
-import { cardDetails, cardFace, cardTile, CSS, fullCard } from '../../server/src/pages-html.ts'
+import { cardFace, cardTile, CSS, fullCard } from '../../server/src/pages-html.ts'
 import { server } from './scaffold-helpers.ts'
 
 const flat = (markup: string) => markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
@@ -35,15 +35,16 @@ describe('public card inspection', () => {
     }
     assert.match(linked, /Quick Charge, Glass Heart/)
     assert.doesNotMatch(linked, /<(?:details|summary|button)\b/, 'the card link contains only its static face')
-    assert.match(tile, /<\/a><details class="card-inspect"><summary>Card details/)
+    assert.match(tile, new RegExp(`<a class="cardlink" href="/c/${c.id}"`))
+    assert.doesNotMatch(tile, /<(?:details|summary|button)\b|Card details/, 'browse cards open their own page instead of expanding a panel')
     assert.doesNotMatch(cardFace(c).__html, /cf-combat|card-inspect/, 'the landing face stays compact unless opted in')
   })
 
-  it('explains traits, family, special, individual genes and damage with native tap/keyboard disclosures and pointer previews', async () => {
+  it('keeps traits, family, special, individual genes and damage explanations on the full card page', async () => {
     const { c } = await example()
     c.traits = ['quickCharge', 'glassHeart']
     c.genes = [0, 5, 10, 15]
-    const detail = cardDetails(c).__html
+    const detail = fullCard(c).__html
     for (const phrase of ['HP', 'Attack', 'Defense', 'Speed', 'Quick Charge', 'Glass Heart', 'Sonnet matchups', 'Couplet', 'Gene quality', 'How damage works']) {
       assert.ok(flat(detail).includes(phrase), phrase)
     }
@@ -58,13 +59,16 @@ describe('public card inspection', () => {
     assert.doesNotMatch(detail, /\son[a-z]+\s*=|<script\b|javascript:/i)
   })
 
-  it('keeps the same inspection in a market listing, outside its link and after the price', async () => {
+  it('keeps market listings compact with the numbers in the face and the price outside the card link', async () => {
     const { c } = await example()
     const markup = lots([{ id: 'guide-listing', seller: 'moss-trainer', card: c, price: 123, want: undefined }]).__html
     assert.match(markup, /<dl class="cf-combat">/)
     assert.match(markup, /<b>123<\/b>/)
-    assert.ok(markup.indexOf('card-inspect') > markup.indexOf('ptagbox'))
-    assert.doesNotMatch(markup.match(/<a class="cardlink"[^>]*>([\s\S]*?)<\/a>/)![1]!, /<details\b/)
+    assert.match(markup, /<\/a>\s*<div class="ptagbox">/)
+    assert.doesNotMatch(markup, /<(?:details|summary|button)\b|Card details/)
+    const linked = markup.match(/<a class="cardlink"[^>]*>([\s\S]*?)<\/a>/)![1]!
+    assert.match(linked, /<div class="cf-art">/)
+    assert.doesNotMatch(linked, /ptagbox|<a\b/)
   })
 
   it('keeps the existing public page art and strict headers without exposing owner or activity data', async () => {

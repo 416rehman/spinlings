@@ -15,6 +15,7 @@ import { RULE_INFO, utcDay, worldOf } from '../../plugin/hooks/core/world.ts'
 import { stmt } from '../../server/src/db.ts'
 import { mintCards } from '../../server/src/game/mint.ts'
 import { INSTALL_STEPS, PAGE_CSP, REPO, SCRIPT_CSP, SITE_CSP, SOURCE_NAME } from '../../server/src/pages-html.ts'
+import { PROFILE_CSP } from '../../server/src/pages-profile.ts'
 import { SITE_ASSETS } from '../../server/static/site.gen.ts'
 import { counts, DAY, MINUTE, server } from './scaffold-helpers.ts'
 import type { Player, Server } from './scaffold-helpers.ts'
@@ -45,8 +46,13 @@ const SKY_TAG = `<script src="/static/${SITE_ASSETS.sky}"></script>`
 const SITE_TAG = `<script type="module" src="/static/${SITE_ASSETS.site}"></script>`
 
 /** Nothing loads from another origin, nothing runs inline, and only our repo is linked from outside. */
-function assertSelfContained(html: string, origin = ORIGIN) {
-  assert.doesNotMatch(html, /<(iframe|object|embed|form|base|meta http-equiv)\b/i)
+function assertSelfContained(html: string, origin = ORIGIN, profilePath?: string) {
+  assert.doesNotMatch(html, /<(iframe|object|embed|base|meta http-equiv)\b/i)
+  if (profilePath) {
+    const forms = [...html.matchAll(/<form\b[^>]*>/gi)].map(match => match[0])
+    assert.equal(forms.length, 1)
+    assert.ok(forms[0]!.includes('method="get"') && forms[0]!.includes(`action="${profilePath}#collection"`), 'only the same-profile GET filter form')
+  } else assert.doesNotMatch(html, /<form\b/i)
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i, 'no inline event handlers')
   assert.doesNotMatch(html, /javascript:/i)
   assert.doesNotMatch(html, /@import/i)
@@ -68,8 +74,8 @@ function assertSelfContained(html: string, origin = ORIGIN) {
 const textOf = (html: string) => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/ ([,.])/g, '$1')
 
 /** A site page: SITE_CSP, the sky script synchronously in <head> and the site module, once each. */
-function assertSiteScripts(p: Page) {
-  assertHeaders(p, SITE_CSP)
+function assertSiteScripts(p: Page, csp = SITE_CSP) {
+  assertHeaders(p, csp)
   const head = p.html.slice(0, p.html.indexOf('</head>'))
   assert.equal(head.split(SKY_TAG).length, 2, 'one synchronous sky.js in <head>')
   assert.equal(p.html.split(SITE_TAG).length, 2, 'one site.js module')
@@ -139,12 +145,12 @@ describe('site pages', () => {
     for (const path of [...scripted, ...quiet]) {
       const p = await get(s, path)
       assert.equal(p.status, 200, path)
-      if (scripted.includes(path)) assertSiteScripts(p)
+      if (scripted.includes(path)) assertSiteScripts(p, path.startsWith('/u/') ? PROFILE_CSP : SITE_CSP)
       else {
         assertHeaders(p)
         assert.doesNotMatch(p.html, /<script/i, `${path} has no script`)
       }
-      assertSelfContained(p.html)
+      assertSelfContained(p.html, ORIGIN, path.startsWith('/u/') ? path : undefined)
       assert.match(p.html, /^<!doctype html>\n<html lang="en"[ >]/)
       assert.match(p.html, /<meta name="viewport" content="width=device-width, initial-scale=1">/)
       assert.match(p.html, /<meta name="color-scheme" content="light dark">/)
@@ -431,7 +437,7 @@ describe('profile pages', () => {
     s.set((Math.floor(s.now() / DAY) + 1) * DAY)
     const p = await get(s, `/u/${a.me.player.handle}`)
     assert.equal(p.status, 200)
-    assertHeaders(p, SITE_CSP)
+    assertHeaders(p, PROFILE_CSP)
     assert.match(p.html, /<meta name="robots" content="noindex">/)
     const text = textOf(p.html)
     assert.ok(text.includes(a.me.player.handle))

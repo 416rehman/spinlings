@@ -4,6 +4,7 @@ One entry per release (SPEC 32), newest first. Each says what changed in plain w
 
 ## Server and website update (2026-10-22; mod remains 0.2.16)
 
+- **Cleaner collection browsing.** Compact search and select controls replace the filter-button wall. Whole card faces open their dedicated pages, keeping detailed explanations there and removing expandable panels from collection and market grids. Profile section links use a lighter navigation bar.
 - **Public collections and player browsing.** Public profiles show the complete held-card inventory with filters, sorting and pagination, plus existing midnight game stats and ranking. A players directory and visible profile access make trainers easier to find. Hidden leaderboard stats stay hidden; inventory and discovery credit are public. No achievement system is added.
 - **A catalogue you can open.** Season creatures link to frozen species details, evolution artwork, battle information and original discoverer profiles. Caught Mythics have their own browsable catalogue with actual card artwork and honest historical entries when the original card is gone.
 - **Discovery credit on website cards.** Every copy credits the species' original discoverer, independently of its owner or First Discovered stamp. Migration 0005 stores discovery-time public handles and clears identity credit on rename/deletion, including older Worker writes. Existing ambiguous history stays anonymous.
