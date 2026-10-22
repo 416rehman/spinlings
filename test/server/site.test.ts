@@ -4,6 +4,7 @@
 // real app over node:sqlite.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { mintCard } from '../../plugin/hooks/core/cards.ts'
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { generateMythic } from '../../plugin/hooks/core/mythics.ts'
 import { sha256Hex } from '../../plugin/hooks/core/sha256.ts'
@@ -168,7 +169,7 @@ describe('site pages', () => {
     for (const step of INSTALL_STEPS) assert.ok(text.includes(step), `the SPEC 34 install step: ${step}`)
     assert.match(p.html, /class="w">416rehman\/spinlings<\/span>/, 'the command never breaks inside a word')
     assert.ok(p.html.includes(`href="${REPO}"`))
-    assert.equal(p.headers.get('cache-control'), 'public, max-age=60')
+    assert.equal(p.headers.get('cache-control'), 'no-store')
     assert.match(p.html, /@media \(prefers-color-scheme:dark\)/)
     assert.match(p.html, /@media \(prefers-reduced-motion:reduce\)/)
     assert.match(p.html, /<title>Spinlings: wild creatures that find you while Claude works<\/title>/)
@@ -344,26 +345,39 @@ describe('landing page', () => {
     void a
   })
 
-  it('lists Mythics found as handle and name only, and forgets a finder who rerolls or leaves', async () => {
+  it('links caught Mythic discoverers and the catalogue, and forgets a finder who rerolls or leaves', async () => {
     const { s, a, b } = await world()
     const m = await mythicFor(s, a, 'cc33')
     const name = m.form!.names[2]
-    let text = textOf((await get(s, '/')).html)
+    const landing = (await get(s, '/')).html
+    let text = textOf(landing)
     assert.ok(text.includes(`${name} found by ${a.me.player.handle}`))
     assert.ok(text.includes('1 so far'))
-    assert.ok(!text.includes(m.id) && !(await get(s, '/')).html.includes(m.id), 'no card id')
+    assert.ok(landing.includes(`href="/u/${a.me.player.handle}"`), 'the discoverer links to their public profile')
+    assert.ok(landing.includes('href="/mythics"'), 'the lantern list opens the actual caught-card catalogue')
+    const catalogue = (await get(s, '/mythics')).html
+    assert.ok(catalogue.includes(`href="/c/${m.id}"`), 'the actual caught card can be opened')
+    assert.ok(catalogue.includes(`href="/u/${a.me.player.handle}"`))
+    assert.ok(!text.includes(m.id), 'card ids are links, not visible game copy')
+    for (const markup of [landing, catalogue]) {
+      assert.ok(!markup.includes(a.id) && !markup.includes(b.id), 'player ids remain private')
+      assert.doesNotMatch(markup, /"(?:owner_id|mintedAt|lockedUntil|tiredUntil|raisedIn|escrowRef)"/)
+    }
     // a new handle never shows beside the old one: the list and the card stop naming the finder
     const { handle } = await a.call('rerollHandle', {})
-    for (const html of [(await get(s, '/')).html, (await get(s, `/c/${m.id}`)).html]) {
+    for (const html of [(await get(s, '/')).html, (await get(s, `/c/${m.id}`)).html, (await get(s, '/mythics')).html]) {
       assert.ok(!html.includes(a.me.player.handle) && !html.includes(handle))
     }
     assert.ok(textOf((await get(s, '/')).html).includes(`${name} found by a trainer`))
-    assert.ok(textOf((await get(s, `/c/${m.id}`)).html).includes('Discovered by a trainer'))
+    assert.match(textOf((await get(s, `/c/${m.id}`)).html), /First discovered by a trainer/i)
     const b2 = await mythicFor(s, b, 'dd44')
     await b.call('deleteMe', {})
     text = textOf((await get(s, '/')).html)
     assert.ok(text.includes(`${b2.form!.names[2]} found by a trainer`))
     assert.ok(!text.includes(b.me.player.handle))
+    const afterDeletion = (await get(s, '/mythics')).html
+    assert.ok(textOf(afterDeletion).includes(b2.form!.names[2]))
+    assert.ok(!afterDeletion.includes(b.me.player.handle) && !afterDeletion.includes(b.id))
   })
 
   it('hangs a string of dark lanterns for the first Mythic instead of an empty list', async () => {
@@ -404,7 +418,7 @@ describe('landing page', () => {
 // ---- profiles ----------------------------------------------------------------------------------
 
 describe('profile pages', () => {
-  it('show exactly the public profile: handle, league, team, for-trade cards and album count', async () => {
+  it('show the public collection, team, trade pins and midnight rating while keeping private player values hidden', async () => {
     const { s, a } = await world()
     const loose = await looseCard(s, a)
     await s.db.batch([
@@ -423,12 +437,17 @@ describe('profile pages', () => {
     assert.ok(text.includes(a.me.player.handle))
     assert.ok(text.includes('Peak league'))
     const album = (await s.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM album WHERE player_id = ?', a.id))!.n
-    assert.ok(text.includes(`${album} species in their album`))
-    for (const secret of ['1555', '98765', '4321', '173456789', a.me.player.joinedDay]) assert.ok(!text.includes(secret), `never shows ${secret}`)
-    assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b|\b(sparks|rating|battles|won|joined|last seen)\b/i)
+    assert.ok(text.includes(`${album} species collected`))
+    assert.match(text, /#1 · 1555 rating/, 'the authorized rating and place are the midnight board values')
+    for (const secret of ['98765', '4321', '173456789', a.me.player.joinedDay]) assert.ok(!text.includes(secret), `never shows ${secret}`)
+    assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b|\b(sparks|battles|won|joined|last seen)\b/i)
     assert.equal((p.html.match(/<ul class="campers circle">(.*?)<\/ul>/s)?.[1]?.match(/<li class="camper">/g) ?? []).length, 3, 'three around the fire')
     assert.equal((text.match(/league/g) ?? []).length, 1, 'one league badge')
-    assert.equal((p.html.match(/<li class="tile">/g) ?? []).length, 1, 'and the one free card pinned for trade')
+    const inventory = p.html.match(/<section[^>]*id="collection"[\s\S]*?<\/section>/)?.[0] ?? ''
+    const held = (await s.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM cards WHERE owner_id = ?', a.id))!.n
+    assert.equal((inventory.match(/<li class="tile">/g) ?? []).length, held, 'all held public card faces appear in the inventory')
+    const pinned = p.html.match(/<section[^>]*id="trade"[\s\S]*?<\/section>/)?.[0] ?? ''
+    assert.equal((pinned.match(/<li class="tile">/g) ?? []).length, 1, 'only the one free card is pinned for trade')
     assert.ok(text.includes(`/spin trade ${a.me.player.handle}`))
     assert.match(p.html, /<pre aria-label="The trade command"><span class="gt" aria-hidden="true">&gt;<\/span><code>[\s\S]*?<\/pre><button class="pbtn copy js-only" type="button" data-copy>/, 'a prompt line to copy')
     assert.ok(p.html.includes(`href="/c/${loose.id}"`))
@@ -464,7 +483,7 @@ describe('profile pages', () => {
 // ---- cards -------------------------------------------------------------------------------------
 
 describe('card pages', () => {
-  it('show the public card, unfurl with og tags, and never name the owner', async () => {
+  it('show the public card, linked original discovery credit and og tags, without naming its current owner', async () => {
     const { s, a, b } = await world({ origin: 'https://spinlings.dev' })
     // b found it, a holds it now
     const m = await mythicFor(s, b, 'dd44')
@@ -479,9 +498,12 @@ describe('card pages', () => {
     assert.ok(p.html.includes(`<meta property="og:title" content="${m.form!.names[2]}, a mythic`))
     const text = textOf(p.html)
     assert.ok(text.includes(m.form!.names[2]!) && text.includes('Final form') && text.includes('Mythic, 1 of 1') && text.includes('Foil'))
-    assert.ok(text.includes(`Discovered by ${b.me.player.handle}`), 'its finder')
+    assert.ok(text.includes(`First discovered by ${b.me.player.handle}`), 'its original finder')
+    assert.ok(p.html.includes(`href="/u/${b.me.player.handle}"`), 'the discoverer has a public profile link')
     assert.ok(!text.includes(a.me.player.handle), 'no owner')
     assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b|Raised under|minted|locked|tired/i)
+    for (const id of [a.id, b.id]) assert.ok(!p.html.includes(id), 'player ids remain private')
+    assert.doesNotMatch(p.html, /"(?:owner_id|mintedAt|lockedUntil|tiredUntil|raisedIn|escrowRef)"/)
     assert.doesNotMatch(p.html, /undefined|null/, 'every stamp is words')
   })
 
@@ -516,9 +538,16 @@ describe('card pages', () => {
 // ---- gifts -------------------------------------------------------------------------------------
 
 describe('gift pages', () => {
-  it("show an open gift's card and how to claim it, never who sent it", async () => {
-    const { s, a } = await world()
-    const card = await looseCard(s, a)
+  it("show an open gift's card, original discoverer and claim instructions without naming its giver", async () => {
+    const { s, a, b } = await world()
+    const found = new Set((await s.db.all<{ species: string }>('SELECT species FROM firsts')).map(row => row.species))
+    const species = seasonSpecies(1).find(form => !found.has(form.id))!
+    assert.ok(species, 'choose a species outside both random starter teams')
+    const minted = await mintCards(env(s), b.id, [mintCard({ species, rarity: 'rare', shiny: false, dna: 12, now: s.now(), origin: 'trader' })])
+    await s.db.batch(minted.stmts)
+    const card = minted.cards[0]!
+    assert.equal(card.firstFind, true, 'the finder differs from the current giver')
+    await s.db.batch([stmt('UPDATE cards SET owner_id = ? WHERE id = ?', a.id, card.id)])
     const code = await gift(s, a, card.id)
     const p = await get(s, `/g/${code}`)
     assert.equal(p.status, 200)
@@ -528,7 +557,10 @@ describe('gift pages', () => {
     const text = textOf(p.html)
     assert.ok(text.includes(`/spin claim ${code}`))
     for (const step of INSTALL_STEPS) assert.ok(text.includes(step))
+    assert.ok(text.includes(`First discovered by ${b.me.player.handle}`), 'authorized credit still belongs to the original species finder')
+    assert.ok(p.html.includes(`href="/u/${b.me.player.handle}"`))
     assert.ok(!text.includes(a.me.player.handle), 'never the giver')
+    for (const id of [a.id, b.id]) assert.ok(!p.html.includes(id), 'discovery credit does not disclose player ids')
     assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b/, 'no dates')
     assert.ok(p.html.includes(`<meta property="og:image" content="${ORIGIN}/c/${card.id}.png">`))
   })

@@ -6,7 +6,7 @@ export const ACCOUNT_JS = String.raw`(function () {
 'use strict'
 var $ = function(id) { return document.getElementById(id) }
 if (!$('account')) return
-var key = 'spinlings-session', token = '', me = null, cards = [], team = [], next = null, version = null, generation = 0, rankGeneration = 0, usernameGeneration = 0, browseGeneration = 0, renaming = false, browsing = false, total = 0, matched = 0, currentQuery = '', hintId = 0, activeHint = null, section = 'collection'
+var key = 'spinlings-session', token = '', me = null, cards = [], team = [], discoveries = {}, next = null, version = null, generation = 0, rankGeneration = 0, usernameGeneration = 0, browseGeneration = 0, renaming = false, browsing = false, total = 0, matched = 0, currentQuery = '', hintId = 0, activeHint = null, section = 'collection'
 var seasons = {}, colors = {common:'#9aa3ad',rare:'#4f8ff0',epic:'#b06ef3',legendary:'#f2b33d'}, familyColors = {haiku:'#4da86f',sonnet:'#5b8def',opus:'#df714c',fable:'#a874e8'}, marks = {haiku:'✿',sonnet:'≈',opus:'☀',fable:'☾'}
 var help = JSON.parse($('account').getAttribute('data-card-help'))
 try { token = sessionStorage.getItem(key) || '' } catch (_) {}
@@ -23,7 +23,7 @@ async function shareProfile() {
 }
 function store(value) { token = value; try { value ? sessionStorage.setItem(key,value) : sessionStorage.removeItem(key) } catch (_) {} }
 function clear(message) {
-  generation++; rankGeneration++; usernameGeneration++; browseGeneration++; renaming = false; browsing = false; store(''); me = null; cards = []; team = []; next = null; version = null; total = matched = 0
+  generation++; rankGeneration++; usernameGeneration++; browseGeneration++; renaming = false; browsing = false; store(''); me = null; cards = []; team = []; discoveries = {}; next = null; version = null; total = matched = 0
   if (activeHint) activeHint.hide()
   resetFilters(); $('collection').setAttribute('aria-busy','false'); $('more').hidden = true; $('more').disabled = false
   closeUsername(); $('username-status').textContent = ''; $('username-note').textContent = ''
@@ -54,6 +54,7 @@ function renderUsername() {
   if (!me) return
   var day = me.player.handleRerollFrom, locked = day && day > new Date().toISOString().slice(0,10), busy = renaming || $('refresh').disabled || $('signout').disabled
   $('myhandle').textContent = me.player.handle
+  $('profile-open').href = '/u/' + encodeURIComponent(me.player.handle)
   $('username-change').disabled = !!locked || busy
   ;['username','username-save','username-cancel'].forEach(function(id){$(id).disabled = busy})
   $('username-note').textContent = locked ? 'Next change: '+day+' UTC.' : 'Next change: 7 days after saving.'
@@ -102,6 +103,13 @@ function card(c) {
   var family = element('p',marks[c.family]+' '+capital(c.family)+' · Level '+c.level); family.className = 'cf-kind'; face.append(family)
   node.append(face)
   var plaque = element('div'); plaque.className = 'accountplaque'
+  var discovery = discoveries[c.id]
+  if (discovery) {
+    var credit = element('p','First discovered by '); credit.className = 'card-discovery'
+    var founder = discovery.handle && /^[A-Za-z0-9_-]{1,40}$/.test(discovery.handle) ? discovery.handle : null
+    if (founder) {var finder = element('a',founder); finder.href = '/u/'+encodeURIComponent(founder); credit.append(finder)}
+    else credit.append(element('span','a trainer'))
+  }
   var stats = element('div'); stats.className = 'cardstats'
   var icons = {hp:'♥',atk:'⚔',def:'◇',spd:'➜'}
   ;['hp','atk','def','spd'].forEach(function(k){if (c.stats) {var h = hint(icons[k]+' '+help.stats[k].short,help.stats[k].text,c.stats[k]); h.children[0].setAttribute('aria-label',help.stats[k].label+' '+c.stats[k]); stats.append(h)}})
@@ -109,6 +117,7 @@ function card(c) {
   var traits = element('div'); traits.className = 'cardtraits'
   ;(c.traits || []).forEach(function(t){if (help.traits[t]) traits.append(hint(help.traits[t].name,help.traits[t].text))})
   if (traits.children.length) plaque.append(traits)
+  if (discovery) plaque.append(credit)
   var more = element('details'); more.className = 'carddetails'; more.append(element('summary','More about this card'))
   var values = c.genes || [], quality = Math.round(values.reduce(function(a,b){return a+b},0)/60*100)
   more.append(hint('Genes '+quality+'%',help.genes),hint(marks[c.family]+' '+capital(c.family)+' matchups',help.families[c.family].text))
@@ -153,7 +162,7 @@ async function browse(more) {
     if (revision !== browseGeneration || held !== token || screen !== generation) return
     var seen = new Set(more ? cards.map(function(c){return c.id}) : [])
     var added = page.cards.filter(function(c){if (seen.has(c.id)) return false; seen.add(c.id); return true})
-    cards = more ? cards.concat(added) : added; team = page.team; next = page.next || null; version = page.version; total = page.total; matched = page.matched; currentQuery = params
+    cards = more ? cards.concat(added) : added; team = page.team; discoveries = Object.assign(more ? discoveries : {},page.discoveryCredits || {}); next = page.next || null; version = page.version; total = page.total; matched = page.matched; currentQuery = params
     renderCards()
   } catch(e) {
     if (revision !== browseGeneration || held !== token || screen !== generation) return

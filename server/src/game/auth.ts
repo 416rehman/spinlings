@@ -306,9 +306,9 @@ export function deletionStmts(p: PlayerRow, now: number): Stmt[] {
     stmt('DELETE FROM wishes WHERE player_id = ?', id),
     stmt('DELETE FROM album WHERE player_id = ?', id),
     stmt('DELETE FROM fusions WHERE player_id = ?', id),
-    stmt('UPDATE firsts SET player_id = NULL WHERE player_id = ?', id),
     // a Mythic that changed hands stays with its owner, no longer stamped with who found it
     ...forgetFinder(id),
+    stmt('UPDATE firsts SET player_id = NULL, handle = NULL WHERE player_id = ?', id),
     stmt('UPDATE mythics SET finder_id = NULL WHERE finder_id = ?', id),
     stmt('DELETE FROM trader_uses WHERE player_id = ?', id),
     stmt('DELETE FROM redemptions WHERE player_id = ?', id),
@@ -321,14 +321,15 @@ export function deletionStmts(p: PlayerRow, now: number): Stmt[] {
 }
 
 /**
- * The Mythics this player found stop naming them, on the public list and on each card wherever it
- * lives now, so an old handle never sits beside a new one. Cards hold no finder (the loaders name
- * one while `mythics.handle` is still theirs), so each owner's collection version moves for the
- * stamp to go, and rows minted before that rule lose the name they still carry.
+ * Finds stop naming this player, wherever the original or another copy lives now, so an old
+ * handle never sits beside a new one. Only Mythic card data changes in the mod, so its holders'
+ * collection versions move. Website-only regular discovery credits have their own cursor check.
+ * Mythic rows minted before read-time credit lose any name they still carry on the card itself.
  */
 function forgetFinder(id: string): Stmt[] {
   const found = 'id IN (SELECT card_id FROM mythics WHERE finder_id = ?)'
   return [
+    stmt('UPDATE firsts SET handle = NULL WHERE player_id = ?', id),
     stmt(`UPDATE players SET cards_version = cards_version + 1 WHERE id IN (SELECT owner_id FROM cards WHERE ${found})`, id),
     stmt(`UPDATE cards SET form = json_remove(form, '$.discoveredBy'), version = version + 1 WHERE ${found} AND json_extract(form, '$.discoveredBy') IS NOT NULL`, id),
     stmt('UPDATE mythics SET handle = NULL WHERE finder_id = ?', id),

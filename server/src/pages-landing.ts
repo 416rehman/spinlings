@@ -17,8 +17,8 @@ import type { BattleCard, Family, Species, TraderDeal } from '../../plugin/hooks
 import { RULE_INFO } from '../../plugin/hooks/core/world.ts'
 import { FAMILY_COLOR, FAMILY_MARK, RARITY_COLOR } from '../../plugin/hooks/ui/tokens.ts'
 import { pixelWords, wordSvg } from './pages-font.ts'
-import { cardFace, html, installBlock, pixelHeading, PLACE, raw, rarityLine, text } from './pages-html.ts'
-import type { Raw } from './pages-html.ts'
+import { cardFace, discoveryCredit, html, installBlock, pixelHeading, PLACE, raw, rarityLine, text } from './pages-html.ts'
+import type { DiscoveryCredits, Raw } from './pages-html.ts'
 import { ARENA, HOUR_FAMILY, isFound, regularCard, rollSlot } from './pages-meet.ts'
 import type { Hour, SiteCard } from './pages-meet.ts'
 import {
@@ -315,6 +315,7 @@ function den(w: SiteFacts, regs: Record<Family, SiteCard>): Raw {
     ? 'A creature shows up here once a trainer finds it in the game. The first to find each one keeps a First Discovered stamp for good.'
     : `Nobody has found any of these ${all} yet. Be the first: a first find keeps its First Discovered stamp for good.`}</p>
 ${FAMILIES.map(f => burrowRow(w, f))}
+<p class="catalogue-more"><a class="tolink" href="/mythics">Meet the Mythics</a></p>
 ${tally(w)}
 </div>
 </div>
@@ -375,18 +376,18 @@ function burrowRow(w: SiteFacts, f: Family): Raw {
   const n = list.filter(s => isFound(w, s.id)).length
   return html`<div class="brow" style="--fam:${FAMILY_COLOR[f]}">
 <p class="blabel" id="row-${f}"><span class="mark" aria-hidden="true">${FAMILY_MARK[f]}</span> ${famName(f)}: ${n} of ${list.length} found</p>
-<ul class="nooks" aria-labelledby="row-${f}" data-roving>${list.map((s, i) => nook(w, s, i))}</ul>
+<ul class="nooks" aria-labelledby="row-${f}" data-roving>${list.map(s => nook(w, s))}</ul>
 </div>`
 }
 
-function nook(w: SiteFacts, s: Species, i: number): Raw {
+function nook(w: SiteFacts, s: Species): Raw {
   const found = isFound(w, s.id)
   const name = text(s.names[0], 40)
   const line = found ? name : s.legendary ? 'A legendary nobody has found yet.' : 'Nobody has found this one yet.'
   const art = found
     ? raw(spriteSvg(spriteFor({ form: s, stage: 1 }), { cls: 'shut', flash: false }))
     : raw(shadowSvg(spriteFor({ form: s, stage: 1 }), 'shd'))
-  return html`<li class="nk${found ? ' found' : ' unfound'}${s.legendary ? ' legend' : ''}"><button class="nook" type="button" tabindex="${i ? -1 : 0}" aria-label="${found ? `${name}${s.legendary ? ', legendary' : ''}` : line}"><span class="hollow">${art}<span class="z" aria-hidden="true">${raw(wordSvg('z'))}</span></span><span class="tip" aria-hidden="true">${line}</span></button></li>`
+  return html`<li class="nk${found ? ' found' : ' unfound'}${s.legendary ? ' legend' : ''}"><a class="nook" href="/species/${s.id}" aria-label="${found ? `${name}${s.legendary ? ', legendary' : ''}. View species.` : `${line} View species.`}"><span class="hollow">${art}<span class="z" aria-hidden="true">${raw(wordSvg('z'))}</span></span><span class="tip" aria-hidden="true">${line}</span></a></li>`
 }
 
 function tally(w: SiteFacts): Raw {
@@ -464,6 +465,7 @@ ${shown.length
 <p class="soft">Each lit lantern is a Mythic somebody caught. When one gets away, it's gone for good.</p>
 <ul class="mythlist">${shown.map((m, i) => html`<li class="m${i}"><b>${text(m.name, 48)}</b> found by ${m.handle ? html`<a href="/u/${m.handle}">${text(m.handle, 40)}</a>` : 'a trainer'}</li>`)}</ul>`
     : html`<p class="lampnote"><span class="ptag">The first Mythic lights a lantern.</span></p>`}
+<p class="catalogue-more"><a class="tolink" href="/mythics">Browse the Mythic catalogue</a></p>
 </div>
 </div>
 <div class="wrap">
@@ -562,14 +564,14 @@ ${installBlock('install2', 'Type this inside Claude Code')}
  * A trainer's camp (profile pages): the landing's fireside with their team of three round the fire,
  * each a link to its card, and their tent pitched beside it.
  */
-export function teamCamp(team: readonly BattleCard[]): Raw {
+export function teamCamp(team: readonly BattleCard[], credits?: DiscoveryCredits): Raw {
   return html`<div class="fireside tented">
 <div class="campsky" aria-hidden="true">${raw(starsSvg())}</div>
 <div class="tent" aria-hidden="true">${raw(tentSvg())}</div>
 <ul class="campers circle">${team.map(c => html`<li class="camper"><a href="/c/${c.id}" aria-label="${text(cardName(c), 40)}, ${rarityLine(c)}">${raw(spriteSvg(spriteFor(c)))}</a></li>`)}</ul>
 ${FIRE}
 <div class="campground" aria-hidden="true">${raw(campGroundSvg())}</div>
-</div>`
+</div>${credits?.size ? html`<ul class="wrap camp-credits">${team.map(c => html`<li><a href="/c/${c.id}">${text(cardName(c), 40)}</a>${discoveryCredit(credits.get(c.id))}</li>`)}</ul>` : ''}`
 }
 
 // ---- styles --------------------------------------------------------------------------------------
@@ -620,6 +622,9 @@ clip-path:polygon(25% 0,75% 0,75% 25%,90% 25%,90% 50%,100% 50%,100% 100%,0 100%,
 .oneday.on{opacity:1}
 .campers{margin:0;padding:0;list-style:none}
 .camper a{display:block;pointer-events:auto}
+.camp-credits{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s3);padding-top:var(--s3);padding-bottom:var(--s3);font-size:.875rem;overflow-wrap:anywhere}
+.camp-credits li>a{font-weight:700}.camp-credits .card-discovery{margin-top:var(--s1)}
+@media(max-width:600px){.camp-credits{grid-template-columns:1fr}}
 .tent{position:absolute;left:calc(50% + var(--fx) + 22 * var(--ap));bottom:calc(15 * var(--ap));z-index:1;width:calc(40 * var(--ap));height:calc(28 * var(--ap))}
 .tent svg{width:100%;height:100%;transform-origin:50% 100%}
 .tent:hover svg{animation:tentjig .3s steps(2) 2}
@@ -1078,6 +1083,7 @@ clip-path:polygon(0 0,8% 0,8% 20%,16% 20%,16% 0,30% 0,30% 20%,44% 20%,44% 0,58% 
 .bhead{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
 .bhead+.soft{margin-top:var(--s3);font-size:.9375rem}
 .brow{margin-top:var(--s3)}
+.catalogue-more{margin-top:var(--s3)}
 .blabel{font-weight:700;font-size:.9375rem}
 .blabel .mark{color:var(--fam)}
 .nooks{list-style:none;margin:var(--s2) 0 0;padding:0 0 var(--s1);display:grid;grid-template-columns:repeat(9,40px);gap:8px}

@@ -64,7 +64,7 @@ describe('the leaderboards page', () => {
     nextMidnight(s)
     const p = await get(s, '/boards')
     assertSitePage(p)
-    assert.equal(p.headers.get('cache-control'), 'public, max-age=300')
+    assert.equal(p.headers.get('cache-control'), 'no-store')
     const text = textOf(p.html)
     const rows = [...p.html.matchAll(/<li class="r[^"]*" style="--v:\d+%">([\s\S]*?)<\/li>/g)].map(m => textOf(m[1]!).trim())
     assert.deepEqual(rows, [
@@ -120,17 +120,20 @@ describe('the leaderboards page', () => {
     assert.doesNotMatch(p.html, /<ol class="ranks">/)
   })
 
-  it('is linked from every header and footer, and marked in the header when you are on it', async () => {
+  it('keeps boards in the footer and Players directory, with Players as the primary header entry', async () => {
     const s = server()
     const a = await s.join('haiku')
     for (const path of ['/', '/odds', '/privacy', '/market', `/u/${handle(a)}`, `/c/${a.me.player.team[0]}`]) {
       const p = await get(s, path)
       const header = p.html.slice(p.html.indexOf('<header'), p.html.indexOf('</header>'))
-      assert.match(header, /<a class="nb" href="\/boards"><svg [^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/svg><span class="nbl">Boards<\/span><\/a>/, path)
+      assert.match(header, /<a class="nb" href="\/players"[^>]*>[\s\S]*?<span class="nbl">Players<\/span><\/a>/, path)
+      assert.doesNotMatch(header, /href="\/boards"/, 'boards are reached through Players rather than another primary control')
       const footer = p.html.slice(p.html.indexOf('<footer'))
       assert.ok(footer.includes('<a href="/boards">Leaderboards</a><a href="/market">Market</a>'), path)
     }
-    assert.match((await get(s, '/boards')).html, /<a class="nb" href="\/boards" aria-current="page">/)
+    const players = (await get(s, '/players')).html
+    assert.match(players, /<a class="nb" href="\/players"[^>]*aria-current="page">/)
+    assert.match(players, /href="\/boards">See the leaderboards<\/a>/)
   })
 })
 
@@ -140,22 +143,34 @@ describe('the market page', () => {
   it('lists open listings as card tiles with their terms and sellers, read-only, with the line to buy them', async () => {
     const s = server()
     const [a, b] = [await s.join('haiku'), await s.join('opus')]
-    const [x, y, z] = await looseCards(s, a, 3)
+    // Cards change hands; a species may already have been discovered by either starter team.
+    const [x, y, z] = await looseCards(s, b, 3)
+    await s.db.batch([x, y, z].map(card => stmt('UPDATE cards SET owner_id = ? WHERE id = ?', a.id, card!.id)))
     await a.call('listCard', { cardId: x!.id, price: 120 })
     await a.call('listCard', { cardId: y!.id, want: { family: 'opus', rarity: 'rare' } })
     await a.call('listCard', { cardId: z!.id, price: 40, want: { shiny: true, family: 'haiku' } })
     const p = await get(s, '/market')
     assertSitePage(p)
-    assert.equal(p.headers.get('cache-control'), 'public, max-age=60')
+    assert.equal(p.headers.get('cache-control'), 'no-store')
     const lots = [...p.html.matchAll(/<li class="lot">([\s\S]*?)<\/li>/g)].map(m => m[1]!)
     assert.equal(lots.length, 3)
     for (const c of [x, y, z]) assert.ok(p.html.includes(`<a class="cardlink" href="/c/${c!.id}"`), 'each card links to its page')
-    const texts = lots.map(l => textOf(l.slice(l.indexOf('<div class="ptagbox">'), l.indexOf('<details class="card-inspect">'))).trim())
+    const texts = lots.map(l => textOf(l.slice(l.indexOf('<div class="ptagbox">'), l.indexOf('<details class="card-inspect">')).replace(/<p class="card-discovery">[\s\S]*?<\/p>/, '')).trim())
     assert.deepEqual(texts.sort(), [
       `120 sparks from ${handle(a)}`,
       `40 sparks and a shiny Haiku from ${handle(a)}`,
       `Swap for an Opus, rare or up from ${handle(a)}`,
     ].sort())
+    const firsts = new Map((await s.db.all<{ species: string; handle: string }>(
+      'SELECT f.species, p.handle FROM firsts f JOIN players p ON p.id = f.player_id AND p.handle = f.handle',
+    )).map(row => [row.species, row.handle]))
+    for (const markup of lots) {
+      const card = [x, y, z].find(c => markup.includes(`href="/c/${c!.id}"`))!
+      const finder = firsts.get(card.species)
+      assert.ok(finder, 'the original finder comes from the authoritative species discovery')
+      assert.ok(markup.includes(`class="seller">from <a href="/u/${handle(a)}"`), 'the seller has its existing role')
+      assert.ok(markup.includes(`class="card-discovery">First discovered by <a href="/u/${finder}"`), 'the original finder has separate credit')
+    }
     const text = textOf(p.html)
     assert.ok(text.includes(MARKET_COMMAND) && text.includes('To buy one, type this inside Claude Code'))
     assert.doesNotMatch(text, /\b\d{4}-\d{2}-\d{2}\b/, 'never the day it was listed')

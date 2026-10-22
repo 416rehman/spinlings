@@ -2,6 +2,13 @@
 
 One entry per release (SPEC 32), newest first. Each says what changed in plain words, any compatibility impact, and any change to what the mod sends, what the server stores or what other players can see. The mod and the server share one version; the server is deployed first.
 
+## Server and website update (2026-10-22; mod remains 0.2.16)
+
+- **Public collections and player browsing.** Public profiles show the complete held-card inventory with filters, sorting and pagination, plus existing midnight game stats and ranking. A players directory and visible profile access make trainers easier to find. Hidden leaderboard stats stay hidden; inventory and discovery credit are public. No achievement system is added.
+- **A catalogue you can open.** Season creatures link to frozen species details, evolution artwork, battle information and original discoverer profiles. Caught Mythics have their own browsable catalogue with actual card artwork and honest historical entries when the original card is gone.
+- **Discovery credit on website cards.** Every copy credits the species' original discoverer, independently of its owner or First Discovered stamp. Migration 0005 stores discovery-time public handles and clears identity credit on rename/deletion, including older Worker writes. Existing ambiguous history stays anonymous.
+- **Compatibility.** This deploy changes only server/site behavior and documentation. The installed mod, its version, marketplace pin, v1 response shapes, battle rules and frozen compatibility fixtures remain unchanged.
+
 ## 0.2.16 (2026-10-06)
 
 - **Clear redeem-code pages.** Pack and card rewards use present artwork and claim counts instead of egg hatching. Egg rewards keep their interactive nest. Every code page explains one claim per account, binding when applicable, and its closing date in UTC. The existing website appearance stays intact.

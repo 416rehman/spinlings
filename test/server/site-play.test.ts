@@ -233,6 +233,15 @@ describe('the market and the camp, third pass', () => {
     assert.match(p.html, /<svg class="tentart"/)
     assert.match(p.html, /<span class="fire" data-toy="Stoke the fire" data-fire role="img" aria-label="A campfire">/)
     assert.match(p.html, /<p class="pennant">[A-Z][a-z]+ league<\/p>/, 'the league badge is real text, not hidden')
-    assert.match(p.html, /<p class="empty doze"><svg class="spr shut"/, 'an empty board dozes')
+    assert.match(p.html, /id="collection" aria-labelledby="collection-h"/, 'the camp shows the real collection')
+    for (const id of a.me.player.team) assert.ok(p.html.includes(`href="/c/${id}"`), 'saved teammates link to their cards')
+    await s.db.batch([
+      stmt('UPDATE players SET team = ?, team_size = 0 WHERE id = ?', '[]', a.id),
+      stmt('DELETE FROM cards WHERE owner_id = ?', a.id),
+    ])
+    const empty = await get(s, `/u/${a.me.player.handle}`)
+    assert.equal(empty.status, 200)
+    assert.match(empty.html, /No cards in this collection yet\./)
+    assert.match(empty.html, /No team saved right now\. Everyone's off in the grass\./)
   })
 })

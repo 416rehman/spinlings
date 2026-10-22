@@ -98,6 +98,7 @@ The timing of requests says a little on its own. A pack charge means Claude Code
 | Passkeys you saved: the credential id, the public key, the random user id, a sign-in counter and the day you saved it | Until you delete your account |
 | A passkey page in progress | Deleted after 10 minutes, or when used |
 | Your game: cards, team, packs, sparks, rating, league, streak, wishlist, album, Fusion Log, your last 5 duel opponents (so matchmaking skips them), the drops you redeemed and the leaderboard switch | Until you delete your account |
+| First-discovery credit: the species, its first card and your public handle when found | Your identity credit is cleared on rename or account deletion. The anonymous world discovery and the card's First Discovered stamp remain. |
 | Your stats: counts of duel wins and losses, players beaten, wild wins, catches, species collected, First Discovered stamps, Mythics found and market sales (to different buyers), all time and for this season | Until you delete your account. Counts only, with no dates or times |
 | The same numbers, and your rating, as they stood at the last midnight: what other players see today | Replaced each day, until you delete your account |
 | Which players you have beaten in a duel, and which players have bought from you on the market, kept only so each counts once, and never shown to anyone | Until you or they delete the account |
@@ -131,12 +132,14 @@ The server keeps a date instead of a time wherever a game rule allows. It keeps 
 
 | Where | What is visible |
 |---|---|
-| Your profile, in the game and at `{server}/u/{handle}` | Your handle, team, cards marked for trade, album count and league, and your stats unless you hide from the leaderboards |
+| Your profile in the game | Your handle, team, cards marked for trade, album count and league, and your stats unless you hide from the leaderboards |
+| Your website profile at `{server}/u/{handle}` | The same public profile plus your complete held-card inventory, with filters and pages. Rating, board place and all-time/season game stats use the midnight snapshot and are hidden when you hide from the leaderboards. Inventory and discovery credit remain public. |
+| The players directory at `{server}/players` | Public handles and saved-team lead creatures, alphabetically or by a handle search. No activity, join dates or online status. Hiding from leaderboards hides statistics, not your public profile or directory entry. |
 | The leaderboards | Every player is on them unless they hide with `/spin leaderboard off`: your handle, league, rank and the board's number (rating, players beaten, duel wins, species, Mythics found or market sales), all time or this season. Every number is as it stood at the last midnight, so nobody can watch it move while you play. Hiding takes you off every board and your stats off your profile at once. If you joined while the leaderboard was opt-in, you got one notice when the boards opened to everyone; a new player gets one when they join. |
 | The market | Your open listings: your handle as it was when you listed, the card, the price, what you want in return and the day you listed it. Recent sale prices show species, rarity, shiny, foil, price and day, never who sold or bought. |
 | Defense notices | When someone duels your team, you get a notice with their handle and the result. When you duel someone, they get the same about you. The time is rounded to "today" or "yesterday". |
 
-**Never visible to anyone else:** your battle count, who you beat or who beat you (apart from the two players in a duel), when you joined, when you were last seen, your activity, the arena or model you used, and any timestamps. Duel wins and losses appear only as counts in your stats, and you can hide those.
+**Never visible to anyone else:** your battle count, who you beat or who beat you (apart from the two players in a duel), when you joined, when you were last seen, an activity log or online status, the arena or model you used, and any timestamps. Duel wins and losses appear only as counts in your stats, and you can hide those.
 
 Cards other players see show the creature, its level, stats and traits, and nothing about its owner: no dates, no locks, no tiredness and no raised form. When you do something with another player, they see your handle alongside it, and nothing beyond the list above:
 - **Duels:** your opponent sees your handle, your league and your saved team, as on your profile.
@@ -145,22 +148,22 @@ Cards other players see show the creature, its level, stats and traits, and noth
 - **Challenges:** anyone can challenge your saved team by your handle, as in an ordinary duel; you get the usual defense notice.
 - **Gifts:** whoever claims your gift sees your handle and the card. The gift page at `{server}/g/{code}` shows the card to anyone who has the code.
 - **Cards that change hands** arrive as if made that day: their earlier dates, arena counts and raised form are cleared, so nothing on them tells the new owner when or how you had them.
-- **First discoveries:** the first card of a species anyone in the world obtains in a season carries a `First Discovered` stamp wherever that card is shown. The game never says who found it.
-- **Mythics:** if you catch a Mythic, its card says "Discovered by" your handle, and the public "Mythics found" list shows your handle and the Mythic's name, nothing else. If you change your handle or delete your account, your handle comes off the card and the list.
+- **First discoveries:** the first card of a species anyone in the world obtains in a season keeps its `First Discovered` stamp. The website credits that species' original discoverer beside every copy and on its catalogue page, with a link to their public profile. Trading a card does not transfer discovery credit. Your public handle is recorded when the species is first found, and comes off that credit if you rename or delete your account; the website does not link your old and new names. Older finds are credited only when the original handle can be established safely; otherwise they say "a trainer". No discovery date or time is shown.
+- **Mythics:** if you catch a Mythic, its card says "Discovered by" your handle. The website's Mythic catalogue also shows the actual caught card, its name and the discoverer's public profile link. If the card no longer exists, its historical entry shows only the name and surviving credit, without invented artwork. If you change your handle or delete your account, your handle comes off the card and the list. Uncaught encounters and unused named Mythics are not revealed.
 
-**Public pages** (profiles, card pages at `{server}/c/{id}` and gift pages) show only what a profile shows, plus Mythic discoveries as handle and name. Public drop pages show the code, reward, aggregate claims, supply, binding and closing time in UTC; they identify no claimants. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. Passkey pages and the browser collection use `connect-src 'self'` to talk only to the same server; the collection shell contains no player data until you sign in.
+**Public pages** (profiles, card pages at `{server}/c/{id}`, species pages, the Mythic catalogue and gift pages) show only the public game/card fields and discovery credits described above. Public drop pages show the code, reward, aggregate claims, supply, binding and closing time in UTC; they identify no claimants. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. The players directory submits its handle search as a same-origin GET form; no other form destination is allowed. Passkey pages and the browser collection use `connect-src 'self'` to talk only to the same server; the collection shell contains no player data until you sign in.
 
 `/spin share` only copies text to your clipboard. Claude's Share profile copies only your public profile URL, or shows it for manual copying. Browser Share profile sends only that canonical public URL to your device's share sheet when you press it, with clipboard or manual-copy fallback. It never shares the private account URL, session or passkey data. Nothing is posted automatically.
 
 ### What someone could still guess
 
-Cards belong to families, and a pack charges in the family of the model you used most while it charged. So the families of the cards you show, on your team and marked for trade, can hint at which model family you tend to use. Catches, trades, gifts and crafting mix families up, and you choose which cards are on your team and marked for trade.
+Cards belong to families, and a pack charges in the family of the model you used most while it charged. So the families of cards in your public inventory can hint at which model family you tend to use. Catches, trades, gifts and crafting mix families up. Pack contents, charging progress and the model family of a particular charge remain private.
 
 Your starter team says nothing about the model you joined with. The server builds it around a family it picks at random (that family, the one it beats and the one that beats it, in a shuffled order), so it looks the same whichever model you used.
 
 Other players never see times. A listing shows only the day it was listed, and a defense notice only "today" or "yesterday". Your stats, album count, league and board places show as they stood at the last midnight, so they never change while you play.
 
-The cards on your team show their level. Someone who checks your profile often could see a level go up soon after you battle.
+Your public inventory is current, including its card count and creature levels. Someone comparing visits could notice cards arrive or leave, or see a level go up after a battle. There are no acquired dates, activity logs or online indicators, but public collections cannot hide those changes.
 
 ## Deleting your account
 

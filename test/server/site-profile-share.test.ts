@@ -27,7 +27,9 @@ function page(share?: (data: {url:string}) => Promise<void>, copy = true) {
 describe('public profile sharing', () => {
   it('adds one share action to the existing camp and uses its canonical public URL', async () => {
     const s = server(); const p = await s.join()
-    const html = await (await s.request('GET','/u/'+p.me.player.handle+'?private=discarded')).text()
+    const response = await s.request('GET','/u/'+p.me.player.handle+'?q=discarded')
+    assert.equal(response.status,200)
+    const html = await response.text()
     assert.equal((html.match(/data-profile-share=/g) ?? []).length,1)
     assert.ok(html.includes('data-profile-share="/u/'+encodeURIComponent(p.me.player.handle)+'"'))
     assert.match(html, /class="pbtn js-only" type="button" data-profile-share=/)

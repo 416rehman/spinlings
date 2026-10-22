@@ -65,7 +65,7 @@ async function get(s: Server, p: Player, q: Record<string, string> = {}): Promis
   assert.equal(response.status, 200, await response.clone().text())
   assert.equal(response.headers.get('cache-control'), 'no-store')
   const data = await response.json() as AccountCardsResponse
-  assert.deepEqual(Object.keys(data).sort(), ['cards', 'matched', ...(data.next ? ['next'] : []), 'team', 'total', 'version'].sort())
+  assert.deepEqual(Object.keys(data).sort(), ['cards', 'discoveryCredits', 'matched', ...(data.next ? ['next'] : []), 'team', 'total', 'version'].sort())
   for (const c of [...data.cards, ...data.team]) assert.deepEqual(parseCard(c), c, 'no server-only card fields')
   return data
 }

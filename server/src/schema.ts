@@ -69,7 +69,7 @@ export type NoticeRow = {
   other_id: string | null; revenge_until: number | null
 }
 
-export type FirstRow = { species: string; season: number; player_id: string | null; card_id: string; day: string }
+export type FirstRow = { species: string; season: number; player_id: string | null; card_id: string; day: string; handle: string | null }
 export type MythicRow = { card_id: string; name: string; finder_id: string | null; handle: string | null; day: string }
 export type TraderUseRow = { player_id: string; day: string; deal: number }
 export type RetiredHandleRow = { handle: string; until: string }

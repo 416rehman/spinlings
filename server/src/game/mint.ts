@@ -282,7 +282,8 @@ export async function mintCards(env: Env, owner: string, fresh: readonly NewCard
       JSON.stringify(card.stats), cardPower(card), card.bound, card.origin, day, card.lockedUntil, first, card.raisedIn ?? null,
     ))
     if (first) {
-      stmts.push(stmt('INSERT INTO firsts (species, season, player_id, card_id, day) VALUES (?, ?, ?, ?, ?)', card.species, card.season, owner, id, day))
+      stmts.push(stmt('INSERT INTO firsts (species, season, player_id, card_id, day, handle) VALUES (?, ?, ?, ?, ?, (SELECT handle FROM players WHERE id = ?))',
+        card.species, card.season, owner, id, day, owner))
       stmts.push(...count(owner, env.now, { firstFinds: 1 }))
     }
     stmts.push(...albumAdd(owner, card.species, env.now))

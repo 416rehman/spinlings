@@ -180,7 +180,7 @@ export function privacyBody(): Raw {
 <ul>
 <li><strong>You start with a generated identity.</strong> Your account has a random token and a generated handle like soft-otter-42. You can choose a public username instead. Nothing about your Claude account, email, organization or machine is ever sent.</li>
 <li><strong>Nothing about your work leaves your machine.</strong> The mod never reads your prompts, Claude's answers, tool calls, files, paths, repository names or cost.</li>
-<li><strong>Nothing about your usage is shown to anyone.</strong> The only usage-related value the server receives is a model family (haiku, sonnet, opus or fable), when you join, a pack charges or a battle starts. Nobody else sees it, and it is deleted with that pack or battle.</li>
+<li><strong>Your model signals stay private.</strong> The only usage-related value the server receives is a model family (haiku, sonnet, opus or fable), when you join, a pack charges or a battle starts. That signal is never shown to anyone else and is deleted with that pack or battle.</li>
 <li><strong>No IP addresses, no request logs, no analytics,</strong> and no third-party requests, in the mod or on this server.</li>
 <li><strong>You can delete everything</strong> from <code>/spin privacy</code> inside Claude Code.</li>
 </ul>
@@ -199,6 +199,7 @@ export function privacyBody(): Raw {
 <tr><td>A player id, your handle, and SHA-256 hashes of your session tokens (never a token)</td><td>Until you delete your account</td></tr>
 <tr><td>Your game: cards, team, packs, sparks, rating, league, streak, wishlist and album</td><td>Until you delete your account</td></tr>
 <tr><td>Your stats: counts of duel wins and losses, players beaten, wild wins, catches, species, first finds, Mythics found and market sales, all time and this season</td><td>Until you delete your account, as counts with no dates or times</td></tr>
+<tr><td>The public handle credited with a first species discovery or caught Mythic</td><td>Until you change your name or delete your account; the anonymous discovery record remains</td></tr>
 <tr><td>The day you joined and the day you were last seen, never a time</td><td>Until you delete your account</td></tr>
 <tr><td>A saved passkey's public key, if you save one</td><td>Until you delete your account</td></tr>
 <tr><td>The model family of a pack charge or a battle</td><td>Only as long as that pack or battle</td></tr>
@@ -210,15 +211,19 @@ export function privacyBody(): Raw {
 
 <h2>${heading('What other players can see')}</h2>
 <ul>
-<li><strong>Your profile:</strong> your handle, team, cards marked for trade, album count and league, your market listings, and your stats unless you hide from the leaderboards. Nothing else.</li>
+<li><strong>Your profile:</strong> your handle, team, cards marked for trade, album count and league, your market listings, and your stats unless you hide from the leaderboards. Your website profile also shows your complete held-card inventory, with filters and pages, and your rating, board place and season stats while your stats are public.</li>
+<li><strong>The <a href="/players">players directory</a>:</strong> public handles and saved-team lead creatures, alphabetically or by handle search. It shows no online status or activity. Hiding from leaderboards hides your stats, not your profile, inventory, directory entry or discovery credit.</li>
 <li><strong>The leaderboards:</strong> every player is on them unless they hide with <code>/spin leaderboard off</code>: your handle, league, rank and the board's number. Numbers show as they stood at the last midnight, so nobody can watch them move while you play.</li>
 <li><strong>Duels:</strong> the other player gets a notice with your handle and the result, dated "today" or "yesterday".</li>
-<li><strong>Mythics:</strong> if you catch one, its card and the public list show your handle and its name. Change your handle or delete your account and they say it was found by a trainer, so your old handle never shows beside a new one.</li>
-<li><strong>First discoveries:</strong> a card that was the first of its species in the world says so, and that it was first found by a trainer. It never says which one.</li>
+<li><strong>Mythics:</strong> the website's catalogue shows actual caught creatures, their names and a link to the discoverer's public profile. If a card no longer exists, its historical entry keeps its name and surviving discovery credit, without invented artwork. Uncaught encounters and unused named Mythics stay unrevealed.</li>
+<li><strong>First discoveries:</strong> the first card of each species keeps its First Discovered stamp. The website credits the original discoverer on that species' catalogue page and beside every copy, with a link to their public profile. Trading a card never transfers discovery credit.</li>
 </ul>
+<p>Discovery credit uses the public handle you had when you found the creature. Change your name or delete your account and that name comes off your earlier finds; they say "a trainer" instead. Your old and new names are never linked. An older find stays anonymous when its original handle cannot be established safely. Discovery dates and times are never shown.</p>
 <p>Never visible to anyone else: your battle count, when you joined or were last seen, your activity, the arena or model you used, and any timestamps. Duel wins and losses show only as counts in your stats, and you can hide those.</p>
+<p>Public cards show their creature, family, level, stats, genes, traits, rarity and finishes. They show no acquisition dates, origin, locks, tiredness, raised form or private trade and gift details. Your unopened packs, charging progress, sparks, devices and passkeys stay private.</p>
+<p>Your inventory is current. Someone comparing visits could notice cards arriving or leaving, or a level rising. Card families can also hint at the model families you tend to use, although catches, trades, gifts and crafting mix them up. Your aggregate stats, album count, league, rating and board places remain midnight snapshots, and hiding from leaderboards removes your stats and places.</p>
 <p>The pages of this site set no cookies and load nothing from other sites. Public-page scripts draw creatures locally and make no API calls; /odds and this page run none at all. Passkey pages and <a href="/account">Your collection</a> talk only to this server.</p>
-<p>Your collection signs in with a saved passkey and shows your own cards, stats and board places. Its session stays in this tab's session storage, never in a URL, cookie or public page. Sign out revokes only that browser session. Closing the tab clears its local token. No new game fields or public player information are stored.</p>
+<p>Your collection signs in with a saved passkey and shows your own cards, stats and board places. Its session stays in this tab's session storage, never in a URL, cookie or public page. Sign out revokes only that browser session. Closing the tab clears its local token. That session and your passkey information never appear on your public profile.</p>
 <p>The website remembers the creature you met in your browser's own storage so it can greet you next time. It never leaves your browser.</p>
 
 <h2>${heading('Deleting your account')}</h2>
