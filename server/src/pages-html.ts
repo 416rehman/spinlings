@@ -759,9 +759,24 @@ export function fullCard(c: BattleCard, o: { credits?: DiscoveryCredits } = {}):
 ${marks.map(s => html`<li${s.startsWith(MARK.first) || s.startsWith(MARK.mythic) ? html` class="seal"` : ''}>${s}</li>`)}
 </ul>
 ${discoveryCredit(credit)}
+<section class="card-section card-stats"><h2>Combat stats</h2>
 <dl class="stats">${STAT_KEYS.map(k => html`<div><dt>${cardHelp(CARD_HELP.stats[k].label, CARD_HELP.stats[k].text)}</dt><dd>${st[k]}</dd></div>`)}</dl>
-${c.traits.length ? html`<ul class="traits">${c.traits.map(t => html`<li>${cardHelp(TRAITS[t]?.name ?? t, TRAITS[t]?.text ?? '')}</li>`)}</ul>` : ''}
-<div class="combat-guide">${cardHelp(`${FAMILY_INFO[c.family].name} matchups`, CARD_HELP.families[c.family].text)}${cardHelp(move.name, move.text)}${cardHelp('Four genes', CARD_HELP.genes)}${cardGenes(c)}${cardHelp('How damage works', CARD_HELP.damage)}${c.shiny || c.foil ? cardHelp('Shiny & foil', CARD_HELP.finishes) : ''}</div>
+</section>
+<section class="card-section card-abilities"><h2>Abilities</h2><div class="ability-grid">
+<section class="special-move"><h3>Special move</h3><p class="move-name">${move.name}</p><p>${move.text}</p></section>
+${c.traits.length ? html`<section class="passive-traits"><h3>Passive traits</h3><dl>${c.traits.map(t => html`<div><dt>${TRAITS[t]?.name ?? t}</dt><dd>${TRAITS[t]?.text ?? ''}</dd></div>`)}</dl></section>` : ''}
+</div></section>
+<div class="card-properties">
+<section class="card-section card-genetics"><h2>Genes</h2>${cardGenes(c)}${cardHelp('About genes', CARD_HELP.genes)}</section>
+${c.shiny || c.foil ? html`<section class="card-section card-appearance"><h2>Appearance <span class="cosmetic-label">Cosmetic</span></h2><dl class="finish-list">
+${c.shiny ? html`<div><dt><span aria-hidden="true">${MARK.sparkle}</span> Shiny</dt><dd>Different creature colours and sparkle.</dd></div>` : ''}
+${c.foil ? html`<div><dt><span class="foil-swatch" aria-hidden="true"></span> Foil</dt><dd>A rainbow card frame.</dd></div>` : ''}
+</dl><p class="cosmetic-note">Finishes do not change combat stats.</p></section>` : ''}
+</div>
+<section class="card-section card-guide"><h2>Battle guide</h2><details class="card-reference"><summary>Matchups &amp; damage</summary><div class="reference-grid">
+<section><h3>${FAMILY_INFO[c.family].name} matchups</h3><p>${CARD_HELP.families[c.family].text}</p></section>
+<section><h3>How damage works</h3><p>${CARD_HELP.damage}</p></section>
+</div></details></section>
 </div>
 </article>`
 }
@@ -797,7 +812,7 @@ clip-path:polygon(0 8px,8px 8px,8px 0,calc(100% - 8px) 0,calc(100% - 8px) 8px,10
 .story{list-style:none;padding:0;margin:var(--s3) 0 0;display:flex;flex-wrap:wrap;gap:var(--s2);font-size:.9375rem}
 .story li{padding:3px 10px 4px;background:#3b2a22;color:#f1e3cf}
 .story li.seal{background:#a8324a;color:#fbf1e2;box-shadow:inset 0 -3px 0 #7a2236}
-.stats{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s2);margin:var(--s4) 0 0}
+.stats{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s2);margin:var(--s3) 0 0}
 .stats div{padding:10px var(--s2) 12px;background:#3b2a22;text-align:center}
 .stats dt{font-size:.8125rem;color:#e6d3bd}
 .stats .card-help,.stats .card-help>summary{position:static}
@@ -805,10 +820,23 @@ clip-path:polygon(0 8px,8px 8px,8px 0,calc(100% - 8px) 0,calc(100% - 8px) 8px,10
 .stats .help-body{font-size:.8125rem;margin-bottom:8px}
 .stats .help-peek{left:0;right:0;width:100%;max-width:100%}
 .stats dd{margin:0;font:800 1.375rem/1.2 var(--sans);font-variant-numeric:tabular-nums}
-.traits{list-style:none;padding:0;margin:var(--s4) 0 0}
-.traits li+li{margin-top:var(--s2)}
-.traits span{color:#e6d3bd}
-.combat-guide{margin-top:var(--s3)}.combat-guide .help-body{color:#e6d3bd;font-size:.9375rem}
-.plaque .card-help>summary:focus-visible{outline-color:var(--cream)}
+.plaque .card-section{margin-top:var(--s4);padding-top:var(--s3);border-top:2px solid #e6d3bd26;min-width:0}
+.plaque h2{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s2);font-size:.8125rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#e6d3bd}
+.plaque h3{font-size:.75rem;font-weight:700;color:#e6d3bd}.plaque .card-section p,.plaque .card-section dd{overflow-wrap:anywhere;line-height:1.55}
+.ability-grid,.card-properties,.reference-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:var(--s3)}
+.ability-grid{margin-top:var(--s3)}.ability-grid>section{min-width:0;padding:var(--s3);background:#3b2a22}
+.special-move{border-left:4px solid var(--fam)}.plaque .move-name{margin-top:var(--s2);font-size:1.25rem;font-weight:800;color:#ffe2a0}
+.special-move>p:last-child{margin-top:var(--s2);color:#e6d3bd;font-size:.9375rem}
+.passive-traits dl{margin-top:var(--s2)}.passive-traits dl>div+div{margin-top:var(--s3);padding-top:var(--s2);border-top:1px solid #e6d3bd26}
+.passive-traits dt,.finish-list dt{font-size:.9375rem;font-weight:800}.passive-traits dd,.finish-list dd{margin:4px 0 0;font-size:.875rem;color:#e6d3bd}
+.card-properties{gap:0 var(--s4)}.card-genetics .inspect-genes{margin-top:var(--s3);gap:var(--s2)}.card-genetics .inspect-genes>div{padding:var(--s2);background:#3b2a22}.card-genetics .inspect-genes dt{color:#e6d3bd}
+.card-genetics .card-help{margin-top:var(--s2)}.card-genetics .card-help>summary{font-size:.8125rem}.card-genetics .help-body{font-size:.875rem;color:#e6d3bd}
+.cosmetic-label{padding:2px 6px;background:#3b2a22;font-size:.625rem;letter-spacing:.04em;color:#d8c1aa}
+.finish-list{margin-top:var(--s3);display:grid;gap:var(--s3)}.finish-list dt{display:flex;align-items:center;gap:8px}.finish-list dt>span{color:#ffe2a0;width:12px}
+.foil-swatch{display:inline-block;height:12px;background:conic-gradient(#ff7ac6,#f2b33d,#9ed36a,#5b8def,#a874e8,#ff7ac6);box-shadow:0 0 0 1px #fbf1e266}
+.plaque .cosmetic-note{margin-top:var(--s3);font-size:.75rem;color:#d8c1aa}
+.plaque .card-guide{border-top-style:dashed}.card-reference{margin-top:var(--s2)}.card-reference>summary{min-height:44px;cursor:pointer;padding:10px 0;font-size:.9375rem;color:#fbf1e2}
+.reference-grid{padding:var(--s3);background:#3b2a22}.reference-grid h3{font-size:.875rem;color:#fbf1e2}.reference-grid p{margin-top:var(--s2);font-size:.875rem;color:#e6d3bd}
+.plaque summary:focus-visible{outline-color:var(--cream)}
 @media (max-width:420px){.plaque{padding:var(--s3)}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 `
