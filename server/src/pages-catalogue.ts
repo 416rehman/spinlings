@@ -13,6 +13,7 @@ import {
   cardHelp, cardTiles, discoveryCredit, heading, html, layout, notice, PLACE, PLACE_CSS, raw, text,
 } from './pages-html.ts'
 import type { DiscoveryCredits, Raw } from './pages-html.ts'
+import { LANTERN_SYMBOL, mythicLantern } from './pages-lantern.ts'
 import { placeStripSvg } from './pages-scene.ts'
 import { shadowSvg, spriteSvg } from './pages-sprite.ts'
 import { publicMythics, speciesCredit } from './public-collection.ts'
@@ -63,17 +64,17 @@ ${cardHelp('How damage works', CARD_HELP.damage)}
       return layout({
         kind: 'site', title: 'Mythics: Spinlings catalogue', description: 'The one-of-a-kind Mythics caught by Spinlings trainers, with their real cards and discovery credits.',
         path: '/mythics', origin: ctx.origin, noindex: true, cache: CACHE, now: ctx.now, css: CATALOGUE_CSS,
-        body: html`${placeStrip('fable')}<section class="wrap catalogue">
+        body: html`${raw(LANTERN_SYMBOL)}<section class="wrap catalogue mythic-catalogue">
 ${catalogueNav('mythics')}
-<p class="catalogue-kicker">The one-of-a-kind shelf</p><h1>${heading('Mythics')}</h1>
-<p class="catalogue-intro">Each caught Mythic exists once in the whole world. The lanterns in the meadow celebrate them; here you can meet the creatures.</p>
+<p class="catalogue-kicker">One of a kind</p><h1>${heading('Mythics')}</h1>
+<p class="catalogue-intro">A lantern for every Mythic found. Each creature exists once in the whole world.</p>
 <p class="catalogue-count">${shelf.total} ${shelf.total === 1 ? 'Mythic' : 'Mythics'} found</p>
 ${shelf.mythics.length ? html`<ul class="mythic-shelf">${shelf.mythics.map(m => {
           const credit = { kind: 'mythic' as const, handle: m.handle }
-          if (!m.card) return html`<li class="mythic-history"><h2>${heading(text(m.name, 48))}</h2><p class="soft">The original card is no longer available.</p>${discoveryCredit(credit)}</li>`
+          if (!m.card) return html`<li class="mythic-history">${raw(mythicLantern())}<div class="mythic-memory"><h2>${text(m.name, 48)}</h2><p class="soft">The original card is no longer available.</p>${discoveryCredit(credit)}</div></li>`
           const credits: DiscoveryCredits = new Map([[m.card.id, credit]])
-          return html`<li>${cardTiles([m.card], { link: true, credits })}</li>`
-        })}</ul>` : html`<p class="catalogue-empty">No caught Mythics here yet. The first one will light a lantern.</p>`}
+          return html`<li>${raw(mythicLantern())}${cardTiles([m.card], { link: true, credits })}</li>`
+        })}</ul>` : html`<div class="catalogue-empty">${raw(mythicLantern(false))}<p>No caught Mythics here yet. The first one will light a lantern.</p></div>`}
 <nav class="catalogue-pages" aria-label="Mythic pages">${ctx.url.searchParams.has('after') ? html`<a href="/mythics">Back to first page</a>` : ''}${shelf.next ? html`<a class="next" href="/mythics?after=${encodeURIComponent(shelf.next)}">More Mythics →</a>` : ''}</nav>
 </section>`,
       })
@@ -134,9 +135,17 @@ main .soft{color:#c9c3d6}main :focus-visible{outline-color:#fffdf5}
 .undiscovered{display:flex;align-items:center;gap:var(--s4);max-width:640px;padding:var(--s4);margin-top:var(--s4);background:#26222f}
 .unknown-art{display:grid;place-items:center;flex:none;background:#191520;width:144px;height:160px;color:#73657d}.unknown-art .shd{width:112px;height:112px}
 .species-neighbours,.catalogue-pages{margin-top:var(--s5)}.species-neighbours a,.catalogue-pages a{display:inline-flex;align-items:center;min-height:44px}.catalogue-pages .next{margin-left:auto}
-.mythic-shelf{list-style:none;margin:var(--s4) 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:var(--s4)}
-.mythic-shelf>li{min-width:0}.mythic-shelf .cards{list-style:none;margin:0;padding:0;display:grid}.mythic-shelf .cardlink{display:block;color:inherit;text-decoration:none}.mythic-shelf .cf{width:100%}
-.mythic-history,.catalogue-empty{padding:var(--s4);background:#26222f}.mythic-history h2{font-size:1.125rem;font-weight:800}.mythic-history p{margin-top:var(--s2)}.catalogue-empty{margin-top:var(--s4)}
+main:has(.mythic-catalogue){background:#142039}.mythic-catalogue{padding-top:var(--s5)}
+.mythic-catalogue .catalogue-kicker,.mythic-catalogue .catalogue-count{color:#ffe2a0}.mythic-catalogue .catalogue-intro,.mythic-catalogue .soft{color:#b7c0d8}
+.mythic-shelf{list-style:none;margin:var(--s5) 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:var(--s5) var(--s4)}
+.mythic-shelf>li{min-width:0;position:relative}.mythic-shelf .cards{list-style:none;margin:0;padding:0;display:grid}.mythic-shelf .cardlink{display:block;color:inherit;text-decoration:none}.mythic-shelf .cf{width:100%}
+.mythic-lamp{--lg:#ffcf6a;--lb:#ffe9a8;--lt:#f2b33d;position:relative;display:block;height:88px;border-top:2px solid #0a0f20}
+.mythic-lamp::before{content:"";position:absolute;width:2px;height:12px;background:#3b2a22;top:0;left:calc(50% - 1px)}
+.mythic-lamp svg{position:relative;display:block;width:65px;height:80px;margin:4px auto 0;overflow:visible}.mythic-lamp .lglow{fill:#ffcf6a;opacity:.16}
+.mythic-lamp.unlit{--lg:#26304b;--lb:#2c3552;--lt:#3a4058}
+.mythic-shelf .cardlink{box-shadow:0 -4px 0 #ffe2a026}.mythic-shelf .card-discovery a{color:#ffe9a8}
+.mythic-memory{padding:var(--s4);background:#1c2941;border-top:4px solid #ffe2a04d;min-height:240px}.mythic-history h2{font-size:1.125rem;font-weight:800}.mythic-history p{margin-top:var(--s2)}
+.catalogue-empty{max-width:360px;margin-top:var(--s5);text-align:center}.catalogue-empty p{margin-top:var(--s3);color:#b7c0d8}
 @media(max-width:700px){.species-guide{grid-template-columns:1fr}.evolutions{grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2)}.evolution{padding:var(--s2)}.evolution-art{min-height:120px;padding:var(--s2)}.evolution-art .spr{width:80px;height:80px}.evolution h2 .pt{--gp:1.5px}}
 @media(max-width:479px){.evolutions{grid-template-columns:1fr}.evolution{display:grid;grid-template-columns:96px minmax(0,1fr);gap:0 var(--s3);align-items:center}.evolution-art{grid-row:1/3;min-height:104px}.evolution-step{align-self:end;margin-top:0}.evolution h2{align-self:start;margin-top:var(--s1)}.evolution h2 .pt{--gp:2px}.species-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.undiscovered{flex-direction:column;align-items:flex-start;padding:var(--s3)}}
 `
