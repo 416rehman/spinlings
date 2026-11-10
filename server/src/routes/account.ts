@@ -28,7 +28,7 @@ export const SERVER_VERSION = '0.3.0'
  * player is never told about a release Claude Code cannot install yet. The pin commit moves the pin and this together
  * (docs/releasing.md); its release notes go out on /v1/version and /whats-new from then on.
  */
-export const LATEST_CLIENT = '0.2.16'
+export const LATEST_CLIENT = '0.3.0'
 
 const OFFERS_SHOWN = 50
 
