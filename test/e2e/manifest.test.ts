@@ -1,5 +1,5 @@
-// The pieces agree on what they are: one version across the mod, its manifest and the server, and the
-// mod's hooks and `$` calls inside the SPEC 12 lists, as `claude plugin validate --json` reports them.
+// The pieces agree on what they are: one version across the mod and its manifest, a server that announces none
+// newer, and the mod's hooks and `$` calls inside the SPEC 12 lists, as `claude plugin validate --json` reports them.
 // Set SPINLINGS_CLAUDE to a Claude Code binary with `plugin validate --json` (else `claude` on PATH);
 // the validator check is skipped when none is found.
 import assert from 'node:assert/strict'
@@ -15,9 +15,11 @@ const PLUGIN = fileURLToPath(new URL('../../plugin', import.meta.url))
 const manifest = JSON.parse(readFileSync(`${PLUGIN}/.claude-plugin/plugin.json`, 'utf8')) as { version: string }
 
 describe('versions', () => {
-  it('the mod, its manifest and the server name the same release', () => {
+  it('the mod and its manifest name the same release, and the server announces none newer', () => {
     assert.equal(CLIENT_VERSION, manifest.version, 'client/remote.ts CLIENT_VERSION is plugin.json version')
-    assert.equal(LATEST_CLIENT, manifest.version, 'the server announces this release as the latest mod')
+    // the server announces a release only once the marketplace pins it (test/release/marketplace.test.ts), so until the
+    // pin commit it still names the one before
+    assert.ok(compareSemver(LATEST_CLIENT, manifest.version) <= 0, `the server announces ${LATEST_CLIENT}, never a mod past this one`)
     assert.ok(compareSemver(MIN_CLIENT, CLIENT_VERSION) <= 0, 'the server takes this mod')
   })
 })
@@ -45,13 +47,24 @@ describe('the validator\'s view of the mod (SPEC 2, 10, 12)', () => {
     const hooks = line('hooks').split(/,\s*(?![^{]*})/).map(h => h.trim().replace(/\{.*$/, ''))
     assert.ok(hooks.length > 0, 'the validator listed the hooks')
     for (const never of ['agent.spawn', 'tool.call', 'prompt.submit', 'classic.PermissionRequest']) assert.ok(!hooks.includes(never), `never hooks ${never}`)
-    const calls = [...line('calls').matchAll(/\$\.(\w+)\.(\w+)/g)].map(m => [m[1]!, m[2]!] as const)
+    const listed = line('calls')
+    const calls = [...listed.matchAll(/\$\.(\w+)\.(\w+)/g)].map(m => [m[1]!, m[2]!] as const)
     assert.ok(calls.length > 0, 'the validator listed the $ calls')
-    // SPEC 12's nouns, plus audio for the chimes (SPEC 13.12)
-    const allowed = new Set(['ui', 'state', 'store', 'clock', 'command', 'http', 'session', 'audio'])
+    // SPEC 12's nouns, plus audio for the chimes (SPEC 13.12), Claude Code's plugin registry and the variables that say
+    // whether its update pass runs (SPEC 32)
+    const allowed = new Set(['ui', 'state', 'store', 'clock', 'command', 'http', 'session', 'audio', 'fs', 'env'])
     for (const [noun, method] of calls) {
       assert.ok(allowed.has(noun), `$.${noun} is not an allowed noun`)
+      if (noun === 'fs') assert.ok(['read', 'stat', 'write'].includes(method), `$.fs.${method} is never called`)
+      if (noun === 'env') assert.equal(method, 'get', `$.env.${method} is never called`)
       if (noun === 'session') assert.ok(['model', 'version', 'surfaces', 'usage'].includes(method), `$.session.${method} is never called (SPEC 20.1)`)
     }
+    // the one write goes through the switch's file and nowhere else
+    assert.match(listed, /\$\.fs\.write \(via registryFile\)(,|$)/)
+    assert.doesNotMatch(listed, /\$\.settings\./)
+    assert.equal(line('env writes'), 'nothing')
+    assert.deepEqual(line('env reads').split(/,\s*/).sort(), [
+      'CLAUDE_CODE_AUTOUPDATER_DISABLED_BY_HOST', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_AUTOUPDATER', 'DISABLE_UPDATES', 'FORCE_AUTOUPDATE_PLUGINS',
+    ])
   })
 })

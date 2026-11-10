@@ -26,7 +26,7 @@ export function browserAccount(api: Api): void {
 <div id="dashboard" hidden>
 <div class="accountprofile"><div class="accountidentity"><div id="profile-art" aria-hidden="true"></div><div class="accountname"><h2 id="myhandle"></h2><button type="button" class="accountedit" id="username-change" aria-label="Change username" title="Change username" aria-controls="username-form" aria-expanded="false">✎</button></div></div>
 <div id="mybalance" class="accountbalance"></div>
-<div class="accountactions"><a class="accountquiet" id="profile-open" href="/players">Public profile</a><button type="button" class="accountquiet" id="profile-share">↗ Share profile</button><button type="button" class="accountquiet" id="refresh" title="Refresh collection">↻ Refresh</button><button class="accountquiet" id="signout" hidden>Sign out</button></div></div>
+<div class="accountactions"><a class="accountquiet" id="profile-open" href="/search">Public profile</a><button type="button" class="accountquiet" id="profile-share">↗ Share profile</button><button type="button" class="accountquiet" id="refresh" title="Refresh collection">↻ Refresh</button><button class="accountquiet" id="signout" hidden>Sign out</button></div></div>
 <form id="username-form" hidden novalidate><label for="username">Username</label><div class="accountfilters">
 <input id="username" name="handle" type="text" required minlength="1" maxlength="40" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="username-rules username-note username-status">
 <button type="submit" class="pbtn" id="username-save">Save username</button><button type="button" class="pbtn" id="username-cancel">Cancel</button></div>

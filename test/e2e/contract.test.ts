@@ -135,7 +135,7 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     assert.ok(Number(a.wire.at(-1)!.answer['retry-after']) > 0, 'a wait comes with Retry-After')
   })
 
-  it('packs: buy (and too few sparks), charge (and too soon), open', async () => {
+  it('packs: buy (and too few sparks), charge (and too soon), open one or several', async () => {
     await refused(a, 'buyPack', { family: 'opus' }, 'insufficient_sparks', 409)
     boot.clock.tick(ECONOMY.packs.chargeSpacingMs)
     const charged = await a.call('chargePack', { family: 'opus' })
@@ -147,8 +147,10 @@ describe('the wire contract: the mod\'s RemoteBackend against the real server', 
     for (const p of (await a.me()).packs) assert.equal((await a.call('openPack', { packId: p.id })).cards.length, 1)
     for (const p of (await b.me()).packs) await b.call('openPack', { packId: p.id })
     for (let i = 0; i < 2; i++) await b.call('buyPack', { family: 'fable' })
-    for (const p of (await b.me()).packs) await b.call('openPack', { packId: p.id })
+    const both = (await b.me()).packs.map(p => p.id)
+    assert.deepEqual((await b.call('openPacks', { packIds: both })).opened.map(o => [o.packId, o.family, o.cards.length]), both.map(id => [id, 'fable', 1]))
     await refused(a, 'openPack', { packId: 'nosuchpackanywhere00000000' }, 'not_found', 404)
+    await refused(b, 'openPacks', { packIds: both }, 'not_found', 404)
   })
 
   it('battles: a wild win with its catch, a Rival duel, and the minimum duration', async () => {

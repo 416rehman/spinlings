@@ -71,6 +71,7 @@ export function newGiftCode(env: Pick<Env, 'randomBytes'>): string {
 // ---- typed routes ------------------------------------------------------------------------------
 
 type RouteOptions = { limit?: string }
+type PlayerRouteOptions = RouteOptions & { touch?: boolean; weight?: (body: unknown) => number }
 
 /**
  * The request of an API operation, checked strictly: the JSON body against REQUEST_SCHEMAS (unknown
@@ -98,12 +99,12 @@ export function requestOf<K extends ApiOp>(ctx: Pick<Ctx, 'body' | 'params'> & {
  * Adds an authenticated API operation at its API_ROUTES method and path. The handler gets the parsed
  * request (path parameters and body fields in one object) and returns the response object, which
  * TypeScript holds to ApiResponse<K>. The current season is loaded first. Touch hooks run first
- * unless `touch: false`.
+ * unless `touch: false`; `weight` counts the request more than once in the token bucket.
  */
 export function apiRoute<K extends ApiOp>(
   api: Api, op: K,
   handler: (ctx: PlayerCtx, req: ApiRequest<K>) => Promise<ApiResponse<K>>,
-  o: RouteOptions & { touch?: boolean } = {},
+  o: PlayerRouteOptions = {},
 ): void {
   const route = API_ROUTES[op]
   if (!route.auth) throw new Error(`${op} is public: use publicRoute`)

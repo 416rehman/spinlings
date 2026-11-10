@@ -35,6 +35,9 @@ const PUBLIC_COLUMNS = [
 type PublicColumn = typeof PUBLIC_COLUMNS[number]
 export type PublicNumbers = Pick<PlayerRow, PublicColumn>
 
+const PUBLISH_SQL = `UPDATE players SET pub_stats = json_object(${PUBLIC_COLUMNS.map(c => `'${c}', ${c}`).join(', ')}), pub_day = ?
+     WHERE id = ? AND pub_day < ?`
+
 /**
  * Saves the player's public numbers as they stand, once per UTC day: on the first write of the day that moves one,
  * before it does, so they are the midnight values. Put it before every write to a public column (count, albumAdd and
@@ -42,11 +45,7 @@ export type PublicNumbers = Pick<PlayerRow, PublicColumn>
  */
 export const publish = (id: string, now: number): Stmt => {
   const day = utcDay(now)
-  return stmt(
-    `UPDATE players SET pub_stats = json_object(${PUBLIC_COLUMNS.map(c => `'${c}', ${c}`).join(', ')}), pub_day = ?
-     WHERE id = ? AND pub_day < ?`,
-    day, id, day,
-  )
+  return stmt(PUBLISH_SQL, day, id, day)
 }
 
 /** The row with the numbers other players see today: the saved midnight values once something moved them today. */
@@ -62,17 +61,31 @@ export function publicRow<P extends PublicNumbers & Pick<PlayerRow, 'pub_day' | 
 const PUBLIC_PLAYERS = `SELECT id, handle, ${PUBLIC_COLUMNS.map(c => `CASE WHEN pub_day = ?1 THEN json_extract(pub_stats, '$.${c}') ELSE ${c} END AS ${c}`).join(', ')}
   FROM players WHERE board_hidden = 0`
 
+const ROLL_SQL = `UPDATE players SET stats_season = ?, ${SEASON_COLUMNS.map(c => `${c} = 0`).join(', ')} WHERE id = ? AND stats_season != ?`
+
 /** Zeroes this season's counters on the first stats write of a new season; nothing otherwise. Put it before any count. */
 export const rollSeason = (id: string, now: number): Stmt => {
   const season = seasonOf(now)
-  return stmt(
-    `UPDATE players SET stats_season = ?, ${SEASON_COLUMNS.map(c => `${c} = 0`).join(', ')} WHERE id = ? AND stats_season != ?`,
-    season, id, season,
-  )
+  return stmt(ROLL_SQL, season, id, season)
 }
 
 /** Before a count: the midnight values saved, then this season's counters zeroed if the season turned. */
 const before = (id: string, now: number): Stmt[] => [publish(id, now), rollSeason(id, now)]
+
+/**
+ * `stmts` without the repeats of a publish or rollSeason already in them: once the first has run, a copy for the same
+ * row, day and season changes nothing. Minting ten cards in one batch would otherwise carry twenty of them.
+ */
+export function withoutRepeats(stmts: readonly Stmt[]): Stmt[] {
+  const seen = new Set<string>()
+  return stmts.filter(s => {
+    if (s.sql !== PUBLISH_SQL && s.sql !== ROLL_SQL) return true
+    const key = s.sql + JSON.stringify(s.params)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
 
 /** Adds to the player's counters (and this season's), relatively, so it composes with any other write to the row. */
 export function count(id: string, now: number, add: Partial<Record<Counter, number>>): Stmt[] {

@@ -73,14 +73,14 @@ export function createLimiter(rate: Rate, maxKeys = MAX_KEYS): Limiter {
   }
 }
 
-export type RateLimits = { take(name: string, key: string, now: number): number }
+export type RateLimits = { take(name: string, key: string, now: number, cost?: number): number }
 
 /** Named in-memory buckets; every bucket is dropped when the UTC day changes. */
 export function createRateLimits(rates: Readonly<Record<string, Rate>>): RateLimits {
   const limiters = new Map(Object.entries(rates).map(([name, rate]) => [name, createLimiter(rate)]))
   let day = ''
   return {
-    take(name, key, now) {
+    take(name, key, now, cost = 1) {
       const limiter = limiters.get(name)
       if (!limiter) throw new Error(`unknown rate limit ${name}`)
       const today = utcDay(now)
@@ -88,7 +88,7 @@ export function createRateLimits(rates: Readonly<Record<string, Rate>>): RateLim
         day = today
         for (const l of limiters.values()) l.clear()
       }
-      return limiter.take(key, now)
+      return limiter.take(key, now, cost)
     },
   }
 }

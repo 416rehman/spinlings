@@ -1,5 +1,5 @@
-// The site (SPEC 8, 9 Shares, 12 Pages, 25, 29, 30, 31, 36): the landing meadow, postcards, /odds and
-// /privacy, the leaderboards and the market, a player's camp, card pages with their og:image, gift and
+// The site (SPEC 8, 9 Shares, 12 Pages, 25, 29, 30, 31, 32, 36): the landing meadow, postcards, /odds,
+// /privacy and /whats-new, the leaderboards and the market, a player's camp, card pages with their og:image, gift and
 // drop pages, the two passkey pages, and the first-party scripts under /static. Every page is read-only, carries no token,
 // escapes every value (pages-html.ts) and shows only what SPEC 20 lets anyone see. Anything that is
 // not there, not open or not public answers the same plain "not here" page.
@@ -28,11 +28,11 @@ import {
   cardFace, cardTiles, discoveryCredit, FULL_CSS, fullCard, heading, html, installBlock, layout, notice, pixelHeading, PLACE, PLACE_CSS, promptLine, raw, rarityWord, text,
 } from './pages-html.ts'
 import type { Raw } from './pages-html.ts'
-import { oddsBody, privacyBody, PROSE_CSS } from './pages-info.ts'
+import { oddsBody, privacyBody, PROSE_CSS, WHATS_NEW_CSS, whatsNewBody } from './pages-info.ts'
 import { CAMP_CSS, LANDING_CSS, landingBody, teamCamp } from './pages-landing.ts'
 import { captureResponse } from './pages-media.ts'
 import { registerCatalogue } from './pages-catalogue.ts'
-import { registerPlayers } from './pages-players.ts'
+import { registerSearch } from './pages-search.ts'
 import { profileBody, PROFILE_COLLECTION_CSS, PROFILE_CSP, publicStanding } from './pages-profile.ts'
 import { discoveryCredits, publicInventory } from './public-collection.ts'
 import { ENTRY_RE, meet, SEED_RE } from './pages-meet.ts'
@@ -75,7 +75,7 @@ function previewOf(ctx: Ctx): Preview | null {
 
 export function pages(api: Api): void {
   registerCatalogue(api)
-  registerPlayers(api)
+  registerSearch(api)
   const page = (path: string, handler: (ctx: Ctx) => Promise<Response> | Response, limit?: string) =>
     api.add({ method: 'GET', path, public: true, ...(limit ? { limit } : {}), handler })
 
@@ -109,7 +109,7 @@ export function pages(api: Api): void {
   page('/robots.txt', ctx => new Response(`User-agent: *\nAllow: /\nDisallow: /v1/\nDisallow: /account\nDisallow: /passkey/\nDisallow: /g/\nSitemap: ${ctx.origin}/sitemap.xml\n`, {
     headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': HOUR_CACHE },
   }))
-  page('/sitemap.xml', ctx => new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/boards', '/market', '/odds', '/privacy'].map(path => `<url><loc>${escapeHtml(ctx.origin + path)}</loc></url>`).join('')}</urlset>\n`, {
+  page('/sitemap.xml', ctx => new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/boards', '/market', '/odds', '/privacy', '/whats-new'].map(path => `<url><loc>${escapeHtml(ctx.origin + path)}</loc></url>`).join('')}</urlset>\n`, {
     headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': HOUR_CACHE },
   }))
 
@@ -180,6 +180,11 @@ export function pages(api: Api): void {
   page('/privacy', ctx => layout({
     title: 'Privacy: Spinlings', description: 'What Spinlings reads, sends and keeps, and who can see what.',
     path: '/privacy', origin: ctx.origin, cache: HOUR_CACHE, now: ctx.now, css: PROSE_CSS, body: privacyBody(),
+  }))
+
+  page('/whats-new', ctx => layout({
+    title: "What's new: Spinlings", description: 'What each Spinlings update brought, newest first.',
+    path: '/whats-new', origin: ctx.origin, cache: HOUR_CACHE, now: ctx.now, css: WHATS_NEW_CSS, body: whatsNewBody(),
   }))
 
   // Every number is as of the last UTC midnight. Identity-bearing HTML stays uncached so hiding

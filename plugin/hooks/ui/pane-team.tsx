@@ -1,6 +1,6 @@
-// The Team tab (SPEC 8, 9, 14): the three slots in play order with resting timers, the packs waiting as art to open,
-// league, rating and streak, your stats as tiles, the way to the leaderboards, and the notices (defense results with
-// Revenge, evolutions, gifts, sales, season ends). Other players show by handle and day only.
+// The Team tab (SPEC 8, 9, 14): the three slots in play order with resting timers, the packs waiting as art to open
+// (all at once, or one by one), league, rating and streak, your stats as tiles, the way to the leaderboards, and the
+// notices (defense results with Revenge, evolutions, gifts, sales, season ends). Other players show by handle and day only.
 import type { RenderElement } from 'claude-code'
 import { FAMILY_INFO } from '../core/families.ts'
 import { comfortLine } from '../client/session.ts'
@@ -42,7 +42,7 @@ function emptySlot(c: Ctx, s: Slot, wide: boolean): RenderElement {
     : <Box width={TILE} height={ART.rows} borderStyle="round" borderDimColor justifyContent="center" alignItems="center"><Text dimColor>+</Text></Box>
   return (
     <Box key={`team-${s.slot}`} position="relative" flexDirection="column" width={TILE} flexShrink={0}>
-      {cardHitRegion(c.el, picture, c.hitAreas, `team-${s.slot}-art`, pick, `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`)}
+      {cardHitRegion(c.el, picture, c.hitAreas, `team-${s.slot}-art`, pick, `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`, undefined, undefined, 'Pick a card')}
       {btn(c, { key: `team-${s.slot}-pick`, label: 'Pick a card', on: pick })}
       {cardHitRegion(c.el, <Text dimColor>{`Slot ${s.slot + 1}`}</Text>, c.hitAreas, `team-${s.slot}-note`, pick,
         `team-${s.slot}-pick`, `${c.hitIntent}:empty-${s.slot}`, undefined, TILE)}
@@ -61,7 +61,7 @@ function packStrip(c: Ctx): RenderElement | null {
       {...shown.map(p => (
         <Box key={`pack-${p.id}`} position="relative" flexDirection="column" flexShrink={0} width={12}>
           {cardHitRegion(c.el, packArt(c, p.family, `pack-${p.id}-art`), c.hitAreas, `pack-${p.id}-art`,
-            () => c.actions.openPack(p.id), `pack-${p.id}`, `${c.hitIntent}:${p.id}`)}
+            () => c.actions.openPack(p.id), `pack-${p.id}`, `${c.hitIntent}:${p.id}`, undefined, undefined, `Open ${FAMILY_INFO[p.family].name} pack`)}
           {btn(c, { key: `pack-${p.id}`, label: `${FAMILY_INFO[p.family].name} pack`, lit: true, on: () => c.actions.openPack(p.id) })}
         </Box>
       ))}
@@ -100,6 +100,7 @@ export function teamScreen(c: Ctx): Shown {
       </c.el.Box>
     )
   })
+  const waiting = me.packs.length
   const streak = p.streak > 0 ? `${p.streak} win streak` : ''
   const duel = !c.state.account.readOnly && filled.length > 0
   const { Box, Text } = c.el
@@ -124,8 +125,10 @@ export function teamScreen(c: Ctx): Shown {
     ]),
     <Box key="team-packs" flexDirection="column" rowGap={SPACE.tight} width={c.columns}>
       {actions(c, [
-        <Text bold>{me.packs.length ? `Packs · ${me.packs.length} ready` : 'Packs'}</Text>,
-        me.packs.length ? btn(c, { key: 'open-pack', label: 'Open pack', hotkey: c.root ? 'o' : undefined, primary: c.root, on: () => c.actions.openPack() }) : null,
+        <Text bold>{waiting ? `Packs · ${waiting} ready` : 'Packs'}</Text>,
+        // with more than one waiting, opening them all is the one primary action; one at a time stays a press away
+        waiting > 1 ? btn(c, { key: 'open-all', label: `Open all (${waiting})`, hotkey: c.root ? 'o' : undefined, primary: c.root, on: () => c.actions.openAll() }) : null,
+        waiting ? btn(c, { key: 'open-pack', label: waiting > 1 ? 'Open one' : 'Open pack', hotkey: c.root && waiting === 1 ? 'o' : undefined, primary: c.root && waiting === 1, on: () => c.actions.openPack() }) : null,
       ])}
       {c.state.signals.restingUntil !== null ? para(c, comfortLine(c.state.signals.restingUntil), { dim: true }) : null}
       {meter(c)}
@@ -139,6 +142,6 @@ export function teamScreen(c: Ctx): Shown {
   ], SPACE.loose)
   return {
     body,
-    hints: [tabsHint(c.state), me.packs.length > 0 ? 'o Open pack' : '', duel ? 'b Duel' : '', revenge ? 'r Revenge' : '', filled.length > 0 ? 'Tab Pick a card' : '', 'esc Close'],
+    hints: [tabsHint(c.state), waiting > 1 ? 'o Open all' : waiting === 1 ? 'o Open pack' : '', duel ? 'b Duel' : '', revenge ? 'r Revenge' : '', filled.length > 0 ? 'Tab Pick a card' : '', 'esc Close'],
   }
 }

@@ -4,6 +4,7 @@
 import type { Elements, RenderElement } from 'claude-code'
 import type { ApiErrorCode, ApiOp, ApiRequest, ApiResponse, SpinlingsApi } from '../core/api.ts'
 import type { Family } from '../core/types.ts'
+import type { RegistryFile } from './autoswitch.ts'
 import type {
   SpinAccount, SpinBattle, SpinBattleLog, SpinBoardName, SpinBoardPeriod, SpinHoldAction, SpinMarketQuery, SpinMarketWant,
   SpinMe, SpinMoment, SpinPane, SpinPrefs, SpinPresence, SpinRarity, SpinReveal, SpinSent, SpinSignals, SpinSocial, SpinTab,
@@ -11,7 +12,7 @@ import type {
 } from '../../types/index.d.ts'
 
 export type {
-  SpinAccount as Account, SpinBattle as Battle, SpinBoardName as BoardName, SpinBoardPeriod as BoardPeriod, SpinCommunitySection as CommunitySection,
+  SpinAccount as Account, SpinAutoPress as AutoPress, SpinAutoUpdate as AutoUpdate, SpinBattle as Battle, SpinBoardName as BoardName, SpinBoardPeriod as BoardPeriod, SpinCommunitySection as CommunitySection,
   SpinCatch as Catch, SpinHold as Hold, SpinHoldAction as HoldAction, SpinLink as Link, SpinListing as Listing,
   SpinMarketQuery as MarketQuery, SpinMarketWant as MarketWant, SpinMoment as Moment, SpinOutcome as Outcome,
   SpinPane as PaneUi, SpinPlayerStats as PlayerStats, SpinPrefs as Prefs, SpinPresence as Presence,
@@ -114,6 +115,21 @@ export type Fx = {
   every(ms: number, fn: () => void): Timer
   /** one request through $.http.fetch; rejects when the host could not send it */
   fetch(url: string, init: HttpInit): Promise<HttpAnswer>
+  /**
+   * Claude Code's plugin registry (known_marketplaces.json) as text, never kept or sent anywhere: only its
+   * spinlings entry's autoUpdate flag is read from it. Null when it cannot be read (a dev install, no such file).
+   * Absent in a host that cannot read it: the auto-update state is then unknown.
+   */
+  registry?(): Promise<string | null>
+  /**
+   * The same file for the one-press switch (client/autoswitch.ts), at the path register.tsx fixes: the mod's only
+   * write, made only on a press of Turn it on or Turn it off. Absent where it cannot be written (not an installed copy).
+   */
+  registryFile?: RegistryFile
+  /** the folder that holds that file (`<config>/plugins`), for the guide to name when a write left the list unreadable */
+  registryFolder?: string
+  /** Claude Code's update pass cannot run on this computer (environment variables, read as booleans only) */
+  updatesHeld?(): Promise<boolean>
   store: {
     get(key: string): Promise<unknown>
     set(key: string, value: unknown): Promise<void>
@@ -136,8 +152,11 @@ export type Fx = {
      * no way to it yet (the desktop), so a false shows the text to copy by hand and never claims a copy.
      */
     copy(text: string): Promise<boolean>
-    /** opens the pane with the keyboard; false when the surface could not place it */
-    openPane(): Promise<boolean>
+    /**
+     * opens the pane, with the keyboard unless `keys` is false (opened by a band press: keys typed for the prompt
+     * never reach it); false when the surface could not place it
+     */
+    openPane(keys?: boolean): Promise<boolean>
     closePane(): Promise<void>
     /** repaints a mounted Raster of the band or the pane (the last drawn instance) without a render pass */
     blit(site: 'band' | 'pane', key: string, cells: string): Promise<boolean>
@@ -181,6 +200,12 @@ export type Actions = {
 
   // collection
   openPack(packId?: string, inline?: boolean): Promise<void>
+  /** opens every waiting pack, ten to a request, then plays the best pulls and the summary in the pane */
+  openAll(): Promise<void>
+  /** the summary's New only chip */
+  newOnly(on: boolean): Promise<void>
+  /** a bulk opening's Skip: every card face up at once, straight to the summary */
+  skip(revealId?: string): Promise<void>
   /** the reveal ceremony: flip the next card, or finish */
   flip(revealId?: string): Promise<void>
   doneReveal(revealId?: string): Promise<void>
@@ -192,8 +217,19 @@ export type Actions = {
   share(cardId?: string): Promise<void>
   /** copies only the current online player's public profile URL */
   shareProfile(): Promise<void>
-  /** puts the update command on the clipboard (the footer's version chip); the pane says whether it took */
+  /** puts the update command on the clipboard (/spin updates, where /plugin is not at hand); the pane says whether it took */
   copyUpdate(): Promise<void>
+  /** opens /spin updates (the version chip, the dim version, the note above when it can't play online), as the command does */
+  updates(): Promise<void>
+  /**
+   * Claude Code's auto-update: `how` opens the guide without taking the keyboard (and watches the setting while it
+   * shows), `later` asks again in a week, `never` stops asking; `on` and `off` press the one switch (only a click, or
+   * a hotkey of the guide itself, calls them); `done` leaves the guide; `copy` puts /plugin on the clipboard
+   * (`copy-terminal` too, for its auto-update toggle, which only a terminal's /plugin has), `copy-add` the command that
+   * puts the marketplace back (`copy-add-shell` its form for a terminal's shell, where /plugin cannot run),
+   * `copy-folder` the folder that holds the plugin list.
+   */
+  autoUpdate(answer: AutoUpdateAnswer): Promise<void>
 
   // battles
   /** a duel now (`/spin battle`), or a revenge on a handle from a defense notice */
@@ -236,6 +272,8 @@ export type Actions = {
   leaderboard(optIn: boolean): Promise<void>
   prefs(change: Partial<SpinPrefs>): Promise<void>
 }
+
+export type AutoUpdateAnswer = 'how' | 'later' | 'never' | 'copy' | 'copy-terminal' | 'copy-add' | 'copy-add-shell' | 'copy-folder' | 'on' | 'off' | 'done'
 
 /** What a view builder gets besides the state it draws. */
 export type ViewEnv = {

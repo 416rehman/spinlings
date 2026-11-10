@@ -12,11 +12,12 @@ import type {
   ForTradeRequest, FuseRequest, FuseResponse, GiftRequest, GiftResponse, GiftView, HandleRequest, HandleResponse, JoinRequest,
   JoinResponse, LeaderboardOptRequest, LeaderboardOptResponse, LeaderboardResponse, ListCardRequest, ListingResponse,
   ListingView, MarketResponse, MarketWant, MeResponse, Notice, OfferRequest, OfferResponse, OfferView, OpenPackRequest,
-  OpenPackResponse, PacksResponse, PackView, PlayerStats, PlayerView, ProfileResponse, RankingsResponse, RankRow,
-  RecycleResponse, RedeemRequest, RedeemResponse, SaleView, SeasonResponse, StartBattleRequest, StartBattleResponse,
-  TeamRequest, TeamResponse, TokenResponse, TraderDealRequest, TraderDealResponse, TraderDealView, TraderResponse,
+  OpenPackResponse, OpenPacksRequest, OpenPacksResponse, PacksResponse, PackView, PlayerStats, PlayerView, ProfileResponse,
+  RankingsResponse, RankRow, RecycleResponse, RedeemRequest, RedeemResponse, ReleaseHighlight, ReleaseNote, SaleView, SeasonResponse, StartBattleRequest,
+  StartBattleResponse, TeamRequest, TeamResponse, TokenResponse, TraderDealRequest, TraderDealResponse, TraderDealView, TraderResponse,
   VersionResponse, WishlistRequest, WishlistResponse, WorldResponse,
 } from './api.ts'
+import { OPEN_PACKS_MAX } from './api.ts'
 import type {
   BattleAction, BattleCard, BattleLog, BattleRound, BattleSetup, Card, CardForm, CardOrigin, DropReward, DropRewardItem, Form, Genes,
   PromoEgg, SpecialId, Species, Stats, TraderDeal,
@@ -158,12 +159,31 @@ function union<T>(key: string, variants: Record<string, Schema<unknown>>, fallba
   }
 }
 
+/**
+ * A tolerant list (responses only): a non-array reads as [], an item that fails its schema is skipped, and at most
+ * `max` items are kept from the first `4 * max`. Only a SchemaError skips an item; any other error still throws.
+ */
+function kept<T>(item: Schema<T>, max: number): Schema<T[]> {
+  return (v, path) => {
+    if (!Array.isArray(v)) return []
+    const out: T[] = []
+    for (let i = 0; i < v.length && i < 4 * max && out.length < max; i++) {
+      try {
+        out.push(item(v[i], `${path}[${i}]`))
+      } catch (err) {
+        if (!(err instanceof SchemaError)) throw err
+      }
+    }
+    return out
+  }
+}
+
 export function parse<T>(schema: Schema<T>, value: unknown): T {
   return schema(value, '$')
 }
 
 /** The combinators, for building more schemas elsewhere. */
-export const S = { str, int, num, bool, oneOf, arr, tuple, nullable, optional, obj, view, union }
+export const S = { str, int, num, bool, oneOf, arr, kept, tuple, nullable, optional, obj, view, union }
 
 // ---------- formats ----------
 
@@ -174,6 +194,12 @@ export const DAY_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
 /** One or two title-case words, or a word and a roman numeral: Pipkin, Thundermaw II, Hollowmere Duskwing */
 export const NAME_RE = /^[A-Z][a-z]{2,23}(?: (?:[A-Z][a-z]{2,23}|[IVXLCDM]{1,12}))?$/
 export const SEMVER_RE = /^\d{1,4}\.\d{1,4}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,32})?$/
+/** a release, never a pre-release: the only versions release notes describe */
+export const RELEASE_RE = /^\d{1,4}\.\d{1,4}\.\d{1,6}$/
+/** release-note text: one terminal cell per character, the only space an ASCII one; no leading, trailing or double spaces */
+export const NOTE_TEXT_RE = /^(?! )(?!.*  )(?!.* $)[\x20-\x7e\u00a1-\u00ac\u00ae-\u017f\u2013\u2018\u2019\u201c\u201d\u2026]+$/
+/** What the reader keeps of release notes (the authors' tighter bounds are NOTE_LIMITS in releases.ts). */
+export const NOTE_READ = { short: 40, text: 200, highlights: 8, releases: 8 } as const
 /** what a player types for a drop; normalizeDropCode makes it comparable */
 export const DROP_CODE_RE = /^[A-Za-z0-9]+(?:[- ][A-Za-z0-9]+)*$/
 export const TRADER_DEAL_RE = /^\d{4}-\d{2}-\d{2}-\d$/
@@ -458,6 +484,20 @@ export const meResponseSchema = view<MeResponse>({
   now: time,
 })
 
+export const highlightSchema = view<ReleaseHighlight>({
+  short: str({ min: 1, max: NOTE_READ.short, re: NOTE_TEXT_RE }),
+  text: str({ min: 1, max: NOTE_READ.text, re: NOTE_TEXT_RE }),
+})
+/** A release's notes; a highlight that does not read is skipped, and a release left with none is refused. */
+export const releaseNoteSchema = view<ReleaseNote>({
+  version: str({ max: 16, re: RELEASE_RE }),
+  date: day,
+  highlights: kept(highlightSchema, NOTE_READ.highlights),
+}, r => (r.highlights.length > 0 ? null : 'no highlights'))
+/** The releases a version answer carries, as the reader keeps them (the mod's stored copy reads through it too). */
+export const releaseNotesSchema = kept(releaseNoteSchema, NOTE_READ.releases)
+
+/** Bad notes never fail the answer: features, minClient and the read-only check all depend on it. */
 export const versionResponseSchema = view<VersionResponse>({
   api: int(1, 1000),
   server: str({ max: 48, re: SEMVER_RE }),
@@ -467,6 +507,7 @@ export const versionResponseSchema = view<VersionResponse>({
   latestClient: str({ max: 48, re: SEMVER_RE }),
   sunset: optional(view({ api: int(1, 1000), date: day })),
   features: arr(str({ max: 40, re: /^[a-z0-9-]+$/ }), { max: 100 }),
+  notes: optional(releaseNotesSchema),
 })
 export const seasonResponseSchema = view<SeasonResponse>({ season: int(1, 9999), generator: int(1, 1_000_000), species: arr(speciesSchema, { min: 36, max: 36 }) },
   v => v.species.every(s => s.season === v.season) ? null : 'species from another season')
@@ -487,6 +528,9 @@ export const deleteResponseSchema = view<DeleteResponse>({ deleted: oneOf([true]
 export const cardsResponseSchema = view<CardsResponse>({ cards: arr(cardSchema, { max: 10_000 }), version: count, next: optional(str({ max: 64, re: CURSOR_RE })) })
 export const packsResponseSchema = view<PacksResponse>({ packs: arr(packViewSchema, { max: 50 }) })
 export const openPackResponseSchema = view<OpenPackResponse>({ cards: arr(cardSchema, { min: 1, max: 5 }) })
+export const openPacksResponseSchema = view<OpenPacksResponse>({
+  opened: arr(view({ packId: id, family, cards: arr(cardSchema, { min: 1, max: 5 }) }), { min: 1, max: OPEN_PACKS_MAX }),
+})
 export const teamResponseSchema = view<TeamResponse>({ team: arr(id, { max: 3 }) })
 export const startBattleResponseSchema = view<StartBattleResponse>({
   id,
@@ -569,6 +613,7 @@ export const leaderboardOptRequestSchema = obj<LeaderboardOptRequest>({ optIn: b
 export const chargeRequestSchema = obj<ChargeRequest>({ family })
 export const buyPackRequestSchema = obj<BuyPackRequest>({ family })
 export const openPackRequestSchema = obj<OpenPackRequest>({ packId: id })
+export const openPacksRequestSchema = obj<OpenPacksRequest>({ packIds: ids(1, OPEN_PACKS_MAX) })
 export const teamRequestSchema = obj<TeamRequest>({ cardIds: ids(0, 3) })
 export const startBattleRequestSchema = obj<StartBattleRequest>(
   { kind: oneOf(['wild', 'duel'] as const), family, revenge: optional(handle), handle: optional(handle) },
@@ -642,6 +687,7 @@ export const REQUEST_SCHEMAS: Readonly<Record<ApiOp, Schema<unknown> | null>> = 
   cancelOffer: emptyRequestSchema, counterOffer: counterRequestSchema, gift: giftRequestSchema, cancelGift: emptyRequestSchema,
   claim: claimRequestSchema, redeem: redeemRequestSchema, trader: null, traderDeal: traderDealRequestSchema,
   rankings: null, market: null, listCard: listCardRequestSchema, buyListing: buyRequestSchema, cancelListing: emptyRequestSchema,
+  openPacks: openPacksRequestSchema,
 }
 
 /** The response schema of every operation. */
@@ -659,6 +705,7 @@ export const RESPONSE_SCHEMAS: Readonly<Record<ApiOp, Schema<unknown>>> = {
   cancelGift: giftResponseSchema, claim: cardResponseSchema, redeem: redeemResponseSchema, trader: traderResponseSchema,
   traderDeal: traderDealResponseSchema, rankings: rankingsResponseSchema, market: marketResponseSchema,
   listCard: listingResponseSchema, buyListing: buyResponseSchema, cancelListing: listingResponseSchema,
+  openPacks: openPacksResponseSchema,
 }
 
 // ---------- admin data (strict) ----------

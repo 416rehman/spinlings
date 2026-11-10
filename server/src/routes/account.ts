@@ -5,6 +5,7 @@ import type { MeResponse, PlayerView } from '../../../plugin/hooks/core/api.ts'
 import { RULES_VERSION } from '../../../plugin/hooks/core/battle.ts'
 import { leagueOf } from '../../../plugin/hooks/core/economy.ts'
 import { isBlocked } from '../../../plugin/hooks/core/naming.ts'
+import { NOTE_LIMITS, releasedUpTo } from '../../../plugin/hooks/core/releases.ts'
 import { GENERATOR_VERSION } from '../../../plugin/hooks/core/species.ts'
 import { seasonOf, utcDay, worldOf } from '../../../plugin/hooks/core/world.ts'
 import type { Api } from '../app.ts'
@@ -20,8 +21,13 @@ import { noticesOf } from '../game/notices.ts'
 import { handleRerollFrom, nextChargeAt, nextDuelAt, nextWildAt, restedNow } from '../game/pacing.ts'
 import { statsOf } from '../game/stats.ts'
 
-/** This server's release, and the newest mod it knows of (SPEC 32). */
-export const SERVER_VERSION = '0.2.16'
+/** This server's release (SPEC 32). */
+export const SERVER_VERSION = '0.3.0'
+/**
+ * The newest mod announced: always the marketplace pin's tag without its `v` (test/release/marketplace.test.ts), so a
+ * player is never told about a release Claude Code cannot install yet. The pin commit moves the pin and this together
+ * (docs/releasing.md); its release notes go out on /v1/version and /whats-new from then on.
+ */
 export const LATEST_CLIENT = '0.2.16'
 
 const OFFERS_SHOWN = 50
@@ -94,6 +100,8 @@ export function account(api: Api): void {
     minClient: ctx.config.minClient,
     latestClient: LATEST_CLIENT,
     features: [...FEATURES],
+    // the same answer for every mod: only releases already announced, newest first
+    notes: releasedUpTo(LATEST_CLIENT).slice(0, NOTE_LIMITS.sent),
   }, 3600))
 
   publicRoute(api, 'world', async ctx => {

@@ -38,10 +38,10 @@ function fakeActions(p: Probe, redraw: () => void): Actions {
     back: rec('back', () => setPane(x => ({ ...x, stack: x.stack.slice(0, -1), hold: null }))),
     pane: rec('pane', (f: (x: GameState['pane']) => GameState['pane']) => setPane(f)),
     hold: rec('hold', (action: never, target: string) => setPane(x => ({ ...x, hold: { action, target, startedAt: NOW } }))),
-    openPack: rec('openPack'),
+    openPack: rec('openPack'), openAll: rec('openAll'), newOnly: rec('newOnly'), skip: rec('skip'), autoUpdate: rec('autoUpdate'),
     flip: rec('flip', () => { const r = p.state.reveal; if (r) setPane(x => ({ ...x, flipped: Math.min(r.cards.length, x.flipped + 1) })) }),
     doneReveal: rec('doneReveal', () => { p.state = { ...p.state, reveal: null }; setPane(x => ({ ...x, flipped: 0, stack: x.stack.filter(v => v.kind !== 'reveal') })) }),
-    setTeam: rec('setTeam'), setForTrade: rec('setForTrade'), craft: rec('craft'), buyPack: rec('buyPack'), share: rec('share'), shareProfile: rec('shareProfile'), copyUpdate: rec('copyUpdate'),
+    setTeam: rec('setTeam'), setForTrade: rec('setForTrade'), craft: rec('craft'), buyPack: rec('buyPack'), share: rec('share'), shareProfile: rec('shareProfile'), copyUpdate: rec('copyUpdate'), updates: rec('updates'),
     duel: rec('duel'), challenge: rec('challenge'), market: rec('market'), list: rec('list'), buy: rec('buy'), prices: rec('prices'),
     rankings: rec('rankings', (board: never, period: never) => setPane(x => ({ ...x, page: 0, boards: { board, period }, stack: x.stack.map(v => (v.kind === 'boards' ? { ...v, board, period } : v)) }))),
     marketFilter: rec('marketFilter', (change: object) => setPane(x => ({ ...x, page: 0, market: { ...(x.market ?? MARKET_DEFAULT), ...change } }))),
@@ -414,7 +414,10 @@ test('tabs switch with 1-4 on a tab, and a pushed view keeps the digits for its 
   p.calls = []
   const ui = await $.ui.mount(MOUNT(80, 'terminal'))
   expect((await ui.find({ key: 'tab-cards' }))?.props.hotkey).toBe('2')
-  expect((await ui.find({ key: 'open-pack' }))?.props).toMatchObject({ hotkey: 'o', variant: 'primary' })
+  // two packs wait: opening them all is the primary on o, and one at a time stays a plain press
+  expect((await ui.find({ key: 'open-all' }))?.props).toMatchObject({ label: 'Open all (2)', hotkey: 'o', variant: 'primary' })
+  expect((await ui.find({ key: 'open-pack' }))?.props).toMatchObject({ label: 'Open one' })
+  expect((await ui.find({ key: 'open-pack' }))?.props.hotkey).toBeUndefined()
   expect((await ui.find({ key: 'duel' }))?.props.hotkey).toBe('b')
   expect((await ui.find({ key: 'revenge-n1' }))?.props.hotkey).toBe('r')
   await press(ui, 'revenge-n1')
@@ -746,7 +749,8 @@ test('privacy shows what is read and sent, never the token, and deletes only beh
   for (const surface of SURFACES) {
     p.state = s
     const ui = await $.ui.mount(MOUNT(80, surface))
-    expect(await ui.find({ text: /Never your prompts, Claude's answers, files, commands, paths or cost/ })).toBeDefined()
+    expect(await ui.find({ text: /Never your prompts, Claude's answers, your files, commands, paths or cost/ })).toBeDefined()
+    expect(await ui.find({ text: /how many helpers/ })).toBeUndefined()
     expect(await ui.find({ text: /POST \/v1\/packs\/charge/ })).toBeDefined()
     expect(await ui.find({ text: /Hooks: session\.start/ })).toBeDefined()
     expect(await ui.find({ text: /tool\.call|prompt\.submit/ })).toBeUndefined()

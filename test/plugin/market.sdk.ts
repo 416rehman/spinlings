@@ -565,6 +565,35 @@ test('short turns add up: three 8-second turns bring the first encounter, which 
   expect(JSON.parse(starts()[0]!.body)).toEqual({ kind: 'wild', family: 'opus' })
 })
 
+test('a subagent that starts mid-turn leaves the main turn\'s encounter clock running', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on)
+  await started($, clock)
+  const starts = () => w.server.calls.filter(c => c.path === '/v1/battles')
+  // 12 s into a main turn an Agent call starts a subagent: the encounter still comes at 20 s of the main turn's work
+  await $.turn.start({ text: 'x', turnId: 't0' } as never)
+  await clock.advance(12_000)
+  await $.turn.start({ text: 'look around', turnId: 's0', agentId: 'sub-1' } as never)
+  await clock.advance(9_000)
+  await settle(clock)
+  expect(starts().length).toBe(1)
+})
+
+test('a background agent that starts after the main turn ended brings no encounter', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on)
+  await started($, clock)
+  const starts = () => w.server.calls.filter(c => c.path === '/v1/battles')
+  await $.turn.start({ text: 'x', turnId: 't0' } as never)
+  await clock.advance(2_000)
+  await $.turn.complete({ answer: '', durationMs: 2_000, isAborted: false, turnId: 't0', reason: 'answer' } as never)
+  await settle(clock)
+  await $.turn.start({ text: 'watch the build', turnId: 'b0', agentId: 'bg-1' } as never)
+  for (let i = 0; i < 6; i++) await clock.advance(30_000)
+  await settle(clock)
+  expect(starts().length).toBe(0)
+})
+
 test('offline: Community remains on 4, with no Market or Rankings sections, no backup marker, and nothing is sent', LONG, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   const w = engine(on, fakeServer())

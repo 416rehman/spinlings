@@ -156,33 +156,19 @@ test('a collection bigger than one answer arrives whole, a page at a time, read 
   expect(asked).toEqual([{}, { after: 'p2' }, {}, { after: 'p2' }, { after: 'p4' }])
 })
 
-test('esc closes the update row first, then the view on top, then the pane; a new tab or view closes the row too', async () => {
-  const w = world({ pane: { ...INITIAL.pane, showUpdate: true, stack: [{ kind: 'privacy' }] }, account: { ...INITIAL.account, latest: '0.2.0' } })
+test('esc closes the view on top, then the pane; the version chip opens /spin updates over what was there', async () => {
+  const w = world({ pane: { ...INITIAL.pane, stack: [{ kind: 'privacy' }] }, account: { ...INITIAL.account, latest: '0.2.0' } })
   const game = createGame({ slots, remote: () => backend({}) })
-  // the person's esc: the row alone, and the pane stays open
-  expect(await game.paneClosing(w.fx, true)).toBe(true)
-  expect(w.state.pane).toMatchObject({ showUpdate: false, stack: [{ kind: 'privacy' }] })
+  // the person's esc: the view on top, and the pane stays open
   expect(await game.paneClosing(w.fx, true)).toBe(true)
   expect(w.state.pane.stack).toEqual([])
   expect(await game.paneClosing(w.fx, true)).toBe(false)
-  // a row that no longer shows (nothing newer in this world) never swallows an esc
-  w.state.pane = { ...w.state.pane, showUpdate: true, stack: [{ kind: 'privacy' }] }
-  w.state.account = { ...w.state.account, world: 'offline' }
-  expect(await game.paneClosing(w.fx, true)).toBe(true)
-  expect(w.state.pane.stack).toEqual([])
-  w.state.account = { ...w.state.account, world: 'online' }
   // a plugin closing the pane closes it whole
-  w.state.pane = { ...w.state.pane, showUpdate: true }
+  w.state.pane = { ...w.state.pane, stack: [{ kind: 'privacy' }] }
   expect(await game.paneClosing(w.fx, false)).toBe(false)
-  expect(w.state.pane.showUpdate).toBe(false)
-  // switching tabs or opening a view leaves the row behind
-  const act = game.actions(w.fx)
-  w.state.pane = { ...w.state.pane, showUpdate: true }
-  await act.tab('cards')
-  expect(w.state.pane).toMatchObject({ tab: 'cards', showUpdate: false })
-  w.state.pane = { ...w.state.pane, showUpdate: true }
-  await act.push({ kind: 'privacy' })
-  expect(w.state.pane).toMatchObject({ stack: [{ kind: 'privacy' }], showUpdate: false })
+  // the version chip, wherever it shows, opens /spin updates over what was there
+  await game.actions(w.fx).updates()
+  expect(w.state.pane.stack.at(-1)).toEqual({ kind: 'auto-update' })
 })
 
 // ---------- answers that outlive a switch (SPEC 28, 33) ----------

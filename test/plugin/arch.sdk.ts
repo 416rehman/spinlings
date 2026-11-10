@@ -4,12 +4,12 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type {
-  ListingView, MarketWant, MeResponse, Notice, OfferView, PlayerStats, PlayerView, ProfileResponse, RankingsResponse, SaleView,
+  ListingView, MarketWant, MeResponse, Notice, OfferView, PlayerStats, PlayerView, ProfileResponse, RankingsResponse, ReleaseHighlight, ReleaseNote, SaleView,
 } from '../../plugin/hooks/core/api.ts'
 import type { BattleCard, BattleLog, BattleSetup, Card, CardForm } from '../../plugin/hooks/core/types.ts'
 import type {
   SpinBattleCard, SpinBattleLog, SpinBattleSetup, SpinCard, SpinCardForm, SpinListing, SpinMarketWant, SpinMe, SpinNotice, SpinOffer,
-  SpinPlayer, SpinPlayerStats, SpinProfile, SpinRankings, SpinSale,
+  SpinPlayer, SpinPlayerStats, SpinProfile, SpinRankings, SpinReleaseHighlight, SpinReleaseNote, SpinSale,
 } from '../../plugin/types/index.d.ts'
 import { CLIENT_VERSION } from '../../plugin/hooks/client/remote.ts'
 import { AFTER_NEXT, NEXT, NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
@@ -25,6 +25,7 @@ export type ContractMatchesCore = [
   Holds<Same<SpinNotice, Notice>>, Holds<Same<SpinOffer, OfferView>>, Holds<Same<SpinMe, MeResponse>>,
   Holds<Same<SpinPlayerStats, PlayerStats>>, Holds<Same<SpinListing, ListingView>>, Holds<Same<SpinMarketWant, MarketWant>>,
   Holds<Same<SpinSale, SaleView>>, Holds<Same<SpinRankings, RankingsResponse>>, Holds<Same<SpinProfile, ProfileResponse>>,
+  Holds<Same<SpinReleaseNote, ReleaseNote>>, Holds<Same<SpinReleaseHighlight, ReleaseHighlight>>,
 ]
 
 const PLUGIN = 'spinlings'
@@ -75,6 +76,10 @@ function engine(on: On, server = fakeServer()): World {
   on('ui.copy', () => ({ value: { isCopied: true } }))
   on('ui.blit', () => ({ value: {} }))
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['engine'] }))
+  // no plugin list and no update variables: the auto-update setting reads unknown, and no real file is ever opened
+  on('fs.read', () => ({ deny: 'ENOENT: no such file' }))
+  on('fs.stat', () => ({ deny: 'ENOENT: no such file' }))
+  on('env.get', () => ({ value: undefined }))
   return w
 }
 

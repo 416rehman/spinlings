@@ -1,9 +1,11 @@
 // Spinlings: every hook and every $ call of the mod lives in this file (SPEC 11). The hooks read only the shape of the
 // session (SPEC 10): the model's family, local effort glow, whether Claude's main turn runs, rate-limit fullness and
-// compaction. Never tool.call, prompt.submit or a permission request; never prompts, answers, files or
-// cost. Session and turn hooks pass their events on and never wait on the network: automatic requests run on clock
-// callbacks. Explicit game commands and controls may await their requested operation. client/game.ts holds the game;
-// this file only lends it $ through Fx.
+// compaction. Never tool.call, prompt.submit or a permission request; never prompts, answers, your files or
+// cost. The one file it opens is Claude Code's own plugin list, for the auto-update flag: read, and written only when
+// the player presses Turn it on or Turn it off (client/autoswitch.ts). Claude Code's settings files, which hold keys,
+// are never opened or read. Session and turn hooks pass their events on and never wait on the network: automatic
+// requests run on clock callbacks. Explicit game commands and controls may await their requested operation.
+// client/game.ts holds the game; this file only lends it $ through Fx.
 import { atom } from 'claude-code'
 import type { Atom, EngineInterface, Register } from 'claude-code'
 import type {
@@ -12,6 +14,8 @@ import type {
 } from './client/types.ts'
 import { INITIAL, createGame, spinnerSuffix } from './client/game.ts'
 import { chimeClip } from './client/chimes.ts'
+import { registryFolder, registryPath, updatesHeldBy } from './client/autoupdate.ts'
+import type { RegistryFile } from './client/autoswitch.ts'
 import { createLocalBackend } from './client/local/index.ts'
 import { momentDriver, playBattle } from './client/scheduler.ts'
 import { band } from './ui/band.tsx'
@@ -201,8 +205,73 @@ async function blit($: Engine, requestId: string | null, key: string, cells: str
   }
 }
 
+/**
+ * Claude Code's plugin registry beside an installed copy, as text (client/autoupdate.ts says where); only its
+ * auto-update flag for spinlings is used, and nothing about it is sent. Any other layout opens nothing.
+ */
+async function registry($: Engine): Promise<string | null> {
+  const path = registryPath($.plugin.root)
+  if (!path) return null
+  try {
+    return await $.fs.read(path)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The same file for the switch, and the mod's one write. The path is fixed here, from registryPath alone;
+ * client/autoswitch.ts decides what to write and calls this only on a press. A failed read or write rejects as the
+ * engine rejects it; the switch keeps only its OS code.
+ */
+function registryFile($: Engine): RegistryFile | null {
+  const path = registryPath($.plugin.root)
+  if (!path) return null
+  return {
+    stat: async () => {
+      try {
+        const s = await $.fs.stat(path)
+        return { kind: s.kind, size: s.size, isLink: s.isLink }
+      } catch {
+        return null
+      }
+    },
+    lock: async () => {
+      try {
+        const s = await $.fs.stat(`${path}.lock`)
+        return { mtimeMs: s.mtimeMs }
+      } catch {
+        return null
+      }
+    },
+    read: async () => (await $.fs.read(path, { as: 'bytes' })).base64,
+    write: text => $.fs.write(path, text),
+  }
+}
+
+/**
+ * Whether Claude Code's plugin update pass is turned off on this computer: the variables it reads, by name, each
+ * turned into a yes or no at once (client/autoupdate.ts updatesHeldBy). No value is kept.
+ */
+async function updatesHeld($: Engine): Promise<boolean> {
+  try {
+    const [updates, autoupdater, traffic, force, host] = await Promise.all([
+      $.env.get('DISABLE_UPDATES'), $.env.get('DISABLE_AUTOUPDATER'), $.env.get('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'),
+      $.env.get('FORCE_AUTOUPDATE_PLUGINS'), $.env.get('CLAUDE_CODE_AUTOUPDATER_DISABLED_BY_HOST'),
+    ])
+    return updatesHeldBy({
+      DISABLE_UPDATES: updates, DISABLE_AUTOUPDATER: autoupdater, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: traffic,
+      FORCE_AUTOUPDATE_PLUGINS: force, CLAUDE_CODE_AUTOUPDATER_DISABLED_BY_HOST: host,
+    })
+  } catch {
+    return false
+  }
+}
+
 /** The effects over `$`; `surface`, where the band or the pane drew, is where their presses copy. */
 function fxOf($: Engine, surface?: Surface): Fx {
+  const file = registryFile($)
+  const folder = file ? registryFolder($.plugin.root) : null
   return {
     now: () => $.clock.now(),
     random,
@@ -212,6 +281,10 @@ function fxOf($: Engine, surface?: Surface): Fx {
       const res = await $.http.fetch(url, init)
       return { status: res.status, ok: res.ok, headers: res.headers, text: res.text }
     },
+    registry: () => registry($),
+    ...(file ? { registryFile: file } : {}),
+    ...(folder ? { registryFolder: folder } : {}),
+    updatesHeld: () => updatesHeld($),
     store: {
       get: key => $.store.get(key),
       set: (key, value) => $.store.set(key, value),
@@ -233,9 +306,10 @@ function fxOf($: Engine, surface?: Surface): Fx {
           return false
         }
       },
-      openPane: async () => {
+      openPane: async keys => {
         try {
-          return (await $.ui.open({ id: PANE_ID, title: 'Spinlings', focus: true, closeOnEscape: true })).isPlaced
+          // a band press opens it without the keyboard: keys typed for the prompt stay the prompt's
+          return (await $.ui.open({ id: PANE_ID, title: 'Spinlings', ...(keys === false ? {} : { focus: true }), closeOnEscape: true })).isPlaced
         } catch {
           return false
         }
@@ -294,7 +368,7 @@ export const register: Register = on => {
   })
 
   on('turn.start', async ($, e, next) => {
-    await quietly($, 'turn', () => game.turnStarted(fxOf($)))
+    if (e.agentId === undefined) await quietly($, 'turn', () => game.turnStarted(fxOf($)))
     return next(e)
   })
 

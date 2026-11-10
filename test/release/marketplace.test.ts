@@ -1,4 +1,4 @@
-// The marketplace installs one released commit, never a branch (SPEC 12, docs/releasing.md step 5): a `v*` tag, and
+// The marketplace installs one released commit, never a branch (SPEC 12, docs/releasing.md step 6): a `v*` tag, and
 // once that tag exists, its exact commit as `sha`, so moving or recreating a tag changes nothing anyone installs.
 // The one exception is the release commit itself, which cannot name its own sha. CI fetches tags for this check.
 import assert from 'node:assert/strict'
@@ -7,7 +7,8 @@ import { readFileSync } from 'node:fs'
 import { it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { compareSemver } from '../../plugin/hooks/client/remote.ts'
-import { SERVER_VERSION } from '../../server/src/routes/account.ts'
+import { MIN_CLIENT } from '../../server/src/app.ts'
+import { LATEST_CLIENT, SERVER_VERSION } from '../../server/src/routes/account.ts'
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 const json = (path: string) => JSON.parse(readFileSync(ROOT + path, 'utf8'))
@@ -44,7 +45,16 @@ it('the marketplace entry is pinned to a release tag and, once it exists, to its
     return
   }
   if (sha === undefined && tagged === commitOf('HEAD')) return
-  assert.equal(sha, tagged, `the entry pins ${ref} to its commit (docs/releasing.md step 5)`)
+  assert.equal(sha, tagged, `the entry pins ${ref} to its commit (docs/releasing.md step 6)`)
+})
+
+it('the server announces only what the marketplace installs: the pinned release, and never asks for more (SPEC 32)', () => {
+  const { ref } = (json('.claude-plugin/marketplace.json') as { plugins: { source: Source }[] }).plugins[0]!.source
+  // the pin commit moves ref, sha and LATEST_CLIENT together (docs/releasing.md step 6), so no player is told about
+  // a release Claude Code cannot install yet, and the notes on /v1/version and /whats-new stop at the same release
+  assert.equal(LATEST_CLIENT, ref.slice(1), 'LATEST_CLIENT is the marketplace pin without its v')
+  // a mod below MIN_CLIENT plays read-only until it updates, so the release it needs must be one it can get
+  assert.ok(compareSemver(MIN_CLIENT, LATEST_CLIENT) <= 0, `MIN_CLIENT ${MIN_CLIENT} is above the announced ${LATEST_CLIENT}`)
 })
 
 it('a release tag deploys the server as that same version (the deploy checks /v1/version against the tag)', () => {

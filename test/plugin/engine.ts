@@ -1,8 +1,11 @@
 // Claude Code beneath the plugin, for the end-to-end tests: a store the test can read (and see every read of), the
-// fake server, and the UI calls recorded. Not a test file itself.
+// fake server, the UI calls recorded, and the file system and environment the mod may see: Claude Code's plugin list
+// beside the installed copy (absent unless a test gives one), its lock, and the update variables. Every $.fs call is
+// answered here, so no suite ever reaches a real file; a $.settings read is recorded and refused. Not a test file.
 import type { On } from 'claude-code'
 import { fakeServer } from './fixtures.ts'
 import type { FakeServer } from './fixtures.ts'
+import { LOCK_RE, REGISTRY_RE, b64 } from './registry.ts'
 
 export const SESSION = { cwd: '/work', surface: 'terminal', isInteractive: true } as const
 
@@ -20,6 +23,19 @@ export const BAND = (columns: number, surface: 'terminal' | 'desktop' = 'termina
 
 export type Request = { url: string; method: string; headers: Record<string, string>; body: string }
 
+/** The plugin list the mod finds, as a test sets it up and changes it; `text` null is no file at all. */
+export type Files = {
+  text: string | null
+  /** Claude Code's lock beside it, `<list>.lock`, with its mtime; null when there is none */
+  lock: { mtimeMs: number } | null
+  /** what $.env.get answers; a name not here is unset */
+  env: Record<string, string>
+  /** every write of the list, in order */
+  writes: { path: string; text: string }[]
+}
+
+export const files = (text: string | null = null, env: Record<string, string> = {}): Files => ({ text, lock: null, env, writes: [] })
+
 export type Engine = {
   store: Map<string, unknown>
   /** every $.store key read, in order */
@@ -35,11 +51,44 @@ export type Engine = {
   /** every copy asked for, and the surface it was asked on */
   copies: { text: string; surface: string }[]
   opened: number
+  /** whether each $.ui.open asked for the keyboard, in order */
+  opens: boolean[]
+  files: Files
+  /** every $.fs call the mod made, `<method> <path>` */
+  fs: string[]
+  /** every $.env name the mod read */
+  envReads: string[]
+  /** $.settings reads (refused): there must be none */
+  settings: number
 }
 
 /** Optional response delay runs after the fixture answer is captured; ordinary hooks still return synchronously. */
-export function engine(on: On, server: FakeServer = fakeServer(), afterResponse?: (request: Request) => Promise<void> | void): Engine {
-  const w: Engine = { store: new Map(), reads: [], server, requests: [], status: [], logs: [], toasts: [], sounds: [], copied: [], copies: [], opened: 0 }
+export function engine(on: On, server: FakeServer = fakeServer(), afterResponse?: (request: Request) => Promise<void> | void, list: Files = files()): Engine {
+  const w: Engine = {
+    store: new Map(), reads: [], server, requests: [], status: [], logs: [], toasts: [], sounds: [], copied: [], copies: [], opened: 0, opens: [],
+    files: list, fs: [], envReads: [], settings: 0,
+  }
+  on('fs.read', (_$, e) => {
+    w.fs.push(`read ${e.path}`)
+    if (!REGISTRY_RE.test(e.path) || list.text === null) return { deny: 'ENOENT: no such file' }
+    return { value: e.as === 'bytes' ? { base64: b64(list.text) } : list.text }
+  })
+  on('fs.stat', (_$, e) => {
+    w.fs.push(`stat ${e.path}`)
+    if (REGISTRY_RE.test(e.path) && list.text !== null) return { value: { kind: 'file', size: new TextEncoder().encode(list.text).length, mtimeMs: 0, isLink: false } }
+    if (LOCK_RE.test(e.path) && list.lock) return { value: { kind: 'dir', size: 0, mtimeMs: list.lock.mtimeMs, isLink: false } }
+    return { deny: 'ENOENT: no such file' }
+  })
+  on('fs.write', (_$, e) => {
+    w.fs.push(`write ${e.path}`)
+    list.writes.push({ path: e.path, text: e.text })
+    if (REGISTRY_RE.test(e.path)) list.text = e.text
+    return { value: undefined }
+  })
+  on('fs.list', (_$, e) => { w.fs.push(`list ${e.path}`); return { deny: 'not here' } })
+  on('fs.exists', (_$, e) => { w.fs.push(`exists ${e.path}`); return { deny: 'not here' } })
+  on('env.get', (_$, e) => { w.envReads.push(e.name); return { value: list.env[e.name] } })
+  on('settings.read', () => { w.settings++; return { deny: 'the mod never reads settings' } })
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('session.end', (_$, e) => ({ sessionId: e.sessionId }))
   on('turn.start', (_$, e) => ({ turnId: e.turnId }))
@@ -75,7 +124,7 @@ export function engine(on: On, server: FakeServer = fakeServer(), afterResponse?
   on('ui.status', (_$, e) => { w.status.push(e.text); return { value: undefined } })
   on('ui.log', (_$, e) => { if (e.to !== 'debug') w.logs.push(e.text); return { value: undefined } })
   on('ui.toast', (_$, e) => { w.toasts.push(e.text); return { value: undefined } })
-  on('ui.open', () => { w.opened++; return { value: { isPlaced: true } } })
+  on('ui.open', (_$, e) => { w.opened++; w.opens.push(e.focus === true); return { value: { isPlaced: true } } })
   on('ui.close', () => ({ value: undefined }))
   // as this build answers: the terminal writes as /copy does, and a remote surface (the desktop) has no path yet
   on('ui.copy', (_$, e) => {

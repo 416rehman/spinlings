@@ -1,6 +1,7 @@
 // The band's quality gate (SPEC 21): every band state mounts on the terminal and the desktop at 40, 80 and 120
 // columns with no refused tree, four terminal rows or the advertised Desktop budget, and art wherever it fits.
-// Every button uses a digit (the only keys an empty prompt hands the band), the primary one on 1.
+// Every button uses a digit (the only keys an empty prompt hands the band), the primary one on 1; the one exception
+// is the desktop's Turn on auto-update, which writes a file and so carries no digit at all (a click only).
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { BattleLog, Card, Family, Rarity } from '../../plugin/hooks/core/types.ts'
@@ -83,7 +84,7 @@ const FIXTURES: Fixture[] = [
   { name: 'reveal new, first in the world', state: at({ battle: battle({ phase: 'reveal', first: true, defender: [wild.epic, wild.common] }) }), art: true, texts: [/A wild .+ appeared!/, /NEW/, /FIRST IN THE WORLD\?/, /and 1 more/] },
   { name: 'reveal mythic', state: at({ battle: battle({ phase: 'reveal', defender: [wild.mythic] }) }), art: true, texts: [/A Mythic appeared!/, /Mythic/] },
   { name: 'reveal duel', state: at({ battle: battle({ kind: 'duel', phase: 'reveal' }) }), art: true, texts: [/Rival Thistlewick sent out .+!/] },
-  { name: 'fight: the special is ready', state: at({ battle: battle({ kind: 'duel', shown: perfectAt - 1 }), signals: { ...INITIAL.signals, cheering: 2 } }), art: true, texts: [/vs Rival Thistlewick/, /is ready!/], keys: ['now'] },
+  { name: 'fight: the special is ready', state: at({ battle: battle({ kind: 'duel', shown: perfectAt - 1 }), signals: INITIAL.signals }), art: true, texts: [/vs Rival Thistlewick/, /is ready!/], keys: ['now'] },
   { name: 'fight: Perfect pressed', state: at({ battle: battle({ kind: 'duel', shown: perfectAt - 1, inputs: [perfectAt] }) }), art: true, texts: [/Perfect!/] },
   { name: 'fight: a quiet round, the streak', state: at({ battle: battle({ kind: 'duel', shown: 0 }) }), art: true, texts: [/round 1/] },
   { name: 'fight: the server log is on its way', state: at({ battle: battle({ kind: 'duel', live: false }) }), art: true, texts: [/Sizing each other up…/] },
@@ -107,7 +108,17 @@ const FIXTURES: Fixture[] = [
   { name: 'evolved', now: NOW + 4000, state: moment({ kind: 'evolve', id: 'evolve:x:2', cardId: team[0]!.id, from: 'Before', to: 'After', stage: 2, until: NOW + EVOLVE_SHOW }), art: true, texts: [/Before evolved into After!/, /HP \+\d+/], keys: ['act-evolve:x:2'] },
   { name: 'pack ready', state: moment({ kind: 'pack-ready', id: 'pack-ready', count: 3, until: NOW + 6000 }), art: true, texts: [/A pack is ready!/, /3 packs waiting/], keys: ['act-pack-ready'] },
   { name: 'present', state: moment({ kind: 'present', id: 'present:n1', from: 'quiet-otter-42', cardIds: [], until: null }), art: true, texts: [/quiet-otter-42 sent you a gift!/], keys: ['act-present:n1'] },
-  { name: 'update', state: moment({ kind: 'update', id: 'update:0.2.0', version: '0.2.0', until: null }), texts: [/Spinlings 0.2.0 is out/, /claude plugin update spinlings@spinlings/], keys: ['act-update:0.2.0'] },
+  {
+    name: 'update', art: true, texts: [/Spinlings 0.4.0 is out/, /✦ Team presets/], keys: ['act-update:0.4.0', 'dismiss-update:0.4.0'],
+    state: moment({ kind: 'update', id: 'update:0.4.0', version: '0.4.0', until: null }, { account: { ...base().account, latest: '0.4.0', notes: [{ version: '0.4.0', date: '2026-12-01', highlights: [{ short: 'Team presets', text: 'Save a few teams.' }] }] } }),
+  },
+  {
+    name: 'update needed to keep playing online', art: true, texts: [/Update to keep playing online/, /Spinlings 0.4.0 is out/], keys: ['act-update:0.4.0', 'dismiss-update:0.4.0'],
+    state: moment({ kind: 'update', id: 'update:0.4.0', version: '0.4.0', until: null }, { account: { ...base().account, latest: '0.4.0', readOnly: true } }),
+  },
+  { name: 'updated', art: true, texts: [/Spinlings 0\.3\.0 is here/, /✦ Open all/], keys: ['act-updated:0.3.0', 'dismiss-updated:0.3.0'], state: moment({ kind: 'updated', id: 'updated:0.3.0', version: '0.3.0', from: '0.2.16', until: null }) },
+  { name: 'auto-update offer, one press', state: moment({ kind: 'auto-update', id: 'auto-update', until: null }, { account: { ...base().account, autoUpdate: 'off', autoUpdateWritable: true } }), art: true, texts: [/update itself|Updates by itself/] },
+  { name: 'auto-update turned on', state: moment({ kind: 'auto-on', id: 'auto-on', until: NOW + 10_000 }, { account: { ...base().account, autoUpdate: 'on', autoUpdateOurs: true } }), art: true, texts: [/✓ Auto-update is on/, /Turn it off (anytime )?in \/spin updates|Off: \/spin updates/] },
   { name: 'passkey offer', state: moment({ kind: 'passkey', id: 'passkey', until: null }), texts: [/Your cards live only on this computer/, /no email, no password/], keys: ['act-passkey', 'dismiss-passkey'] },
   { name: 'passkey offer at a catch worth keeping', state: moment({ kind: 'passkey', id: 'passkey', until: null, card: wild.epic }), art: true, texts: [/lives only on this computer/, /no email, no password/], keys: ['act-passkey', 'dismiss-passkey'] },
   { name: 'sold on the market', state: moment({ kind: 'market', id: 'market:n9', outcome: 'sold', card: wild.epic, handle: 'misty-lark-18', price: 1250, until: NOW + 15_000 }), art: true, texts: [/Sold!/, /went to misty-lark-18/, /\+✧ 1,250/], keys: ['act-market:n9'] },
@@ -259,6 +270,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
           expect(`${where}: ${problems.join('; ') || 'fits'}`).toBe(`${where}: fits`)
         }
         for (const b of nodes.filter(x => x.type === 'Button')) {
+          if (surface === 'desktop' && b.props?.key === 'auto-on') {
+            expect(`${where}: the write on ${String(b.props?.hotkey)}`).toBe(`${where}: the write on undefined`)
+            continue
+          }
           expect(`${where}: ${String(b.props?.label)} on ${String(b.props?.hotkey)}`).toMatch(/ on [1-9]$/)
           if (b.props?.variant === 'primary') expect(`${where}: primary on ${String(b.props.hotkey)}`).toBe(`${where}: primary on 1`)
         }

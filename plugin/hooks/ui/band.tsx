@@ -4,6 +4,7 @@
 // itself. Every band button uses a digit, the only keys an empty prompt hands to the band: 1 is the one primary
 // action, 2 the secondary, 1 to 3 a catch choice. Returns null when nothing is live, so the engine's band shows.
 import type { RenderElement } from 'claude-code'
+import type { ReleaseHighlight } from '../core/api.ts'
 import type { BattleCard, Card } from '../core/types.ts'
 import { FAMILY_INFO } from '../core/families.ts'
 import type { Pixels } from '../core/sprite.ts'
@@ -20,8 +21,9 @@ import { ROUND_MS, catchOrder, headMoment, nameOf, opponentLabel } from '../clie
 import { RULE_INFO } from '../core/world.ts'
 import { effortLook } from '../client/effort.ts'
 import { hostOf } from '../client/net.ts'
-import { UPDATE_COMMAND } from '../client/remote.ts'
 import { fit, plural, safe } from '../client/text.ts'
+import { CHIP_LEAD, CHIP_SEP, bundledSince, chipLine, moreOf } from '../client/whatsnew.ts'
+import { oneTapOn } from '../client/autoupdate.ts'
 import { grouped } from '../client/viewmodels.ts'
 import type { Actions, Battle, BandView, El, Moment, Reveal, Surface } from '../client/types.ts'
 import {
@@ -36,7 +38,10 @@ type Env = Parameters<BandView>[0]
 type Ctx = { el: El; surface: Surface; columns: number; rows: number; actions: Actions; motion: boolean; now: number }
 
 /** Columns a desktop plate takes, as text beside it counts them. */
-const DESK_ART_COLUMNS = 9
+export const DESK_ART_COLUMNS = 9
+
+/** Where auto-update turns off again, longest first: the band says the longest that fits beside its art. */
+const OFF_LINES = ['Turn it off anytime in /spin updates', 'Turn it off in /spin updates', 'Off: /spin updates'] as const
 
 // ---------- small pieces ----------
 
@@ -80,8 +85,9 @@ const plateSize = (k = ART_K) => ({ w: artSide(k), height: artSide(k) })
  * four rows the art stays out and the actions come first, so the digit that presses them is always in view (a bare
  * digit only reaches the buttons inside the band's window).
  */
-function beside(c: Ctx, art: RenderElement | null, rows: RenderElement[], o: { act?: RenderElement | null; rails?: string } = {}): RenderElement {
+function beside(c: Ctx, art: RenderElement | null, all: (RenderElement | null)[], o: { act?: RenderElement | null; rails?: string } = {}): RenderElement {
   const { Box, Text } = c.el
+  const rows = all.filter((r): r is RenderElement => r !== null)
   if (c.rows < 4) return compact(c, [o.act ?? null, ...rows])
   const rail = o.rails ? <Box flexDirection="column" flexShrink={0}>{...[0, 1, 2, 3].map(() => <Text color={o.rails}>▎</Text>)}</Box> : null
   return (
@@ -107,7 +113,7 @@ function compact(c: Ctx, rows: (RenderElement | null)[]): RenderElement {
 function actionsRow(c: Ctx, m: Moment, primary: string | null, secondary: string | null, short?: string, art = false): RenderElement {
   const { Box, Button } = c.el
   const across = (primary ? 3 + primary.length : 0) + (secondary ? SPACE.loose + 3 + secondary.length : 0)
-  const room = c.rows < 4 ? c.columns : textWidth(c, art)
+  const room = roomOf(c, art)
   const label = primary && short && across > room ? short : primary
   return (
     <Box flexDirection="row" columnGap={SPACE.loose} flexWrap="wrap">
@@ -117,7 +123,33 @@ function actionsRow(c: Ctx, m: Moment, primary: string | null, secondary: string
   )
 }
 
+/** `keyless`: no digit at all, so only a click (or Enter on a band the person focused) presses it. */
+type Choice = { key: string; label: string; short: string; on: () => void; keyless?: true }
+
+/**
+ * Up to three choices on 1, 2 and 3, the first the primary. Every label takes its short form when the long ones would
+ * not fit across the column they sit in, so the row never wraps onto a line the band does not have. A keyless primary
+ * keeps 1 free: a digit an empty prompt hands the band never reaches it.
+ */
+function choicesRow(c: Ctx, choices: Choice[], art: boolean): RenderElement {
+  const { Box, Button } = c.el
+  const room = roomOf(c, art)
+  const across = choices.reduce((n, x) => n + (x.keyless ? 0 : 3) + x.label.length, 0) + SPACE.loose * Math.max(0, choices.length - 1)
+  const short = across > room
+  return (
+    <Box flexDirection="row" columnGap={SPACE.loose} flexWrap="wrap">
+      {...choices.map((x, i) => i === 0
+        ? x.keyless
+          ? <Button key={x.key} label={short ? x.short : x.label} plain variant="primary" onPress={x.on} />
+          : <Button key={x.key} label={short ? x.short : x.label} hotkey="1" plain variant="primary" onPress={x.on} />
+        : <Button key={x.key} label={short ? x.short : x.label} hotkey={String(i + 1)} plain dimColor onPress={x.on} />)}
+    </Box>
+  )
+}
+
 const textWidth = (c: Ctx, art: boolean) => Math.max(10, c.columns - (art ? (c.surface === 'terminal' ? MINI : DESK_ART_COLUMNS) + SPACE.tight : 0))
+/** The cells a row of a moment has: beside its art in a full band, the whole width in a short window. */
+const roomOf = (c: Ctx, art: boolean) => (c.rows < 4 ? c.columns : textWidth(c, art))
 
 // ---------- the band ----------
 
@@ -181,7 +213,6 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
   const { Box, Text, Button } = el
   const words = battleWords(b, env.state)
   const lead = b.setup.defender[0] ?? null
-  const cheering = env.state.signals.cheering
   if (c.rows < 4) return compactBattle(c, env, words)
   if (b.phase === 'rustle' || b.phase === 'reveal') {
     const fore = foreshadowOf(lead)
@@ -200,18 +231,17 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
       battleHeader(c, env, fit(words.header, textWidth(c, true))),
       line(el, words.banner),
       line(el, words.extra),
-      cheering > 0 ? <Text color={INK.accent}>{`+${cheering} cheering`}</Text> : blankRow(el),
+      blankRow(el),
     ], { rails: gold })
   }
   const log = logOf(b)
   const r = log && b.shown >= log.rounds.length ? log.rounds.length + 1 : roundOnScreen(b, log)
   const f = fightersAt(b, log, r)
   const look = (side: Side) => restLook(f[side]?.hp ?? 0, (f[side]?.hp ?? 1) <= 0)
-  const controls = words.now || cheering > 0
+  const controls = words.now
     ? (
       <Box flexDirection="row" columnGap={SPACE.loose}>
-        {words.now ? <Button key="now" label="Now!" hotkey="1" plain variant="primary" onPress={() => { void c.actions.press() }} /> : null}
-        {cheering > 0 ? <Text color={INK.accent}>{`+${cheering} cheering`}</Text> : null}
+        <Button key="now" label="Now!" hotkey="1" plain variant="primary" onPress={() => { void c.actions.press() }} />
       </Box>
     )
     : blankRow(el)
@@ -233,7 +263,6 @@ function battleBand(c: Ctx, env: Env, b: Battle): RenderElement {
     const storyRow = <Box flexDirection="row" columnGap={SPACE.tight} flexGrow={1} flexShrink={1}>
       {words.now ? <Box flexShrink={0}><Button key="now" label="Now!" hotkey="1" plain variant="primary" onPress={() => { void c.actions.press() }} /></Box> : null}
       <Box flexGrow={1} flexShrink={1}>{story}</Box>
-      {cheering > 0 ? <Text color={INK.accent} wrap="truncate-end">{`+${cheering} cheering`}</Text> : null}
     </Box>
     return (
       <Box flexDirection="column" width={c.columns}>
@@ -329,11 +358,20 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
     case 'evolve': return evolveBand(c, env, m)
     case 'pack-ready': {
       const family = packFamily(env.state)
+      const waiting = m.count
       const art = c.surface === 'terminal' ? raster(el, KEYS.art, packFrame(family, 0)) : svg(el, packSvg(family), `a ${FAMILY_INFO[family].name} pack`, plateSize(), c.motion)
+      // with more waiting, 1 opens them all in the pane and 2 still opens just the new one here
+      const act = waiting > 1
+        ? choicesRow(c, [
+          { key: `all-${m.id}`, label: `Open all (${waiting})`, short: `All ${waiting}`, on: () => { void c.actions.openAll() } },
+          { key: `act-${m.id}`, label: 'Open one', short: 'One', on: () => { void c.actions.act(m.id) } },
+          { key: `dismiss-${m.id}`, label: 'Close', short: 'Close', on: () => { void c.actions.dismiss(m.id) } },
+        ], true)
+        : actionsRow(c, m, 'Open', 'Close')
       return beside(c, art, [
         <Text bold>A pack is ready!</Text>,
-        <Text dimColor wrap="truncate-end">{`${plural(m.count, 'pack')} waiting · it charged while you were here`}</Text>,
-      ], { act: actionsRow(c, m, 'Open', 'Close') })
+        <Text dimColor wrap="truncate-end">{`${plural(waiting, 'pack')} waiting · it charged while you were here`}</Text>,
+      ], { act })
     }
     case 'present': {
       const art = c.surface === 'terminal' ? raster(el, KEYS.art, presentFrame(0)) : svg(el, presentSvg(), 'a wrapped present', plateSize(), c.motion)
@@ -342,10 +380,65 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
         <Text dimColor wrap="truncate-end">It is wrapped and waiting</Text>,
       ], { act: actionsRow(c, m, 'Open', null) })
     }
-    case 'update': return beside(c, null, [
-      <Text wrap="truncate-end">{`Spinlings ${safe(m.version, 20)} is out`}</Text>,
-      <Text dimColor wrap="truncate-end">{UPDATE_COMMAND}</Text>,
-    ], { act: actionsRow(c, m, 'Got it', null) })
+    case 'update': {
+      // 1 opens /spin updates, which has the one press that gets the update
+      const a = env.state.account
+      const art = leadArt(c, env)
+      const v = safe(m.version, 16)
+      if (a.world === 'online' && a.readOnly) {
+        return beside(c, art, [
+          <Text bold wrap="truncate-end">Update to keep playing online</Text>,
+          <Text dimColor wrap="truncate-end">{`Spinlings ${v} is out`}</Text>,
+        ], { act: actionsRow(c, m, 'Update', 'Close', undefined, art !== null) })
+      }
+      // what it brings, as spinlings.dev says it: never another server's notes
+      const highlights = a.community ? [] : (a.notes ?? []).flatMap(n => n.highlights)
+      // What's new only where /spin updates has notes to show; with none known, its press is the update
+      return beside(c, art, [
+        <Text bold wrap="truncate-end">{`Spinlings ${v} is out`}</Text>,
+        chipRow(c, highlights, art !== null),
+      ], { act: actionsRow(c, m, highlights.length > 0 ? 'What\'s new' : 'Update', 'Close', undefined, art !== null) })
+    }
+    case 'updated': {
+      const art = leadArt(c, env)
+      return beside(c, art, [
+        <Text bold wrap="truncate-end">{`Spinlings ${safe(m.version, 16)} is here`}</Text>,
+        chipRow(c, bundledSince(m.from, m.version).flatMap(n => n.highlights), art !== null),
+      ], { act: actionsRow(c, m, 'What\'s new', 'Close', undefined, art !== null) })
+    }
+    case 'auto-update': {
+      const art = leadArt(c, env)
+      const narrow = textWidth(c, art !== null) < 41
+      // A digit an empty prompt hands the band may be an answer meant for Claude, so no digit writes: on the desktop
+      // the button is clicked (it carries no digit at all); on the terminal 1 opens the guide beside the prompt, where
+      // its own Turn it on is the press
+      const oneTap = oneTapOn(env.state.account)
+      return beside(c, art, [
+        <Text bold wrap="truncate-end">{narrow ? 'Updates by itself' : 'Let Spinlings update itself'}</Text>,
+        <Text dimColor wrap="truncate-end">{narrow ? 'Turn on auto-update' : 'New creatures and fixes, no commands'}</Text>,
+      ], {
+        act: choicesRow(c, [
+          oneTap && c.surface !== 'terminal'
+            ? { key: 'auto-on', label: 'Turn on auto-update', short: 'Turn on', keyless: true, on: () => { void c.actions.autoUpdate('on') } }
+            : oneTap
+              ? { key: 'auto-how', label: 'Turn on auto-update…', short: 'Turn on…', on: () => { void c.actions.autoUpdate('how') } }
+              : { key: 'auto-how', label: 'Show me how', short: 'How', on: () => { void c.actions.autoUpdate('how') } },
+          { key: 'auto-later', label: 'Not now', short: 'Later', on: () => { void c.actions.autoUpdate('later') } },
+          { key: 'auto-never', label: "Don't ask again", short: 'Never', on: () => { void c.actions.autoUpdate('never') } },
+        ], art !== null),
+      })
+    }
+    case 'auto-on': {
+      // the command is what the line is for, so it is never cut: a shorter line where the long one would not fit, and a
+      // full band wraps it
+      const art = leadArt(c, env)
+      const room = roomOf(c, art !== null)
+      const off = OFF_LINES.find(l => l.length <= room) ?? OFF_LINES.at(-1)!
+      return beside(c, art, [
+        <Text bold color={INK.good} wrap="truncate-end">{`${MARK.check} Auto-update is on`}</Text>,
+        <Text dimColor wrap={wraps(c)}>{off}</Text>,
+      ])
+    }
     case 'passkey': {
       // the card that made the collection worth keeping, shown with the plain truth about where it lives (SPEC 30)
       const x = m.card ?? null
@@ -400,6 +493,32 @@ function momentBand(c: Ctx, env: Env, m: Moment): RenderElement {
 }
 
 const rarityTint = (x: Pick<Card, 'species' | 'rarity'>) => (x.species === 'mythic' ? MYTHIC_COLOR : RARITY_COLOR[x.rarity])
+
+/** The lead creature, sparkling: the art beside the band's version and auto-update moments. */
+function leadArt(c: Ctx, env: Env): RenderElement | null {
+  const lead = leadCard(env.state)
+  return lead ? creatureArt(c, lead, true) : null
+}
+
+/**
+ * What a release brings, as whole labels (`✦ Open all · Auto-update +1 more`): measured before it is drawn, with the
+ * same pieces (CHIP_LEAD, CHIP_SEP, moreOf), so it never runs past the band's edge; left out where not even the first
+ * label fits.
+ */
+function chipRow(c: Ctx, highlights: readonly ReleaseHighlight[], art: boolean): RenderElement | null {
+  const { Box, Text } = c.el
+  const chips = chipLine(highlights, roomOf(c, art))
+  if (!chips) return null
+  return (
+    <Box key="release-chips">
+      <Text wrap="truncate-end">
+        <Text color={INK.accent}>{CHIP_LEAD}</Text>
+        {...chips.shorts.flatMap((s, i) => (i === 0 ? [<Text>{s}</Text>] : [<Text dimColor>{CHIP_SEP}</Text>, <Text>{s}</Text>]))}
+        {chips.more > 0 ? <Text dimColor>{moreOf(chips.more)}</Text> : null}
+      </Text>
+    </Box>
+  )
+}
 
 /** A creature on the band's plate: its mini Raster on the terminal, its framed art on the desktop, sparkling when good news. */
 function creatureArt(c: Ctx, x: BattleCard, sparkle: boolean): RenderElement {

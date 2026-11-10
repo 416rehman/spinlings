@@ -53,8 +53,8 @@ async function setup() {
   await trust(s, holder)
   await holder.call('listCard', { cardId: regular.id, price: 10 })
   const profile = '/u/' + holder.me.player.handle
-  const creditPaths = [profile, `/c/${regular.id}`, `/c/${mythic.id}`, `/species/${species.id}`, '/mythics', '/market', '/']
-  return { s, finder, holder, profile, creditPaths, paths: [...creditPaths, '/players', '/boards'] }
+  const creditPaths = [profile, `/c/${regular.id}`, `/c/${mythic.id}`, `/species/${species.id}`, '/mythics', '/market', '/', '/search?in=cards']
+  return { s, finder, holder, profile, creditPaths, paths: [...creditPaths, '/search', '/boards'] }
 }
 
 describe('public website cache privacy', () => {
@@ -91,7 +91,7 @@ describe('public website cache privacy', () => {
 
   for (const action of ['rename', 'delete'] as const) it(`removes discovery identity on cached revisits immediately after ${action}`, async () => {
     const { s, finder, creditPaths } = await setup(), visit = cachedVisitor(s), old = finder.me.player.handle
-    for (const path of [...creditPaths, '/players']) {
+    for (const path of [...creditPaths, '/search']) {
       assert.ok((await visit(path)).html.includes(old), `${path} initially names the finder`)
     }
     const now = s.now()
@@ -105,7 +105,7 @@ describe('public website cache privacy', () => {
       assert.ok(!page.html.includes(old), `${path} no longer names the finder`)
       if (renamed) assert.ok(!page.html.includes(renamed), `${path} does not link old discoveries to the new username`)
     }
-    const directory = await visit('/players')
+    const directory = await visit('/search')
     assert.ok(!directory.html.includes(old), 'the directory does not retain the old account identity')
     if (renamed) assert.ok(directory.html.includes(renamed), 'the renamed public profile remains discoverable')
   })

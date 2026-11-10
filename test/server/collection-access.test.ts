@@ -100,6 +100,7 @@ describe('the authorization matrix (SPEC 26)', () => {
     const deal = traderDeals(T0).find(d => d.give.count === 2)!
     const attempts: [ApiOp, Record<string, unknown>][] = [
       ['openPack', { packId: theirPack.id }],
+      ['openPacks', { packIds: [theirPack.id] }],
       ['setTeam', { cardIds: [theirs!.id] }],
       ['setTeam', { cardIds: [mine!.id, theirs!.id] }],
       ['setForTrade', { cardId: theirs!.id, forTrade: true }],
@@ -141,6 +142,7 @@ describe('requests', () => {
     ['setTeam', { cardIds: [] }], ['setForTrade', { cardId: 'x', forTrade: true }], ['fuse', { cardId: 'x', otherId: 'y' }],
     ['recycle', { cardId: 'x' }], ['craft', { speciesId: 's1-opus-0', rarity: 'common' }], ['setWishlist', { species: [] }],
     ['trader', {}], ['traderDeal', { dealId: '2026-10-02-0', cardIds: ['x'] }], ['redeem', { code: 'FOUNDERS' }],
+    ['openPacks', { packIds: ['x'] }],
   ]
 
   it('need a live session: no token, or a made-up one, is a bare 401', async () => {

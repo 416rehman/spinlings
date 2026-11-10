@@ -43,7 +43,8 @@ export function statJitter(rng: () => number): number[] {
   return [0, 0, 0, 0].map(() => between(rng, -ECONOMY.stats.jitter, ECONOMY.stats.jitter))
 }
 
-function deepFreeze<T>(v: T): T {
+/** `v` and everything in it, frozen, for data a module shares with every caller. */
+export function deepFreeze<T>(v: T): T {
   if (v && typeof v === 'object') {
     for (const k of Object.keys(v)) deepFreeze((v as Record<string, unknown>)[k])
     Object.freeze(v)

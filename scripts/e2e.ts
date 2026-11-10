@@ -20,8 +20,8 @@ import { fileURLToPath } from 'node:url'
 import { createRemoteBackend, joinServer, versionStatus } from '../plugin/hooks/client/remote.ts'
 import { BackendError } from '../plugin/hooks/client/types.ts'
 import type { Backend, HttpAnswer, HttpInit, Sent } from '../plugin/hooks/client/types.ts'
-import type { ApiErrorCode, ApiOp, ApiRequest, ApiResponse, FinishBattleResponse, MeResponse, StartBattleResponse } from '../plugin/hooks/core/api.ts'
-import { FEATURES } from '../plugin/hooks/core/api.ts'
+import type { ApiErrorCode, ApiOp, ApiRequest, ApiResponse, FinishBattleResponse, MeResponse, OpenedPack, StartBattleResponse } from '../plugin/hooks/core/api.ts'
+import { FEATURES, OPEN_PACKS_MAX } from '../plugin/hooks/core/api.ts'
 import { perfectRounds, RULES_VERSION, simulateBattle } from '../plugin/hooks/core/battle.ts'
 import { craftCost, rarityRank, recycleValue } from '../plugin/hooks/core/cards.ts'
 import { ECONOMY, finishAfter } from '../plugin/hooks/core/economy.ts'
@@ -621,9 +621,36 @@ export async function runE2E(o: RunOptions = {}): Promise<Report> {
       }
       // three calendar days on from the join day
       clock.until(Date.UTC(2026, 9, 5, 9))
-      for (const c of [p1, p2]) for (const pack of (await c.me()).packs) await c.call('openPack', { packId: pack.id })
       const [b1, b2] = [(await p1.me()).player.battles, (await p2.me()).player.battles]
       return `${b1} and ${b2} battles, ${charged} packs charged, now ${utcDay(clock.now())}`
+    })
+
+    await step('open the waiting packs, several at once', async () => {
+      const waiting = (await p1.me()).packs
+      assert.ok(waiting.length >= 2, 'days of play left several packs waiting')
+      const held = new Set([...(await cardsOf(p1)), ...(await cardsOf(p2))].map(c => c.species))
+      const ids = waiting.map(p => p.id)
+      const opened: OpenedPack[] = []
+      const requests = Math.ceil(ids.length / OPEN_PACKS_MAX)
+      for (let i = 0; i < ids.length; i += OPEN_PACKS_MAX) {
+        opened.push(...(await p1.call('openPacks', { packIds: ids.slice(i, i + OPEN_PACKS_MAX) })).opened)
+      }
+      assert.deepEqual(opened.map(o => [o.packId, o.family]), waiting.map(p => [p.id, p.family]), 'every pack, in the order asked')
+      const cards = opened.flatMap(o => o.cards)
+      for (const o of opened) {
+        assert.equal(o.cards.length, ECONOMY.packs.size)
+        assert.ok(o.cards.every(c => c.family === o.family && c.origin === 'pack'))
+      }
+      const stamped = cards.filter(c => c.firstFind).map(c => c.species)
+      assert.equal(new Set(stamped).size, stamped.length, 'First Discovered at most once per species in one batch')
+      assert.ok(stamped.every(sp => !held.has(sp)), 'and never on a species someone already holds')
+      const owned = new Set((await cardsOf(p1)).map(c => c.id))
+      assert.ok(cards.every(c => owned.has(c.id)))
+      assert.equal((await p1.me()).packs.length, 0)
+      await p1.fails('openPacks', { packIds: ids.slice(0, 2) }, 'not_found')
+      foilCards += cards.filter(c => c.foil).length
+      for (const pack of (await p2.me()).packs) await p2.call('openPack', { packId: pack.id })
+      return `${opened.length} packs in ${requests} request${requests === 1 ? '' : 's'}, ${stamped.length} first discoveries`
     })
 
     await step('fusion', async () => {

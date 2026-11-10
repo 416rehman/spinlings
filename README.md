@@ -7,7 +7,7 @@
 [![MIT license](https://img.shields.io/github/license/416rehman/spinlings)](LICENSE)
 [![Claude Code 2.1.287 or later](https://img.shields.io/badge/Claude_Code-2.1.287%2B-e6c09f)](#install)
 
-[Website](https://spinlings.dev) · [Install](#install) · [How to play](docs/how-to-play.md) · [What's new](CHANGELOG.md)
+[Website](https://spinlings.dev) · [Install](#install) · [How to play](docs/how-to-play.md) · [What's new](https://spinlings.dev/whats-new)
 
 Spinlings is a creature card game that lives inside Claude Code. While Claude works, wild creatures rustle into a slim band above the prompt and your team of three battles them. Win, and you might catch one. Every card is one of a kind, with its own look, genes and traits. You can fuse two cards into a hybrid nobody has seen before, trade, sell or gift cards to other players, challenge them to duels and climb the global leaderboards.
 
@@ -26,12 +26,15 @@ The world lives at [spinlings.dev](https://spinlings.dev), or entirely on your m
 
 ## Install
 
-Two commands inside Claude Code, one at a time:
+1. Two commands inside Claude Code, one at a time:
 
-```
-/plugin marketplace add 416rehman/spinlings
-/plugin install spinlings@spinlings
-```
+   ```
+   /plugin marketplace add 416rehman/spinlings
+   /plugin install spinlings@spinlings
+   ```
+
+2. Restart Claude and start a new session, then run `/spin` to open your team.
+3. **Updates by themselves (optional).** In your new session, run `/spin updates` and press **Turn it on**. Or, in a terminal: `/plugin`, then Marketplaces, then spinlings, then Enable auto-update.
 
 Or just ask Claude: *install the Spinlings mod from 416rehman/spinlings*. From a shell, the same is:
 
@@ -40,7 +43,7 @@ claude plugin marketplace add 416rehman/spinlings
 claude plugin install spinlings@spinlings
 ```
 
-**Requires Claude Code 2.1.287 or later.** Run `claude --version` to check, or `claude update` to update the CLI. Restart Claude and start a new session after installing, then run `/spin` to open your team.
+**Requires Claude Code 2.1.287 or later.** Run `claude --version` to check, or `claude update` to update the CLI.
 
 **Launch gift:** run `/spin redeem FIRSTSPIN` for one random pack. [Redeem instructions and live availability](https://spinlings.dev/d/FIRSTSPIN).
 
@@ -49,7 +52,7 @@ The Code tab in Claude Desktop needs a bundled Claude Code version that supports
 Mods run with your permissions, so look before you install. This prints every hook the mod registers and every call it makes:
 
 ```sh
-git clone --branch v0.2.16 https://github.com/416rehman/spinlings
+git clone --branch v0.3.0 https://github.com/416rehman/spinlings
 claude plugin validate spinlings/plugin
 ```
 
@@ -57,15 +60,15 @@ claude plugin validate spinlings/plugin
 
 **Online or offline.** You start in the online world, where you trade, duel and climb the boards with other players. `/spin world` opens a chooser; `/spin world offline` plays entirely on your machine, and `/spin world online` returns to spinlings.dev. Each world keeps its own collection, and switching never deletes anything. If the mod cannot reach the server on the first run, it starts you offline.
 
-**Your collection in a browser.** Save a passkey from Community → Profile → Passkey & devices, then [open your collection](https://spinlings.dev/account) to sign in and see your cards, current stats and rankings. Search and filters cover your whole collection; sort by level, genes or combat stats to compare creatures. Open a card for its stat and trait explanations. View or share your public profile from there, or [browse players](https://spinlings.dev/players) to visit their collections. Season catalogue icons open species details and first-discoverer profiles; [caught Mythics](https://spinlings.dev/mythics) have their own gallery. The mod's link appears when your server supports browser collections; older servers offer your public profile instead. You can choose a public username there. Opening packs, choosing a team and trading happen in Claude Code.
+**Your collection in a browser.** Save a passkey from Community → Profile → Passkey & devices, then [open your collection](https://spinlings.dev/account) to sign in and see your cards, current stats and rankings. Search and filters cover your whole collection; sort by level, genes or combat stats to compare creatures. Open a card for its stat and trait explanations. View or share your public profile from there, or [search players and cards](https://spinlings.dev/search) to visit their collections. Season catalogue icons open species details and first-discoverer profiles; [caught Mythics](https://spinlings.dev/mythics) have their own gallery. The mod's link appears when your server supports browser collections; older servers offer your public profile instead. You can choose a public username there. Opening packs, choosing a team and trading happen in Claude Code.
 
 **Your username.** Keep your generated handle, or choose a unique public username in the browser: 1–40 ASCII letters, numbers, `_` or `-`, saved in lowercase. Names pass the game's name filter, and names such as `admin` and `support` are reserved. Changes share the once-a-week limit; an old name stays unavailable for 30 days. Renaming keeps your account, collection and saved passkeys.
 
-`/spin quiet` silences everything. To leave for good, delete your account from `/spin privacy`, then run `claude plugin uninstall spinlings@spinlings`.
+`/spin quiet` silences everything. To leave for good, delete your account from `/spin privacy`, then run `claude plugin uninstall spinlings@spinlings`. Uninstalling keeps the spinlings marketplace and its auto-update; `claude plugin marketplace remove spinlings` removes both.
 
-**Keeping your game.** New seasons bring new species without reinstalling the mod. Cards from past seasons keep battling and trading, and season rewards arrive on your first visit after the season changes. The server supplies online card stats and frozen species data; old mod releases remain covered by compatibility tests. New screens, families or artwork shapes may need a mod update. New battle rules can play through the server's log when they fit the supported format. `/spin version` shows your installed version and server status; the pane offers an update when one is available. See [what arrives without an update](docs/compatibility.md).
+**Keeping your game.** New seasons bring new species without reinstalling the mod. Cards from past seasons keep battling and trading, and season rewards arrive on your first visit after the season changes. The server supplies online card stats and frozen species data; old mod releases remain covered by compatibility tests. New screens, families or artwork shapes may need a mod update. New battle rules can play through the server's log when they fit the supported format. `/spin version` shows your installed version and server status, and the pane's version chip opens `/spin updates`. See [what arrives without an update](docs/compatibility.md).
 
-Optional: turn on updates in `/plugin` → Marketplaces → spinlings → Enable auto-update. Claude loads the new version in your next session; [Anthropic's update guide](https://code.claude.com/docs/en/discover-plugins#turn-auto-update-on-or-off-for-a-marketplace) has the details.
+**Updates by themselves.** `/spin updates` shows a live on or off light, and **Turn it on** flips the one switch Claude Code keeps for the spinlings marketplace in its plugin list. From then on Claude Code checks for a new Spinlings each time it starts, installs it a few minutes later, and either loads it into the session or asks you to run `/reload-plugins`. **Turn it off** puts the plugin list back as it was. The band offers it too, at most three times and never again after Don't ask again: on Claude Desktop its button turns it on with a click, and in a terminal its 1 opens the same guide beside the prompt. If auto-update was turned off in `/plugin`, the guide shows the `/plugin` steps instead and the band stops asking. When Claude Code's own updates are turned off on your computer, the light says auto-update can't run there. The same screen opens on whether you're up to date and what each release brings, and after an update the band says once what's new. [Anthropic's update guide](https://code.claude.com/docs/en/discover-plugins#turn-auto-update-on-or-off-for-a-marketplace) has the details.
 
 ## See it
 
@@ -156,7 +159,7 @@ Hitting a rate limit is neither rewarded nor punished: packs keep charging as us
 
 There is one command, `/spin`. On its own it opens the pane, with four tabs (Team, Collection, Discoveries, Community) on hotkeys 1 to 4. Collection holds your cards; Discoveries tracks species you have found.
 
-Community opens on your Profile, with a section bar for Profile, Market, Rankings and Trading. Market and Rankings appear on online servers that support them; offline, Profile and the Wandering Trader remain available. Open a card, listing or player for details, then Back returns to the section you were using. Every card, pack and board row is a button: press it (or Tab to it) to open it. Team groups waiting packs, Open pack and the next-pack countdown together. Press the world's name in the header to choose a world, the daily rule to see its effect, or Help for a short field guide.
+Community opens on your Profile, with a section bar for Profile, Market, Rankings and Trading. Market and Rankings appear on online servers that support them; offline, Profile and the Wandering Trader remain available. Open a card, listing or player for details, then Back returns to the section you were using. Every card, pack and board row is a button: press it (or Tab to it) to open it. Team groups waiting packs, Open pack and the next-pack countdown together. With more than one waiting, **Open all** opens the whole bank at once: the stack of packs goes down while they open, your best pulls flip first with their full build-up and the top one last, and a summary shows every card grouped by rarity, copies stacked, with a New only filter. Esc stops after the packs already on their way. Skip jumps straight to the summary; Claude keeps working the whole time. Press the world's name in the header to choose a world, the daily rule to see its effect, or Help for a short field guide.
 
 Open a card and choose **Set in team** or **Change slot**, then choose the teammate to replace or the slot to swap. A replaced creature stays in your collection. When selling, you choose the exact spark price; recent matching sales provide a reference.
 
@@ -183,7 +186,8 @@ Open a card and choose **Set in team** or **Change slot**, then choose the teamm
 | `/spin motion on\|off` | Make every animation instant, or bring them back |
 | `/spin privacy` | See exactly what the mod has sent, and delete your account |
 | `/spin server [url\|default]` | Report the current host; URL and default remain aliases for community and default online switching |
-| `/spin version` | This mod's version, and whether an update is out |
+| `/spin updates` | Whether you're up to date, what's new, and whether Spinlings updates by itself |
+| `/spin version` | This mod's version, whether an update is out, and whether auto-update is on |
 
 There is no `/spin wild`. Wild creatures only ever find you.
 
@@ -206,7 +210,9 @@ The game runs on the rhythm of your session, never its content. This is everythi
 | `ui.message` (Spinlings pane regions only) | the current registered region's element key and a null payload | Selecting a card or opening the world chooser from its mark or host in Desktop |
 | `command.run` | `/spin` and its arguments | The game's one command |
 
-**Never hooked:** `tool.call`, `prompt.submit`, `agent.spawn`, `classic.PermissionRequest`. The mod never sees a tool name, a shell command, a file or a path.
+One file, never sent: Claude Code's own plugin list, `known_marketplaces.json`, next to the installed copy of the mod. The mod reads the `autoUpdate` flag of its `spinlings` entry to show whether Spinlings updates by itself, and writes that one flag only when you press **Turn it on** or **Turn it off** (in `/spin updates`, or on Claude Desktop the band's **Turn on auto-update**); every other byte of the file stays as Claude Code wrote it. It also checks whether five environment variables are switched on, never keeping their text: `DISABLE_UPDATES`, `DISABLE_AUTOUPDATER`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `FORCE_AUTOUPDATE_PLUGINS` and `CLAUDE_CODE_AUTOUPDATER_DISABLED_BY_HOST`, which decide whether Claude Code may update plugins at all. It never opens `settings.json`. A copy installed any other way (a dev folder, `--plugin-dir`) opens no file and shows the setting as unknown.
+
+**Never hooked:** `tool.call`, `prompt.submit`, `agent.spawn`, `classic.PermissionRequest`. The mod never sees a tool name, a shell command, or your project's files and paths.
 
 Some of those events carry content the mod does not need. It never reads these fields:
 
@@ -219,7 +225,7 @@ Some of those events carry content the mod does not need. It never reads these f
 | `session.start` | `cwd` |
 | `session.compact` | `messages`, `instructions` |
 
-**What it calls.** Only the `ui`, `state`, `store`, `clock`, `command`, `http` and `session` parts of the mod API, plus `audio` if you turn sound on. From `session` it calls only `model`, and only the model's family ever reaches the server. It never uses `$.fs`, `$.process`, `$.model`, `$.prompt`, `$.tool`, `$.agent`, `$.mcp` or `$.env`. CI fails if any of those, or any hook outside this table, shows up in the source or in `claude plugin validate --json`.
+**What it calls.** Only the `ui`, `state`, `store`, `clock`, `command`, `http` and `session` parts of the mod API, plus `audio` if you turn sound on, `$.fs.read`, `$.fs.stat` and `$.fs.write` on the plugin list above (`$.fs.stat` also looks for Claude Code's `known_marketplaces.json.lock` beside it, so a press waits while Claude Code is saving; `$.fs.write` runs only on your press), and `$.env.get` for the five names above. From `session` it calls only `model`, and only the model's family ever reaches the server. It never writes, lists or opens any other file, and never uses `$.settings`, `$.env.set`, `$.process`, `$.model`, `$.prompt`, `$.tool`, `$.agent` or `$.mcp`. CI fails if any of those, or any hook outside this table, shows up in the source or in `claude plugin validate --json`.
 
 Claude's effort setting brightens the local band and your creature frame. It is never saved or sent, and every battle keeps the same rules, round pace and request timing.
 
@@ -233,7 +239,7 @@ Privacy outranks every other rule in the game. In short:
 
 - **Generated identity by default.** You start with a random token and a server-generated handle (`adjective-noun-NN`). You can choose a public username in the browser or draw another generated handle, once a week. A chosen username is shown to other players, so reusing a name from elsewhere can identify you. The mod never sends your Claude account, email, organization, machine name, OS user, session id or model id.
 - **No work or usage data leaves your machine**, except the model *family* (haiku, sonnet, opus or fable) when you join, a pack charges or a battle starts. Nobody else ever sees it. It is kept no longer than that pack or battle, and battles are deleted 7 days after they end.
-- **Other players see only** your handle, team, full website card inventory, album count and league, market listings, original discovery credit, and public game stats and leaderboard places (counts such as duel wins and players beaten, as they stood at the last midnight), plus your handle on things you do with them, such as offers, gifts, sales and duels. Website collections are current, so comparing visits can reveal card or level changes; families can hint at model preferences. There are no battle counts, join/last-seen dates, activity logs, online status, actual model identifiers or timestamps. `/spin leaderboard off` takes you off every board and hides profile statistics; your cards, directory entry and discovery credit remain public. Renaming or deletion removes discovery identity credit without linking your old and new handles.
+- **Other players see only** your handle, team, full website card inventory, album count and league, market listings, original discovery credit, and public game stats and leaderboard places (counts such as duel wins and players beaten, as they stood at the last midnight), plus your handle on things you do with them, such as offers, gifts, sales and duels. Website collections are current, so comparing visits can reveal card or level changes; families can hint at model preferences. There are no battle counts, join/last-seen dates, activity logs, online status, actual model identifiers or timestamps. `/spin leaderboard off` takes you off every board and hides profile statistics; your cards, search entry and discovery credit remain public. Renaming or deletion removes discovery identity credit without linking your old and new handles.
 - **The server keeps the minimum**: dates instead of times wherever a rule allows, no IP addresses, no request logs. Old notices, offers and gifts are deleted after 30 days.
 - **Delete everything** from `/spin privacy`, behind a 2-second hold. Cards you already traded or sold stay with their new owners.
 - **Check it yourself.** `/spin privacy` shows the last 20 requests the mod sent, with your token hidden.
@@ -346,7 +352,7 @@ More in [SPEC.md](SPEC.md), sections 11, 12, 15, 16 and 20.
 
 **Does using Claude more get me more cards?** No. Rewards are per battle and per 50 minutes of presence, and the server paces both. Long turns, big contexts and heavy usage earn nothing extra, and a break of 4 hours or more earns a better encounter.
 
-**Can it see my code?** No. It never hooks tool calls or prompts, and never reads files, paths, answers or cost. The hook table above is the whole list, and `claude plugin validate` shows it.
+**Can it see my code?** No. It never hooks tool calls or prompts, and never reads your files, paths, answers or cost. The one file it opens is Claude Code's own plugin list (`known_marketplaces.json`), to see whether Spinlings updates by itself, and it changes only the spinlings auto-update flag there, only when you press Turn it on or Turn it off. The hook table above is the whole list, and `claude plugin validate` shows it.
 
 **Does the game know who I am?** Your default handle is random and server-generated. An optional username is public and may identify you if you reuse it elsewhere. The mod never sends your Claude account, email, organization or anything about your machine.
 

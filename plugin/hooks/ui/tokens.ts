@@ -53,6 +53,8 @@ export const MARK = {
   /** a small square: the world in play, a league's colour */
   dot: '▪',
   away: '▫',
+  /** a filter chip that is on; a setting that is on */
+  check: '✓',
 } as const
 
 /**
