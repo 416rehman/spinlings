@@ -22,6 +22,8 @@ export const FEATURES = [
   'browser-account',
   /** POST /v1/me/handle accepts an optional chosen public username. */
   'custom-handles',
+  /** POST /v1/packs/open-many (openPacks): up to OPEN_PACKS_MAX packs in one request; without it, open one at a time */
+  'open-many',
 ] as const
 export type Feature = (typeof FEATURES)[number]
 
@@ -164,6 +166,9 @@ export type MeResponse = {
 // ---------- requests and responses ----------
 
 export type EmptyRequest = Record<string, never>
+export type ReleaseHighlight = { short: string; text: string }
+/** One release's player-facing notes (SPEC 32): plain words, the most important highlight first. */
+export type ReleaseNote = { version: string; date: string; highlights: ReleaseHighlight[] }
 export type VersionResponse = {
   api: number
   server: string
@@ -173,6 +178,8 @@ export type VersionResponse = {
   latestClient: string
   sunset?: { api: number; date: string }
   features: string[]
+  /** the newest announced releases' notes, newest first (the mod keeps only spinlings.dev's; older mods ignore them) */
+  notes?: ReleaseNote[]
 }
 export type SeasonResponse = { season: number; generator: number; species: Species[] }
 export type WorldResponse = { day: string; season: number; rule: DailyRule; featured: string; roamer: string; players: number }
@@ -204,6 +211,13 @@ export type BuyPackRequest = { family: Family }
 export type PacksResponse = { packs: PackView[] }
 export type OpenPackRequest = { packId: string }
 export type OpenPackResponse = { cards: Card[] }
+/** The most packs one openPacks request opens. */
+export const OPEN_PACKS_MAX = 10
+/** 1 to OPEN_PACKS_MAX distinct ids of the caller's unopened packs */
+export type OpenPacksRequest = { packIds: string[] }
+export type OpenedPack = { packId: string; family: Family; cards: Card[] }
+/** Every pack asked for, in request order: all of them open, or none do. */
+export type OpenPacksResponse = { opened: OpenedPack[] }
 export type TeamRequest = { cardIds: string[] }
 export type TeamResponse = { team: string[] }
 export type StartBattleRequest = {
@@ -371,6 +385,8 @@ export interface SpinlingsApi {
   buyPack(req: BuyPackRequest): Promise<PacksResponse>
   /** POST /v1/packs/open */
   openPack(req: OpenPackRequest): Promise<OpenPackResponse>
+  /** POST /v1/packs/open-many: several packs at once (servers listing the `open-many` feature) */
+  openPacks(req: OpenPacksRequest): Promise<OpenPacksResponse>
   /** PUT /v1/team */
   setTeam(req: TeamRequest): Promise<TeamResponse>
   /** POST /v1/battles */
@@ -467,6 +483,7 @@ export const API_ROUTES: Readonly<Record<ApiOp, ApiRoute>> = {
   chargePack: r('POST', '/v1/packs/charge', true, true),
   buyPack: r('POST', '/v1/packs/buy', true, true),
   openPack: r('POST', '/v1/packs/open', true, true),
+  openPacks: r('POST', '/v1/packs/open-many', true, false),
   setTeam: r('PUT', '/v1/team', true, true),
   startBattle: r('POST', '/v1/battles', true, true),
   finishBattle: r('POST', '/v1/battles/:battleId/finish', true, true),

@@ -9,7 +9,7 @@ import { viaEdgeCache } from '../../server/src/worker.ts'
 import { DAY, server } from './scaffold-helpers.ts'
 
 const ORIGIN = 'https://spinlings.dev'
-const generic = ['/', '/boards', '/market', '/odds', '/privacy']
+const generic = ['/', '/boards', '/market', '/odds', '/privacy', '/whats-new']
 const pngSize = (bytes: Uint8Array) => {
   const view = new DataView(bytes.buffer, bytes.byteOffset)
   return [view.getUint32(16), view.getUint32(20)]

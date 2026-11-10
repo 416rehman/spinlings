@@ -7,6 +7,7 @@ import type { Pixels } from '../core/sprite.ts'
 import { miniSprite, spriteFor } from '../core/sprite.ts'
 import { getSpecies } from '../core/species.ts'
 import { FOIL_PERIOD, T, TIMING, cardBack, foil, mix, offset, pulse, sparkles, squash, tint } from '../client/anim.ts'
+import { packArt as packPixels } from '../client/battleview.ts'
 import { artCells, artPixels, frameOf, isMythic } from './card.tsx'
 import type { CardFace, Frame } from './card.tsx'
 import { FAMILY_COLOR, INK, MYTHIC_COLOR, RAINBOW_STOPS, RARITY_COLOR, hex6, hexInt, pixelRects } from './tokens.ts'
@@ -400,4 +401,58 @@ export function svgHold(motion: boolean, widthPx = 64): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${widthPx} 6" width="${widthPx}" height="6">`
     + `<rect x="0" y="0" width="${widthPx}" height="6" rx="3" fill="${INK.muted}" fill-opacity="0.35"/>`
     + `<rect x="0" y="0" width="${motion ? 0 : widthPx}" height="6" rx="3" fill="${INK.warn}">${grow}</rect></svg>`
+}
+
+// ---------- every pack at once ----------
+
+/** Layers the waiting stack shows: four while most wait, fewer as they open, none once all are. */
+export function stackLayers(left: number, total: number): number {
+  if (left <= 0) return 0
+  return Math.max(1, Math.min(4, Math.ceil((4 * left) / Math.max(1, total))))
+}
+
+/**
+ * The packs still waiting as a stack (16x16): up to four small packages, each in its own family's colour, stepping up
+ * and to the right behind the front one, centred however many remain. `part` draws the front pack alone, or the rest.
+ */
+export function stackPixels(families: readonly Family[], layers: number, part: 'all' | 'front' | 'behind' = 'all'): Pixels {
+  const out = paint(N, N, () => T)
+  const n = Math.max(0, Math.min(4, layers))
+  const start = Math.floor((N - (8 + 2 * Math.max(0, n - 1))) / 2)
+  // depth 0 is the front pack, bottom left; the back of the stack is drawn first
+  for (let depth = n - 1; depth >= 0; depth--) {
+    if ((part === 'front' && depth > 0) || (part === 'behind' && depth === 0)) continue
+    const px = packPixels(families[depth] ?? families[0] ?? 'sonnet')
+    const ox = start + 2 * depth, oy = start + 2 * (n - 1 - depth)
+    px.forEach((row, y) => row.forEach((c, x) => {
+      if (c !== T) out[oy + y]![ox + x] = depth > 0 ? mix(c, 0x000000, 0.18 * depth) : c
+    }))
+  }
+  return out
+}
+
+/** The stack's frame: the front pack's family colour, muted once none are left. */
+function stackColor(families: readonly Family[], layers: number): string {
+  const front = families[0]
+  return layers > 0 && front ? FAMILY_COLOR[front] : INK.muted
+}
+
+export function stackStage(families: readonly Family[], layers: number): Cells {
+  return stageCells(stackPixels(families, layers), plain(hexInt(stackColor(families, layers))))
+}
+
+/** The stack on the desktop: the front pack lifts and settles while the packs open, with motion on. */
+export function svgStack(families: readonly Family[], layers: number, scale: number, motion: boolean): string {
+  const color = stackColor(families, layers)
+  if (layers <= 0 || !motion) return doc(rects(stackPixels(families, layers)) + ring(color, { motion: false }), scale, false)
+  const lift = '<animateTransform attributeName="transform" type="translate" values="0 0;0 -1;0 0" dur="0.9s" repeatCount="indefinite"/>'
+  return doc(rects(stackPixels(families, layers, 'behind')) + `<g>${lift}${rects(stackPixels(families, layers, 'front'))}</g>` + ring(color, { motion: false }), scale, false)
+}
+
+/** A thin progress bar for the desktop: the share of packs opened, in the family's colour. */
+export function svgProgress(share: number, color: string, widthPx = 96): string {
+  const w = Math.round(widthPx * Math.max(0, Math.min(1, share)))
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${widthPx} 8" width="${widthPx}" height="8">`
+    + `<rect x="0" y="1" width="${widthPx}" height="6" rx="3" fill="${INK.muted}" fill-opacity="0.35"/>`
+    + `<rect x="0" y="1" width="${w}" height="6" rx="3" fill="${color}"/></svg>`
 }

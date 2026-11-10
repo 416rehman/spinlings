@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { BattleCard, Card } from '../../plugin/hooks/core/types.ts'
 import type { ApiOp, GiftView, MeResponse, OfferView, PlayerView } from '../../plugin/hooks/core/api.ts'
-import { API_ROUTES, routeOf } from '../../plugin/hooks/core/api.ts'
+import { API_ROUTES, OPEN_PACKS_MAX, routeOf } from '../../plugin/hooks/core/api.ts'
 import * as V from '../../plugin/hooks/core/schemas.ts'
 import { PATH_PARAMS, REQUEST_SCHEMAS, RESPONSE_SCHEMAS, SchemaError, cleanText, parse, parsePathParam, parseQuery, parseRequest } from '../../plugin/hooks/core/schemas.ts'
 import type { Schema } from '../../plugin/hooks/core/schemas.ts'
@@ -72,6 +72,11 @@ const samples: [string, Schema<unknown>, unknown, Kind][] = [
   ['GiftView', V.giftViewSchema, gift, 'response'],
   ['MeResponse', V.meResponseSchema, me, 'response'],
   ['VersionResponse', V.versionResponseSchema, { api: 1, server: '1.4.0', rules: 1, generator: 1, minClient: '1.0.0', latestClient: '1.4.2-beta.1', sunset: { api: 1, date: '2027-06-01' }, features: ['rivals', 'trader'] }, 'response'],
+  ['VersionResponse (notes)', V.versionResponseSchema, { api: 1, server: '0.3.0', rules: 1, generator: 2, minClient: '0.1.0', latestClient: '0.3.0', features: ['open-many'], notes: [
+    { version: '0.3.0', date: '2026-11-09', highlights: [{ short: 'Open all', text: 'Open every waiting pack at once.' }, { short: 'Café “quotes”', text: 'Plain words – and an ellipsis…' }] },
+    { version: '0.2.16', date: '2026-10-06', highlights: [{ short: 'Wrapped rewards', text: 'Pack and card rewards come as a wrapped present.' }] },
+  ] }, 'response'],
+  ['ReleaseNote', V.releaseNoteSchema, { version: '0.2.13', date: '2026-10-05', highlights: [{ short: 'Now! below the fight', text: 'Round, streak and the Now! button share one row.' }] }, 'response'],
   ['SeasonResponse', V.seasonResponseSchema, { season: 1, generator: 1, species: seasonSpecies(1) }, 'response'],
   ['WorldResponse', V.worldResponseSchema, { day: '2026-10-04', season: 1, rule: 'glassDay', featured: 's1-haiku-3', roamer: 's1-opus-8', players: 12 }, 'response'],
   ['ChallengeResponse', V.challengeResponseSchema, { challenge: 'abcDEF123_-xyz', difficulty: 16 }, 'response'],
@@ -95,6 +100,8 @@ const samples: [string, Schema<unknown>, unknown, Kind][] = [
   ['EmptyRequest', V.emptyRequestSchema, {}, 'request'],
   ['OpenPackRequest', V.openPackRequestSchema, { packId: 'pk1' }, 'request'],
   ['OpenPackResponse', V.openPackResponseSchema, { cards: [c1, c2] }, 'response'],
+  ['OpenPacksRequest', V.openPacksRequestSchema, { packIds: ['pk1', 'pk2'] }, 'request'],
+  ['OpenPacksResponse', V.openPacksResponseSchema, { opened: [{ packId: 'pk1', family: 'haiku', cards: [c1] }, { packId: 'pk2', family: 'opus', cards: [c2] }] }, 'response'],
   ['TeamRequest', V.teamRequestSchema, { cardIds: ['card_1', 'card_2'] }, 'request'],
   ['TeamResponse', V.teamResponseSchema, { team: ['card_1'] }, 'response'],
   ['StartBattleRequest', V.startBattleRequestSchema, { kind: 'duel', family: 'sonnet', revenge: 'brave-wren-7' }, 'request'],
@@ -289,6 +296,13 @@ test('arrays: limits, uniqueness and ordering rules', () => {
   throwsAt(() => parse(V.offerRequestSchema, { to: 'x', give: [], get: [] }), '$.give')
   throwsAt(() => parse(V.offerRequestSchema, { to: 'x', give: ['a', 'b', 'c', 'd'], get: [] }), '$.give')
   throwsAt(() => parse(V.traderDealRequestSchema, { cardIds: [] }), '$.cardIds')
+  throwsAt(() => parse(V.openPacksRequestSchema, { packIds: [] }), '$.packIds')
+  throwsAt(() => parse(V.openPacksRequestSchema, { packIds: ['a', 'b', 'a'] }), '$.packIds')
+  throwsAt(() => parse(V.openPacksRequestSchema, { packIds: Array.from({ length: OPEN_PACKS_MAX + 1 }, (_, i) => `pk${i}`) }), '$.packIds')
+  throwsAt(() => parse(V.openPacksRequestSchema, { packIds: ['a/b'] }), '$.packIds[0]')
+  assert.equal(parse(V.openPacksRequestSchema, { packIds: Array.from({ length: OPEN_PACKS_MAX }, (_, i) => `pk${i}`) }).packIds.length, OPEN_PACKS_MAX)
+  throwsAt(() => parse(V.openPacksResponseSchema, { opened: [] }), '$.opened')
+  throwsAt(() => parse(V.openPacksResponseSchema, { opened: [{ packId: 'pk1', family: 'dragon', cards: [json(c1)] }] }), '$.opened[0].family')
   throwsAt(() => parse(V.traderDealRequestSchema, { cardIds: ['a', 'a'] }), '$.cardIds')
   throwsAt(() => parse(V.finishBattleRequestSchema, { inputs: [3, 3] }), '$')
   throwsAt(() => parse(V.finishBattleRequestSchema, { inputs: [5, 2] }), '$')
@@ -371,7 +385,7 @@ test('no request schema accepts card data: cards, stats, genes, DNA or traits (S
 
 test('the route table, request and response schemas and path parameters cover every operation', () => {
   const ops = Object.keys(API_ROUTES) as ApiOp[]
-  assert.equal(ops.length, 46)
+  assert.equal(ops.length, 47)
   for (const op of ops) {
     const route = API_ROUTES[op]
     assert.ok(Object.hasOwn(REQUEST_SCHEMAS, op) && Object.hasOwn(RESPONSE_SCHEMAS, op), op)
@@ -398,7 +412,7 @@ test('the route table, request and response schemas and path parameters cover ev
   throwsAt(() => parsePathParam('nope', 'x'), '$.nope')
   const offline = ops.filter(op => API_ROUTES[op].offline)
   for (const op of ['me', 'cards', 'openPack', 'startBattle', 'finishBattle', 'fuse', 'craft', 'trader', 'traderDeal'] as ApiOp[]) assert.ok(offline.includes(op), op)
-  for (const op of ['join', 'offer', 'gift', 'claim', 'redeem', 'leaderboard', 'profile', 'resetToken'] as ApiOp[]) assert.ok(!offline.includes(op), op)
+  for (const op of ['join', 'offer', 'gift', 'claim', 'redeem', 'leaderboard', 'profile', 'resetToken', 'openPacks'] as ApiOp[]) assert.ok(!offline.includes(op), op)
 })
 
 test('drop rewards (reward_json) are parsed strictly', () => {
@@ -423,4 +437,82 @@ test('cleanText strips escapes, control and bidi characters, and cuts long text'
   assert.equal(cleanText('x'.repeat(100), 10), 'x'.repeat(9) + '…')
   assert.equal(cleanText('🟩'.repeat(5), 3), '🟩🟩…')
   assert.equal(cleanText(42), '')
+})
+
+test('release notes: a note that does not read is dropped, and the version answer never fails over notes', () => {
+  const base = { api: 1, server: '0.3.0', rules: 1, generator: 2, minClient: '0.1.0', latestClient: '0.3.0', features: ['open-many'] }
+  const hl = (short: string, text = 'Open every waiting pack at once.') => ({ short, text })
+  const note = (version: string, ...highlights: unknown[]) => ({ version, date: '2026-11-09', highlights: highlights.length ? highlights : [hl('Open all')] })
+  const read = (notes: unknown) => parse(V.versionResponseSchema, { ...base, notes })
+  const notesOf = (notes: unknown) => {
+    const out = read(notes)
+    assert.deepEqual({ ...out, notes: undefined }, { ...base, notes: undefined }, 'the rest of the answer stays intact')
+    return out.notes
+  }
+
+  // absent, or not a list at all
+  assert.deepEqual(parse(V.versionResponseSchema, base), base)
+  assert.ok(!('notes' in parse(V.versionResponseSchema, base)))
+  for (const junk of ['0.3.0', 7, null, true, {}, { 0: note('0.3.0') }]) assert.deepEqual(notesOf(junk), [], JSON.stringify(junk))
+
+  // at most NOTE_READ.releases releases, the first ones
+  const nine = Array.from({ length: 9 }, (_, i) => note(`0.2.${20 - i}`))
+  assert.deepEqual(notesOf(nine), nine.slice(0, V.NOTE_READ.releases))
+
+  // a release that does not read is skipped and the rest are kept, in order
+  const good = note('0.3.0')
+  const older = note('0.2.16', hl('Wrapped rewards'))
+  for (const bad of [
+    note('0.3.1-beta.1'), note('0.3'), note('v0.3.1'), { ...note('0.3.1'), date: '2026-13-01' }, { ...note('0.3.1'), date: 'today' },
+    { ...note('0.3.1'), highlights: [] }, { ...note('0.3.1'), highlights: 'Open all' }, { ...note('0.3.1'), highlights: [hl(''), hl('x', '')] },
+    { version: '0.3.1', date: '2026-11-09' }, 'release', 42, null, [good],
+  ]) assert.deepEqual(notesOf([bad, good, older]), [good, older], JSON.stringify(bad))
+
+  // a highlight that does not read is skipped; its release keeps the others
+  const unsafe = [
+    '\u202eevil', 'letter\u061cmark', 'Cafe\u0301', '新しい', 'Party \u{1f389}', 'double  space', ' leading', 'trailing ', 'soft\u00adhyphen',
+    'tab\there', 'line\nbreak', `escape${String.fromCharCode(27)}[31m`, 'zero\u200bwidth', 'em \u2014 dash',
+    // DEL and the C1 controls (U+009B starts a terminal escape), and spaces that look like none or like two
+    'del\u007f', 'next\u0085line', 'csi\u009b31m', 'osc\u009dx', '\u00a0lead', 'no\u00a0break', 'two\u00a0\u00a0spaces', '\u00a0', ' ',
+    'isolate\u2066x', 'joiner\u200dx', 'word\u2060joiner', 'bom\ufeffx', 'line\u2028sep', 'para\u2029sep',
+  ]
+  // written in escapes, so no editor can turn an invisible character in the class into another one
+  assert.match(V.NOTE_TEXT_RE.source, /^[\x20-\x7e]+$/)
+  for (const s of unsafe) {
+    assert.deepEqual(notesOf([note('0.3.0', hl(s), hl('Open all'))]), [note('0.3.0', hl('Open all'))], `short ${JSON.stringify(s)}`)
+    assert.deepEqual(notesOf([note('0.3.0', hl('Open all', s), hl('Card search'))]), [note('0.3.0', hl('Card search'))], `text ${JSON.stringify(s)}`)
+    assert.deepEqual(notesOf([note('0.3.0', hl(s)), good]), [good], `a release left with no highlights: ${JSON.stringify(s)}`)
+  }
+  const longest = hl('s'.repeat(V.NOTE_READ.short), 't'.repeat(V.NOTE_READ.text))
+  assert.deepEqual(notesOf([note('0.3.0', longest)]), [note('0.3.0', longest)])
+  assert.deepEqual(notesOf([note('0.3.0', hl('s'.repeat(V.NOTE_READ.short + 1)), hl('t', 't'.repeat(V.NOTE_READ.text + 1)), longest)]), [note('0.3.0', longest)])
+  const many = Array.from({ length: 9 }, (_, i) => hl(`Highlight ${i}`))
+  assert.deepEqual(notesOf([note('0.3.0', ...many)])![0]!.highlights, many.slice(0, V.NOTE_READ.highlights))
+  assert.deepEqual(notesOf([note('0.3.0', { ...hl('Open all'), mark: 'sparkle' })]), [note('0.3.0', hl('Open all'))], 'unknown keys are stripped')
+
+  // the plain words notes are written in
+  for (const s of ['Now! below the fight', 'Café, naïve, Straße', '“Quotes” and ‘single’ – dashes…', 'Odds: 1/8 (or 12.5%) #v0.3.0']) assert.match(s, V.NOTE_TEXT_RE)
+
+  // only the first 4 * max items are looked at, so junk cannot make the reader walk a long list
+  const scan = 4 * V.NOTE_READ.releases
+  assert.deepEqual(notesOf([...Array.from({ length: scan - 1 }, () => 'junk'), good]), [good])
+  assert.deepEqual(notesOf([...Array.from({ length: scan }, () => 'junk'), good]), [])
+  const hscan = 4 * V.NOTE_READ.highlights
+  assert.deepEqual(notesOf([note('0.3.0', ...Array.from({ length: hscan - 1 }, () => 'junk'), hl('Open all'))]), [note('0.3.0', hl('Open all'))])
+  assert.deepEqual(notesOf([note('0.3.0', ...Array.from({ length: hscan }, () => 'junk'), hl('Open all')), older]), [older])
+
+  // the rest of the answer is still read strictly: notes never hide a bad version field
+  throwsAt(() => parse(V.versionResponseSchema, { ...base, latestClient: 'latest', notes: [good] }), '$.latestClient')
+})
+
+test('kept: a tolerant list skips only what fails its schema', () => {
+  const k = V.S.kept(V.S.int(0, 9), 2)
+  assert.deepEqual(parse(k, [1, 'x', 2, 3]), [1, 2])
+  assert.deepEqual(parse(k, ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 1]), [])
+  assert.deepEqual(parse(k, 'not a list'), [])
+  const out = parse(k, [4])
+  const again = parse(k, [4])
+  assert.notEqual(out, again, 'a fresh list every time')
+  const broken = V.S.kept<number>(() => { throw new TypeError('a bug, not bad data') }, 2)
+  assert.throws(() => parse(broken, [1]), TypeError)
 })

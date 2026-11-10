@@ -16,7 +16,7 @@ import type { Db, SqlParam, Stmt } from '../db.ts'
 import type { CardRow, GiftRow, OfferRow, PackRow } from '../schema.ts'
 import { catalogOf, dayStart, ensureSeasons, newId, notFound, readJson } from './ctx.ts'
 import type { Env } from './ctx.ts'
-import { albumAdd, count } from './stats.ts'
+import { albumAdd, count, withoutRepeats } from './stats.ts'
 
 export type ArenaCounts = Record<Family, number>
 
@@ -301,7 +301,7 @@ export async function mintCards(env: Env, owner: string, fresh: readonly NewCard
     cards.push(caught(card) && finder ? { ...card, form: { ...card.form!, discoveredBy: finder } } : card)
   }
   if (fresh.length) stmts.push(bumpCards(owner))
-  return { cards, stmts }
+  return { cards, stmts: withoutRepeats(stmts) }
 }
 
 // ---- packs -------------------------------------------------------------------------------------

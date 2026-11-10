@@ -199,7 +199,10 @@ const FLOWS: FlowSpec[] = [
       await a.fails('buyPack', { family: 'opus' }, 'insufficient_sparks')
       await r.setup({ setup: 'trust', player: 'a' })
       for (const family of ['opus', 'fable'] as const) await a.call('buyPack', { family })
-      await openAll(a)
+      const [first, ...rest] = (await a.call('me', {})).packs
+      await a.call('openPack', { packId: first!.id })
+      await a.call('openPacks', { packIds: ids(rest) })
+      await a.fails('openPacks', { packIds: ids(rest) }, 'not_found')
       await a.fails('openPack', { packId: 'nosuchpackanywhere00000000' }, 'not_found')
       const [x, y, z] = await freeCards(r, a)
       await a.fails('fuse', { cardId: x!.id, otherId: x!.id }, 'bad_request')
@@ -525,7 +528,7 @@ const RETRY_AFTER = /^\s*\d{1,6}\s*$/
  * imports point at the live modules, its imported values (a format's RegExp) are written in, and readAnswer's
  * other checks follow at the end.
  */
-async function frozenReader(version: string): Promise<string> {
+export async function frozenReader(version: string): Promise<string> {
   const net = readFileSync(join(ROOT, 'plugin/hooks/client/net.ts'), 'utf8')
   for (const re of [JSON_CONTENT_TYPE, RETRY_AFTER]) if (!net.includes(String(re))) throw new Error(`client/net.ts no longer checks ${re}: update the recorder`)
   const core = join(ROOT, 'plugin/hooks/core')

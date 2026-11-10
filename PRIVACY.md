@@ -5,7 +5,7 @@ Spinlings is a game that runs inside Claude Code, which is where your work happe
 ## The short version
 
 - **Generated identity by default.** You start with a random token and a random handle. You may choose a public username; reusing a name from elsewhere can identify you. Nothing about your Claude account, email, organization or machine is ever sent by the mod.
-- **Nothing about your work leaves your machine.** The mod never reads your prompts, Claude's answers, tool calls, files, paths, repository names or cost.
+- **Nothing about your work leaves your machine.** The mod never reads your prompts, Claude's answers, tool calls, your files, paths, repository names or cost.
 - **Nothing about your usage is shown to anyone.** The only usage-related value the server receives is a model family (haiku, sonnet, opus or fable), only when you join, a pack charges or a battle starts. Nobody else sees it, and it is deleted with that pack or battle.
 - **Other players see a small, fixed set of things:** your handle, team, for-trade cards, album count and league, your market listings, and, unless you hide from the leaderboards, your game stats and places on the boards (counts such as duel wins and players beaten, as they stood at the last midnight, never with a time). They never see timestamps, activity, battle counts or which model you use. One caveat is under [What someone could still guess](#what-someone-could-still-guess).
 - **The server keeps the minimum and deletes on a schedule.** It stores no IP addresses and keeps no request logs. No telemetry, no analytics and no third-party requests, in the mod or on the server.
@@ -40,6 +40,8 @@ The mod reads only the shape of your Claude Code session:
 | The band and the pane | `ui.render` and `ui.close` (their size, focus, and that you pressed esc) | Drawing them, and going back one view |
 | A Desktop card or world-control click | `ui.message` from the Spinlings pane's own registered regions: an element key and a null payload | Selecting the displayed card or opening the world chooser; pointer coordinates remain local to the renderer |
 | The `/spin` command | `command.run` (the command's arguments) | The game's one command |
+| Whether Spinlings updates by itself | `$.fs.read` of Claude Code's plugin list (`known_marketplaces.json`), only for an installed copy; only the `spinlings` entry's `autoUpdate` flag is kept | The `/spin updates` light and the band's offer; written only when you press Turn it on or Turn it off (below), never sent |
+| Whether Claude Code may update plugins here | `$.env.get` of five names (below); only whether each is switched on is kept | The light saying auto-update can't run here |
 
 It never hooks `tool.call`, `prompt.submit`, `agent.spawn` or `classic.PermissionRequest`.
 
@@ -51,13 +53,26 @@ Some of the events above carry content the mod does not need, and it never reads
 - `cwd` on `session.start`;
 - the `messages` and `instructions` on `session.compact`.
 
-From `$.session` the mod calls only `model()`. It never uses `$.fs`, `$.process`, `$.model`, `$.prompt`, `$.tool`, `$.agent`, `$.mcp` or `$.env`. So it cannot read files, run programs, call a model, submit prompts, call tools, start agents, reach MCP servers or read environment variables. Run `claude plugin validate plugin` on a checkout to see every hook and every call it makes.
+From `$.session` the mod calls only `model()`. From `$.fs` it calls `read`, `stat` and `write`, all on one file: Claude Code's own plugin list, `known_marketplaces.json`, found four folders above the installed copy of the mod (`stat` also checks for Claude Code's lock beside it, `known_marketplaces.json.lock`). From `$.env` it calls only `get`, on five names spelled out in its source. It never uses `$.settings`, `$.process`, `$.model`, `$.prompt`, `$.tool`, `$.agent` or `$.mcp`. So it cannot read your other files or your settings, run programs, call a model, submit prompts, call tools, start agents or reach MCP servers. Run `claude plugin validate plugin` on a checkout to see every hook and every call it makes.
 
 Effort is held only in local view state. It changes the band's ink and your creature-frame glow, and nothing in a battle's rules or timing. Every round keeps the same pace, so low and max effort send the same request bytes at the same moments.
 
+### On your computer
+
+| What | Read | Written |
+|---|---|---|
+| Claude Code's plugin list, `known_marketplaces.json` | When a session starts, every 3 seconds while `/spin updates` is open (for up to 15 minutes), at most every ten minutes before the band offers updates, when you run `/spin version`, and around your press, when the mod also looks whether Claude Code's lock beside it (`known_marketplaces.json.lock`) is there | Only when you press **Turn it on** or **Turn it off**, and only the `spinlings` entry's `autoUpdate` switch |
+| Any `settings.json`, yours or a project's | Never opened | Never |
+| `DISABLE_UPDATES`, `DISABLE_AUTOUPDATER`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `FORCE_AUTOUPDATE_PLUGINS`, `CLAUDE_CODE_AUTOUPDATER_DISABLED_BY_HOST` (environment variables) | Only whether each is switched on; the text is never kept | Never |
+| Any other file or environment variable | Never | Never |
+
+The plugin list's text is held only for the moment of one check or press, then dropped; it is never stored, logged, shown or sent, online or offline. That matters because a marketplace you added from a private git address can carry a sign-in in its URL. Turn it on writes the file back exactly as Claude Code itself formats it, with only that one switch added. Before writing it checks that Claude Code is not saving the list, and after writing it waits out a save that was already under way and reads the file back. If its own write leaves the file blank or unreadable, it writes the old text back. Turn it off removes the switch again, and is offered only when the mod was the one that turned it on. A copy installed any other way opens no file.
+
+With auto-update on, Claude Code itself fetches the spinlings repository from GitHub when it starts, as it does for any marketplace you update. The mod sends nothing for it.
+
 ## What the mod keeps on your machine
 
-Claude Code's plugin storage on your machine holds your token, a copy of your online game for drawing it quickly, your offline save if you play offline, the last 20 requests the mod sent (for `/spin privacy`, with the token removed) and the mod's own bookkeeping (presence minutes, whether the game is quiet, sound and motion settings). Each server you use, and the offline world, keeps its own keys, and neither world ever reads the other's. The token never appears in logs, shares or the privacy view.
+Claude Code's plugin storage on your machine holds your token, a copy of your online game for drawing it quickly, your offline save if you play offline, the last 20 requests the mod sent (for `/spin privacy`, with the token removed) and the mod's own bookkeeping (presence minutes, whether the game is quiet, sound and motion settings, your answers to the auto-update offer, whether the mod turned auto-update on, so that only then it offers Turn it off, and the newest version that has run on this computer, `release`, so it says once what an update brought). From spinlings.dev it also keeps the release notes of its last version check, under that server's `notes` key: the newest releases' short labels and sentences, never anything about you. Each server you use, and the offline world, keeps its own keys, and neither world ever reads the other's. The token never appears in logs, shares or the privacy view.
 
 ## What the mod sends
 
@@ -78,6 +93,8 @@ These are all the kinds of request body the mod can send:
 | Reading your game, profiles, the trade board, the market, the leaderboards and the world | nothing but the market filters and the board you choose (a family, rarity, species, shiny, foil, kind, price range, sort; a board and all time or this season); a big collection or a long market comes a page at a time, and each next page is asked for by the marker the server sent with the last one |
 
 A model family is one of `haiku`, `sonnet`, `opus` or `fable`, never a model id. Every request also carries the mod's version in an `X-Spinlings-Client` header, which is the same for everyone on that version and is never stored. Claude Code's own HTTP layer may add standard headers such as a user agent; the server never stores them.
+
+The daily version check, `GET /v1/version`, sends nothing new: its answer also carries the newest releases' notes, which the mod keeps only from spinlings.dev. Opening `/spin updates` sends no request, the offline world shows the notes that came with the installed mod, and the Every release link to spinlings.dev/whats-new opens only when you press it.
 
 **Passkeys.** Saving or using a passkey happens on a page of the server that you open in your browser. That page sends the server what the browser's passkey prompt returns: a new public key when you save one, or a signature when you sign in. Nothing else about you or your device is sent.
 
@@ -134,7 +151,7 @@ The server keeps a date instead of a time wherever a game rule allows. It keeps 
 |---|---|
 | Your profile in the game | Your handle, team, cards marked for trade, album count and league, and your stats unless you hide from the leaderboards |
 | Your website profile at `{server}/u/{handle}` | The same public profile plus your complete held-card inventory, with filters and pages. Rating, board place and all-time/season game stats use the midnight snapshot and are hidden when you hide from the leaderboards. Inventory and discovery credit remain public. |
-| The players directory at `{server}/players` | Public handles and saved-team lead creatures, alphabetically or by a handle search. No activity, join dates or online status. Hiding from leaderboards hides statistics, not your public profile or directory entry. |
+| Search at `{server}/search` | Players: public handles and saved-team lead creatures, alphabetically or by a handle search. Cards: the public faces of held cards, by creature name, family, rarity, shiny or foil, with no owner shown. No activity, join dates or online status. Hiding from leaderboards hides statistics, not your public profile, cards or search entry. |
 | The leaderboards | Every player is on them unless they hide with `/spin leaderboard off`: your handle, league, rank and the board's number (rating, players beaten, duel wins, species, Mythics found or market sales), all time or this season. Every number is as it stood at the last midnight, so nobody can watch it move while you play. Hiding takes you off every board and your stats off your profile at once. If you joined while the leaderboard was opt-in, you got one notice when the boards opened to everyone; a new player gets one when they join. |
 | The market | Your open listings: your handle as it was when you listed, the card, the price, what you want in return and the day you listed it. Recent sale prices show species, rarity, shiny, foil, price and day, never who sold or bought. |
 | Defense notices | When someone duels your team, you get a notice with their handle and the result. When you duel someone, they get the same about you. The time is rounded to "today" or "yesterday". |
@@ -151,7 +168,7 @@ Cards other players see show the creature, its level, stats and traits, and noth
 - **First discoveries:** the first card of a species anyone in the world obtains in a season keeps its `First Discovered` stamp. The website credits that species' original discoverer beside every copy and on its catalogue page, with a link to their public profile. Trading a card does not transfer discovery credit. Your public handle is recorded when the species is first found, and comes off that credit if you rename or delete your account; the website does not link your old and new names. Older finds are credited only when the original handle can be established safely; otherwise they say "a trainer". No discovery date or time is shown.
 - **Mythics:** if you catch a Mythic, its card says "Discovered by" your handle. The website's Mythic catalogue also shows the actual caught card, its name and the discoverer's public profile link. If the card no longer exists, its historical entry shows only the name and surviving credit, without invented artwork. If you change your handle or delete your account, your handle comes off the card and the list. Uncaught encounters and unused named Mythics are not revealed.
 
-**Public pages** (profiles, card pages at `{server}/c/{id}`, species pages, the Mythic catalogue and gift pages) show only the public game/card fields and discovery credits described above. Public drop pages show the code, reward, aggregate claims, supply, binding and closing time in UTC; they identify no claimants. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. The players directory submits its handle search, and public profiles submit collection filters, as same-origin GET forms. Other form destinations remain blocked. Passkey pages and the browser collection use `connect-src 'self'` to talk only to the same server; the collection shell contains no player data until you sign in.
+**Public pages** (profiles, card pages at `{server}/c/{id}`, species pages, the Mythic catalogue and gift pages) show only the public game/card fields and discovery credits described above. Public drop pages show the code, reward, aggregate claims, supply, binding and closing time in UTC; they identify no claimants. They load nothing from other sites. Their only scripts are the server's own files under `/static/`, and the page policy (`connect-src 'none'`) stops those scripts from sending anything. Search submits its name search and card filters, and public profiles submit collection filters, as same-origin GET forms. Other form destinations remain blocked. Passkey pages and the browser collection use `connect-src 'self'` to talk only to the same server; the collection shell contains no player data until you sign in.
 
 `/spin share` only copies text to your clipboard. Claude's Share profile copies only your public profile URL, or shows it for manual copying. Browser Share profile sends only that canonical public URL to your device's share sheet when you press it, with clipboard or manual-copy fallback. It never shares the private account URL, session or passkey data. Nothing is posted automatically.
 
@@ -184,5 +201,7 @@ Uninstalling the mod does not delete your account, so delete it first. Otherwise
 The promises on this page describe this code. Whoever runs a server controls it, and a modified server could keep more. The default server is run by the maintainer of this repository. `/spin world` opens the world chooser; `/spin world <url>` points the mod at a community server, including one you run yourself. `/spin world online` returns to `https://spinlings.dev`, and `/spin world offline` uses the local save. The existing `/spin server [url|default]` command remains a supported alias. The mod shows a one-time notice before it connects to any server other than `https://spinlings.dev`.
 
 ## Changes
+
+- **0.3.0 (2026-11-10).** The mod reads Claude Code's plugin list and whether five update variables are switched on, and writes the spinlings auto-update switch only on your press. It keeps the newest version that has run on this computer and spinlings.dev's release notes. The version check's request is unchanged; its answer also carries those notes. Open all sends the same pack ids Open pack does, up to ten in one request.
 
 Changes to this page are tracked in this repository's history. Questions go in a GitHub issue; security and privacy problems go through [SECURITY.md](SECURITY.md).

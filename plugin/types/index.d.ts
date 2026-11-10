@@ -220,6 +220,10 @@ export type SpinBoardName = 'rating' | 'beaten' | 'duelWins' | 'species' | 'myth
 export type SpinBoardPeriod = 'all' | 'season'
 export type SpinRankRow = { rank: number; handle: string; league: SpinLeague; value: number }
 export type SpinRankings = { board: SpinBoardName; period: SpinBoardPeriod; season: number; top: SpinRankRow[]; me?: SpinRankRow }
+/** One highlight of a release: a short label and one plain sentence. */
+export type SpinReleaseHighlight = { short: string; text: string }
+/** One release's notes (SPEC 32): its highlights, the most important first. */
+export type SpinReleaseNote = { version: string; date: string; highlights: SpinReleaseHighlight[] }
 export type SpinMarketSort = 'newest' | 'cheapest' | 'priciest'
 /** What the Market section asks for: its filter chips, as GET /v1/market takes them. */
 export type SpinMarketQuery = {
@@ -243,6 +247,22 @@ export type SpinLink = 'starting' | 'joining' | 'ready' | 'unreachable' | 'signe
 /** A passkey page the player opens in a browser; drawn as a Link plus its text, only on the server's own origin. */
 export type SpinSignIn = { kind: 'add' | 'signin'; url: string; until: number; status: 'pending' | 'added' | 'done' | 'expired' }
 
+/**
+ * Whether Claude Code updates this mod by itself when it starts (its marketplace's auto-update), as its plugin list
+ * says: `on`; `off`, the default (no flag at all), where Turn it on is one press; `off-chosen`, turned off on purpose
+ * (in /plugin, or by a settings declaration Claude Code copies in at start), which only /plugin changes back; `unknown`.
+ */
+export type SpinAutoUpdate = 'on' | 'off' | 'off-chosen' | 'unknown'
+
+/**
+ * The one-press switch (SPEC 32): pressing, or how the last press ended (`ok`, or why it could not). A list left
+ * unreadable (`broken`) carries `folder`, the folder that holds it, so the guide can say where it is: a path, never
+ * anything the file says.
+ */
+export type SpinAutoPress =
+  | { phase: 'pressing'; to: 'on' | 'off' }
+  | { phase: 'done'; to: 'on' | 'off'; result: 'ok' | 'busy' | 'cannot' | 'broken'; folder?: string }
+
 /** Which world is active and how the link to it stands. */
 export type SpinAccount = {
   /** Frozen species of the active online origin, resolved locally from immutable season answers. */
@@ -261,15 +281,41 @@ export type SpinAccount = {
   readOnly: boolean
   /**
    * a newer release the server names (latestClient, or minClient when only that is newer; never a pre-release): the
-   * pane footer's `Update to` chip shows it. Null when this mod is current, before
-   * the first handshake, and offline.
+   * pane footer's `Update to` chip and /spin updates show it. Null when this mod is current, before the first
+   * handshake, and offline.
    */
   latest: string | null
+  /**
+   * what the releases this mod is missing bring, newest first, from spinlings.dev's version answer only (another
+   * server's notes are never shown). Absent or empty: none known.
+   */
+  notes?: SpinReleaseNote[]
+  /** the UTC day of the version answer the account rests on (/spin updates: "checked today"); absent before one */
+  checked?: string
+  /** the version check is asking the server right now */
+  checking?: boolean
   /** what the server says it supports; anything it does not list is hidden */
   features: string[]
   signIn: SpinSignIn | null
   /** signed-in devices and saved passkeys, once asked */
   devices: { sessions: number; passkeys: number } | null
+  /**
+   * Claude Code's own auto-update setting for the spinlings marketplace, as its plugin registry says; `unknown` when
+   * the registry could not be read (a dev install, a missing file). Absent before the first read.
+   */
+  autoUpdate?: SpinAutoUpdate
+  /**
+   * Claude Code's update pass cannot run on this computer: an environment variable turns it off (DISABLE_UPDATES and
+   * its kin, read as booleans only). The setting then does nothing, so no switch is offered. Absent reads false.
+   */
+  autoUpdateHeld?: boolean
+  /**
+   * on, and this mod's own switch turned it on ($.store `autoupdate:mine`, or `autoupdate:pending` for a Turn it on a
+   * reload cut short): Turn it off is then ours to offer
+   */
+  autoUpdateOurs?: boolean
+  /** the one-press switch can write the plugin list here: an installed copy, in a host that lends the file */
+  autoUpdateWritable?: boolean
   /**
    * this online account has a passkey saved (this machine's record, or the devices count): the pane header's "not
    * backed up" marker and the passkey offers stop for good. Absent reads as not known yet (no marker).
@@ -291,8 +337,6 @@ export type SpinSignals = {
    * running turn's own time counts on top, from turnStartedAt. Starts over when an encounter begins. Absent reads 0.
    */
   worked?: number
-  /** subagents running now, counted only */
-  cheering: number
   /** a rate-limit window is full: when it resets (ms), for the comfort line; else null */
   restingUntil: number | null
 }
@@ -369,8 +413,14 @@ export type SpinMoment =
   | { kind: 'pack-ready'; id: string; count: number; until: number | null }
   /** a gift claimed or a trade received: a wrapped present */
   | { kind: 'present'; id: string; from: string; cardIds: string[]; until: null }
-  /** a newer mod is out: once per version, dismissible */
+  /** a newer mod is out, or this one can't play online until updated: once per version, dismissible */
   | { kind: 'update'; id: string; version: string; until: null }
+  /** this computer just started running a newer mod (`from` the one before, '' when not known): once per version */
+  | { kind: 'updated'; id: string; version: string; from: string; until: null }
+  /** the offer to turn on Claude Code's auto-update for this mod: Turn on auto-update, Not now or Don't ask again */
+  | { kind: 'auto-update'; id: string; until: null }
+  /** the switch just turned auto-update on (a confirmed write): the lead sparkles, and where to turn it off again */
+  | { kind: 'auto-on'; id: string; until: number }
   /**
    * The passkey offer, at a moment that made the collection worth keeping (a first rare catch, a legendary, a foil or
    * shiny, a first sale or trade): `card` is what made it, shown in the band; absent, a plain offer.
@@ -402,6 +452,12 @@ export type SpinReveal = {
   album: { before: number; after: number; total: number }
   /** a pack's tear has played: the strip of glowing backs is out */
   torn?: true
+  /**
+   * Every waiting pack opened at once: how many packs, how many are open so far, and once all are, `best`: how many of
+   * the cards get their own beat before the summary (they play first, the top pull last). `stopping`: Stop was
+   * pressed, so it ends after the request in flight. `newOnly`: the summary shows new species only.
+   */
+  bulk?: { packs: number; opened: number; best?: number; stopping?: true; newOnly?: true }
 }
 
 /** Things fetched on demand for the pane. */
@@ -438,6 +494,12 @@ export type SpinView =
   | { kind: 'trades' }
   | { kind: 'mine' }
   | { kind: 'help' }
+  /**
+   * /spin updates: whether this mod is current, how to get a newer one, what it brings, and Claude Code's auto-update
+   * with its one-press switch. `steps` opens the update steps (or, with nothing newer, the /plugin steps); `here` is
+   * the version the player just came from ('' when not known), when the band's "is here" opened it
+   */
+  | { kind: 'auto-update'; steps?: boolean; here?: string }
   | { kind: 'today'; rule?: SpinDailyRule }
   /** the leaderboards: one board at a time, all time or this season */
   | { kind: 'boards'; board: SpinBoardName; period: SpinBoardPeriod }
@@ -468,8 +530,6 @@ export type SpinPane = {
   hold: SpinHold | null
   /** the daily hello banner: the first pane open of each UTC day */
   hello: boolean
-  /** the update command is showing above the hint row, opened from the footer's version chip */
-  showUpdate: boolean
   /** one plain feedback line, '' when none */
   message: string
   /** how that line reads: 'good' for a success (the copied update command), drawn in the good ink; else a warning */
@@ -481,6 +541,8 @@ export type SpinPane = {
   /** a request in flight: its label (a dim placeholder shows after 300 ms) */
   busy: string | null
   busySince: number
+  /** the auto-update switch's press under way, or how the last one ended; absent or null: none since the guide opened */
+  autoPress?: SpinAutoPress | null
 }
 
 export type SpinCommunitySection = 'profile' | 'market' | 'boards' | 'trades'

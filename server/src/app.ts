@@ -75,10 +75,15 @@ export type Handler<C> = (ctx: C) => Response | Promise<Response>
  * row, up to 3 more times, then answers 409 conflict. So a handler has no other side effects.
  * `limit` names an in-memory bucket spent once before the first attempt. `touch: false` skips the
  * touch hooks for a read that never needs them (they run by default on every authenticated route).
+ * `weight` is how many requests this one counts as in the token bucket, read from the raw body once
+ * before the first attempt (opening several packs counts one per pack).
  */
 export type RouteSpec =
   | { method: Method; path: string; public: true; limit?: string; handler: Handler<Ctx> }
-  | { method: Method; path: string; public?: false; limit?: string; touch?: boolean; handler: Handler<PlayerCtx> }
+  | {
+    method: Method; path: string; public?: false; limit?: string; touch?: boolean; weight?: (body: unknown) => number
+    handler: Handler<PlayerCtx>
+  }
 
 export type Api = {
   add(route: RouteSpec): void
@@ -146,8 +151,8 @@ export function createApp(options: AppOptions): App {
   registerRoutes(api)
   options.register?.(api)
 
-  const spend = (name: string, key: string, at: number) => {
-    const wait = limits.take(name, key, at)
+  const spend = (name: string, key: string, at: number, cost = 1) => {
+    const wait = limits.take(name, key, at, cost)
     if (wait > 0) throw new HttpError('rate_limited', 'Slow down', 429, { 'Retry-After': String(Math.ceil(wait / 1000)) })
   }
 
@@ -174,6 +179,8 @@ export function createApp(options: AppOptions): App {
       spend('token', tokenHash, at)
     }
     const body = HAS_BODY.has(req.method) ? await readJson(req) : undefined
+    const extra = route.public ? 0 : (route.weight?.(body) ?? 1) - 1
+    if (extra > 0) spend('token', tokenHash!, at, extra)
     if (route.limit) spend(route.limit, tokenHash ?? address, at)
 
     const base = {
@@ -242,7 +249,7 @@ function originOf(origin: string): string {
 
 /**
  * True only for a well-formed client version below `min`; a missing or odd header passes. A
- * pre-release sorts before its release, as the mod's own compareSemver has it (client/remote.ts).
+ * pre-release sorts before its release, as the mod's own compareSemver has it (core/versions.ts).
  */
 export function tooOld(client: string | null, min: string): boolean {
   if (!client || client.length > 48 || !SEMVER_RE.test(client)) return false

@@ -2,37 +2,44 @@
 // handshake (32), presence and pack charging (6), waiting battles on the encounter timing (13), the content-blind
 // signal handlers (10), and every action the band and the pane can take. Pure in the sense the mod needs: it touches
 // the world only through the injected Fx, so it never reads a clock, rolls a die or sends a request on its own.
-import type { ApiOp, ApiRequest, ApiResponse, CardsResponse, ListingView, MeResponse, Notice, VersionResponse } from '../core/api.ts'
+import type { ApiOp, ApiRequest, ApiResponse, CardsResponse, ListingView, MeResponse, Notice, ReleaseNote, VersionResponse } from '../core/api.ts'
 import { API_ROUTES } from '../core/api.ts'
 import type { BattleCard, BattleLog, Card, Family, Rarity } from '../core/types.ts'
 import { RULES_VERSION, perfectRounds, simulateBattle } from '../core/battle.ts'
 import { cardName, rarityRank, toBattleCard } from '../core/cards.ts'
 import { ECONOMY, finishAfter, leagueOf } from '../core/economy.ts'
 import { FAMILY_INFO, familyOfModel } from '../core/families.ts'
+import { releaseOf } from '../core/releases.ts'
 import { DEFAULT_SERVER } from '../core/servers.ts'
 import { GENERATOR_VERSION } from '../core/species.ts'
 import { emojiMosaic, miniSprite, spriteFor } from '../core/sprite.ts'
+import { compareSemver, isRelease } from '../core/versions.ts'
 import { DAY_MS, seasonOf, utcDay } from '../core/world.ts'
+import { ADD_COMMAND, ADD_SHELL_COMMAND, ASK, PLUGIN_COMMAND, WATCH_FOR_MS, WATCH_MS, arrivesByItself, autoUpdateOf, mayAsk, oneTapOn, readAsk } from './autoupdate.ts'
+import { press as pressSwitch, readRecord } from './autoswitch.ts'
+import type { SwitchAnswer } from './autoswitch.ts'
+import { bulkReady, chunks, pullOrder, turns } from './bulk.ts'
 import { findCard, parseCommand } from './commands.ts'
 import { effortOf } from './effort.ts'
 import { hostOf, pageUrl, parseSent, pushSent, serverOrigin } from './net.ts'
 import {
   CLIENT_VERSION, UPDATE_COMMAND, createRemoteBackend, forgetToken, joinServer, loadToken, saveToken, versionDue, versionStatus,
 } from './remote.ts'
-import type { RemoteDeps } from './remote.ts'
+import type { RemoteDeps, VersionStatus } from './remote.ts'
 import {
   BEGINNER_BATTLES, HEARTBEAT_MS, REACTION_MS, afterCharge, chargeDue, encounterDue, leaseFor, mayHold, nextCheckIn,
   reactionLine, restingUntil, tickPresence, workedAfter,
 } from './session.ts'
 import type { ServerMeta, StoredPrefs, StoredPresence } from './store.ts'
-import { KEYS, cacheRecord, readCache, readMeta, readOfflineMeta, readPrefs, readPresence, serverKeys } from './store.ts'
+import { KEYS, cacheRecord, readCache, readMeta, readNotes, readOfflineMeta, readPrefs, readPresence, readRelease, serverKeys } from './store.ts'
 import type {
-  Account, Actions, Backend, Battle, BattleControl, BoardName, BoardPeriod, Catch, Chime, Fx, GameState, HoldAction, MarketQuery,
+  Account, Actions, AutoUpdate, AutoUpdateAnswer, Backend, Battle, BattleControl, BoardName, BoardPeriod, Catch, Chime, Fx, GameState, HoldAction, MarketQuery,
   MarketWant, Moment, Outcome, PaneUi, Reveal, RevealControl, Sent, SignIn, Slots, StateKey, Surface, Tab, Timer, View, World, WorldChoice, CommunitySection,
 } from './types.ts'
 import { BackendError, isBackendError, isUnreachable } from './types.ts'
 import { dayLabel, dots, safe, title } from './text.ts'
 import { createFrozenCatalog, createSeasonCache } from './frozen.ts'
+import { greeting, notesLine } from './whatsnew.ts'
 import { teamSlotChoices } from './team-slots.ts'
 import type { FrozenCatalog } from './frozen.ts'
 
@@ -41,13 +48,19 @@ const PANE_REFRESH_MS = 5 * 60_000
 const HOLD_MS = 2000
 const PACK_READY_MS = 6000
 const HINT_MS = 10_000
+/**
+ * The auto-update switch ignores a press this soon after its guide or offer appears, the setting changes, or a press
+ * settles: a key meant for what was there a moment ago never writes.
+ */
+export const AUTO_CALM_MS = 500
+/** How often the heartbeat looks at whether to offer auto-update, and how old the registry read for that offer may be. */
+const AUTO_OFFER_CHECK_MS = 10 * 60_000
 /** After a failed version handshake, /spin version reports the last answer at once for this long rather than wait again. */
 const VERSION_RETRY_MS = 10 * 60_000
 /** A picked catch waits this long for its answer before the band lets it go (the request times out sooner). */
 const CATCH_WAIT_MS = 20_000
 const POLL_MS = ECONOMY.client.pollEveryMs
 const OFFLINE_FALLBACK = 'Playing offline · /spin world online when you\'re connected'
-const MAX_AGENTS = 32
 
 /**
  * How long a round plays: one pace for every battle. A battle is finished on the server once its rounds have played,
@@ -83,14 +96,14 @@ export const INITIAL: GameState = {
   },
   me: null,
   cards: [],
-  signals: { family: 'sonnet', working: false, turnStartedAt: null, worked: 0, cheering: 0, restingUntil: null },
+  signals: { family: 'sonnet', working: false, turnStartedAt: null, worked: 0, restingUntil: null },
   battle: null,
   moments: [],
   reveal: null,
   social: { board: null, profile: null, trader: null, leaderboard: null, rankings: null, market: null, gift: null, loading: [] },
   pane: {
     tab: 'team', stack: [], family: 'all', rarity: 'all', album: 'haiku', page: 0, flipped: 0, hold: null, hello: false,
-    showUpdate: false, message: '', tone: 'warn', toCopy: '', community: 'profile', boards: { board: 'rating', period: 'all' }, market: MARKET_DEFAULT, busy: null, busySince: 0,
+    message: '', tone: 'warn', toCopy: '', community: 'profile', boards: { board: 'rating', period: 'all' }, market: MARKET_DEFAULT, busy: null, busySince: 0,
   },
   prefs: { quiet: false, motion: true, sound: false },
   presence: { minutes: 0, need: ECONOMY.packs.presenceMinutes, blocked: null },
@@ -172,10 +185,13 @@ export function rarestIndex(options: readonly Pick<Card, 'rarity' | 'shiny' | 'l
   return catchOrder(options)[0] ?? 0
 }
 
-/** Lower shows first; a catch waiting on a choice or an answer goes before everything (headMoment). */
+/**
+ * Lower shows first; a catch waiting on a choice or an answer goes before everything (headMoment). "Is here" never
+ * expires, so it waits behind the lines, which do.
+ */
 const MOMENT_RANK: Record<Moment['kind'], number> = {
   outcome: 1, evolve: 2, 'pack-ready': 3, market: 3.5, present: 4, 'needs-online': 5, server: 5, welcome: 5.5, line: 6, passkey: 8,
-  update: 9,
+  updated: 7, update: 9, 'auto-update': 9.5, 'auto-on': 6,
 }
 
 /**
@@ -255,7 +271,8 @@ export function pairMarketNotices(notices: readonly Notice[], gone: readonly Lis
 
 /**
  * The moment the band shows now: a catch choice first, then a result, an evolution, a ready pack, a present, the
- * welcome, a notice, the passkey offer, the update line; the oldest first within a kind. Null when the queue is empty.
+ * welcome, a notice or line, "is here", the passkey offer, "is out"; the oldest first within a kind. Null when the queue
+ * is empty.
  */
 export function headMoment(list: readonly Moment[]): Moment | null {
   let best: Moment | null = null
@@ -270,10 +287,12 @@ export function headMoment(list: readonly Moment[]): Moment | null {
 
 /**
  * The newer mod the active world knows of (SPEC 32): online only, and null while this one is current or before the
- * first handshake. A `$.state` value from before the field existed reads as null.
+ * first handshake. A `$.state` value from before the field existed reads as null, and so does one an older module
+ * left that names this very version (a reload into the update it announced).
  */
 export function newerMod(account: Pick<Account, 'world'> & { latest?: string | null }): string | null {
-  return account.world === 'online' && typeof account.latest === 'string' && account.latest !== '' ? safe(account.latest, 48) : null
+  const v = account.latest
+  return account.world === 'online' && typeof v === 'string' && isRelease(v) && compareSemver(v, CLIENT_VERSION) > 0 ? v : null
 }
 
 /** A pack indicator never advertises a signed-out or changing account's cached collection. */
@@ -317,7 +336,7 @@ export function failureText(err: unknown, host: string): string {
     case 'conflict': return 'That already happened.'
     case 'not_allowed': return 'That can\'t be done here.'
     case 'expired': return 'That has expired.'
-    case 'upgrade_required': return `This version is read-only on ${host} · ${UPDATE_COMMAND}`
+    case 'upgrade_required': return `This version can't play on ${host} until you update · /spin updates`
     case 'unauthorized': return `This computer is signed out of ${host}.`
     case 'unavailable': return isUnreachable(err) ? `Can't reach ${host} right now.` : safe(err.message, 80)
     default: return safe(err.message, 80) || 'That did not work.'
@@ -326,9 +345,11 @@ export function failureText(err: unknown, host: string): string {
 
 /**
  * `/spin version` (SPEC 32): this mod's version and world; online, the server's host and its server, rules and
- * generator versions, then "Up to date." or the update line. Offline names no server, since none is asked.
+ * generator versions, then "Up to date." or the update line, and what the missing releases bring (`notes`, from
+ * spinlings.dev only). The update line points to /spin updates, which has the steps this surface really offers.
+ * Offline names no server, since none is asked.
  */
-export function versionReport(account: Pick<Account, 'world' | 'host' | 'community'>, v: VersionResponse | null, client = CLIENT_VERSION): string {
+export function versionReport(account: Pick<Account, 'world' | 'host' | 'community' | 'server'>, v: VersionResponse | null, client = CLIENT_VERSION, notes: readonly ReleaseNote[] = []): string {
   const ours = (word: string, theirs: number, mine: number) => `${word} ${theirs}${theirs === mine ? '' : ` (this mod: ${mine})`}`
   if (account.world === 'offline') {
     return [`Spinlings ${client} · offline, so no server is asked`, `Rules ${RULES_VERSION} · generator ${GENERATOR_VERSION}`].join('\n')
@@ -336,15 +357,16 @@ export function versionReport(account: Pick<Account, 'world' | 'host' | 'communi
   const host = safe(account.host, 80)
   const where = `online on ${host}${account.community ? ' (a community server)' : ''}`
   if (!v) return [`Spinlings ${client} · ${where}`, `Can't tell whether an update is out until ${host} answers.`].join('\n')
-  const s = versionStatus(v, client)
+  const s = versionStatus(v, client, account.server)
   // a version is named only when it is a release: a pre-release tag is the server's free text
-  const status = s.readOnly ? `Read-only on ${host} until you update${s.target ? ` to ${s.target}` : ''} · ${UPDATE_COMMAND}`
-    : s.target ? `Spinlings ${s.target} is out · ${UPDATE_COMMAND}`
+  const status = s.readOnly ? `This version can't play on ${host} until you update${s.target ? ` to ${s.target}` : ''} · /spin updates`
+    : s.target ? `Spinlings ${s.target} is out · /spin updates`
     : 'Up to date.'
   return [
     `Spinlings ${client} · ${where} · server ${safe(v.server, 48)}`,
     dots(ours('Rules', v.rules, RULES_VERSION), ours('generator', v.generator, GENERATOR_VERSION)),
     status,
+    ...(notes.length > 0 ? [notesLine(notes, client)] : []),
   ].join('\n')
 }
 
@@ -390,8 +412,6 @@ export type Game = {
   turnStarted(fx: Fx): Promise<void>
   turnStep(fx: Fx, model: string, effort?: unknown): Promise<void>
   turnCompleted(fx: Fx, reason: string): Promise<void>
-  agentStarted(fx: Fx, agentId: string): Promise<void>
-  agentFinished(fx: Fx, agentId: string): Promise<void>
   measured(fx: Fx, limits: readonly { percentUsed: number; resetsAt?: string }[]): Promise<void>
   compacted(fx: Fx, trigger: string): Promise<void>
   heartbeat(fx: Fx): Promise<void>
@@ -421,6 +441,9 @@ export function createGame(o: GameOptions): Game {
     revealId: null as string | null,
     revealContinuation: null as { from: string; to: string; before: number; after: number } | null,
     openingPack: null as (() => boolean) | null,
+    /** the Open all whose requests are going out, and the one asked to stop after the request in flight */
+    bulkOpening: null as string | null,
+    bulkStop: null as string | null,
     /** Same-server sign-in/reset also invalidates a pending pack action. */
     packAccount: 0,
     /** New world choices and cancelled notices invalidate earlier asynchronous choices. */
@@ -437,7 +460,6 @@ export function createGame(o: GameOptions): Game {
     connecting: null as { place: number; done: Promise<void> } | null,
     poll: null as Timer | null,
     expiry: new Map<string, Timer>(),
-    agents: new Map<string, number>(),
     /** battles whose catch request is in flight in this load of the module */
     catching: new Set<string>(),
     /** a buy or a listing in flight: a second press of 1 while it runs sends nothing */
@@ -455,6 +477,17 @@ export function createGame(o: GameOptions): Game {
     remote: null as { origin: string; backend: Backend; frozen: FrozenCatalog } | null,
     sites: { band: null as string | null, pane: null as string | null },
     family: 'sonnet' as Family,
+    /** the auto-update steps are on screen: the registry is read again every few seconds, until this ends */
+    autoWatch: null as Timer | null,
+    /** when the registry was last read for the band's offer (0: never in this load) */
+    autoReadAt: 0,
+    /** when the heartbeat last looked at whether to make the offer */
+    autoCheckAt: 0,
+    /** the switch's press under way in this load, and a count of presses begun and ended (the watcher's chime defers) */
+    autoPressing: null as 'on' | 'off' | null,
+    autoPresses: 0,
+    /** when the guide or the offer last appeared, the setting last changed, or a press last settled (AUTO_CALM_MS) */
+    autoCalmAt: 0,
   }
 
   const cur = (fx: Fx) => rt.fx ?? fx
@@ -509,7 +542,7 @@ export function createGame(o: GameOptions): Game {
         delete: async key => { if (ok()) await fx.store.delete(key) },
       },
       ui: { ...fx.ui,
-        openPane: async () => ok() ? fx.ui.openPane() : false,
+        openPane: async keys => ok() ? fx.ui.openPane(keys) : false,
         toast: text => { if (ok()) fx.ui.toast(text) }, status: text => { if (ok()) fx.ui.status(text) },
         log: text => { if (ok()) fx.ui.log(text) }, sound: cue => { if (ok()) fx.ui.sound(cue) },
         blit: async (site, key, cells) => ok() ? fx.ui.blit(site, key, cells) : false,
@@ -606,7 +639,9 @@ export function createGame(o: GameOptions): Game {
   // ---------- moments (the band's queue) ----------
 
   async function pushMoment(fx: Fx, m: Moment): Promise<void> {
-    await upd(fx, 'moments', list => [...list.filter(x => x.id !== m.id), m].slice(-16))
+    // one version moment at a time, and "is out" wins: a newer release outdates the greeting for the one installed
+    const outdated = (x: Moment) => m.kind === 'update' && (x.kind === 'update' || x.kind === 'updated')
+    await upd(fx, 'moments', list => [...list.filter(x => x.id !== m.id && !outdated(x)), m].slice(-16))
     scheduleExpiry(fx, m)
   }
 
@@ -679,7 +714,7 @@ export function createGame(o: GameOptions): Game {
    * operation in the offline world shows the one-line "needs the online world" instead (SPEC 28). An answer or a
    * failure that comes back once play moved to another world or server is dropped: the caller gets null.
    */
-  async function run<K extends ApiOp>(fx: Fx, op: K, req: ApiRequest<K>, label: string, valid: () => boolean = () => true): Promise<ApiResponse<K> | null> {
+  async function run<K extends ApiOp>(fx: Fx, op: K, req: ApiRequest<K>, label: string, valid: () => boolean = () => true, busy = true): Promise<ApiResponse<K> | null> {
     if (!valid()) return null
     const { backend, account, ok: here } = await backendOf(fx)
     const ok = () => valid() && here()
@@ -695,7 +730,7 @@ export function createGame(o: GameOptions): Game {
     }
     const now = await fx.now()
     if (!ok()) return null
-    await upd(fx, 'pane', p => ok() ? { ...p, busy: label, busySince: now, message: '', toCopy: '' } : p)
+    if (busy) await upd(fx, 'pane', p => ok() ? { ...p, busy: label, busySince: now, message: '', toCopy: '' } : p)
     if (!ok()) return null
     try {
       const res = await backend.call(op, req)
@@ -718,8 +753,16 @@ export function createGame(o: GameOptions): Game {
   async function noteFailure(fx: Fx, err: unknown, ok: () => boolean): Promise<void> {
     if (!isBackendError(err)) return
     if (err.code === 'unauthorized') await upd(fx, 'account', a => (ok() ? { ...a, link: 'signed-out', note: signedOut(a.host) } : a))
-    else if (err.code === 'upgrade_required') await upd(fx, 'account', a => (ok() ? { ...a, readOnly: true } : a))
-    else if (isUnreachable(err)) await upd(fx, 'account', a => (ok() ? { ...a, link: a.link === 'ready' ? 'unreachable' : a.link, note: `Can't reach ${a.host} right now` } : a))
+    else if (err.code === 'upgrade_required') {
+      let origin: string | null = null
+      await upd(fx, 'account', a => {
+        if (!ok()) return a
+        if (a.world === 'online') origin = a.server
+        return { ...a, readOnly: true }
+      })
+      // the day's version answer came before this refusal: the next handshake asks again, and learns what is needed now
+      if (origin) await saveMeta(fx, origin, { versionClient: '' })
+    } else if (isUnreachable(err)) await upd(fx, 'account', a => (ok() ? { ...a, link: a.link === 'ready' ? 'unreachable' : a.link, note: `Can't reach ${a.host} right now` } : a))
   }
 
   // ---------- me and cards ----------
@@ -894,6 +937,9 @@ export function createGame(o: GameOptions): Game {
     const firstRun = prefs.world === null
     const world: World = prefs.world ?? 'online'
     const origin = serverOrigin(prefs.server ?? prefs.serverOption ?? DEFAULT_SERVER)
+    // the newest version that ran here is recorded before a first run's world is: a second session that finds the
+    // world set finds the record too, so a first install never greets itself
+    const greet = await recordRelease(fx, firstRun)
     if (firstRun) await savePrefs(fx, { world })
     await put(fx, 'prefs', { quiet: prefs.quiet, motion: prefs.motion, sound: prefs.sound })
     await upd(fx, 'signals', s => ({ ...s, family: rt.family }))
@@ -905,6 +951,12 @@ export function createGame(o: GameOptions): Game {
     const moved = before.world !== world || (world === 'online' && origin !== null && before.server !== origin)
     await setAccount(fx, world, origin)
     if (moved) await clearWorldState(fx)
+    // a reload keeps the old module's account, which judged the stored version answer for that module: judged again
+    // for this one at once, so the update just installed is never offered as newer than itself
+    if (world === 'online' && origin) {
+      const meta = await metaOf(fx, origin)
+      if (meta.version) await applyVersionAnswer(fx, origin, meta.version, meta.versionDay)
+    }
     if (world === 'online' && origin && !(await get(fx, 'me'))) {
       const cache = readCache(await fx.store.get(KEYS.cache(origin)))
       if (cache) {
@@ -915,10 +967,13 @@ export function createGame(o: GameOptions): Game {
     rt.heartbeat?.cancel()
     rt.heartbeat = fx.every(HEARTBEAT_MS, () => { void heartbeat(cur(fx)) })
     await sweepMoments(fx)
+    await greetRelease(fx, greet)
     const battle = await get(fx, 'battle')
     if (battle) drive(fx, battle.id)
     const reveal = await get(fx, 'reveal')
-    if (reveal && !reveal.packId) revealDrive(fx, reveal.id)
+    // a bulk opening cut short by a reload shows what had opened; the rest wait in the bank
+    if (reveal && !bulkReady(reveal)) await finishBulk(fx, reveal.id)
+    else if (reveal && !reveal.packId) revealDrive(fx, reveal.id)
     if (!rt.animating && o.slots.moments) {
       rt.animating = true
       const driver = o.slots.moments
@@ -927,6 +982,36 @@ export function createGame(o: GameOptions): Game {
     await publish(fx)
     // the join and the first answers never hold up the first prompt
     fx.after(0, () => { void connect(cur(fx), { firstRun, explicit: false, fallback: firstRun }) })
+    fx.after(0, () => { void readAutoUpdate(cur(fx)).catch(() => undefined) })
+  }
+
+  /**
+   * Whether boot greets this version, its record of the newest version that ran here moved forward first. A store that
+   * refuses the record (a full one) greets nothing: it would greet again on every boot, and never stops boot.
+   */
+  async function recordRelease(fx: Fx, firstRun: boolean): Promise<{ show: boolean; from: string }> {
+    const g = greeting(readRelease(await fx.store.get(KEYS.release)), firstRun, CLIENT_VERSION)
+    try {
+      if (g.save) await fx.store.set(KEYS.release, g.save)
+    } catch {
+      return { show: false, from: '' }
+    }
+    return { show: g.show, from: g.from }
+  }
+
+  /**
+   * Once per version on this computer, the band says a newer mod is here (SPEC 32): never on a first install, nothing
+   * after a downgrade, and not while it says a newer one still is out. Local only: nothing is asked of a server.
+   */
+  async function greetRelease(fx: Fx, g: { show: boolean; from: string }): Promise<void> {
+    // what an older module queued: "is here" for another version, or "is out" for one this computer now runs
+    const stale = (m: Moment) => m.kind === 'updated' && m.version !== CLIENT_VERSION || m.kind === 'update' && compareSemver(m.version, CLIENT_VERSION) <= 0
+    for (const m of (await get(fx, 'moments')).filter(stale)) await dropMoment(fx, m.id)
+    if (g.show && releaseOf(CLIENT_VERSION) && !(await get(fx, 'moments')).some(m => m.kind === 'update')) {
+      await pushMoment(fx, { kind: 'updated', id: `updated:${CLIENT_VERSION}`, version: CLIENT_VERSION, from: g.from, until: null })
+    }
+    // a check a reload cut short is not still asking
+    await upd(fx, 'account', a => (a.checking ? { ...a, checking: false } : a))
   }
 
   /** Online with a stored server address Spinlings can't use (setAccount without an origin): no server is asked anything. */
@@ -945,23 +1030,30 @@ export function createGame(o: GameOptions): Game {
     const kept = (a: Account) => a.world === world && !(origin && badAddress(a))
     let accepted = false
     let fence: number | null = null
+    let other = false
     await upd(fx, 'account', a => {
       accepted = !intent || intent.current() && (fence === null ? here() : rt.place === fence)
       if (accepted && intent) {
         if (moving && fence === null) { rt.place++; fence = rt.place }
         intent.commit(rt.place)
       }
-      return !accepted ? a : ({
-        ...a, world, server, host: hostOf(server), community: server !== DEFAULT_SERVER,
+      if (!accepted) return a
+      // what a server said about versions holds for that server alone; the handshake says it again
+      other = world === 'offline' || a.server !== server
+      const { notes: _notes, checked: _checked, checking: _checking, ...unsaid } = a
+      return {
+        ...(other ? unsaid : a), world, server, host: hostOf(server), community: server !== DEFAULT_SERVER,
         link: world === 'online' && !origin ? 'unreachable' : kept(a) && (world === 'offline' || a.server === server) ? a.link : 'starting',
         note: world === 'online' && !origin ? 'The server address in settings is not one Spinlings can use (https only)' : kept(a) ? a.note : '',
         features: world === 'offline' ? OFFLINE_FEATURES : a.world === 'offline' || a.server !== server ? [ONLINE_FEATURES_UNKNOWN] : a.features,
         species: world === 'offline' || a.server !== server ? undefined : a.species,
         readOnly: world === 'offline' ? false : a.readOnly,
-        // what a server said about newer mods holds for that server alone; the handshake says it again
-        latest: world === 'offline' || a.server !== server ? null : a.latest ?? null,
-      })
+        latest: other ? null : a.latest ?? null,
+      }
     })
+    // "is out" was that server's news: it goes with what the server said, so its What's new never opens on a guide that
+    // no longer knows the release ("is here" is this computer's own, and stays)
+    if (accepted && other) for (const m of (await get(fx, 'moments')).filter(x => x.kind === 'update')) await dropMoment(fx, m.id)
     if (intent && (!accepted || !intent.current())) return false
     if (moving && accepted) rt.place++
     if (intent) intent.commit(rt.place)
@@ -1112,39 +1204,80 @@ export function createGame(o: GameOptions): Game {
     }
   }
 
-  /** The version handshake, once a UTC day (SPEC 32). */
+  /**
+   * The version handshake, once a UTC day (SPEC 32). spinlings.dev's release notes are kept under their own key, and
+   * notes from any other server are never kept or shown. A newer release is announced once in the band, unless
+   * Claude Code's auto-update brings it by itself; a version this one can't play online without always is.
+   */
   async function handshake(fx: Fx, origin: string): Promise<void> {
     const now = await fx.now()
     const today = utcDay(now)
     const meta = await metaOf(fx, origin)
+    const official = origin === DEFAULT_SERVER
+    const mine = (a: Account) => a.world === 'online' && a.server === origin
     let version = meta.version
+    let day = meta.versionDay
     if (!version || versionDue(meta.versionDay, today) || meta.versionClient !== CLIENT_VERSION) {
+      await upd(fx, 'account', a => (mine(a) ? { ...a, checking: true } : a))
       try {
-        version = await remote(origin).version({})
-        await saveMeta(fx, origin, { version, versionDay: today, versionClient: CLIENT_VERSION })
+        const { notes, ...answer } = await remote(origin).version({})
+        version = answer
+        day = today
+        await saveMeta(fx, origin, { version: answer, versionDay: today, versionClient: CLIENT_VERSION })
+        if (official) await fx.store.set(KEYS.notes(origin), { v: 1, notes: notes ?? [] })
       } catch {
         // an older server without /v1/version, or a blip: keep the last answer
         rt.versionFailedAt = now
+      } finally {
+        await upd(fx, 'account', a => (mine(a) && a.checking ? { ...a, checking: false } : a))
       }
     }
     if (!version) return
-    const v = versionStatus(version)
-    // what a server says holds for that server alone: an answer that lands after a switch is kept in its meta only
-    let here = false
-    await upd(fx, 'account', a => {
-      here = a.world === 'online' && a.server === origin
-      return here ? { ...a, readOnly: v.readOnly, features: v.features, latest: v.target } : a
-    })
-    if (!here) return
-    if (v.update) {
-      const prefs = await prefsRecord(fx)
-      if (prefs.updateSeen !== v.update) {
-        await savePrefs(fx, { updateSeen: v.update })
-        await pushMoment(fx, { kind: 'update', id: `update:${v.update}`, version: v.update, until: null })
+    const v = await applyVersionAnswer(fx, origin, version, day)
+    if (!v) return
+    await upd(fx, 'account', a => (mine(a) ? { ...a, features: v.features } : a))
+    const due = v.update ?? (v.readOnly ? v.target : null)
+    // the band never keeps saying a release is out once the server names another (a newer one, or none: a rollback)
+    for (const m of (await get(fx, 'moments')).filter(x => x.kind === 'update' && x.version !== due)) await dropMoment(fx, m.id)
+    // each is news once: that a release is out, and that this version can't play online without it, even when the
+    // same release was already told as out
+    const prefs = await prefsRecord(fx)
+    if (due && (v.readOnly ? prefs.neededSeen : prefs.updateSeen) !== due) {
+      await savePrefs(fx, v.readOnly ? { updateSeen: due, neededSeen: due } : { updateSeen: due })
+      // whether it comes by itself rests on Claude Code's own setting, so its first read comes first
+      if ((await get(fx, 'account')).autoUpdate === undefined) await readAutoUpdate(fx).catch(() => undefined)
+      // a switch of world or server during that read has already dropped this server's news, and this goes with it
+      const a = await get(fx, 'account')
+      if (!mine(a)) return
+      if (v.readOnly || !arrivesByItself(a)) {
+        const id = `update:${due}`
+        await pushMoment(fx, { kind: 'update', id, version: due, until: null })
+        if (!mine(await get(fx, 'account'))) await dropMoment(fx, id)
       }
     }
     const cards = await get(fx, 'cards')
     if (cards.length > 0) await ensureSeasons(fx, cards)
+  }
+
+  /**
+   * What `origin`'s version answer says about this mod, put on the account while it is still for that origin (what a
+   * server says holds for that server alone): whether it can play online, the newest release and what the missing ones
+   * bring (spinlings.dev's notes only), and the day it was asked. Null once the account is for another place.
+   */
+  async function applyVersionAnswer(fx: Fx, origin: string, version: VersionResponse, day: string): Promise<VersionStatus | null> {
+    const v = await versionStatusOf(fx, origin, version)
+    let here = false
+    await upd(fx, 'account', a => {
+      here = a.world === 'online' && a.server === origin
+      return here ? { ...a, readOnly: v.readOnly, latest: v.target, notes: v.notes, checked: day } : a
+    })
+    return here ? v : null
+  }
+
+  /** What `origin`'s version answer says about this mod, with spinlings.dev's stored release notes (no other server's). */
+  async function versionStatusOf(fx: Fx, origin: string, version: VersionResponse): Promise<VersionStatus> {
+    const notes = origin === DEFAULT_SERVER ? readNotes(await fx.store.get(KEYS.notes(origin))) : []
+    return versionStatus({ ...version, notes }, CLIENT_VERSION, origin)
   }
 
   async function clearWorldState(fx: Fx, intent?: WorldIntent): Promise<void> {
@@ -1159,7 +1292,9 @@ export function createGame(o: GameOptions): Game {
     await put(fx, 'battle', null)
     await put(fx, 'reveal', null)
     await put(fx, 'social', INITIAL.social)
-    await upd(fx, 'moments', list => list.filter(m => m.kind === 'update' || !!intent && m.kind === 'server'
+    // what the band says about this mod's own version is not the account's: it stays (setAccount takes "is out" away
+    // once the account no longer knows that release)
+    await upd(fx, 'moments', list => list.filter(m => m.kind === 'update' || m.kind === 'updated' || !!intent && m.kind === 'server'
       && rt.worldPreparing?.seq === rt.worldChoice && m.origin === rt.worldPreparing.origin))
     await upd(fx, 'pane', p => ({ ...p, stack: [], hold: null, busy: null, message: '', toCopy: '' }))
     await upd(fx, 'account', a => {
@@ -1244,18 +1379,6 @@ export function createGame(o: GameOptions): Game {
     await line(fx, reactionLine(kind, nameOf(lead)), 'reaction', REACTION_MS)
   }
 
-  async function agentStarted(fx: Fx, agentId: string): Promise<void> {
-    const now = await fx.now()
-    for (const [id, at] of rt.agents) if (now - at > 30 * 60_000) rt.agents.delete(id)
-    if (rt.agents.size < MAX_AGENTS) rt.agents.set(agentId, now)
-    await upd(fx, 'signals', s => ({ ...s, cheering: rt.agents.size }))
-  }
-
-  async function agentFinished(fx: Fx, agentId: string): Promise<void> {
-    if (!rt.agents.delete(agentId)) return
-    await upd(fx, 'signals', s => ({ ...s, cheering: rt.agents.size }))
-  }
-
   async function measured(fx: Fx, limits: readonly { percentUsed: number; resetsAt?: string }[]): Promise<void> {
     const until = restingUntil(limits, await fx.now())
     const s = await get(fx, 'signals')
@@ -1285,6 +1408,10 @@ export function createGame(o: GameOptions): Game {
     } else if (account.link === 'unreachable' && account.world === 'online' && now - rt.lastRefresh >= PANE_REFRESH_MS) {
       rt.lastRefresh = now
       await connect(fx, { firstRun: false, explicit: false, fallback: false })
+    }
+    if (now - rt.autoCheckAt >= AUTO_OFFER_CHECK_MS) {
+      rt.autoCheckAt = now
+      await offerAutoUpdate(fx, now)
     }
     await publish(fx)
   }
@@ -1664,6 +1791,145 @@ export function createGame(o: GameOptions): Game {
     } finally { if (rt.openingPack === ok) rt.openingPack = null }
   }
 
+  /**
+   * Every waiting pack at once (SPEC 13.5): ten to an openPacks request where the server lists `open-many`, else one
+   * openPack at a time, while the pane shows the stack of packs going down; Claude keeps working meanwhile. A refusal
+   * keeps what opened and leaves the rest waiting, and closing the reveal stops after the request in flight. Then the
+   * best pulls play, then every card in a summary.
+   */
+  async function openAll(fx: Fx, valid: () => boolean = () => true): Promise<void> {
+    const here = packStays(), ok = () => here() && valid()
+    const base = packFx(fx, ok)
+    if (!ok() || rt.openingPack?.()) return
+    const [me, account, active] = await Promise.all([get(base, 'me'), get(base, 'account'), get(base, 'reveal')])
+    if (!ok() || !me) return
+    // a reveal with cards still to see comes first; a sealed preview holds none, so it gives way
+    if (active && !active.packId) return openPane(base, { view: { kind: 'reveal' }, revealId: active.id })
+    const packs = [...me.packs].sort((a, b) => Number(b.source === 'welcome') - Number(a.source === 'welcome'))
+    if (packs.length === 0) {
+      await openPane(base, { tab: 'team' })
+      if (ok()) await message(base, 'No packs waiting. The next one charges while you work.')
+      return
+    }
+    const now = await base.now()
+    if (!ok()) return
+    const seen = new Set(me.player.seen)
+    const before = me.player.seen.filter(x => x.startsWith(`s${seasonOf(now)}-`)).length
+    await dropMoment(base, 'pack-ready')
+    if (!ok() || rt.openingPack?.()) return
+    const id = `bulk:${now.toString(36)}:${++rt.revealSeq}`
+    let epoch = 0
+    await upd(base, 'reveal', () => {
+      epoch = rt.revealEpoch + 1
+      return {
+        id, kind: 'pack', family: packs[0]!.family, cards: [], packs: [], fresh: [], album: { before, after: before, total: 36 },
+        torn: true, bulk: { packs: packs.length, opened: 0 },
+      }
+    })
+    const live = () => ok() && rt.revealEpoch === epoch
+    if (!live()) return
+    const show = packFx(base, live)
+    await upd(show, 'pane', p => ({ ...p, flipped: 0, message: '', toCopy: '' }))
+    await openPane(show, { view: { kind: 'reveal' }, revealId: id })
+    const many = account.world === 'online' && account.features.includes('open-many')
+    const opened = new Set<string>()
+    // Stop (esc) or another reveal taking the stage ends it after the request in flight; that answer is kept, since
+    // the server has already opened those packs
+    const stopped = () => !live() || rt.bulkStop === id
+    let sent = false
+    const openGroup = async (list: readonly MeResponse['packs'][number][]): Promise<{ packId: string; cards: Card[] }[]> => {
+      const got: { packId: string; cards: Card[] }[] = []
+      if (many) {
+        sent = true
+        const res = await run(base, 'openPacks', { packIds: list.map(p => p.id) }, 'Opening packs', ok, false)
+        if (res) got.push(...res.opened.filter(o => list.some(p => p.id === o.packId) && !opened.has(o.packId)))
+        return got
+      }
+      for (const p of list) {
+        if (stopped()) break
+        sent = true
+        const res = await run(base, 'openPack', { packId: p.id }, 'Opening packs', ok, false)
+        if (!res) break
+        got.push({ packId: p.id, cards: res.cards })
+      }
+      return got
+    }
+    rt.openingPack = ok
+    rt.bulkOpening = id
+    try {
+      for (const group of chunks(packs)) {
+        if (stopped() || !ok()) break
+        let got = await openGroup(group)
+        let gone = 0
+        if (got.length < group.length && ok() && !stopped()) {
+          // a pack opened elsewhere (another session) refuses the whole request: the bank is read again, and the
+          // packs still in it go once more
+          await refresh(base)
+          const bank = new Set((await get(base, 'me'))?.packs.map(p => p.id) ?? [])
+          const rest = group.filter(p => bank.has(p.id) && !got.some(o => o.packId === p.id))
+          gone = group.length - got.length - rest.length
+          if (gone > 0 && rest.length > 0 && ok() && !stopped()) {
+            const more = await openGroup(rest)
+            got = [...got, ...more]
+            if (more.length === rest.length) await upd(base, 'pane', p => ({ ...p, message: '', toCopy: '' }))
+          }
+        }
+        if (!ok()) break
+        for (const o of got) opened.add(o.packId)
+        // what opened is gone from the bank whether or not the reveal is still on show
+        if (got.length > 0) await upd(base, 'me', m => (m ? { ...m, packs: m.packs.filter(p => !opened.has(p.id)) } : m))
+        const cards = got.flatMap(o => o.cards)
+        await upd(show, 'reveal', r => {
+          if (r?.id !== id || !r.bulk) return r
+          const fresh = [...new Set([...r.fresh, ...cards.map(c => c.species).filter(x => /^s\d/.test(x) && !seen.has(x))])]
+          return { ...r, cards: [...r.cards, ...cards], fresh, bulk: { ...r.bulk, packs: r.bulk.packs - gone, opened: r.bulk.opened + got.length } }
+        })
+        if (got.length + gone < group.length) break
+      }
+    } finally {
+      if (rt.openingPack === ok) rt.openingPack = null
+      if (rt.bulkOpening === id) rt.bulkOpening = null
+      if (rt.bulkStop === id) rt.bulkStop = null
+    }
+    if (!ok()) return
+    if (packs.some(p => p.source === 'welcome' && opened.has(p.id))) await welcomeDone(base, false)
+    await finishBulk(show, id, live)
+    if (ok() && sent) await refresh(base)
+  }
+
+  /** Every pack asked for is open (or the rest could not be): the best pulls go first, and the ceremony plays. */
+  async function finishBulk(fx: Fx, id: string, valid: () => boolean = () => true): Promise<void> {
+    const now = await fx.now()
+    if (!valid()) return
+    const season = `s${seasonOf(now)}-`
+    let ready: Reveal | null = null
+    await upd(fx, 'reveal', r => {
+      ready = null
+      if (!valid() || r?.id !== id || !r.bulk || r.bulk.best !== undefined) return r
+      const { cards, best } = pullOrder(r.cards, new Set(r.fresh))
+      ready = { ...r, cards, album: { ...r.album, after: r.album.before + r.fresh.filter(x => x.startsWith(season)).length }, bulk: { ...r.bulk, best } }
+      return ready
+    })
+    const done = ready as Reveal | null
+    if (!done || !valid()) return
+    if (done.cards.length === 0) {
+      // nothing opened: the reveal goes, and the pane's message says why
+      await upd(fx, 'reveal', r => (r?.id === id ? null : r))
+      await upd(fx, 'pane', p => ({ ...p, flipped: 0, stack: p.stack.filter(v => v.kind !== 'reveal') }))
+      return
+    }
+    await upd(fx, 'pane', p => ({ ...p, flipped: 0 }))
+    revealDrive(fx, id, valid)
+  }
+
+  /** Skip: every card face up at once, so the summary shows. */
+  async function skipReveal(fx: Fx, revealId?: string): Promise<void> {
+    const ok = packStays(), serial = rt.revealSeq
+    const r = await get(fx, 'reveal')
+    if (!ok() || serial !== rt.revealSeq || !r || r.packId || !bulkReady(r) || revealId && r.id !== revealId) return
+    await flipTo(packFx(fx, () => ok() && serial === rt.revealSeq), r.id, r.cards.length)
+  }
+
   async function showReveal(fx: Fx, kind: Reveal['kind'], family: Family | null, cards: Card[], packs: ApiResponse<'redeem'>['packs'],
     seenBefore: readonly string[], inline = false, replacedId?: string, valid: () => boolean = () => true): Promise<void> {
     if (!valid()) return
@@ -1722,9 +1988,12 @@ export function createGame(o: GameOptions): Game {
     const r = await get(fx, 'reveal')
     if (!ok() || serial !== rt.revealSeq || !r || revealId && r.id !== revealId) return
     if (r.packId) return openPack(fx, r.packId, !!r.inline, ok)
+    if (!bulkReady(r)) return
     const p = await get(fx, 'pane')
     if (!ok() || serial !== rt.revealSeq) return
-    if (p.flipped < r.cards.length) await flipTo(packFx(fx, () => ok() && serial === rt.revealSeq), r.id, p.flipped + 1)
+    // a bulk opening turns its best pulls one by one, then the rest at once into the summary
+    const next = p.flipped < turns(r) ? p.flipped + 1 : r.cards.length
+    if (p.flipped < r.cards.length) await flipTo(packFx(fx, () => ok() && serial === rt.revealSeq), r.id, next)
     else await doneReveal(fx, r.id)
   }
 
@@ -1733,9 +2002,12 @@ export function createGame(o: GameOptions): Game {
     const live = () => ok() && serial === rt.revealSeq
     fx = packFx(fx, live)
     const r = await get(fx, 'reveal')
-    if (!live() || !r || revealId && r.id !== revealId) return
-    // the passkey offer waits until every card is face up, so it never names a creature still hidden
-    const best = [...r.cards].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity)).find(c => worthKeeping(c))
+    // packs still opening are not done: Stop waits for the request in flight, then the summary shows
+    if (!live() || !r || revealId && r.id !== revealId || !bulkReady(r)) return
+    // the passkey offer names only a card already face up, never a creature still hidden (Done part way, say)
+    const up = r.cards.slice(0, (await get(fx, 'pane')).flipped)
+    if (!live()) return
+    const best = [...up].sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity)).find(c => worthKeeping(c))
     if (best) await valueMoment(fx, best, live)
     let cleared = false
     await upd(fx, 'reveal', current => {
@@ -1764,9 +2036,209 @@ export function createGame(o: GameOptions): Game {
     }
   }
 
+  // ---------- auto-update (SPEC 32) ----------
+
+  /**
+   * Claude Code's auto-update for this mod, as its registry says right now: only the spinlings entry's flag (the text
+   * is dropped at once, and nothing about it is ever sent); whether Claude Code's update pass can run here; whether
+   * the switch can write the file; and whether the switch's own record holds. A change re-arms the switch's pause and
+   * clears the last press's result. Once on, the offer leaves the band.
+   */
+  async function readAutoUpdate(fx: Fx): Promise<AutoUpdate> {
+    let text: string | null = null
+    try {
+      text = fx.registry ? await fx.registry() : null
+    } catch {
+      text = null
+    }
+    const state = autoUpdateOf(text)
+    text = null
+    let held = false
+    try {
+      held = fx.updatesHeld ? await fx.updatesHeld() : false
+    } catch {
+      held = false
+    }
+    const record = await fx.store.get(KEYS.autoSwitch)
+    const pending = await fx.store.get(KEYS.autoSwitchPending)
+    // ours: the record, or a Turn it on whose end a reload cut off (its pending record), each only while the list says on
+    const ours = state === 'on' && (readRecord(record) !== null || readRecord(pending) !== null)
+    // only a list that says off ends them: one that is unreadable for a moment (another session's write, a passing
+    // EBUSY) reads unknown and keeps them, and a press under way keeps its pending record: the list may not say on yet
+    if ((state === 'off' || state === 'off-chosen') && !rt.autoPressing) {
+      if (record !== undefined) await fx.store.delete(KEYS.autoSwitch)
+      if (pending !== undefined) await fx.store.delete(KEYS.autoSwitchPending)
+    }
+    const writable = !!fx.registryFile && state !== 'unknown'
+    let changed = false
+    await upd(fx, 'account', a => {
+      changed = a.autoUpdate !== undefined && (a.autoUpdate !== state || !!a.autoUpdateHeld !== held || !!a.autoUpdateOurs !== ours)
+      return a.autoUpdate === state && !!a.autoUpdateHeld === held && !!a.autoUpdateOurs === ours && !!a.autoUpdateWritable === writable
+        ? a : { ...a, autoUpdate: state, autoUpdateHeld: held, autoUpdateOurs: ours, autoUpdateWritable: writable }
+    })
+    if (changed) rt.autoCalmAt = await fx.now()
+    // a press's result stays until the setting changes; a press cut short by a reload never stays "Turning on..."
+    if (!rt.autoPressing) await upd(fx, 'pane', p => (p.autoPress && (changed || p.autoPress.phase === 'pressing') ? { ...p, autoPress: null } : p))
+    const moments = await get(fx, 'moments')
+    if (state === 'on' && moments.some(m => m.kind === 'auto-update')) await dropMoment(fx, 'auto-update')
+    // the payoff says on only while the list does
+    if ((state === 'off' || state === 'off-chosen') && moments.some(m => m.kind === 'auto-on')) await dropMoment(fx, 'auto-on')
+    return state
+  }
+
+  /**
+   * One press of the switch: Turn it on or Turn it off, from the guide or the band's offer (client/autoswitch.ts does
+   * the file). Ignored while a press runs, and within AUTO_CALM_MS. The chip flips from a fresh read; the payoff (the
+   * rare chime, and the lead sparkling in the band beside where to turn it off) follows only a confirmed write, never a
+   * press that found it already on.
+   */
+  async function switchAutoUpdate(fx: Fx, to: 'on' | 'off'): Promise<void> {
+    const file = fx.registryFile
+    if (!file || rt.autoPressing) return
+    rt.autoPressing = to
+    const now = await fx.now().catch(() => Number.NaN)
+    if (!(now - rt.autoCalmAt >= AUTO_CALM_MS)) {
+      rt.autoPressing = null
+      return
+    }
+    rt.autoPresses++
+    let answer: SwitchAnswer = { ok: false, why: 'cannot' }
+    try {
+      const offered = (await get(fx, 'moments')).some(m => m.kind === 'auto-update')
+      await upd(fx, 'pane', p => ({ ...p, autoPress: { phase: 'pressing', to } }))
+      answer = await pressSwitch({
+        file, store: fx.store, held: async () => (fx.updatesHeld ? fx.updatesHeld() : false), now: () => fx.now(),
+        wait: ms => new Promise<void>(done => { fx.after(ms, done) }),
+      }, to)
+      // an explicit off ends the offers; an offer answered by a press that could not be done waits a week, as Show me how
+      if (answer.ok && to === 'off') await fx.store.set(KEYS.autoUpdate, { ...readAsk(await fx.store.get(KEYS.autoUpdate)), never: true })
+      else if (offered && !answer.ok) await holdOffer(fx, now, ASK.laterMs)
+      if (offered) await dropMoment(fx, 'auto-update')
+      await readAutoUpdate(fx)
+    } finally {
+      rt.autoPressing = null
+      rt.autoPresses++
+      rt.autoCalmAt = await fx.now().catch(() => now)
+    }
+    // a band press (a click) that could not be done: the guide says why, without taking the keyboard from the prompt
+    if (!answer.ok && (await get(fx, 'pane')).stack.at(-1)?.kind !== 'auto-update') await openPane(fx, { view: { kind: 'auto-update' } }, false)
+    const result = answer.ok ? 'ok' : answer.why === 'held' || answer.why === 'not-ours' ? null : answer.why
+    // a list left unreadable: the guide names the folder it is in (a path, never anything the file says)
+    const folder = result === 'broken' && fx.registryFolder ? { folder: fx.registryFolder } : {}
+    await upd(fx, 'pane', p => ({ ...p, autoPress: result ? { phase: 'done', to, result, ...folder } : null }))
+    if (answer.ok && answer.wrote && to === 'on') {
+      fx.ui.sound('rare')
+      await pushMoment(fx, { kind: 'auto-on', id: 'auto-on', until: (await fx.now()) + HINT_MS })
+    }
+  }
+
+  /**
+   * The band's one offer to turn auto-update on, from the heartbeat: only while it is off (or unknown with a newer
+   * release out), never during the welcome, a battle or another moment, nor for a player yet to battle; at most three
+   * times ever, a week apart after Not now, and never after Don't ask again.
+   */
+  async function offerAutoUpdate(fx: Fx, now: number): Promise<void> {
+    const ask = readAsk(await fx.store.get(KEYS.autoUpdate))
+    if (ask.never || ask.asks >= ASK.max || now < ask.until) return
+    const [account, me, battle, moments, prefs, reveal] = await Promise.all([
+      get(fx, 'account'), get(fx, 'me'), get(fx, 'battle'), get(fx, 'moments'), get(fx, 'prefs'), get(fx, 'reveal'),
+    ])
+    if (prefs.quiet || battle || moments.length > 0 || reveal?.inline || !me || me.player.battles < 1 || account.link !== 'ready') return
+    // read again once old, so a setting turned on elsewhere is seen
+    let state = account.autoUpdate
+    if (state === undefined || now - rt.autoReadAt >= AUTO_OFFER_CHECK_MS) {
+      rt.autoReadAt = now
+      state = await readAutoUpdate(fx)
+    }
+    if (!mayAsk(state, !!newerMod(account), ask, now, !!(await get(fx, 'account')).autoUpdateHeld)) return
+    const welcomed = account.world === 'offline'
+      ? readOfflineMeta(await fx.store.get(KEYS.offlineMeta)).welcomed
+      : (await metaOf(fx, account.server)).welcomed
+    if (!welcomed) return
+    // an offer left unanswered (a closed session) comes back a day later at the soonest
+    await fx.store.set(KEYS.autoUpdate, { ...ask, asks: ask.asks + 1, until: now + ASK.unansweredMs })
+    await pushMoment(fx, { kind: 'auto-update', id: 'auto-update', until: null })
+    rt.autoCalmAt = now
+  }
+
+  async function answerAutoUpdate(fx: Fx, answer: AutoUpdateAnswer): Promise<void> {
+    if (answer === 'on' || answer === 'off') return switchAutoUpdate(fx, answer)
+    if (answer === 'done') {
+      // the same pause as the switch: a second tap of 1 just after Turn it on leaves the payoff on screen
+      const now = await fx.now()
+      if (rt.autoPressing || now - rt.autoCalmAt < AUTO_CALM_MS) return
+      if (!await paneClosing(fx, true)) await fx.ui.closePane()
+      return
+    }
+    if (answer === 'copy-folder') {
+      const folder = fx.registryFolder
+      if (!folder) return
+      const copied = await fx.ui.copy(folder)
+      await message(fx, copied ? 'Copied the folder.' : `The folder is ${folder}.`, 'good')
+      return
+    }
+    if (answer === 'copy' || answer === 'copy-add') {
+      const text = answer === 'copy' ? PLUGIN_COMMAND : ADD_COMMAND
+      const copied = await fx.ui.copy(text)
+      await message(fx, copied ? `Copied ${text}. Paste it into Claude Code's prompt.` : `Type ${text} into Claude Code's prompt.`, 'good')
+      return
+    }
+    if (answer === 'copy-terminal') {
+      const copied = await fx.ui.copy(PLUGIN_COMMAND)
+      await message(fx, copied ? `Copied ${PLUGIN_COMMAND}. Paste it into Claude Code in a terminal.` : `Type ${PLUGIN_COMMAND} into Claude Code in a terminal.`, 'good')
+      return
+    }
+    if (answer === 'copy-add-shell') {
+      const copied = await fx.ui.copy(ADD_SHELL_COMMAND)
+      await message(fx, copied ? 'Copied. Run it in a terminal.' : `Run ${ADD_SHELL_COMMAND} in a terminal.`, 'good')
+      return
+    }
+    const now = await fx.now()
+    const asked = (await get(fx, 'moments')).some(m => m.kind === 'auto-update')
+    await dropMoment(fx, 'auto-update')
+    if (answer === 'never') {
+      await fx.store.set(KEYS.autoUpdate, { ...readAsk(await fx.store.get(KEYS.autoUpdate)), never: true })
+      return
+    }
+    // Not now, and the steps once seen, wait a week before the band asks again
+    if (asked || answer === 'later') await holdOffer(fx, now, ASK.laterMs)
+    if (answer === 'later') return
+    // from the band (a digit an empty prompt handed it): the guide shows without the keyboard, so
+    // keys still being typed for the prompt never reach its switch
+    const p = await get(fx, 'pane')
+    if (p.stack.at(-1)?.kind !== 'auto-update') await openPane(fx, { view: { kind: 'auto-update' } }, false)
+    else await fx.ui.openPane(false)
+    watchAutoUpdate(fx)
+  }
+
+  /** The band's own offer to turn auto-update on waits at least `ms` from `now` (never sooner than it already would). */
+  async function holdOffer(fx: Fx, now: number, ms: number): Promise<void> {
+    const ask = readAsk(await fx.store.get(KEYS.autoUpdate))
+    if (!ask.never && ask.until < now + ms) await fx.store.set(KEYS.autoUpdate, { ...ask, until: now + ms })
+  }
+
+  /** While the steps show, the registry is read every few seconds; turning on plays the rare chime once. */
+  function watchAutoUpdate(fx: Fx): void {
+    rt.autoWatch?.cancel()
+    const stop = () => { rt.autoWatch?.cancel(); rt.autoWatch = null }
+    let started = 0
+    const look = async (f: Fx) => {
+      const now = await f.now()
+      if (!started) started = now
+      if ((await get(f, 'pane')).stack.at(-1)?.kind !== 'auto-update' || now - started > WATCH_FOR_MS) { stop(); return }
+      const presses = rt.autoPresses
+      const before = (await get(f, 'account')).autoUpdate
+      const state = await readAutoUpdate(f)
+      // turned on in /plugin: the rare chime here; a press of the switch plays its own once the write is confirmed
+      if (before !== 'on' && before !== undefined && state === 'on' && presses === rt.autoPresses && !rt.autoPressing) f.ui.sound('rare')
+    }
+    void look(fx)
+    rt.autoWatch = fx.every(WATCH_MS, () => { void look(cur(fx)).catch(() => undefined) })
+  }
+
   // ---------- the pane ----------
 
-  async function openPane(fx: Fx, to?: { tab?: Tab; view?: View; community?: CommunitySection; revealId?: string }): Promise<void> {
+  async function openPane(fx: Fx, to?: { tab?: Tab; view?: View; community?: CommunitySection; revealId?: string }, keys = true): Promise<void> {
     let valid = () => true
     if (to?.view?.kind === 'reveal') {
       const here = packStays(), epoch = rt.revealEpoch
@@ -1788,34 +2260,63 @@ export function createGame(o: GameOptions): Game {
     const hello = prefs.helloDay !== today
     if (hello) await savePrefs(fx, { helloDay: today })
     if (!valid()) return
+    const guide = to?.view?.kind === 'auto-update'
+    // the guide opens fresh: no press result from before, and a key pressed as it appears does nothing
+    if (guide) {
+      rt.autoCalmAt = now
+      await guideSeen(fx, now)
+      if (!valid()) return
+    }
     await upd(fx, 'pane', p => ({
-      ...p, hello: p.hello || hello, tab: (to?.tab ?? p.tab) === 'market' ? 'trade' : to?.tab ?? p.tab, showUpdate: to ? false : p.showUpdate,
+      ...p, hello: p.hello || hello, tab: (to?.tab ?? p.tab) === 'market' ? 'trade' : to?.tab ?? p.tab,
+      ...(guide && !rt.autoPressing ? { autoPress: null } : {}),
       community: to?.tab === 'market' ? 'market' : to?.community ?? communitySection(p),
       stack: to?.view ? to.tab || to.community ? [to.view] : [...p.stack.filter(v => v.kind !== to.view!.kind), to.view] : to?.tab || to?.community ? [] : p.stack,
     }))
     if (!valid()) return
-    await fx.ui.openPane()
+    await fx.ui.openPane(keys)
     if (!valid()) return
     const opened = await get(fx, 'pane')
     if (!valid()) return
+    if (opened.stack.at(-1)?.kind === 'auto-update' && !rt.autoWatch) watchAutoUpdate(fx)
     if (opened.tab === 'trade' && communitySection(opened) === 'market' && opened.stack.length === 0 && await marketStale(fx)) await loadMarket(fx, false)
   }
 
-  /** esc: the update row first (while it shows), then the view on top, then the pane itself. */
+  /**
+   * The guide opened, by any route: what the band had to say about versions is said there now, so it leaves the band,
+   * and the band's offer to turn auto-update on counts as seen: a week where the guide shows Turn it on (as Show me
+   * how), a day otherwise (as Close on "is out" does).
+   */
+  async function guideSeen(fx: Fx, now: number): Promise<void> {
+    for (const m of (await get(fx, 'moments')).filter(x => x.kind === 'update' || x.kind === 'updated')) await dropMoment(fx, m.id)
+    await holdOffer(fx, now, oneTapOn(await get(fx, 'account')) ? ASK.laterMs : ASK.unansweredMs)
+  }
+
+  /**
+   * esc on a reveal: Done, or while packs open, Stop. Stop lets the request in flight finish (the server has opened
+   * those packs already) and then shows what came out; one cut short by a reload shows what had opened at once.
+   */
+  async function closeReveal(fx: Fx): Promise<void> {
+    const r = await get(fx, 'reveal')
+    if (!r || bulkReady(r)) return doneReveal(fx)
+    if (rt.bulkOpening !== r.id) return finishBulk(fx, r.id)
+    rt.bulkStop = r.id
+    await upd(fx, 'reveal', v => (v?.id === r.id && v.bulk && !bulkReady(v) ? { ...v, bulk: { ...v.bulk, stopping: true } } : v))
+  }
+
+  /** esc: the view on top, then the pane itself. */
   async function paneClosing(fx: Fx, byPerson: boolean): Promise<boolean> {
     const p = await get(fx, 'pane')
-    if (byPerson && p.showUpdate && newerMod(await get(fx, 'account'))) {
-      await upd(fx, 'pane', x => ({ ...x, showUpdate: false, message: '', toCopy: '' }))
-      return true
-    }
     if (byPerson && p.stack.length > 0) {
       const top = p.stack[p.stack.length - 1]!
       if (top.kind === 'world' && top.origin) await dismiss(fx, `server:${top.origin}`)
-      if (top.kind === 'reveal') await doneReveal(fx)
+      if (top.kind === 'reveal') await closeReveal(fx)
       else await upd(fx, 'pane', x => ({ ...x, stack: x.stack.slice(0, -1), hold: null, message: '', toCopy: '' }))
       return true
     }
-    await upd(fx, 'pane', x => ({ ...x, hold: null, message: '', toCopy: '', busy: null, hello: false, showUpdate: false }))
+    await upd(fx, 'pane', x => ({ ...x, hold: null, message: '', toCopy: '', busy: null, hello: false }))
+    rt.autoWatch?.cancel()
+    rt.autoWatch = null
     return false
   }
 
@@ -2007,11 +2508,11 @@ export function createGame(o: GameOptions): Game {
   async function versionCommand(fx: Fx): Promise<void> {
     const account = await get(fx, 'account')
     if (account.world === 'offline') {
-      fx.ui.log(versionReport(account, null))
+      fx.ui.log(`${versionReport(account, null)}\n${await autoUpdateLine(fx)}`)
       return
     }
     if (badAddress(account)) {
-      fx.ui.log(dots(`Spinlings ${CLIENT_VERSION}`, account.note))
+      fx.ui.log(`${dots(`Spinlings ${CLIENT_VERSION}`, account.note)}\n${await autoUpdateLine(fx)}`)
       return
     }
     const now = await fx.now()
@@ -2025,10 +2526,21 @@ export function createGame(o: GameOptions): Game {
       await handshake(fx, account.server)
       meta = await metaOf(fx, account.server)
     }
-    const report = versionReport(await get(fx, 'account'), meta.version)
+    const s = meta.version ? await versionStatusOf(fx, account.server, meta.version) : null
+    const report = versionReport(await get(fx, 'account'), meta.version, CLIENT_VERSION, s?.notes ?? [])
     const stale = !!meta.version && versionDue(meta.versionDay, today)
-    fx.ui.log(stale ? `${report}\nCan't reach ${host} right now, so that is its answer from ${dayLabel(meta.versionDay, today)}.` : report)
+    // the update line already points to /spin updates: the last line then just says how auto-update stands
+    const auto = await autoUpdateLine(fx, !(s && (s.readOnly || s.target)))
+    fx.ui.log(stale ? `${report}\nCan't reach ${host} right now, so that is its answer from ${dayLabel(meta.versionDay, today)}.\n${auto}` : `${report}\n${auto}`)
     await publish(fx)
+  }
+
+  /** `/spin version`'s last line, from a fresh read of the setting: on, off, or why it cannot run or be told. */
+  async function autoUpdateLine(fx: Fx, pointToUpdates = true): Promise<string> {
+    const state = await readAutoUpdate(fx)
+    const held = (await get(fx, 'account')).autoUpdateHeld
+    const word = held ? 'can\'t run here' : state === 'on' ? 'on' : state === 'unknown' ? 'can\'t tell from here' : 'off'
+    return `Auto-update: ${word}${pointToUpdates ? ' · /spin updates' : ''}`
   }
 
   async function useServer(fx: Fx, origin: string, intent: WorldIntent): Promise<void> {
@@ -2220,6 +2732,7 @@ export function createGame(o: GameOptions): Game {
       case 'privacy': return openPane(fx, { view: { kind: 'privacy' } })
       case 'server': return setServer(fx, cmd.url, undefined, packHere)
       case 'version': return versionCommand(fx)
+      case 'updates': return openPane(fx, { view: { kind: 'auto-update' } })
       case 'leaderboard': return leaderboardCommand(fx, cmd.on)
       case 'handle': return handleCommand(fx, cmd.reroll)
       case 'help': fx.ui.log(cmd.text); return
@@ -2543,20 +3056,23 @@ export function createGame(o: GameOptions): Game {
       open: to => after(openPane(to?.revealId ? packFx(fx, packStays()) : fx, to)),
       close: () => after(fx.ui.closePane()),
       tab: tab => after((async () => {
-        await upd(fx, 'pane', p => ({ ...p, tab: tab === 'market' ? 'trade' : tab, community: tab === 'market' ? 'market' : communitySection(p), stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false, showUpdate: false }))
+        await upd(fx, 'pane', p => ({ ...p, tab: tab === 'market' ? 'trade' : tab, community: tab === 'market' ? 'market' : communitySection(p), stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false }))
         if (tab === 'market' || tab === 'trade') await loadCommunity(fx)
       })()),
       community: section => after((async () => {
-        await upd(fx, 'pane', p => ({ ...p, tab: 'trade', community: section, stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false, showUpdate: false }))
+        await upd(fx, 'pane', p => ({ ...p, tab: 'trade', community: section, stack: [], page: 0, hold: null, message: '', toCopy: '', hello: false }))
         await loadCommunity(fx)
       })()),
-      push: view => after(upd(fx, 'pane', p => ({ ...p, stack: [...p.stack, view].slice(-8), hold: null, message: '', toCopy: '', showUpdate: false }))),
+      push: view => after(upd(fx, 'pane', p => ({ ...p, stack: [...p.stack, view].slice(-8), hold: null, message: '', toCopy: '' }))),
       back: () => after((async () => {
         if (!await paneClosing(fx, true)) await fx.ui.closePane()
       })()),
       pane: fn => after(upd(fx, 'pane', fn)),
       hold: (action, target) => after(hold(fx, action, target)),
       openPack: (packId, inline) => after(openPack(fx, packId, inline)),
+      openAll: () => after(openAll(fx)),
+      newOnly: on => after(upd(fx, 'reveal', r => (r?.bulk ? { ...r, bulk: on ? { ...r.bulk, newOnly: true } : (({ newOnly: _, ...b }) => b)(r.bulk) } : r))),
+      skip: revealId => after(skipReveal(fx, revealId)),
       flip: revealId => after(flip(fx, revealId)),
       doneReveal: revealId => after(doneReveal(fx, revealId)),
       setTeam: (cardIds, picker) => after((async () => {
@@ -2636,8 +3152,10 @@ export function createGame(o: GameOptions): Game {
       copyUpdate: () => after((async () => {
         const copied = await fx.ui.copy(UPDATE_COMMAND)
         if (copied) await message(fx, 'Copied. Run it in a terminal.', 'good')
-        else await message(fx, 'Select the command below to copy it, then run it in a terminal.')
+        else await message(fx, 'Select the command above to copy it, then run it in a terminal.')
       })()),
+      autoUpdate: answer => after(answerAutoUpdate(fx, answer)),
+      updates: () => after(openPane(fx, { view: { kind: 'auto-update' } })),
       duel: revenge => after(startBattle(fx, 'duel', revenge ? { revenge } : {})),
       challenge: handle => after(challenge(fx, handle)),
       market: more => after(loadMarket(fx, !!more)),
@@ -2752,7 +3270,13 @@ export function createGame(o: GameOptions): Game {
         await dropMoment(fx, id)
         return switchWorld(fx, 'online')
       case 'server': return confirmServer(fx, m.origin, undefined, packHere)
+      case 'auto-update': return answerAutoUpdate(fx, 'how')
+      case 'auto-on': return dropMoment(fx, id)
+      // "is out" and "is here" both open /spin updates, without taking the keyboard from the prompt
       case 'update':
+      case 'updated':
+        await dropMoment(fx, id)
+        return openPane(fx, { view: m.kind === 'updated' ? { kind: 'auto-update', here: m.from } : { kind: 'auto-update' } }, false)
       case 'line':
         return dropMoment(fx, id)
     }
@@ -2767,11 +3291,14 @@ export function createGame(o: GameOptions): Game {
     }
     if (m.kind === 'outcome' && m.outcome.catch.status === 'choose') return pickCatch(fx, rarestIndex(m.outcome.catch.options))
     if (m.kind === 'welcome') await markWelcomed(fx)
+    if (m.kind === 'auto-update') return answerAutoUpdate(fx, 'later')
     await dropMoment(fx, id)
+    // Close on "is out": the band's offer to turn auto-update on waits a day after it
+    if (m.kind === 'update') await holdOffer(fx, await fx.now(), ASK.unansweredMs)
   }
 
   return {
-    boot, reseed, end, turnStarted, turnStep, turnCompleted, agentStarted, agentFinished, measured, compacted,
+    boot, reseed, end, turnStarted, turnStep, turnCompleted, measured, compacted,
     heartbeat: fx => { enter(fx); return heartbeat(fx) },
     command, paneClosing, actions,
     launcherDrawn: (fx, surface, shown) => {

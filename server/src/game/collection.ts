@@ -14,7 +14,7 @@ import { guard, stmt } from '../db.ts'
 import type { Db, Stmt } from '../db.ts'
 import { fail } from '../http.ts'
 import type { DropRow, PackRow, PlayerRow } from '../schema.ts'
-import { setPlayer, teamOf } from './ctx.ts'
+import { notFound, setPlayer, teamOf } from './ctx.ts'
 import { bumpCards, cardGuard, deleteCard } from './mint.ts'
 import type { StoredCard } from './mint.ts'
 
@@ -82,6 +82,21 @@ export const packGuard = (owner: string, id: string): Stmt => guard('SELECT 1 FR
 
 /** Opening deletes the row, so the pack's family lives no longer than the pack (SPEC 20.2). */
 export const deletePack = (id: string): Stmt => stmt('DELETE FROM packs WHERE id = ?', id)
+
+const placeholders = (ids: readonly string[]) => ids.map(() => '?').join(', ')
+
+/** The caller's own packs (distinct ids), in the order asked for; 404 if any is missing or someone else's. */
+export async function ownPacks(db: Db, owner: string, ids: readonly string[]): Promise<PackRow[]> {
+  const rows = await db.all<PackRow>(`SELECT * FROM packs WHERE owner_id = ? AND id IN (${placeholders(ids)})`, owner, ...ids)
+  const found = new Map(rows.map(r => [r.id, r]))
+  return ids.map(id => found.get(id) ?? notFound('pack'))
+}
+
+/** packGuard for several distinct packs at once: every one still there and still the caller's. */
+export const packsGuard = (owner: string, ids: readonly string[]): Stmt =>
+  guard(`SELECT COUNT(*) = ? FROM packs WHERE owner_id = ? AND id IN (${placeholders(ids)})`, ids.length, owner, ...ids)
+
+export const deletePacks = (ids: readonly string[]): Stmt => stmt(`DELETE FROM packs WHERE id IN (${placeholders(ids)})`, ...ids)
 
 // ---- the Wandering Trader (SPEC 19) ------------------------------------------------------------
 

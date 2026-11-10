@@ -128,22 +128,6 @@ describe('the leaderboards page', () => {
     assert.ok(text.includes('/plugin install spinlings@spinlings'), 'and how to join')
     assert.doesNotMatch(p.html, /<ol class="ranks">/)
   })
-
-  it('keeps boards in the footer and Players directory, with Players as the primary header entry', async () => {
-    const s = server()
-    const a = await s.join('haiku')
-    for (const path of ['/', '/odds', '/privacy', '/market', `/u/${handle(a)}`, `/c/${a.me.player.team[0]}`]) {
-      const p = await get(s, path)
-      const header = p.html.slice(p.html.indexOf('<header'), p.html.indexOf('</header>'))
-      assert.match(header, /<a class="nb" href="\/players"[^>]*>[\s\S]*?<span class="nbl">Players<\/span><\/a>/, path)
-      assert.doesNotMatch(header, /href="\/boards"/, 'boards are reached through Players rather than another primary control')
-      const footer = p.html.slice(p.html.indexOf('<footer'))
-      assert.ok(footer.includes('<a href="/boards">Leaderboards</a><a href="/market">Market</a>'), path)
-    }
-    const players = (await get(s, '/players')).html
-    assert.match(players, /<a class="nb" href="\/players"[^>]*aria-current="page">/)
-    assert.match(players, /href="\/boards">See the leaderboards<\/a>/)
-  })
 })
 
 // ---- the market --------------------------------------------------------------------------------

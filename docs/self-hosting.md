@@ -111,6 +111,8 @@ The top of the script lists every option. Codes are printed once; unique codes a
 
 Your players run `/spin world https://your.host` in Claude Code, or choose a community URL in `/spin world`. The mod shows them a one-time notice that this is a community server run by someone else, then talks to that host and no other. Their account on each server is separate, so they start fresh, and `/spin world online` takes them back to `https://spinlings.dev`. The pane header and `/spin privacy` always show which server they are on. The existing `/spin server <url>` and `/spin server default` commands remain supported aliases.
 
+`/spin updates` tells your players about the newest release your build announces (`LATEST_CLIENT`, which for a build from tag `vX.Y.Z` is the release before it), with a link to spinlings.dev's What's new. The mod keeps release notes only from spinlings.dev, so it shows none from your server.
+
 ## What you owe your players
 
 The code keeps the promises in [PRIVACY.md](../PRIVACY.md). Keep them too:

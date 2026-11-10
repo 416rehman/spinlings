@@ -8,6 +8,7 @@ import { cardFromBattleCard, fuse, starterTeam } from '../../plugin/hooks/core/c
 import { ECONOMY } from '../../plugin/hooks/core/economy.ts'
 import { beatenBy, beats, FAMILIES } from '../../plugin/hooks/core/families.ts'
 import { generateMythic } from '../../plugin/hooks/core/mythics.ts'
+import { NOTE_LIMITS, releasedUpTo } from '../../plugin/hooks/core/releases.ts'
 import { rngFromSeed } from '../../plugin/hooks/core/rng.ts'
 import { GIFT_CODE_RE, HANDLE_RE, ID_RE } from '../../plugin/hooks/core/schemas.ts'
 import { GENERATOR_VERSION, getSpecies, isBlocked, seasonSpecies } from '../../plugin/hooks/core/species.ts'
@@ -69,6 +70,7 @@ describe('the version handshake', () => {
     const v = exact('version', await res.json())
     assert.deepEqual({ ...v, features: [] }, {
       api: 1, server: SERVER_VERSION, rules: RULES_VERSION, generator: GENERATOR_VERSION, minClient: MIN_CLIENT, latestClient: LATEST_CLIENT, features: [],
+      notes: JSON.parse(JSON.stringify(releasedUpTo(LATEST_CLIENT).slice(0, NOTE_LIMITS.sent))),
     })
     assert.deepEqual(v.features, [...FEATURES])
   })

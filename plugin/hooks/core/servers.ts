@@ -2,6 +2,8 @@
 // Plain string parsing, so it runs anywhere ES2023 does.
 
 export const DEFAULT_SERVER = 'https://spinlings.dev'
+/** Every release's notes, newest first. Always on spinlings.dev, since the notes describe the official mod. */
+export const WHATS_NEW = `${DEFAULT_SERVER}/whats-new`
 
 const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]'])
 const LABEL = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/

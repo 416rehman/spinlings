@@ -10,8 +10,10 @@ it('the privacy page explains public collections, discovery identity and retaine
   const text = markup.replace(/<style>[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
   for (const required of [
     'complete held-card inventory, with filters and pages',
-    'public handles and saved-team lead creatures, alphabetically or by handle search',
-    'Hiding from leaderboards hides your stats, not your profile, inventory, directory entry or discovery credit',
+    'public handles with saved-team lead creatures, alphabetically or by handle search',
+    'the public faces of held cards by creature name, family, rarity, shiny or foil',
+    'Cards show no owner, and nothing shows online status, activity or dates',
+    'Hiding from leaderboards hides your stats, not your profile, inventory, search entry or discovery credit',
     'actual caught creatures, their names and a link to the discoverer',
     'without invented artwork',
     'Uncaught encounters and unused named Mythics stay unrevealed',
@@ -24,9 +26,10 @@ it('the privacy page explains public collections, discovery identity and retaine
     'midnight snapshots',
     'Your unopened packs, charging progress, sparks, devices and passkeys stay private',
     'never in a URL, cookie or public page',
+    'Search sends name searches and card filters, and public profiles send collection filters',
   ]) assert.ok(text.includes(required), `policy discloses: ${required}`)
-  assert.match(markup, /href="\/players"/)
-  assert.doesNotMatch(text, /It never says which one|No new game fields or public player information are stored/)
+  assert.match(markup, /href="\/search"/)
+  assert.doesNotMatch(text, /It never says which one|No new game fields or public player information are stored|players directory/)
   assert.doesNotMatch(markup, /<script\b/i)
   const policy = new Map(response.headers.get('content-security-policy')!.split(';').map(part => {
     const [name, ...values] = part.trim().split(/\s+/)

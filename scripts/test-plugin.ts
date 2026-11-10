@@ -10,7 +10,13 @@ const plugin = join(root, 'plugin'), tests = join(root, 'test/plugin')
 const privateDir = join(root, '.dev')
 mkdirSync(privateDir, { recursive: true })
 assert.ok(lstatSync(privateDir).isDirectory() && !lstatSync(privateDir).isSymbolicLink(), 'SDK staging must use a workspace directory')
-const staged = mkdtempSync(join(privateDir, 'sdk-plugin-'))
+const workspace = mkdtempSync(join(privateDir, 'sdk-plugin-'))
+// staged where an installed copy sits, <config>/plugins/cache/spinlings/spinlings/<version>, so the mod finds its
+// plugin list four folders up as it does for players; the suites answer every $.fs call, so no real file is opened
+const { version } = JSON.parse(readFileSync(join(plugin, '.claude-plugin', 'plugin.json'), 'utf8')) as { version: string }
+assert.match(version, /^[\w.+-]{1,80}$/, 'The manifest version names the staging folder')
+const staged = join(workspace, 'plugins', 'cache', 'spinlings', 'spinlings', version)
+mkdirSync(staged, { recursive: true })
 assert.ok(resolve(staged).startsWith(resolve(privateDir) + sep), 'SDK staging must stay inside the workspace')
 
 function files(directory: string): string[] {

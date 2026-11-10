@@ -17,6 +17,7 @@ const STEPS = [
   'a second player joins',
   'duel vs player 2, a coarse defense notice and revenge',
   'days of play, charging packs on the way',
+  'open the waiting packs, several at once',
   'fusion',
   'recycle',
   'craft',

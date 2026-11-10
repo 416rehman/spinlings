@@ -183,5 +183,6 @@ test('an offline session, then online: nothing from the offline save reaches the
   const keys = [...w.store.keys()]
   expect(keys).toContain('offline:v1')
   expect(keys).toContain(`server:${ORIGIN}:session`)
-  expect(keys.filter(k => !k.startsWith('offline:') && !k.startsWith(`server:${ORIGIN}:`)).sort()).toEqual(['prefs', 'presence', 'privacy'])
+  // and the machine's own: prefs, presence, the privacy log, and the newest version that ran here
+  expect(keys.filter(k => !k.startsWith('offline:') && !k.startsWith(`server:${ORIGIN}:`)).sort()).toEqual(['prefs', 'presence', 'privacy', 'release'])
 })

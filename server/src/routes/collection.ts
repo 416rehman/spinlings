@@ -3,6 +3,7 @@
 // reads, decides, then commits one guarded batch (SPEC 16); a Conflict re-runs it from its reads.
 // Another player's card or pack answers 404, exactly like one that does not exist (SPEC 26.3).
 // There are no daily quotas (SPEC 24): only the charge spacing, the bank of 12 and sparks.
+import { OPEN_PACKS_MAX } from '../../../plugin/hooks/core/api.ts'
 import { craftCost, fuse, mintCard, rarityFits, recycleValue } from '../../../plugin/hooks/core/cards.ts'
 import { mintDropReward } from '../../../plugin/hooks/core/drops.ts'
 import { ECONOMY } from '../../../plugin/hooks/core/economy.ts'
@@ -18,13 +19,19 @@ import { fail } from '../http.ts'
 import { spendJoinCounter } from '../ratelimit.ts'
 import { addSparks, apiRoute, catalogOf, commit, mustAfford, notFound, rngOf, setPlayer, teamOf } from '../game/ctx.ts'
 import {
-  bankGuard, deletePack, dropByCode, dropLive, dropReward, mustBeFree, mustBeHome, mustBeTradeable, ownPack,
-  packGuard, redeemStmts, seasonOfSpecies, takeCards, traderView, useDeal,
+  bankGuard, deletePack, deletePacks, dropByCode, dropLive, dropReward, mustBeFree, mustBeHome, mustBeTradeable, ownPack,
+  ownPacks, packGuard, packsGuard, redeemStmts, seasonOfSpecies, takeCards, traderView, useDeal,
 } from '../game/collection.ts'
 import { bumpCards, CARDS_CURSOR, cardGuard, cardsPage, grantPack, mintCards, ownCard, ownCards, packsOf, saveCard, unopenedCount } from '../game/mint.ts'
 import { checkCharge, markCharge } from '../game/pacing.ts'
 
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+/** How many packs an openPacks body asks for, read before it is checked: 1 to OPEN_PACKS_MAX. */
+const packCount = (body: unknown): number => {
+  const ids = (body as { packIds?: unknown } | null)?.packIds
+  return Array.isArray(ids) ? Math.min(Math.max(ids.length, 1), OPEN_PACKS_MAX) : 1
+}
 
 export function collection(api: Api): void {
   // The caller's own cards with their server-computed stats (SPEC 32), a page at a time: a mod that
@@ -66,6 +73,28 @@ export function collection(api: Api): void {
     await commit(ctx, [packGuard(p.id, pack.id), deletePack(pack.id), ...minted.stmts])
     return { cards: minted.cards }
   })
+
+  // Several packs at once, under openPack's rules, in one guarded batch: every pack opens or none
+  // does. One mint for them all, so a species first found in one pack is not first again in the next.
+  // Each pack counts as a request in the token bucket, so batching opens no faster than one by one.
+  apiRoute(api, 'openPacks', async (ctx, req) => {
+    const p = ctx.player
+    const packs = await ownPacks(ctx.db, p.id, req.packIds)
+    const season = seasonOf(ctx.now), catalog = catalogOf(ctx.db)
+    const rolled = packs.map(pack => {
+      const cards = rollPack(pack.family as Family, season, rngOf(ctx), ctx.now, undefined, catalog)
+      return pack.bound === 1 ? cards.map(c => ({ ...c, bound: true })) : cards
+    })
+    const minted = await mintCards(ctx, p.id, rolled.flat())
+    await commit(ctx, [packsGuard(p.id, req.packIds), deletePacks(req.packIds), ...minted.stmts])
+    let at = 0
+    const opened = packs.map((pack, k) => {
+      const cards = minted.cards.slice(at, at + rolled[k]!.length)
+      at += cards.length
+      return { packId: pack.id, family: pack.family as Family, cards }
+    })
+    return { opened }
+  }, { weight: packCount })
 
   // ---- the team and single cards ----
 

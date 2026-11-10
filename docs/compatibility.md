@@ -2,7 +2,7 @@
 
 Players should be able to install once and keep playing. The server already receives `X-Spinlings-Client` on every mod request. That release version is enough to choose a supported response; do not add device identity, usage history or session fingerprints. Headers are untrusted, are not logged, and never decide rewards or permissions.
 
-The server returns API, rules and generator versions, its minimum supported mod, the latest release and feature flags. The mod checks this handshake daily and after an update. Missing features stay hidden. `/spin version` shows the installed mod and server status, and updates remain optional while that release is supported.
+The server returns API, rules and generator versions, its minimum supported mod, the latest release and feature flags. The mod checks this handshake daily and after an update. Missing features stay hidden. `/spin version` shows the installed mod and server status, `/spin updates` says whether a newer release is out and what it brings, and updates remain optional while that release is supported.
 
 ## What can arrive without an update
 
@@ -14,6 +14,7 @@ The server returns API, rules and generator versions, its minimum supported mod,
 | New trait ID | Shows the ID with a generic explanation in an older mod; server log supplies its battle effect | Keep the response within the old trait and log bounds; new descriptive help may need an update |
 | New league label | An older reader uses its existing safe league fallback; rating and ranking values still work | Do not assume old artwork or labels know the new tier |
 | New screen or client interaction | Keeps its existing screens; unsupported feature controls stay hidden | Optional mod update for the new UI |
+| Release notes for a newer mod | Arrive with the daily version check, from spinlings.dev only; older mods ignore them | Keep `version`, `date` and `highlights[].short/text` within the frozen reader bounds |
 | Entirely new family, body shape or protocol | Needs a supported fallback or a parallel versioned protocol | Explicit design first; content packs remain a separate decision |
 
 This is a bounded compatibility contract, not a promise that old code can draw arbitrary future content. The v1 log retains three creature slots per team, 30 rounds, two actions per round and four hits/charge per slot. Future special IDs are omitted from the v1 display label while preserving damage, HP, healing, rewards and the outcome. A mechanic that cannot be represented inside these bounds needs a compatible v1 path or `/v2` alongside `/v1` for at least six months.
@@ -34,4 +35,4 @@ Keep every supported release's recorded traffic and reader immutable. Run those 
 
 Below `minClient`, game writes return `upgrade_required`. Reads and authenticated account deletion remain available, and offline play remains usable. Never raise that minimum simply to promote an update.
 
-Players can enable Spinlings marketplace auto-update in `/plugin` → Marketplaces → spinlings → Enable auto-update. Third-party marketplaces default to manual updates, and a marketplace cannot enable this for the player. See [Anthropic's update guide](https://code.claude.com/docs/en/discover-plugins#turn-auto-update-on-or-off-for-a-marketplace).
+Players can turn on Spinlings marketplace auto-update with `/spin updates` → Turn it on, or in a terminal's `/plugin` → Marketplaces → spinlings → Enable auto-update (Claude Desktop's plugins page has no such switch). Third-party marketplaces default to manual updates; a marketplace cannot enable this for the player, and the mod sets it only on the player's own press (SPEC 32). Claude Code then installs a new release a few minutes after it starts, so an installed mod catches up by itself, but some players will still run old releases for months. See [Anthropic's update guide](https://code.claude.com/docs/en/discover-plugins#turn-auto-update-on-or-off-for-a-marketplace).

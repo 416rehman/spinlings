@@ -84,6 +84,18 @@ test('a sealed preview stays visible while waiting for Open, with either motion 
   }
 })
 
+test('after the best pulls of Open all, f reads See them all and nothing on screen says Flip next',{ timeoutMs: 30_000 }, async ($, on) => {
+  draws(on, p)
+  for (const surface of SURFACES) {
+    p.state = step('Packs · the best pulls, then all of them')
+    p.calls = []
+    const ui = await $.ui.mount(MOUNT(80, surface))
+    expect((await ui.find({ key: 'flip' }))?.props).toMatchObject({ label: 'See them all', hotkey: 'f' })
+    expect(await ui.find({ text: /Flip next/ })).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
 test('the pack: o opens one card, then Set in team asks which slot without replacing anyone', { timeoutMs: 60_000 }, async ($, on) => {
   draws(on, p)
   for (const surface of SURFACES) {

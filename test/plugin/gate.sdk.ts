@@ -26,6 +26,8 @@ function gate(tree: unknown, columns: number, surface: string, where: string, fa
   const dupes = keys.filter((k, i) => keys.indexOf(k) !== i)
   if (dupes.length > 0) problems.push(`keys twice: ${dupes.join(' ')}`)
   for (const b of nodes.filter(n => n.type === 'Button' && n.props?.variant === 'primary')) {
+    // the desktop band's Turn on auto-update is a click only (it writes a file): no key at all
+    if (surface === 'desktop' && b.props?.key === 'auto-on' && b.props?.hotkey === undefined) continue
     if (!['1', 'o'].includes(String(b.props?.hotkey))) problems.push(`primary "${String(b.props?.label)}" on ${String(b.props?.hotkey)}`)
   }
   const wrong = nodes.filter(n => n.type === (surface === 'terminal' ? 'Svg' : 'Raster')).length
@@ -122,6 +124,11 @@ test('every real band moment fits four rows (fewer in a shorter window), with di
           if (h > maxRows) failures.push(`${where}: ${h} rows in a window of ${maxRows}`)
         }
         for (const b of walk(tree).filter(n => n.type === 'Button')) {
+          // the desktop's Turn on auto-update writes a file: a click only, so no digit an empty prompt hands the band reaches it
+          if (surface === 'desktop' && b.props?.key === 'auto-on') {
+            if (b.props.hotkey !== undefined) failures.push(`${where}: the write on ${String(b.props.hotkey)}`)
+            continue
+          }
           if (!/^[1-9]$/.test(String(b.props?.hotkey))) failures.push(`${where}: ${String(b.props?.label)} on ${String(b.props?.hotkey)}`)
           if (b.props?.variant === 'primary' && b.props.hotkey !== '1') failures.push(`${where}: the primary on ${String(b.props.hotkey)}`)
         }

@@ -3,7 +3,7 @@
 // actions do nothing and these scenes are never available through a player command.
 import { FEATURES } from '../../plugin/hooks/core/api.ts'
 import type {
-  BoardResponse, GiftView, ListingView, MarketWant, OfferView, PlayerStats, ProfileResponse, RankingsResponse,
+  BoardResponse, GiftView, ListingView, MarketWant, OfferView, PlayerStats, ProfileResponse, RankingsResponse, ReleaseNote,
 } from '../../plugin/hooks/core/api.ts'
 import type { BattleLog, Card, Family, NewCard, Rarity } from '../../plugin/hooks/core/types.ts'
 import { RULES_VERSION, perfectRounds, simulateBattle } from '../../plugin/hooks/core/battle.ts'
@@ -17,6 +17,7 @@ import { traderDeals } from '../../plugin/hooks/core/trader.ts'
 import { dailyRule, seasonOf, utcDay } from '../../plugin/hooks/core/world.ts'
 import { EVOLVE_SHOW, catchPreMs } from '../../plugin/hooks/client/battleview.ts'
 import { INITIAL, MARKET_DEFAULT, shareText } from '../../plugin/hooks/client/game.ts'
+import { pullOrder } from '../../plugin/hooks/client/bulk.ts'
 import { CLIENT_VERSION } from '../../plugin/hooks/client/remote.ts'
 import type { Actions, Battle, GameState, Moment, Outcome, PaneUi, Reveal, View } from '../../plugin/hooks/client/types.ts'
 
@@ -24,6 +25,20 @@ const MIN = 60_000
 const DAY = 86_400_000
 /** A mod newer than this one, for the screens that show the update chip. */
 const NEWER = CLIENT_VERSION.replace(/^(\d+)\.(\d+)\..*$/, (_, major: string, minor: string) => `${major}.${Number(minor) + 1}.0`)
+/** A patch release between this mod and NEWER. */
+const BETWEEN = CLIENT_VERSION.replace(/^(\d+)\.(\d+)\.(\d+).*$/, (_, major: string, minor: string, patch: string) => `${major}.${minor}.${Number(patch) + 1}`)
+
+/** Made-up notes for the made-up releases above, as spinlings.dev would send them: the newest first. */
+export const SCENE_NOTES: ReleaseNote[] = [
+  {
+    version: NEWER, date: '2026-12-01', highlights: [
+      { short: 'Team presets', text: 'Save a few teams and switch between them from the Team tab.' },
+      { short: 'Rival rematches', text: 'A rival you beat comes back a day later, a little stronger.' },
+      { short: 'Album stamps', text: 'A family page earns a stamp once every species on it is found.' },
+    ],
+  },
+  { version: BETWEEN, date: '2026-11-20', highlights: [{ short: 'Smoother band', text: 'The band redraws less while Claude works.' }] },
+]
 
 /** One UI fixture; band scenes draw above the prompt, and the rest draw the pane. */
 export type UiScene = { title: string; state: GameState; band?: true }
@@ -33,8 +48,8 @@ const done = async () => undefined
 /** Fixture actions: every press is a no-op, so scene renders cannot touch the real game. */
 export const INERT: Actions = {
   community: done,
-  press: done, pickCatch: done, act: done, dismiss: done, open: done, close: done, tab: done, push: done, back: done,
-  pane: done, hold: done, openPack: done, flip: done, doneReveal: done, setTeam: done, setForTrade: done, craft: done,
+  press: done, pickCatch: done, act: done, dismiss: done, open: done, close: done, tab: done, push: done, back: done, updates: done,
+  pane: done, hold: done, openPack: done, openAll: done, newOnly: done, skip: done, autoUpdate: done, flip: done, doneReveal: done, setTeam: done, setForTrade: done, craft: done,
   buyPack: done, share: done, shareProfile: done, copyUpdate: done, duel: done, challenge: done, market: done, list: done, buy: done, prices: done,
   rankings: done, marketFilter: done, profile: done, load: done, offer: done, respond: done, counter: done,
   claim: done, redeem: done, wishlist: done, trade: done, world: done, connect: done, passkey: done, rerollHandle: done,
@@ -126,7 +141,7 @@ function world(now: number) {
   const rival = [mint('fable', 6, 'common', {}, 3), mint('haiku', 1, 'rare', {}, 3)]
   const base: GameState = {
     ...INITIAL,
-    account: { ...INITIAL.account, link: 'ready', features: [...FEATURES], devices: { sessions: 2, passkeys: 1 }, backedUp: true },
+    account: { ...INITIAL.account, link: 'ready', features: [...FEATURES], devices: { sessions: 2, passkeys: 1 }, backedUp: true, checked: day },
     me: {
       player: {
         handle: 'brave-wren-41', handleRerollFrom: day, sparks: 340, rating: 1312, league: 'Grove', leaderboard: true,
@@ -182,6 +197,16 @@ function steps(now: number): UiScene[] {
   const fresh = w.pack.map(c => c.species)
   const packR = reveal(w, 'pack', w.pack, fresh)
   const legendaryR = reveal(w, 'pack', [w.examples[3]!], [w.examples[3]!.species])
+  // every waiting pack at once: twelve cards, three species new to the album, the best pulls rising to the top one
+  const bank = [...w.more, ...w.examples, w.starters[0]!, w.starters[1]!]
+  const bankFresh = [w.examples[1]!.species, w.examples[3]!.species, w.more[1]!.species]
+  const sorted = pullOrder(bank, new Set(bankFresh))
+  const bulkR: Reveal = {
+    ...reveal(w, 'pack', sorted.cards, bankFresh), id: 'demo-reveal-bulk', torn: true,
+    bulk: { packs: bank.length, opened: bank.length, best: sorted.best },
+  }
+  const openingR: Reveal = { ...reveal(w, 'pack', bank.slice(0, 5), []), id: 'demo-reveal-bulk', torn: true, bulk: { packs: bank.length, opened: 5 } }
+  const bankMe = { ...s.me!, packs: Array.from({ length: bank.length - 5 }, (_, i) => ({ id: `demo-bank-${i}`, family: (['opus', 'haiku', 'fable', 'sonnet'] as const)[i % 4], source: 'charge' as const, day: w.day })) }
   const at = (r: Reveal, flipped: number): GameState => ({ ...view(s, { kind: 'reveal' }, { flipped }), reveal: r })
   // the offline world has no backup, no stats and no listings
   const { backedUp: _b, ...plain } = s.account
@@ -250,6 +275,29 @@ function steps(now: number): UiScene[] {
     { title: 'Pack · a gold back waiting', state: at(legendaryR, 0) },
     { title: 'Pack · a legendary foil revealed', state: at(legendaryR, 1) },
     { title: 'Pack · the summary', state: at(packR, 1) },
+    { title: 'Packs · opening twelve at once', state: { ...at(openingR, 0), me: bankMe } },
+    { title: 'Packs · the best pulls, the top one last', state: at(bulkR, 1) },
+    { title: 'Packs · the best pulls, then all of them', state: at(bulkR, sorted.best) },
+    { title: 'Packs · every card by rarity', state: at(bulkR, bank.length) },
+    { title: 'Packs · new species only', state: at({ ...bulkR, bulk: { ...bulkR.bulk!, newOnly: true } }, bank.length) },
+    { title: 'Packs · some could not open', state: at({ ...bulkR, bulk: { ...bulkR.bulk!, packs: bank.length + 8 } }, bank.length) },
+    { title: 'Team · nine packs waiting: open all', state: { ...pane(s, { tab: 'team' }), me: { ...bankMe, packs: [...bankMe.packs, ...s.me!.packs] } } },
+    { title: 'Auto-update · the steps, a newer release out', state: { ...view(s, { kind: 'auto-update' }), account: { ...s.account, autoUpdate: 'off', latest: NEWER, notes: SCENE_NOTES } } },
+    { title: 'Auto-update · the steps, setting not known', state: { ...view(s, { kind: 'auto-update' }), account: { ...s.account, autoUpdate: 'unknown' } } },
+    { title: 'Auto-update · on', state: { ...view(s, { kind: 'auto-update' }), account: { ...s.account, autoUpdate: 'on' } } },
+    { title: 'Auto-update · the steps offline', state: { ...view(offline, { kind: 'auto-update' }), account: { ...offline.account, autoUpdate: 'off' } } },
+    { title: 'Auto-update · off, one press to turn it on', state: { ...view(s, { kind: 'auto-update' }), account: { ...s.account, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Auto-update · off, the steps shown', state: { ...view(s, { kind: 'auto-update', steps: true }), account: { ...s.account, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Auto-update · turning on', state: { ...view(s, { kind: 'auto-update' }, { autoPress: { phase: 'pressing', to: 'on' } }), account: { ...s.account, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Auto-update · on, turned on here', state: { ...view(s, { kind: 'auto-update' }, { autoPress: { phase: 'done', to: 'on', result: 'ok' } }), account: { ...s.account, autoUpdate: 'on', autoUpdateOurs: true, autoUpdateWritable: true, latest: NEWER } } },
+    { title: 'Auto-update · turning off', state: { ...view(s, { kind: 'auto-update' }, { autoPress: { phase: 'pressing', to: 'off' } }), account: { ...s.account, autoUpdate: 'on', autoUpdateOurs: true, autoUpdateWritable: true } } },
+    { title: 'Auto-update · off again, the list as it was', state: { ...view(s, { kind: 'auto-update' }, { autoPress: { phase: 'done', to: 'off', result: 'ok' } }), account: { ...s.account, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Auto-update · turned off in /plugin', state: { ...view(s, { kind: 'auto-update' }), account: { ...s.account, autoUpdate: 'off-chosen', autoUpdateWritable: true } } },
+    { title: 'Auto-update · can\'t run here', state: { ...view(s, { kind: 'auto-update' }), account: { ...s.account, autoUpdate: 'off', autoUpdateHeld: true, autoUpdateWritable: true } } },
+    { title: 'Auto-update · Claude Code was saving', state: { ...view(s, { kind: 'auto-update' }, { autoPress: { phase: 'done', to: 'on', result: 'busy' } }), account: { ...s.account, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Auto-update · could not change it here', state: { ...view(s, { kind: 'auto-update' }, { autoPress: { phase: 'done', to: 'on', result: 'cannot' } }), account: { ...s.account, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Auto-update · the plugin list did not save', state: { ...view(s, { kind: 'auto-update' }, { autoPress: { phase: 'done', to: 'on', result: 'broken', folder: '/Users/sam/.claude/plugins' } }), account: { ...s.account, autoUpdate: 'unknown', autoUpdateWritable: false } } },
+    ...updateSteps(s, offline, now),
     { title: 'Fusion · the egg', state: at(reveal(w, 'egg', [w.hybrid]), 0) },
     { title: 'Fusion · hatched', state: at(reveal(w, 'egg', [w.hybrid]), 1) },
     { title: 'Present · wrapped', state: at(reveal(w, 'present', [w.more[3]!]), 0) },
@@ -267,13 +315,50 @@ function steps(now: number): UiScene[] {
     { title: 'Link · cannot reach the server', state: { ...pane(s, { tab: 'team' }), account: { ...s.account, link: 'unreachable', note: 'Can\'t reach spinlings.dev right now' } } },
     { title: 'Link · read-only below minClient', state: { ...pane(s, { tab: 'team' }), account: { ...s.account, readOnly: true, latest: NEWER } } },
     { title: 'Version · a newer mod is out: the footer chip', state: { ...pane(s, { tab: 'cards' }), account: { ...s.account, latest: NEWER } } },
-    { title: 'Version · the update command, ready to copy', state: { ...pane(s, { tab: 'trade', page: 0, showUpdate: true }), account: { ...s.account, latest: NEWER } } },
-    { title: 'Version · the update command copied', state: { ...pane(s, { tab: 'trade', page: 0, showUpdate: true, message: 'Copied. Run it in a terminal.', tone: 'good' }), account: { ...s.account, latest: NEWER } } },
+    { title: 'Version · on its way: auto-update brings it', state: { ...pane(s, { tab: 'cards' }), account: { ...s.account, latest: NEWER, autoUpdate: 'on' } } },
+    { title: 'Version · can\'t play online, though auto-update is on', state: { ...pane(s, { tab: 'cards' }), account: { ...s.account, readOnly: true, latest: NEWER, autoUpdate: 'on' } } },
     { title: 'First run · hatching', state: { ...INITIAL, account: { ...INITIAL.account, link: 'joining' }, clock: now } },
     { title: 'Start · this computer is signed out', state: { ...pane(s, { tab: 'team' }), account: { ...s.account, link: 'signed-out', note: 'This computer is signed out of spinlings.dev · /spin world online starts fresh', devices: null } } },
     { title: 'Start · the offline save cannot be opened', state: { ...INITIAL, account: { ...INITIAL.account, world: 'offline', features: offline.account.features, link: 'unreachable', note: 'This save is from a newer Spinlings. Update the mod to open it.' }, clock: now } },
     { title: 'Devices · signed out, a passkey brings the old collection', state: { ...view(s, { kind: 'devices' }), me: null, cards: [], account: { ...s.account, link: 'signed-out', note: 'This computer is signed out of spinlings.dev · /spin world online starts fresh', devices: null } } },
     ...bandSteps(w, now),
+  ]
+}
+
+// ---------- /spin updates: every state of the version card and every way to get a release ----------
+
+function updateSteps(s: GameState, offline: GameState, now: number): UiScene[] {
+  const guide = (v: Partial<Extract<View, { kind: 'auto-update' }>> = {}, p: Partial<PaneUi> = {}) => view(s, { kind: 'auto-update', ...v }, p)
+  const out = { ...s.account, latest: NEWER, notes: SCENE_NOTES }
+  const { checked: _, ...unchecked } = s.account
+  return [
+    { title: 'Updates · out, auto-update brings it', state: { ...guide(), account: { ...out, autoUpdate: 'on' } } },
+    { title: 'Updates · out, auto-update brings it (turned on here)', state: { ...guide(), account: { ...out, autoUpdate: 'on', autoUpdateOurs: true, autoUpdateWritable: true } } },
+    { title: 'Updates · out, one press to turn auto-update on', state: { ...guide(), account: { ...out, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · out, the update steps open', state: { ...guide({ steps: true }), account: { ...out, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · out, turning auto-update on', state: { ...guide({}, { autoPress: { phase: 'pressing', to: 'on' } }), account: { ...out, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · out, Claude Code was saving', state: { ...guide({}, { autoPress: { phase: 'done', to: 'on', result: 'busy' } }), account: { ...out, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · out, the switch could not change it', state: { ...guide({}, { autoPress: { phase: 'done', to: 'on', result: 'cannot' } }), account: { ...out, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · out, the plugin list did not save', state: { ...guide({}, { autoPress: { phase: 'done', to: 'on', result: 'broken', folder: '/Users/sam/.claude/plugins' } }), account: { ...out, autoUpdate: 'unknown', autoUpdateWritable: false } } },
+    { title: 'Updates · out, auto-update turned off in /plugin', state: { ...guide(), account: { ...out, autoUpdate: 'off-chosen', autoUpdateWritable: true } } },
+    { title: 'Updates · out, auto-update not known', state: { ...guide(), account: { ...out, autoUpdate: 'unknown' } } },
+    { title: 'Updates · out, updates held here', state: { ...guide(), account: { ...out, autoUpdate: 'on', autoUpdateHeld: true } } },
+    { title: 'Updates · out, copied', state: { ...guide({}, { message: 'Copied /plugin. Paste it into Claude Code\'s prompt.', tone: 'good' }), account: { ...out, autoUpdate: 'unknown' } } },
+    { title: 'Updates · out, on a community server', state: { ...guide(), account: { ...out, server: 'https://cats.example', host: 'cats.example', community: true, notes: [], autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · out, what it brings not known', state: { ...guide(), account: { ...out, notes: [], autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · needed to keep playing online', state: { ...guide(), account: { ...out, readOnly: true, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · needed, auto-update on', state: { ...guide(), account: { ...out, readOnly: true, autoUpdate: 'on' } } },
+    { title: 'Updates · needed, the switch could not change it', state: { ...guide({}, { autoPress: { phase: 'done', to: 'on', result: 'cannot' } }), account: { ...out, readOnly: true, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · needed, the plugin list did not save', state: { ...guide({}, { autoPress: { phase: 'done', to: 'on', result: 'broken', folder: '/Users/sam/.claude/plugins' } }), account: { ...out, readOnly: true, autoUpdate: 'unknown', autoUpdateWritable: false } } },
+    { title: 'Updates · needed, nothing newer named', state: { ...guide(), account: { ...s.account, readOnly: true, latest: null, autoUpdate: 'unknown' } } },
+    { title: 'Updates · here, just updated', state: { ...guide({ here: '0.2.14' }), account: { ...s.account, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · here, before the first check', state: { ...guide({ here: '0.2.16' }), account: { ...unchecked, link: 'starting', autoUpdate: 'on' } } },
+    { title: 'Updates · here, from a version not known', state: { ...guide({ here: '' }), account: { ...s.account, autoUpdate: 'on' } } },
+    { title: 'Updates · here, offline', state: { ...view(offline, { kind: 'auto-update', here: '0.2.16' }), account: { ...offline.account, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · up to date, checked yesterday', state: { ...guide(), account: { ...s.account, checked: utcDay(now - DAY), autoUpdate: 'on' } } },
+    { title: 'Updates · asking the server', state: { ...guide(), account: { ...unchecked, checking: true, autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · the server is out of reach', state: { ...guide(), account: { ...unchecked, link: 'unreachable', note: 'Can\'t reach spinlings.dev right now', autoUpdate: 'off', autoUpdateWritable: true } } },
+    { title: 'Updates · the server names no newest version', state: { ...guide(), account: { ...unchecked, autoUpdate: 'unknown' } } },
   ]
 }
 
@@ -327,7 +412,7 @@ function bandSteps(w: World, now: number): UiScene[] {
     step('a wild reveal: NEW, FIRST IN THE WORLD?', at({ battle: fight({ phase: 'reveal', first: true, defender: [w.wild.epic, w.wild.common] }) })),
     step('a Mythic appeared', at({ battle: fight({ phase: 'reveal', defender: [w.wild.mythic] }) })),
     step('a Rival sends out its lead', at({ battle: fight({ kind: 'duel', phase: 'reveal' }) })),
-    step('the special is ready: 1 Now! (helpers cheering)', at({ battle: fight({ kind: 'duel', shown: perfectAt - 1 }), signals: { ...s.signals, family: 'opus', cheering: 2 } })),
+    step('the special is ready: 1 Now!', at({ battle: fight({ kind: 'duel', shown: perfectAt - 1 }), signals: { ...s.signals, family: 'opus' } })),
     step('Perfect!', at({ battle: fight({ kind: 'duel', shown: perfectAt - 1, inputs: [perfectAt] }) })),
     step('a round, the streak on the line', at({ battle: fight({ kind: 'duel', player: true, shown: 0 }) })),
     step('rules differ: the server\'s log is on its way', at({ battle: fight({ kind: 'duel', live: false }) })),
@@ -346,7 +431,17 @@ function bandSteps(w: World, now: number): UiScene[] {
     step('evolved, with its gains', evolve(now + 4000)),
     step('a pack is ready', moment({ kind: 'pack-ready', id: 'pack-ready', count: 2, until: now + 6000 })),
     step('a present from another player', moment({ kind: 'present', id: 'present:demo', from: 'quiet-otter-42', cardIds: [], until: null })),
-    step('a new version is out', moment({ kind: 'update', id: 'update:0.2.0', version: '0.2.0', until: null })),
+    step('a new version is out', moment({ kind: 'update', id: `update:${NEWER}`, version: NEWER, until: null }, { account: { ...s.account, latest: NEWER, notes: SCENE_NOTES } })),
+    step('a new version is out, what it brings not known', moment({ kind: 'update', id: `update:${NEWER}`, version: NEWER, until: null }, { account: { ...s.account, latest: NEWER, notes: [] } })),
+    step('a new version is out, on a community server', moment({ kind: 'update', id: `update:${NEWER}`, version: NEWER, until: null }, { account: { ...s.account, server: 'https://cats.example', host: 'cats.example', community: true, latest: NEWER } })),
+    step('this version can\'t play online until updated', moment({ kind: 'update', id: `update:${NEWER}`, version: NEWER, until: null }, { account: { ...s.account, latest: NEWER, readOnly: true, notes: SCENE_NOTES } })),
+    step('a new version is here', moment({ kind: 'updated', id: `updated:${CLIENT_VERSION}`, version: CLIENT_VERSION, from: '0.2.16', until: null })),
+    step('a new version is here, from one not known', moment({ kind: 'updated', id: `updated:${CLIENT_VERSION}`, version: CLIENT_VERSION, from: '', until: null })),
+    step('turn on auto-update?', moment({ kind: 'auto-update', id: 'auto-update', until: null }, { account: { ...s.account, autoUpdate: 'off' } })),
+    step('turn on auto-update in one press', moment({ kind: 'auto-update', id: 'auto-update', until: null }, { account: { ...s.account, autoUpdate: 'off', autoUpdateWritable: true } })),
+    step('auto-update is on', moment({ kind: 'auto-on', id: 'auto-on', until: now + 10_000 }, { account: { ...s.account, autoUpdate: 'on', autoUpdateOurs: true, autoUpdateWritable: true } })),
+    step('a pack is ready, twelve waiting', moment({ kind: 'pack-ready', id: 'pack-ready', count: 12, until: now + 6000 }, { me: { ...s.me!, packs: Array.from({ length: 12 }, (_, i) => ({ id: `demo-bank-${i}`, family: 'opus' as const, source: 'charge' as const, day: w.day })) } })),
+    step('a pack is ready, only one', moment({ kind: 'pack-ready', id: 'pack-ready', count: 1, until: now + 6000 }, { me: { ...s.me!, packs: [s.me!.packs[0]!] } })),
     step('the passkey offer', moment({ kind: 'passkey', id: 'passkey', until: null })),
     step('a legendary caught: keep it safe with a passkey', moment({ kind: 'passkey', id: 'passkey', until: null, card: toBattleCard(w.forSale[2]!) })),
     step('sold on the market', moment({ kind: 'market', id: 'market:demo-sold', outcome: 'sold', card: toBattleCard(w.more[2]!), handle: 'misty-lark-18', price: 320, until: now + 15_000 })),

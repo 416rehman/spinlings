@@ -48,21 +48,3 @@ test('Back returns from nested details without closing the host, then Close clos
   await w.actions.back()
   assert.equal(w.closed.length, 1)
 })
-
-test('Hide update dismisses the update before returning from details or closing the host', async () => {
-  const w = pane()
-  const card = { kind: 'card' as const, cardId: 'card-one' }
-  w.state.account.latest = '99.0.0'
-  w.state.pane.showUpdate = true
-  w.state.pane.stack = [card]
-  await w.actions.back()
-  assert.equal(w.state.pane.showUpdate, false)
-  assert.deepEqual(w.state.pane.stack, [card])
-  assert.equal(w.closed.length, 0)
-  await w.actions.back()
-  assert.deepEqual(w.state.pane.stack, [])
-  assert.equal(w.closed.length, 0)
-  await w.actions.back()
-  assert.equal(w.closed.length, 1)
-  assert.equal(w.closed[0]!.showUpdate, false)
-})

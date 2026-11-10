@@ -23,21 +23,22 @@ function sizeOf(content: RenderElement, columns?: number): HitSize {
   return { rows: textOf(content).split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(cells(line) / width)), 0) }
 }
 
-export function cardHit(el: El, enabled: boolean, key: string, on: (() => unknown) | undefined, button = `${key}-pick`, intent = key, target?: string, size: HitSize = { rows: 1 }): RenderElement | null {
+/** `alt` names the control to assistive tech where the region is art (a card's art is Select creature). */
+export function cardHit(el: El, enabled: boolean, key: string, on: (() => unknown) | undefined, button = `${key}-pick`, intent = key, target?: string, size: HitSize = { rows: 1 }, alt?: string): RenderElement | null {
   if (!enabled || !on || !el['Client']) return null
   const hit = `${key}${target ? `-${target}` : ''}-hit`
   registerCardHit(hit, button, intent, on)
   // Native sizes floor to cells; art needs one extra cell behind its clipped region for partial edges.
   const edge = 'pixels' in size ? -1 : 0
   return <el.Box position="absolute" top={0} bottom={edge} left={0} right={edge} flexDirection="column">
-    <el.Client key={hit} module="./card-hit.tsx" props={{ intent, size }} width="100%" flexGrow={1} />
+    <el.Client key={hit} module="./card-hit.tsx" props={{ intent, size, ...(alt ? { alt } : {}) }} width="100%" flexGrow={1} />
   </el.Box>
 }
 
 /** Cover only noninteractive content: the native name/action Button remains a separate, usable control. */
 export function cardHitRegion(el: El, content: RenderElement, enabled: boolean, key: string, on: (() => unknown) | undefined,
-  button: string, intent: string, target?: string, columns?: number): RenderElement {
-  const hit = cardHit(el, enabled, key, on, button, intent, target, sizeOf(content, columns))
+  button: string, intent: string, target?: string, columns?: number, alt?: string): RenderElement {
+  const hit = cardHit(el, enabled, key, on, button, intent, target, sizeOf(content, columns), alt)
   if (!hit) return content
   return <el.Box position="relative" flexDirection="column" overflow="hidden">{content}{hit}</el.Box>
 }

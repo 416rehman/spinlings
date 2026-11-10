@@ -3,7 +3,8 @@ import type { ClientModule, RenderElement } from 'claude-code'
 
 type Held = { x: number; y: number; intent: string } | null
 type Size = { pixels: { width: number; height: number } } | { rows: number }
-const CardHit: ClientModule<{ intent: string; size: Size }, Held> = (props, surface) => {
+/** `alt`: what assistive tech calls the control over art; a card's own art is Select creature. */
+const CardHit: ClientModule<{ intent: string; size: Size; alt?: string }, Held> = (props, surface) => {
   const { Box, Text } = surface.elements
   surface.onPointer(e => {
     // A host can deliver its first click before reporting size. Positive dimensions still bound captured releases.
@@ -25,7 +26,7 @@ const CardHit: ClientModule<{ intent: string; size: Size }, Held> = (props, surf
   const spacer: RenderElement = 'pixels' in size
     ? { type: 'Svg', props: {
       source: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size.pixels.width} ${size.pixels.height}"/>`,
-      alt: 'Select creature', width: size.pixels.width, height: size.pixels.height,
+      alt: typeof props.alt === 'string' && props.alt.trim() !== '' ? props.alt : 'Select creature', width: size.pixels.width, height: size.pixels.height,
     } }
     : <Text>{'\n'.repeat(Math.max(1, size.rows) - 1) + ' '}</Text>
   // One clipped blank line keeps the final partial pixel row inside the host's floored size report.

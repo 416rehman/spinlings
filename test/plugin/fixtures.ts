@@ -1,6 +1,6 @@
 // A small in-memory Spinlings server for the mod's tests: it answers the routes a first session uses, from real core
 // rules, so every answer passes the same tolerant schemas a real server's would. Not a test file itself.
-import type { ListingView, MarketWant, MeResponse, StartBattleResponse } from '../../plugin/hooks/core/api.ts'
+import type { ListingView, MarketWant, MeResponse, ReleaseNote, StartBattleResponse } from '../../plugin/hooks/core/api.ts'
 import { FEATURES } from '../../plugin/hooks/core/api.ts'
 import type { Card, Family, NewCard } from '../../plugin/hooks/core/types.ts'
 import { RULES_VERSION, simulateBattle } from '../../plugin/hooks/core/battle.ts'
@@ -62,7 +62,8 @@ export type FakeServer = {
 
 export const OTHER_TOKEN = 'tok_' + 'b'.repeat(40)
 
-export function fakeServer(o: { now?: number; family?: Family; difficulty?: number; latestClient?: string; minClient?: string } = {}): FakeServer {
+/** `notes`: what /v1/version says the newest releases bring, as spinlings.dev sends it; absent, no notes at all. */
+export function fakeServer(o: { now?: number; family?: Family; difficulty?: number; latestClient?: string; minClient?: string; notes?: ReleaseNote[] } = {}): FakeServer {
   const now = o.now ?? NOW
   const family = o.family ?? 'opus'
   const rng = rngFromSeed('fake-server')
@@ -87,7 +88,7 @@ export function fakeServer(o: { now?: number; family?: Family; difficulty?: numb
       const authed = headers.authorization === `Bearer ${TOKEN}`
       const body = init.body ? JSON.parse(init.body) as Record<string, unknown> : {}
       if (method === 'GET' && path === '/v1/version') {
-        return json(200, { api: 1, server: '1.0.0', rules: RULES_VERSION, generator: GENERATOR_VERSION, minClient: o.minClient ?? '0.0.1', latestClient: o.latestClient ?? '0.1.0', features: [...FEATURES] })
+        return json(200, { api: 1, server: '1.0.0', rules: RULES_VERSION, generator: GENERATOR_VERSION, minClient: o.minClient ?? '0.0.1', latestClient: o.latestClient ?? '0.1.0', features: [...FEATURES], ...(o.notes ? { notes: o.notes } : {}) })
       }
       if (method === 'GET' && path === '/v1/challenge') return json(200, { challenge: 'challenge-0123456789', difficulty: o.difficulty ?? 4 })
       if (method === 'POST' && path === '/v1/join') return json(200, { token: TOKEN, me: server.me })
@@ -134,6 +135,19 @@ export function fakeServer(o: { now?: number; family?: Family; difficulty?: numb
           player: { ...server.me.player, cardsVersion: server.me.player.cardsVersion + 1, seen: [...new Set([...server.me.player.seen, ...got.map(c => c.species)])] },
         }
         return json(200, { cards: got })
+      }
+      if (method === 'POST' && path === '/v1/packs/open-many') {
+        const ids = (body.packIds as string[]) ?? []
+        const packs = ids.map(id => server.me.packs.find(p => p.id === id))
+        if (ids.length === 0 || ids.length > 10 || new Set(ids).size !== ids.length || packs.some(p => !p)) return json(404, { error: { code: 'not_found', message: 'no such pack' } })
+        const opened = packs.map(pack => ({ packId: pack!.id, family: pack!.family, cards: withIds(rollPack(pack!.family, seasonOf(now), rngFromSeed(pack!.id), now), `${pack!.id}-`) }))
+        const got = opened.flatMap(x => x.cards)
+        server.cards = [...server.cards, ...got]
+        server.me = {
+          ...server.me, packs: server.me.packs.filter(p => !ids.includes(p.id)),
+          player: { ...server.me.player, cardsVersion: server.me.player.cardsVersion + 1, seen: [...new Set([...server.me.player.seen, ...got.map(c => c.species)])] },
+        }
+        return json(200, { opened })
       }
       if (method === 'POST' && path === '/v1/battles') {
         const attacker = server.cards.filter(c => server.me.player.team.includes(c.id)).map(toBattleCard)

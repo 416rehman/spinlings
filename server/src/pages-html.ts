@@ -1,7 +1,7 @@
 // The site's HTML layer: a template tag that escapes every interpolated value unless it is already
 // markup, the one page layout (head, header, footer, tokens) and the pieces pages share. Site pages
 // load two first-party scripts (/static/sky.*.js and /static/site.*.js, SPEC 36) under SITE_CSP;
-// /odds, /privacy and the "not here" page run no script; the passkey pages run passkey.js only.
+// /odds, /privacy, /whats-new and the "not here" page run no script; the passkey pages run passkey.js only.
 // Nothing loads from another origin.
 import { cardName, geneScore } from '../../plugin/hooks/core/cards.ts'
 import { FAMILY_INFO } from '../../plugin/hooks/core/families.ts'
@@ -57,8 +57,12 @@ export const REPO = 'https://github.com/416rehman/spinlings'
 export const INSTALL_STEPS = ['/plugin marketplace add 416rehman/spinlings', '/plugin install spinlings@spinlings'] as const
 export const INSTALL = INSTALL_STEPS.join(' then ')
 export const ASK = 'install the Spinlings mod from 416rehman/spinlings'
+/** Step 3, optional, in the new session: the mod's update guide, where Turn it on lets Claude Code update it (SPEC 32). */
+export const UPDATES_STEP = '/spin updates'
+/** The same switch by hand, in Claude Code's own plugin manager. */
+export const UPDATES_BY_HAND = ['/plugin', 'Marketplaces', 'spinlings', 'Enable auto-update'] as const
 
-/** /odds, /privacy and the "not here" page: no script at all. */
+/** /odds, /privacy, /whats-new and the "not here" page: no script at all. */
 export const PAGE_CSP = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 /** The passkey pages: one first-party script, and its posts back to this origin. */
 export const SCRIPT_CSP = "default-src 'none'; script-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
@@ -199,6 +203,10 @@ clip-path:polygon(0 var(--ap),var(--ap) var(--ap),var(--ap) 0,calc(100% - var(--
 .prompt .copy{flex:none}
 .prompt+.prompt{margin-top:8px}
 @media (max-width:599px){.prompt{flex-wrap:wrap;padding:16px}.prompt .copy{width:100%}.prompt .copy .face{min-height:48px}}
+/* the install sign's third line: apart from the two that install, because it can wait */
+.install .then{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s2);margin:var(--s4) 0 var(--s2);font-size:.9375rem;font-weight:600}
+.install .opt{padding:2px var(--s2);border:1px solid currentColor;border-radius:999px;font-size:.75rem;font-weight:600;line-height:1.3;opacity:.75}
+.install .mstep{white-space:nowrap}
 
 /* header */
 .skip{position:absolute;left:16px;top:-80px;z-index:50;padding:8px 16px;background:var(--cream);color:var(--inkd);font-weight:700}
@@ -241,11 +249,14 @@ html.js .home .walker.on{opacity:1}
 @media (hover:hover){.gh:hover::before{opacity:1;background:color-mix(in srgb,currentColor 14%,#0000)}.gh:hover::after{opacity:1;animation:twk 1.8s steps(1) infinite}.gh:hover svg{animation:ghop .3s steps(1)}}
 @keyframes ghop{0%,66%{transform:translateY(-2px)}33%{transform:translateY(-4px)}}
 .gh:active{padding:2px 12px 0}.gh:active::before{inset:calc(var(--fy) + 2px) 2px var(--fy);box-shadow:0 -2px,0 2px,-2px 0,2px 0}.gh:active::after{translate:0 2px}
-.nb{display:flex;align-items:center;gap:8px;height:44px;padding:0 6px;color:inherit;font-size:.9375rem;font-weight:700;line-height:1;text-decoration:none;white-space:nowrap}
-.nb svg{width:20px;height:20px;transition:transform .2s var(--spring)}
+/* the way round the site: a pixel icon each, its word wherever the bar has room */
+.nb{display:flex;align-items:center;justify-content:center;gap:8px;min-width:44px;height:44px;padding:0 6px;color:inherit;font-size:.9375rem;font-weight:700;line-height:1;text-decoration:none;white-space:nowrap}
+.nb svg{flex:none;width:20px;height:20px;transition:transform .2s var(--spring)}
 .nb:hover{text-decoration:underline}.nb:hover svg{transform:translateY(-3px) rotate(-8deg)}
 .nb[aria-current]{text-decoration:underline;text-decoration-thickness:2px}
-.profile-access{justify-content:center;width:36px;padding:0}
+.nbl{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media (min-width:1200px){.nbl{position:static;width:auto;height:auto;overflow:visible;clip-path:none}}
+@media (max-width:1199px){.nb{position:relative}.nb[aria-current]::after{content:"";position:absolute;left:12px;right:12px;bottom:4px;height:2px;background:currentColor}}
 .ghl{display:none}
 @media (min-width:1024px){.ghl{display:inline}}
 .home .top{background:var(--sky1);color:var(--ink)}
@@ -261,9 +272,12 @@ html.js .home .walker.on{opacity:1}
 .trail .dots{max-width:none}
 .slot{width:36px;height:44px}.slot .in2{width:32px;height:32px}.slot svg.spr{width:24px;height:24px}
 .end{gap:var(--s2)}.gh{--fy:8px}
-.home .nbl{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 }
-@media(max-width:400px){.top .end{gap:4px}.top .end .nbl{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.top .end .nb{padding:0 5px}.top .end .gh{padding-left:5px;padding-right:5px}.home .top .team{display:none}}
+/* tablet widths: the trail keeps its words between a smaller wordmark and a tighter bar */
+@media (min-width:768px) and (max-width:1023px){.brand svg{width:calc(var(--w) * 2px);height:20px}.trail a{padding:0 6px}.end{gap:var(--s2)}.slot{width:36px}.slot .in2{width:32px;height:32px}}
+/* phones: every link keeps its 44 px; the team strip narrows, then waits for a wider screen */
+@media(max-width:479px){.top .end{gap:0}.team{gap:0}.slot{width:32px}.slot .in2{width:30px;height:30px}.top .end .gh{padding-left:12px;padding-right:12px}}
+@media(max-width:419px){.home .top .team{display:none}}
 
 /* footer */
 .foot{position:relative;margin-top:0;background:#1f1512;color:#cdb9a6;font-size:.9375rem}
@@ -513,8 +527,16 @@ export const SOURCE_NAME = 'Open source on GitHub'
 /** The GitHub mark, Octicons' mark-github (MIT), drawn inline so the page still asks nobody for anything. */
 const GITHUB_MARK = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>'
 
-/** The way to the boards: a pixel trophy, with its word wherever the bar has room. */
-const TROPHY = '<svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="#f2b33d" d="M0 0h8v3h-1v1h-1v1h-1v1h-2v-1h-1v-1h-1v-1h-1z"/><path fill="#fff1c2" d="M1 1h1v2h-1z"/><path fill="#b5761f" d="M2 6h4v1h1v1h-6v-1h1z"/></svg>'
+/** The way to the boards: a pixel trophy, ringed in ink so it holds against every sky. */
+const TROPHY = '<svg viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="#1d1726" d="M1 0h8v1h-8zM0 1h10v3h-10zM1 4h8v1h-8zM2 5h6v1h-6zM3 6h4v1h-4zM2 7h6v1h-6zM1 8h8v1h-8zM2 9h6v1h-6z"/><g transform="translate(1 1)"><path fill="#f2b33d" d="M0 0h8v3h-1v1h-1v1h-1v1h-2v-1h-1v-1h-1v-1h-1z"/><path fill="#fff1c2" d="M1 1h1v2h-1z"/><path fill="#b5761f" d="M2 6h4v1h1v1h-6v-1h1z"/></g></svg>'
+/** The way to search: a pixel magnifier, with a glint on the glass. */
+const MAGNIFIER = '<svg viewBox="0 0 20 20" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 2h5v1h-5zM4 3h9v1h-9zM3 4h3v1h-3zM11 4h3v1h-3zM3 5h2v1h-2zM12 5h2v1h-2zM2 6h2v5h-2zM13 6h2v5h-2zM3 11h2v1h-2zM12 11h2v1h-2zM3 12h3v1h-3zM11 12h3v1h-3zM4 13h9v1h-9zM6 14h5v1h-5zM13 13h3v3h-3zM15 15h3v3h-3zM17 17h2v2h-2z"/><path fill="currentColor" opacity=".45" d="M6 5h2v1h-2zM5 6h1v2h-1z"/></svg>'
+/** The way to your own profile: a pixel trainer. */
+const PERSON = '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false" shape-rendering="crispEdges"><path fill="currentColor" d="M7 2h6v1h1v6h-1v1H7V9H6V3h1zM5 12h10v1h2v5H3v-5h2z"/></svg>'
+const NAV = [
+  ['/boards', 'Leaderboards', TROPHY],
+  ['/search', 'Search', MAGNIFIER],
+] as const
 
 function header(kind: PageKind, team: boolean, path = ''): Raw {
   const home = kind === 'home'
@@ -527,8 +549,8 @@ function header(kind: PageKind, team: boolean, path = ''): Raw {
 <button class="slot" type="button" data-slot="1"><span class="in2"></span></button>
 <button class="slot" type="button" data-slot="2"><span class="in2"></span></button>
 </div>` : ''}
-<a class="nb" href="/players" aria-label="Browse players" title="Browse players"${path === '/players' ? html` aria-current="page"` : ''}><svg viewBox="0 0 20 20" aria-hidden="true" shape-rendering="crispEdges"><path fill="currentColor" d="M4 2h5v2h1v5H9v1H4V9H3V4h1zM13 4h3v1h1v4h-1v1h-3V9h-1V5h1zM3 12h7v1h2v5H1v-5h2zM14 12h3v1h2v5h-5z"/></svg><span class="nbl">Players</span></a>
-<a class="nb profile-access" href="/account" aria-label="Your profile" title="Your profile"${path === '/account' ? html` aria-current="page"` : ''}><svg viewBox="0 0 20 20" aria-hidden="true" shape-rendering="crispEdges"><path fill="currentColor" d="M7 2h6v1h1v6h-1v1H7V9H6V3h1zM5 12h10v1h2v5H3v-5h2z"/></svg></a>
+${NAV.map(([href, label, icon]) => html`<a class="nb" href="${href}" title="${label}"${path === href ? html` aria-current="page"` : ''}>${raw(icon)}<span class="nbl">${label}</span></a>`)}
+<a class="nb" href="/account" aria-label="Your profile" title="Your profile"${path === '/account' ? html` aria-current="page"` : ''}>${raw(PERSON)}<span class="nbl">Profile</span></a>
 <a class="gh" href="${REPO}" aria-label="${SOURCE_NAME}">${raw(GITHUB_MARK)}<span class="ghl">Open source</span></a></div>
 </div>
 <div class="hdz" aria-hidden="true">${raw(HEADER_DITHER)}</div>
@@ -554,7 +576,7 @@ ${!scripted ? html`<span class="napper" aria-hidden="true">${raw(napper())}</spa
 <div class="in wrap">
 <p>A creature card game for Claude Code. Free and open source. Not affiliated with Anthropic.</p>
 <p>Season ${season}, day ${day}.</p>
-<nav aria-label="More"><a href="/players">Players</a><a href="/account">Your profile</a><a href="/boards">Leaderboards</a><a href="/market">Market</a><a href="/mythics">Mythics</a><a href="/odds">Odds</a><a href="/privacy">Privacy</a><a href="${REPO}">Source code</a><a href="${REPO}/issues">Report a problem</a><a href="${REPO}/blob/main/SECURITY.md">Report a security issue</a><a href="${REPO}/blob/main/docs/self-hosting.md">Run your own server</a></nav>
+<nav aria-label="More"><a href="/boards">Leaderboards</a><a href="/search">Search</a><a href="/account">Your profile</a><a href="/market">Market</a><a href="/mythics">Mythics</a><a href="/whats-new">What's new</a><a href="/odds">Odds</a><a href="/privacy">Privacy</a><a href="${REPO}">Source code</a><a href="${REPO}/issues">Report a problem</a><a href="${REPO}/blob/main/SECURITY.md">Report a security issue</a><a href="${REPO}/blob/main/docs/self-hosting.md">Run your own server</a></nav>
 ${scripted ? html`<button class="tbtn keys js-only" type="button" aria-pressed="true" data-keys>Key shortcuts</button>` : ''}
 </div>
 </footer>`
@@ -566,15 +588,26 @@ ${scripted ? html`<button class="tbtn keys js-only" type="button" aria-pressed="
  */
 export const command = (line: string): Raw => html`<code>${line.split(' ').map((w, i) => html`${i ? ' ' : ''}<span class="w">${w}</span>`)}</code>`
 
-/** The install sign: two prompt boxes, one per command, each with its own Copy button (SPEC 34). */
+/**
+ * The install sign (SPEC 34): two prompt boxes, one per command, each with its own Copy button, then the optional
+ * third line for the new session, set a little apart because it can wait.
+ */
 export function installBlock(id = 'install', label = 'Type these inside Claude Code, one at a time'): Raw {
   return html`<div class="install" data-install>
 <p class="label" id="${id}-label">${label}</p>
 ${INSTALL_STEPS.map((step, i) => html`<div class="prompt"><pre id="${id}-cmd${i ? i + 1 : ''}" aria-labelledby="${id}-label" tabindex="-1">${GT}${command(step)}${i === INSTALL_STEPS.length - 1 ? raw('<span class="caret" aria-hidden="true"></span>') : ''}</pre>
 ${COPY}</div>`)}
 <p class="ask">Then start a new session. Needs Claude Code 2.1.287 or later (<code>claude update</code>). Or just ask Claude: <q>${ASK}</q></p>
+<p class="then" id="${id}-then">Updates by themselves <span class="opt">optional</span></p>
+<div class="prompt"><pre aria-labelledby="${id}-then">${GT}${command(UPDATES_STEP)}</pre>
+${COPY}</div>
+<p class="ask">Run it in your new session and press <b>Turn it on</b>.<br>Or, in a terminal: ${menuPath(UPDATES_BY_HAND)}</p>
 </div>`
 }
+
+/** A command, then menu choices: arrows to the eye, "then" to a screen reader, and a line breaks only before an arrow. */
+const menuPath = ([first, ...rest]: readonly string[]): Raw =>
+  html`<code>${first!}</code>${rest.map(s => html` <span class="mstep"><span aria-hidden="true">→ </span><span class="sr">then </span>${s}</span>`)}.`
 
 const GT = raw('<span class="gt" aria-hidden="true">&gt;</span>')
 const COPY = raw('<button class="pbtn copy js-only" type="button" data-copy><span class="face">Copy</span></button>')

@@ -4,14 +4,14 @@ The complete player guide. Every number here is the one the game plays by, and a
 
 There are no daily quotas anywhere. Every finished battle pays, and the only waiting you can meet is the spacing between battles and a full pack bank.
 
-There is nothing to set up either. After installing, the game starts on its own the first time you open Claude Code, and `/spin` is optional.
+There is nothing to set up either. After installing, the game starts on its own the first time you open Claude Code, and `/spin` is optional. To get new creatures and fixes without commands, run `/spin updates` once and press **Turn it on**; Claude Code then installs each new Spinlings a few minutes after it starts. The same screen says whether you're up to date and what each release brings, and the pane's version chip opens it.
 
 **Launch gift:** run `/spin redeem FIRSTSPIN` for one random pack. [Redeem instructions and live availability](https://spinlings.dev/d/FIRSTSPIN).
 
 ## Where the game lives
 
 - **The band** sits above the prompt and is hidden unless something is live: a battle, a result, a catch choice, a pack or a gift. `/spin pack` previews a waiting pack here. **Open** reveals its card, **Sidebar** moves the same opening into the pane, and **Close** dismisses it. Closing before Open keeps the pack unopened; closing after Open keeps the awarded card.
-- **The pane** opens with `/spin`. Its four tabs sit on hotkeys 1 to 4: **Team** (your three slots, resting timers, rating, sparks and notices), **Collection** (your cards and each card's details), **Discoveries** (this season's species and your Fusion Log) and **Community**. Team groups its waiting packs, **Open pack** and the filling pack meter with a labelled countdown such as `Next pack 18m`. The header's world button opens the chooser, and its daily-rule button explains the rule's effect. Press Help for a short field guide; Back or Close always has its own button.
+- **The pane** opens with `/spin`. Its four tabs sit on hotkeys 1 to 4: **Team** (your three slots, resting timers, rating, sparks and notices), **Collection** (your cards and each card's details), **Discoveries** (this season's species and your Fusion Log) and **Community**. Team groups its waiting packs, **Open pack** and the filling pack meter with a labelled countdown such as `Next pack 18m`. With more than one pack waiting, **Open all** opens them together. The header's world button opens the chooser, and its daily-rule button explains the rule's effect. Press Help for a short field guide; Back or Close always has its own button.
 - **Spinlings below the input** opens your pane. It shows one contextual cue: a small dot when a pack is ready, otherwise your last loaded online rating rank (such as `#23`) when available. Pack counts, world controls and updates stay in the pane. Claude's own controls stay visible. Older hosts without the button show only a passive pack-ready dot. `/spin quiet` hides the control and dot.
 
 Community opens on **Profile**, with your current stats, **Share profile**, passkey and settings controls. Share profile copies your public profile link; if the clipboard is unavailable, the link appears to copy by hand. **Privacy & settings → Manage account** opens browser account management when the server supports it. Its section bar switches between **Profile**, **Market**, **Rankings** and **Trading** in place. Market and Rankings appear where the online server supports them; Trading has offers, the trade board, the Wandering Trader and gifts. Offline, Profile and the Trader remain available, while public sharing and browser access stay hidden. Card, listing and player details open over the selected section, so Back returns you there.
@@ -157,6 +157,8 @@ A legendary roll gives the family's legendary species; any other roll picks one 
 **Other packs:** your first win of the day, every 3rd win in a row, season rewards, the Wandering Trader, drops, a gift claimed by a new player once they have really played, and buying them for 150 sparks each, as many as you like.
 
 **Opening.** The card is rolled when you open the pack, not when it charges. Its face-down back glows in its rarity colour before it flips: blue for rare, purple for epic, pulsing gold for legendary. `[f]` flips it, or it flips on its own, taking longer over rarer results.
+
+**Opening them all.** With more than one pack waiting, **Open all** (`o` on Team, `1` when the band says a pack is ready) opens the whole bank in a few requests while the stack of packs goes down; Claude keeps working, and `esc` stops after the packs already on their way. Up to five best pulls get their beat (Mythics, legendaries, epics, rares, First Discovered, foil, Alt colour and new species), building up to the very best one last. `[s]` skips to the summary: Done up top, then every card grouped by rarity with counts, copies of the same card stacked as `×3`, `NEW` on species new to your album, and `[n]` for new species only. Press any card to open it. With motion off, the summary shows at once.
 
 ## Fusion
 

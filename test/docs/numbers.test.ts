@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { WATCH_FOR_MS, WATCH_MS } from '../../plugin/hooks/client/autoupdate.ts'
 import { ROUND_MS } from '../../plugin/hooks/client/game.ts'
 import { chargeSpacingMs, ECONOMY as E } from '../../plugin/hooks/core/economy.ts'
 import { SEASON_MS } from '../../plugin/hooks/core/world.ts'
@@ -187,6 +188,7 @@ const CLAIMS: Record<string, Claim[]> = {
     ['| Deleted # days after they end |', KEEP_DAYS.resolvedOffers],
     ['(each expires after # days unused)', days(E.server.sessionIdleMs)],
     ['# days after its last use', days(E.server.sessionIdleMs)],
+    ['every # seconds while `/spin updates` is open (for up to # minutes)', sec(WATCH_MS), min(WATCH_FOR_MS)],
   ],
   'SECURITY.md': [
     ['the #-pack bank', P.bank],

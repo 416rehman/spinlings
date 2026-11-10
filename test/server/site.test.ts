@@ -135,13 +135,13 @@ async function drop(s: Server, o: { plain?: string | null; reward?: unknown; sup
 // ---- every page --------------------------------------------------------------------------------
 
 describe('site pages', () => {
-  it('render as strict pages: first-party scripts on site pages, none on /odds, /privacy and "not here"', async () => {
+  it('render as strict pages: first-party scripts on site pages, none on /odds, /privacy, /whats-new and "not here"', async () => {
     const { s, a } = await world()
     const card = await mythicFor(s, a, 'aa11')
     const code = await gift(s, a, (await looseCard(s, a)).id)
     await drop(s)
     const scripted = ['/', '/boards', '/market', `/u/${a.me.player.handle}`, `/c/${card.id}`, `/g/${code}`, '/d/founders', '/w/20261002-dusk-abcdefgh']
-    const quiet = ['/odds', '/privacy']
+    const quiet = ['/odds', '/privacy', '/whats-new']
     for (const path of [...scripted, ...quiet]) {
       const p = await get(s, path)
       assert.equal(p.status, 200, path)

@@ -1,5 +1,5 @@
 // The /spin pane (SPEC 9, 13, 14, 21, 25, 28, 30, 33): the same frame on every screen (header, body, hint row), the
-// four tabs, the views pushed over them (card, fuse, species, profile, gift, privacy, devices), the reveal ceremonies,
+// four tabs, the views pushed over them (card, fuse, species, profile, gift, privacy, devices, updates), the reveal ceremonies,
 // and the daily hello. Registered in register.tsx's PANE slot; draws only from the state it is handed.
 import type { RenderElement } from 'claude-code'
 import type { GameState, PaneView } from '../client/types.ts'
@@ -15,6 +15,7 @@ import { cardScreen, cardsScreen, fuseScreen, teamSlotScreen } from './pane-card
 import type { Ctx, Shown } from './pane-kit.tsx'
 import { actions, btn, column, formMini, frame, line, marketOpen, para, playable } from './pane-kit.tsx'
 import { listingScreen, sellScreen } from './pane-market.tsx'
+import { updatesScreen } from './pane-version.tsx'
 import { teamScreen } from './pane-team.tsx'
 import { communityScreen, helpScreen, todayScreen } from './pane-community.tsx'
 import { giftScreen, profileScreen } from './pane-trade.tsx'
@@ -36,7 +37,7 @@ function ctxOf(env: Env): Ctx {
   return {
     el: env.el, surface: env.surface, columns: Math.max(20, Math.floor(env.columns)), rows: env.rows, now: env.now || s.clock,
     actions: env.actions, state: s, root: screenOf(s.pane).kind === 'tab' && !startsHere(s), offline: s.account.world === 'offline',
-    motion: s.prefs.motion, hitAreas: !!env.hitAreas,
+    motion: s.prefs.motion, hitAreas: !!env.hitAreas, focused: env.focused,
     hitIntent: JSON.stringify([s.account.world, s.account.server, s.pane.tab, s.pane.community, s.pane.stack]),
   }
 }
@@ -141,6 +142,7 @@ function route(c: Ctx): Shown {
     case 'trades': return communityScreen(c, { section: 'trades' })
     case 'mine': return communityScreen(c, { section: 'profile' })
     case 'help': return helpScreen(c)
+    case 'auto-update': return updatesScreen(c)
     case 'today': return todayScreen(c, top.rule)
     case 'boards': return c.offline ? onlineOnly(c) : communityScreen(c, { section: 'boards', boards: top })
     case 'listing': return c.offline ? onlineOnly(c) : listingScreen(c, top)

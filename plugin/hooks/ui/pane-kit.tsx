@@ -1,7 +1,7 @@
 // The pane's building blocks (SPEC 21): the header on every screen (tabs left; daily rule, world and
 // server right), the one button, the card at the pane's sizes, the 2-second hold line, feedback and the hint row, whose
 // hints fit whole (the way out always stays) and whose right end carries the mod's version where there is room and,
-// when the server names a newer one, the chip that gives the update command.
+// when the server names a newer one, the chip that opens /spin updates.
 // Keys: on a tab's own screen 1-4 switch tabs and `o` opens a pack; a pushed view or a ceremony keeps 1-3 for its own
 // choices and the tabs stay pressable without keys, so a key never means two things on one screen.
 import type { RenderElement } from 'claude-code'
@@ -11,8 +11,9 @@ import { RULE_INFO, dailyRule } from '../core/world.ts'
 import { pixelCells } from '../client/anim.ts'
 import { packArt as packPixels } from '../client/battleview.ts'
 import type { Actions, El, GameState, HoldAction, PlayerStats, Presence, Surface, Tab } from '../client/types.ts'
+import { arrivesByItself } from '../client/autoupdate.ts'
 import { hasFeature, newerMod } from '../client/game.ts'
-import { CLIENT_VERSION, UPDATE_COMMAND } from '../client/remote.ts'
+import { CLIENT_VERSION } from '../client/remote.ts'
 import { bar, cells, dots, fit, safe, span } from '../client/text.ts'
 import { HOLD_VERB, grouped, holdText, statTiles } from '../client/viewmodels.ts'
 import type { StatTile } from '../client/viewmodels.ts'
@@ -38,10 +39,15 @@ export type Ctx = {
   /** the actual desktop pane forwards tile pointer messages; inert previews need no route */
   hitAreas: boolean
   hitIntent: string
+  /** false while the pane is open without the keyboard (opened by a band press): its hotkeys wait for ctrl+x tab */
+  focused?: boolean
 }
 
-/** What a screen hands the frame. `bare`: the screen says how the link stands itself, so the frame's note stays out. */
-export type Shown = { body: RenderElement; hints: string[]; banner?: RenderElement | null; bare?: boolean }
+/**
+ * What a screen hands the frame. `bare`: the screen says how the link stands itself, so the frame's note stays out.
+ * `feedback: 'inline'`: the screen draws the pane's feedback itself, right under what was pressed.
+ */
+export type Shown = { body: RenderElement; hints: string[]; banner?: RenderElement | null; bare?: boolean; feedback?: 'inline' }
 
 /** A chip: the 8x8 mini in a 10-cell column (pickers, offers, the album). */
 export const CHIP = CARD_WIDTH.mini
@@ -360,17 +366,19 @@ export function feedback(c: Ctx): RenderElement | null {
   return items.length > 0 ? column(c, items, SPACE.none) : null
 }
 
-/** The update command's row is open: the version chip offered a newer mod and was pressed. */
-const updateOpen = (c: Ctx) => c.state.pane.showUpdate && !!newerMod(c.state.account)
-
 /**
- * The link's own line when it is not ready, and the read-only notice (SPEC 32), which gives the update command
- * unless the update row right below already shows it.
+ * The link's own line when it is not ready, and, when this version can't play online until updated (SPEC 32), that
+ * plainly, with Update, which opens /spin updates.
  */
 export function linkNote(c: Ctx): RenderElement | null {
   const a = c.state.account
   if (a.world === 'online' && a.readOnly) {
-    return para(c, updateOpen(c) ? `This version is read-only on ${a.host}.` : `This version is read-only on ${a.host} · ${UPDATE_COMMAND}`, { color: INK.warn })
+    return (
+      <c.el.Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
+        <c.el.Text color={INK.warn} wrap="wrap">{`This version can't play on ${safe(a.host, 80)} until you update.`}</c.el.Text>
+        {btn(c, { key: 'link-update', label: 'Update', dim: true, on: () => c.actions.updates() })}
+      </c.el.Box>
+    )
   }
   if (a.link !== 'ready' && a.note) return para(c, safe(a.note, 160), { dim: true })
   return null
@@ -378,38 +386,24 @@ export function linkNote(c: Ctx): RenderElement | null {
 
 /** From this many columns the version chip reads `Update to 0.2.0`; narrower, `Update 0.2.0`. */
 export const CHIP_WIDE = 60
-/** The chip's label while the update row is open: pressing it again closes the row, as esc does. */
-export const CHIP_HIDE = 'Hide update'
 
 /**
- * The hint row's right end (SPEC 32): this mod's version, dim, never asking for anything, shown where the hints leave
- * room for it. When the server names a newer mod it becomes a chip that always shows, a verb with its version
- * (`u: Update to 0.2.0`), that opens the update command; while that is open it reads `Hide update` and u copies the
- * command, so the chip itself carries no key.
+ * The hint row's right end (SPEC 32), every form of it opening /spin updates. This mod's version, a dim press with no
+ * key, shown where the hints leave room for it. When the server names a newer mod, a chip that always shows, whole:
+ * a verb with its version (`u: Update to 0.2.0`), or, with Claude Code's auto-update on and able to run and this
+ * version still able to play online, dim, that it is on its way. Inside /spin updates, which says all of that itself,
+ * the plain version, pressing nothing.
  */
 export function versionChip(c: Ctx): { node: RenderElement; width: number; chip: boolean } {
+  const plain = `v${CLIENT_VERSION}`
+  if (c.state.pane.stack.at(-1)?.kind === 'auto-update') return { node: <c.el.Text dimColor>{plain}</c.el.Text>, width: cells(plain), chip: false }
   const latest = newerMod(c.state.account)
-  if (!latest) {
-    const label = `v${CLIENT_VERSION}`
-    return { node: <c.el.Text dimColor wrap="truncate-end">{label}</c.el.Text>, width: cells(label), chip: false }
-  }
-  const open = c.state.pane.showUpdate
-  const label = open ? CHIP_HIDE : fit(c.columns >= CHIP_WIDE ? `Update to ${latest}` : `Update ${latest}`, Math.max(8, Math.floor(c.columns / 2)))
-  const hotkey = !open ? 'u' : undefined
-  const node = btn(c, { key: 'version', label, hotkey, dim: open, on: () => c.actions.pane(p => ({ ...p, showUpdate: !p.showUpdate, message: '' })) })
-  return { node, width: cells(label) + (hotkey ? 3 : 0), chip: true }
-}
-
-/** The update command the chip opened, right above it: what it is for, the command, and Copy on u (SPEC 32). */
-export function updateRow(c: Ctx): RenderElement | null {
-  if (!updateOpen(c)) return null
-  const { Box, Text } = c.el
-  return (
-    <Box flexDirection="row" flexWrap="wrap" columnGap={SPACE.loose} width={c.columns}>
-      <Text wrap="wrap"><Text dimColor>In a terminal: </Text><Text>{UPDATE_COMMAND}</Text></Text>
-      {btn(c, { key: 'copy-update', label: 'Copy', hotkey: 'u', on: () => c.actions.copyUpdate() })}
-    </Box>
-  )
+  if (!latest) return { node: btn(c, { key: 'version', label: plain, dim: true, on: () => c.actions.updates() }), width: cells(plain), chip: false }
+  const v = safe(latest, 16)
+  const wide = c.columns >= CHIP_WIDE
+  const coming = !c.state.account.readOnly && arrivesByItself(c.state.account)
+  const label = coming ? (wide ? `${v} on its way` : `${v} soon`) : wide ? `Update to ${v}` : `Update ${v}`
+  return { node: btn(c, { key: 'version', label, hotkey: 'u', dim: coming, on: () => c.actions.updates() }), width: cells(label) + 3, chip: true }
 }
 
 const HINT_SEP = ` ${MARK.bullet} `
@@ -423,17 +417,6 @@ function lastIndex(items: readonly string[], test: (hint: string) => boolean): n
 const isEsc = (hint: string) => hint.startsWith('esc ')
 /** The way out of a screen: `esc Close`, `esc Back`, `esc Done`, or a ceremony's `d Done` where it has no esc. */
 const leaves = (hint: string) => isEsc(hint) || hint === 'd Done'
-
-/**
- * A screen's hints with the update row open: esc closes the row first (SPEC 32), so the way out says so.
- */
-export function hintsOf(c: Ctx, hints: readonly string[]): string[] {
-  const items = hints.filter(Boolean)
-  if (!updateOpen(c)) return items
-  const esc = lastIndex(items, isEsc)
-  const hide = `esc ${CHIP_HIDE}`
-  return esc < 0 ? [...items, hide] : items.map((hint, i) => (i === esc ? hide : hint))
-}
 
 /**
  * The hints that fit `room` cells, whole items only (SPEC 21.2): the way out always stays, the others give way from
@@ -459,14 +442,14 @@ export function fitHints(hints: readonly string[], room: number): string {
  */
 export function hintRow(c: Ctx, hints: readonly string[]): RenderElement {
   const { Box, Text } = c.el
-  const items = hintsOf(c, hints).filter(leaves)
+  const items = hints.filter(leaves)
   const version = versionChip(c)
   const shown = version.chip || cells(items.join(HINT_SEP)) + SPACE.loose + version.width <= c.columns
   const room = shown ? Math.max(1, c.columns - version.width - SPACE.loose) : c.columns
   return (
     <Box flexDirection="row" justifyContent="space-between" columnGap={SPACE.loose} width={c.columns}>
       {actions({ ...c, columns: room }, [
-        btn(c, { key: 'pane-back', label: updateOpen(c) ? 'Hide update' : c.state.pane.stack.length === 0 ? 'Close' : 'Back', dim: true, on: () => c.actions.back() }),
+        btn(c, { key: 'pane-back', label: c.state.pane.stack.length === 0 ? 'Close' : 'Back', dim: true, on: () => c.actions.back() }),
         !playable(c.state) || room < 13 || c.state.pane.stack.at(-1)?.kind === 'help' ? null : btn(c, { key: 'pane-help', label: '? Help', dim: true, on: () => c.actions.push({ kind: 'help' }) }),
       ])}
       {shown ? <Box flexShrink={0}>{version.node}</Box> : null}
@@ -474,7 +457,7 @@ export function hintRow(c: Ctx, hints: readonly string[]): RenderElement {
   )
 }
 
-/** Header, notes, banner, body, feedback, the update command once opened, hint row: the same frame on every screen. */
+/** Header, notes, banner, body, feedback, hint row: the same frame on every screen. */
 export function frame(c: Ctx, shown: Shown): RenderElement {
   return (
     <c.el.Box flexDirection="column" width={c.columns} rowGap={SPACE.tight}>
@@ -482,8 +465,7 @@ export function frame(c: Ctx, shown: Shown): RenderElement {
       {shown.bare ? null : linkNote(c)}
       {shown.banner ?? null}
       {shown.body}
-      {feedback(c)}
-      {updateRow(c)}
+      {shown.feedback === 'inline' ? null : feedback(c)}
       {hintRow(c, shown.hints)}
     </c.el.Box>
   )

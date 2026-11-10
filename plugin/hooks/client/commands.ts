@@ -26,6 +26,7 @@ export type SpinCommand =
   | { kind: 'privacy' }
   | { kind: 'server'; url: string | null }
   | { kind: 'version' }
+  | { kind: 'updates' }
   | { kind: 'leaderboard'; on: boolean | null }
   | { kind: 'handle'; reroll: boolean }
   | { kind: 'help'; text: string }
@@ -51,7 +52,8 @@ export const USAGE = [
   '/spin leaderboard [on|off]   the boards; show or hide yourself on them',
   '/spin handle [new]      your handle; draw a new one once a week',
   '/spin server [url|default]   play on a community server',
-  '/spin version           this mod\'s version, and whether an update is out',
+  '/spin version           version details for this mod and its server',
+  '/spin updates           whether you\'re up to date, what\'s new, auto-update',
 ].join('\n')
 
 const onOff = (v: string | undefined): boolean | null => (v === 'on' ? true : v === 'off' ? false : null)
@@ -110,6 +112,7 @@ export function parseCommand(args: string): SpinCommand {
     case 'privacy': return { kind: 'privacy' }
     case 'server': return { kind: 'server', url: rest[0] ?? null }
     case 'version': return { kind: 'version' }
+    case 'updates': case 'update': case 'auto-update': return { kind: 'updates' }
     case 'leaderboard': {
       if (rest.length === 0) return { kind: 'leaderboard', on: null }
       const on = onOff(arg)

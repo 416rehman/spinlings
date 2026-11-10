@@ -3,25 +3,28 @@
 // authenticated routes) the bearer token, logged for /spin privacy with the token redacted, raced against a timeout,
 // and read tolerantly. Plus the join (proof of work solved in slices, off any hook), the version handshake and the
 // per-origin session in $.store.
-import type { ApiOp, ApiRequest, ApiResponse, JoinResponse, VersionResponse } from '../core/api.ts'
+import type { ApiOp, ApiRequest, ApiResponse, JoinResponse, ReleaseNote, VersionResponse } from '../core/api.ts'
 import { API_ROUTES } from '../core/api.ts'
 import type { Family } from '../core/types.ts'
 import { RULES_VERSION } from '../core/battle.ts'
 import { SchemaError } from '../core/schemas.ts'
-import { isOnServer } from '../core/servers.ts'
+import { DEFAULT_SERVER, isOnServer } from '../core/servers.ts'
 import { sha256 } from '../core/sha256.ts'
 import { GENERATOR_VERSION } from '../core/species.ts'
+import { compareSemver, isRelease } from '../core/versions.ts'
 import { buildRequest, readAnswer, sentEntry } from './net.ts'
 import { KEYS, readToken } from './store.ts'
 import type { Backend, Fx, HttpAnswer, HttpInit, Sent, Timer } from './types.ts'
 import { BackendError } from './types.ts'
+import { notesBetween } from './whatsnew.ts'
 
 /**
  * This mod's version: sent as X-Spinlings-Client and compared with the server's minClient. A release bumps it with
- * plugin.json's `version` (test/e2e/manifest.test.ts holds the two, and the server's LATEST_CLIENT, equal).
+ * plugin.json's `version` (test/e2e/manifest.test.ts holds the two equal). The server's LATEST_CLIENT follows the
+ * marketplace pin instead (test/release/marketplace.test.ts), so it trails this until the release's pin commit.
  */
-export const CLIENT_VERSION = '0.2.16'
-/** How a player updates the mod: the one line the band, the pane's version chip and /spin version all give. */
+export const CLIENT_VERSION = '0.3.0'
+/** How a player updates the mod from a terminal: /spin updates shows it, with Copy command, where /plugin is not at hand (an editor, the phone). */
 export const UPDATE_COMMAND = 'claude plugin update spinlings@spinlings'
 export const TIMEOUT_MS = 15_000
 
@@ -149,31 +152,10 @@ export async function joinServer(backend: Backend, family: Family, pause: () => 
 
 // ---------- the version handshake (SPEC 32) ----------
 
-/** -1, 0 or 1; pre-release tags sort before their release. Unreadable versions compare equal. */
-export function compareSemver(a: string, b: string): number {
-  const parse = (v: string) => {
-    const m = /^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/.exec(v)
-    return m ? { n: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] ?? null } : null
-  }
-  const x = parse(a), y = parse(b)
-  if (!x || !y) return 0
-  for (let i = 0; i < 3; i++) if (x.n[i] !== y.n[i]) return x.n[i]! < y.n[i]! ? -1 : 1
-  if (x.pre === y.pre) return 0
-  if (x.pre === null) return 1
-  if (y.pre === null) return -1
-  return x.pre < y.pre ? -1 : 1
-}
-
-/**
- * A release, `1.2.3`: the only kind of version the mod offers as an update. A pre-release tag is a server's free
- * text (a community server could write anything there), and the marketplace carries releases.
- */
-export function isRelease(v: string): boolean {
-  return /^\d{1,4}\.\d{1,4}\.\d{1,6}$/.test(v)
-}
+export { compareSemver, isRelease }
 
 export type VersionStatus = {
-  /** this mod is older than minClient: online actions are read-only, the offline world keeps working */
+  /** this mod is older than minClient: it can't play online until updated; the offline world keeps working */
   readOnly: boolean
   /** a newer release to announce once, or null */
   update: string | null
@@ -187,9 +169,15 @@ export type VersionStatus = {
   rulesMatch: boolean
   /** the server's species generator matches this mod's: no frozen season needs fetching */
   generatorMatch: boolean
+  /**
+   * What the releases this mod is missing bring: the notes with `client` < version <= `target`, newest first, each
+   * version once. Only spinlings.dev's, since they describe the official mod: none from another server or from a
+   * server not named (`origin` null), and none while this mod is current.
+   */
+  notes: ReleaseNote[]
 }
 
-export function versionStatus(v: VersionResponse, client = CLIENT_VERSION): VersionStatus {
+export function versionStatus(v: VersionResponse, client = CLIENT_VERSION, origin: string | null = null): VersionStatus {
   const newer = (x: string) => isRelease(x) && compareSemver(x, client) > 0
   const target = [v.latestClient, v.minClient].filter(newer).reduce<string | null>((best, x) => (best === null || compareSemver(x, best) > 0 ? x : best), null)
   return {
@@ -199,6 +187,7 @@ export function versionStatus(v: VersionResponse, client = CLIENT_VERSION): Vers
     features: v.features.slice(0, 64),
     rulesMatch: v.rules === RULES_VERSION,
     generatorMatch: v.generator === GENERATOR_VERSION,
+    notes: target !== null && origin === DEFAULT_SERVER ? notesBetween(v.notes ?? [], client, target) : [],
   }
 }
 

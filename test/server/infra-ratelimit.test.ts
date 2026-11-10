@@ -55,6 +55,14 @@ describe('token bucket', () => {
     assert.throws(() => limits.take('nope', 'k', T0), /unknown rate limit/)
   })
 
+  it('spends a weighted request all at once, or none of it', () => {
+    const limits = createRateLimits({ x: { capacity: 10, windowMs: 10_000 } })
+    assert.equal(limits.take('x', 'k', T0, 7), 0)
+    assert.equal(limits.take('x', 'k', T0, 4), 1000, 'three left: the wait is for the fourth')
+    assert.equal(limits.take('x', 'k', T0, 3), 0, 'the refused spend took nothing')
+    assert.ok(limits.take('x', 'k', T0) > 0)
+  })
+
   it('keeps the SPEC numbers', () => {
     assert.deepEqual(RATES.token, { capacity: 120, windowMs: 60_000 })
     assert.deepEqual(JOIN_LIMITS.joins, { hour: 5, day: 20 })

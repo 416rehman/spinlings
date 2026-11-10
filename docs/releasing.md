@@ -52,10 +52,12 @@ Done once by hand, never from CI:
 ## Cutting a release
 
 1. **Bump the version and write the changelog.** In a pull request:
-   - set `version` in `plugin/.claude-plugin/plugin.json` to `X.Y.Z`, and the same in `CLIENT_VERSION` (`plugin/hooks/client/remote.ts`) and `SERVER_VERSION` and `LATEST_CLIENT` (`server/src/routes/account.ts`); tests fail until all four agree. Claude Code caches installs by version, so every release needs a new one;
-   - raise `MIN_CLIENT` (`server/src/app.ts`) only for a justified incompatibility or security fix; new seasons and ordinary balance changes do not justify it;
+   - set `version` in `plugin/.claude-plugin/plugin.json` to `X.Y.Z`, and the same in `CLIENT_VERSION` (`plugin/hooks/client/remote.ts`) and `SERVER_VERSION` (`server/src/routes/account.ts`); tests fail until the three agree, and `LATEST_CLIENT` equals the marketplace pin. Claude Code caches installs by version, so every release needs a new one;
+   - leave `LATEST_CLIENT` (`server/src/routes/account.ts`) at the previous release. It always equals the marketplace pin's `ref` without its `v` (SPEC 32), so the server never announces, and `/whats-new` never lists, a release the marketplace does not serve yet. It moves with the pin in step 6;
+   - raise `MIN_CLIENT` (`server/src/app.ts`) only for a justified incompatibility or security fix; new seasons and ordinary balance changes do not justify it. It never goes above `LATEST_CLIENT`, since a player below it must be able to get the release it needs;
    - add the release to `CHANGELOG.md`, including any compatibility impact and any change to what the mod sends, what the server stores or what other players can see (PRIVACY.md must already say so);
-   - record the new mod's requests and responses with `node scripts/compat-record.ts`. It plays the mod against a server in the same process (no network) and writes `test/compat/fixtures/X.Y.Z/`: one file per flow, and a frozen copy of the mod's response reader. `test/compat/replay.test.ts` replays every version's fixtures against the current server, so later servers prove they still serve it (SPEC 32), and it fails until the new version has its own. A released version's fixtures never change: `--force` records again only before the tag. Delete a version's folder only when `MIN_CLIENT` rises above it.
+   - write the release's `RELEASES` entry at the top of `plugin/hooks/core/releases.ts`, dated as its CHANGELOG heading: 1 to 4 highlights in a player's words, the most important first, each a short label of at most 24 characters and one sentence of at most 120. They become the `/spin updates` notes, the band's chips after an update and the release's lamp on `/whats-new`; the changelog stays technical. Tests tie every entry to its heading;
+   - record the new mod's requests and responses with `node scripts/compat-record.ts`. It plays the mod against a server in the same process (no network) and writes `test/compat/fixtures/X.Y.Z/`: one file per flow, and a frozen copy of the mod's response reader. `test/compat/replay.test.ts` replays every version's fixtures against the current server, so later servers prove they still serve it (SPEC 32), and it fails until the new version has its own. A released version's fixtures never change: `--force` records again only before the tag, and only as the last change to `plugin/hooks/core/schemas.ts` before it, so the frozen reader is the one players install. Re-record after any later schema edit. Delete a version's folder only when `MIN_CLIENT` rises above it.
 
    Merge it once CI passes.
 
@@ -79,16 +81,16 @@ Done once by hand, never from CI:
 
    Check the staged diff for secrets, private smoke records and local artifacts. Verify requirements, install links, release media and public preview metadata. Existing footage must not be passed off as a capture of new screens.
 
-3. **Deploy and smoke test the server first.** For the current manual setup, push the checked candidate on `main`, load credentials without printing them, apply only new migrations, and deploy:
+3. **Deploy and smoke test the server first,** from the release commit merged in step 1. For the current manual setup, load credentials without printing them, apply only new migrations, and deploy:
 
    ```sh
    npx wrangler d1 migrations apply spinlings --remote   # only when a new migration exists
    npx wrangler deploy
    ```
 
-   Confirm `/v1/health` and `/v1/version`, public pages, canonical and social previews, the stable preview PNG, `/robots.txt` and `/sitemap.xml`. Cloudflare may prepend managed robots rules; verify the final response still contains the sitemap directive. Run the production throwaway-account smoke, including passkey registration, username change, fresh sign-in to the same collection and browser-only sign-out. Delete that disposable account. Remove null-owner discovery records only after proving each record belongs to this smoke; never sweep all such records when real players exist.
+   Confirm `/v1/health` and `/v1/version` (its `server` is `X.Y.Z`; `latestClient` and the first of its `notes` still name the previous release, as expected, until step 6b), public pages, canonical and social previews, the stable preview PNG, `/robots.txt` and `/sitemap.xml`. Cloudflare may prepend managed robots rules; verify the final response still contains the sitemap directive. Run the production throwaway-account smoke, including passkey registration, username change, fresh sign-in to the same collection and browser-only sign-out. Delete that disposable account. Remove null-owner discovery records only after proving each record belongs to this smoke; never sweep all such records when real players exist.
 
-4. **Tag the exact checked release commit and push:**
+4. **Tag the exact checked release commit and push the tag:**
 
    ```sh
    git rev-parse HEAD
@@ -97,19 +99,16 @@ Done once by hand, never from CI:
    git push origin vX.Y.Z
    ```
 
-   Verify those commit IDs agree before pushing; published tags cannot move. Cancel this tag's redundant deploy run after a manual deployment. When the automated production environment is configured, the `deploy` workflow instead:
+   Verify those commit IDs agree before pushing; published tags cannot move. The tag goes out before the marketplace commit, whose CI looks the tag up. When the automated production environment is configured, the `deploy` workflow:
    - in `verify`, with no secrets and no approval needed: checks that the tag is on `main` and matches the plugin version, runs every test (none may skip), validates the mod and runs its tests, and builds the Worker;
    - in `deploy`, only after `verify` passes: waits for approval in `production`, runs `wrangler d1 migrations apply spinlings --remote`, then `wrangler deploy`;
    - checks that `https://spinlings.dev/v1/health` answers and `/v1/version` reports `X.Y.Z`. A missing `SECRET` answers 503 everywhere, so a deploy without it fails here instead of going green.
 
    Migrations run while the previous Worker is still serving, and the new server must keep working with the previous release of the mod, because players update when they choose to. So a migration may add tables, columns and indexes, but must not drop or rename anything the live Worker still uses. Remove old things in a later release.
 
-5. **Write the GitHub release** for the tag. The note must have:
-   - the `CHANGELOG.md` entry, in plain words;
-   - the diff: `https://github.com/416rehman/spinlings/compare/vPREV...vX.Y.Z`;
-   - the strict validator output from step 2, in a code block, so anyone can see the hooks and calls of the release.
+5. **Cancel the tag's deploy run.** Pushing the tag starts the `deploy` workflow, and step 3 already deployed this tree, so cancel that run once it waits for approval. Never approve it after step 6b: it would deploy the tag's tree, whose `LATEST_CLIENT` still names the previous release, and the server would quietly stop announcing this one on `/v1/version` and `/whats-new`.
 
-6. **Point the marketplace at the release.** Set the plugin entry's `source` in `.claude-plugin/marketplace.json` to the new tag and its commit:
+6. **Point the marketplace at the release, and announce it.** In one commit, set the plugin entry's `source` in `.claude-plugin/marketplace.json` to the new tag and its commit, and `LATEST_CLIENT` (`server/src/routes/account.ts`) to `X.Y.Z`:
 
    ```json
    "source": {
@@ -121,19 +120,33 @@ Done once by hand, never from CI:
    }
    ```
 
-   Run every required check before committing, then push. Wait for both release and marketplace CI runs to pass. Verify a fresh install and an update of an existing installation against the release's actual Git blobs, and strictly validate the installed copy. Players get the update with:
+   Run every required check before committing (tests fail unless `LATEST_CLIENT` equals the pin). Like every change to `main`, it goes in through a pull request (the ruleset requires one); merge it once CI passes. Verify a fresh install and an update of an existing installation against the release's actual Git blobs, and strictly validate the installed copy. Players who update by hand run:
 
    ```sh
-   claude plugin marketplace update spinlings
    claude plugin update spinlings@spinlings
    ```
 
-   Players may enable auto-update for the Spinlings marketplace in `/plugin` → Marketplaces. Third-party marketplaces default to manual updates; neither the mod nor `marketplace.json` can force that setting. Keep supported older mods playable regardless.
+   It refreshes the marketplace first, so a separate marketplace update adds nothing. Inside a terminal session the same is `/plugin`, then Installed, Spinlings, Update now; closing the menu reloads the plugins. In Claude Desktop's Code tab, `/plugin` opens Desktop's own plugins page: Spinlings' page has an Update button (its tooltip reads Update to X.Y.Z), and Desktop reloads the plugins in its sessions by itself once Claude is idle. `/spin updates` shows each surface its own steps.
 
-7. **Finish the handoff.** Record the release commit, tag, marketplace pin, live version, checks, smoke cleanup and remaining launch gates. Posting on X, Reddit, Product Hunt, Hacker News or elsewhere is a separate maintainer instruction; a release never authorizes marketing posts automatically.
+   Players who pressed Turn it on in `/spin updates`, or enabled auto-update for the Spinlings marketplace in the terminal's `/plugin` → Marketplaces, get the release a few minutes after the next time Claude Code starts. Third-party marketplaces default to manual updates; `marketplace.json` cannot force that setting, and the mod changes it only on the player's press. Keep supported older mods playable regardless.
+
+6b. **Deploy the server again from the pin commit,** so it announces the release. From the merged pin commit on an up-to-date `main`, load credentials without printing them; there are no migrations to apply:
+
+   ```sh
+   npx wrangler deploy
+   ```
+
+   The `production` environment deploys only `v*` tags, so this deploy is a manual one. Then check that `https://spinlings.dev/v1/version` reports `latestClient` `X.Y.Z` and that `notes[0].version` is `X.Y.Z`, and that `https://spinlings.dev/whats-new` lists `X.Y.Z` first (`id="vX.Y.Z"`). Installed mods learn of it at their next daily check; the answer may be cached for up to an hour.
+
+7. **Write the GitHub release** for the tag, now that the marketplace serves it. The note must have:
+   - the `CHANGELOG.md` entry, in plain words;
+   - the diff: `https://github.com/416rehman/spinlings/compare/vPREV...vX.Y.Z`;
+   - the strict validator output from step 2, in a code block, so anyone can see the hooks and calls of the release.
+
+8. **Finish the handoff.** Record the release commit, tag, marketplace pin, live version, checks, smoke cleanup and remaining launch gates. Posting on X, Reddit, Product Hunt, Hacker News or elsewhere is a separate maintainer instruction; a release never authorizes marketing posts automatically.
 
 ## If something goes wrong
 
-- **A bad Worker deploy:** run `npx wrangler rollback` to go back to the previous Worker version, or re-run the `deploy` workflow for the previous tag. Rolling back the Worker does not undo migrations, which is why they must stay compatible with the previous release.
+- **A bad Worker deploy:** run `npx wrangler rollback` to go back to the previous Worker version, or re-run the `deploy` workflow for the previous tag. Rolling back the Worker does not undo migrations, which is why they must stay compatible with the previous release. A Worker rolled back to a tag's tree, or to the version before step 6b, announces the release before that tag; once the bad deploy is fixed, deploy again from the current pin commit on `main` (`npx wrangler deploy`) so `LATEST_CLIENT` matches the pin again.
 - **Lost data:** D1 Time Travel can restore the database to a point in the last 30 days (`npx wrangler d1 time-travel restore spinlings --timestamp <time>`). Everything written after that point is lost, and anything deleted since then comes back, including accounts players deleted. Use it only to recover from real data loss.
-- **A bad mod release:** point the marketplace entry back at the previous tag and commit, then cut a fixed release. Never move or delete a published tag.
+- **A bad mod release:** in one commit, point the marketplace entry back at the previous tag and its commit and set `LATEST_CLIENT` back to that release; deploy the server from that commit (`npx wrangler deploy`) so it stops announcing the bad one, then cut a fixed release. Never move or delete a published tag.

@@ -14,7 +14,9 @@ import { CHIP, actions, btn, chip, column, heading, holdLine, line, para, worldB
 import { INK, MARK, SPACE } from './tokens.ts'
 
 const GUARANTEE = 'Spinlings reads only the shape of a session: the model\'s family, whether Claude is working, '
-  + 'how many helpers run, when a usage limit is full, and effort for local appearance. Never your prompts, Claude\'s answers, files, commands, paths or cost.'
+  + 'when a usage limit is full, and effort for local appearance. Never your prompts, Claude\'s answers, your files, commands, paths or cost. '
+  + 'The one file it opens is Claude Code\'s plugin list, to see whether Spinlings updates by itself. It changes only '
+  + 'that one switch there, and only when you press Turn it on or Turn it off.'
 
 function sent(c: Ctx): RenderElement {
   const log = c.state.privacy.slice(-20).reverse()

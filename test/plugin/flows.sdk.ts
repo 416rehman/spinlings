@@ -318,7 +318,10 @@ test('a newer mod is announced in the band once, and stays gone once acknowledge
   await settle(clock)
   await band.redraw()
   expect(textOf(await band.drawn())).toContain(`Spinlings ${NEXT} is out`)
-  expect(textOf(await band.drawn())).toMatch(/claude plugin update spinlings@spinlings/)
+  // with no notes known, 1 is Update: it opens /spin updates, which has the one press that gets it, so the band
+  // carries no command
+  expect(textOf(await band.drawn())).toMatch(/Update/)
+  expect(textOf(await band.drawn())).not.toMatch(/claude plugin update/)
   await band.press({ key: `act-update:${NEXT}` })
   await settle(clock)
   await band.unmount()

@@ -1,11 +1,12 @@
-// The quiet version indicator (SPEC 32): the pane's hint row ends in the mod's version where the hints leave room, a
-// chip once the server names a newer release (`Update to 0.2.0`; u opens the update command, u again copies it, the
-// chip closes it, as esc does in game.test.ts), the status line's ` · update 0.2.0`, and `/spin version` in the log.
-// Through the wired mod on the terminal and the desktop at 40, 80 and 120 columns: current, update available,
-// read-only and offline. Then every pane screen keeps its way out (`esc …`) whole, and u for the chip alone.
+// The quiet version indicator (SPEC 32): the pane's hint row ends in the mod's version where the hints leave room (a
+// dim press with no key), a chip once the server names a newer release (`Update to 0.2.0` on u), and both open
+// /spin updates, where the chip is plain text; a version that can't play online says so above, with Update; the
+// status line stays out of it; and `/spin version` in the log, with what the missing releases bring. Through the
+// wired mod on the terminal and the desktop at 40, 80 and 120 columns: current, update available, can't play online
+// and offline. Then every pane screen keeps its way out (`esc …`) whole, and u for the chip alone.
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import type { VersionResponse } from '../../plugin/hooks/core/api.ts'
+import type { ReleaseNote, VersionResponse } from '../../plugin/hooks/core/api.ts'
 import { RULES_VERSION } from '../../plugin/hooks/core/battle.ts'
 import { GENERATOR_VERSION } from '../../plugin/hooks/core/species.ts'
 import { utcDay } from '../../plugin/hooks/core/world.ts'
@@ -15,8 +16,7 @@ import { CLIENT_VERSION, UPDATE_COMMAND, versionStatus } from '../../plugin/hook
 import { KEYS } from '../../plugin/hooks/client/store.ts'
 import type { El, GameState } from '../../plugin/hooks/client/types.ts'
 import { pane } from '../../plugin/hooks/ui/pane.tsx'
-import { CHIP_HIDE, fitHints } from '../../plugin/hooks/ui/pane-kit.tsx'
-import { INK } from '../../plugin/hooks/ui/tokens.ts'
+import { fitHints } from '../../plugin/hooks/ui/pane-kit.tsx'
 import { NEXT, NOW, ORIGIN, TOKEN, fakeServer } from './fixtures.ts'
 import { PANE, RUN, SESSION, engine, measure, settle, textOf, walk } from './engine.ts'
 import type { Engine, Node } from './engine.ts'
@@ -28,7 +28,8 @@ const NEWER = NEXT
 const CHIP_FULL = `Update to ${NEWER}`
 const CHIP_NARROW = `Update ${NEWER}`
 const chipLabel = (columns: number) => (columns >= 60 ? CHIP_FULL : CHIP_NARROW)
-const ESC_HIDE = CHIP_HIDE
+/** What spinlings.dev says the newer release brings. */
+const NOTES: ReleaseNote[] = [{ version: NEWER, date: '2026-12-01', highlights: [{ short: 'Team presets', text: 'Save a few teams and switch between them.' }, { short: 'Album stamps', text: 'A family page earns a stamp.' }] }]
 
 const VERSION: VersionResponse = {
   api: 1, server: '1.4.2', rules: RULES_VERSION, generator: GENERATOR_VERSION, minClient: '0.0.1', latestClient: CLIENT_VERSION, features: [],
@@ -87,6 +88,19 @@ async function started($: { session: { start(e: never): Promise<unknown> } }, on
 }
 
 const versionChecks = (w: Engine) => w.requests.filter(r => new URL(r.url).pathname === '/v1/version').length
+/** `/spin version`'s last line: no plugin list in these worlds, so the setting cannot be told */
+const AUTO = 'Auto-update: can\'t tell from here'
+/**
+ * The version report without that last line, which points to /spin updates only where the update line above does
+ * not already: the command is named once.
+ */
+const report = (log: string | undefined) => {
+  const lines = (log ?? '').split('\n')
+  const named = lines.slice(0, -1).some(l => l.endsWith(' · /spin updates'))
+  expect(lines.at(-1)).toBe(named ? AUTO : `${AUTO} · /spin updates`)
+  expect(lines.filter(l => l.includes('/spin updates'))).toHaveLength(1)
+  return lines.slice(0, -1)
+}
 
 test('an updated mod refreshes same-day cached capabilities once, so Market and the six boards are discoverable', LONG, async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
@@ -131,7 +145,7 @@ test('a pre-release is never offered: its tag is a server\'s free text, and the 
   expect(versionStatus({ ...VERSION, minClient: tagged, latestClient: '0.1.0' }, '0.1.0')).toMatchObject({ target: null, update: null, readOnly: true })
   expect(versionStatus({ ...VERSION, minClient: tagged, latestClient: '0.3.0' }, '0.1.0')).toMatchObject({ target: '0.3.0', update: '0.3.0', readOnly: true })
   const report = versionReport({ ...INITIAL.account, host: 'cats.example' }, { ...VERSION, minClient: tagged, latestClient: '0.1.0' })
-  expect(report.split('\n')[2]).toBe(`Read-only on cats.example until you update · ${UPDATE_COMMAND}`)
+  expect(report.split('\n')[2]).toBe(`This version can't play on cats.example until you update · /spin updates`)
   expect(report).not.toContain('security-fix')
 })
 
@@ -158,8 +172,12 @@ test('/spin version: the mod, the world, the server and its versions, then up to
     `Rules ${RULES_VERSION} · generator ${GENERATOR_VERSION}`,
     'Up to date.',
   ])
-  expect(lines(versionReport(account, { ...VERSION, latestClient: NEWER }))[2]).toBe(`Spinlings ${NEWER} is out · ${UPDATE_COMMAND}`)
-  expect(lines(versionReport(account, { ...VERSION, minClient: NEWER }))[2]).toBe(`Read-only on spinlings.dev until you update to ${NEWER} · ${UPDATE_COMMAND}`)
+  expect(lines(versionReport(account, { ...VERSION, latestClient: NEWER }))[2]).toBe(`Spinlings ${NEWER} is out · /spin updates`)
+  expect(lines(versionReport(account, { ...VERSION, minClient: NEWER }))[2]).toBe(`This version can't play on spinlings.dev until you update to ${NEWER} · /spin updates`)
+  // what the missing releases bring, right under the line that names the newest
+  expect(lines(versionReport(account, { ...VERSION, latestClient: NEWER }, CLIENT_VERSION, NOTES)).slice(2)).toEqual([
+    `Spinlings ${NEWER} is out · /spin updates`, `New since ${CLIENT_VERSION}: Team presets · Album stamps`,
+  ])
   expect(lines(versionReport(account, { ...VERSION, rules: RULES_VERSION + 1 }))[1]).toBe(`Rules ${RULES_VERSION + 1} (this mod: ${RULES_VERSION}) · generator ${GENERATOR_VERSION}`)
   expect(lines(versionReport({ ...account, host: 'cats.example', community: true }, VERSION))[0]).toBe(`Spinlings ${CLIENT_VERSION} · online on cats.example (a community server) · server 1.4.2`)
   expect(lines(versionReport(account, null))).toEqual([`Spinlings ${CLIENT_VERSION} · online on spinlings.dev`, 'Can\'t tell whether an update is out until spinlings.dev answers.'])
@@ -200,22 +218,33 @@ test('current: a dim version at the hint row\'s right end where the hints leave 
       expect({ where, esc: hintsOf(tree).endsWith('Close') }).toEqual({ where, esc: true })
       const version = versionOf(tree)
       if (columns >= 120) expect({ where, shown: !!version }).toEqual({ where, shown: true })
-      if (version) expect({ where, text: textOf(version), dim: version.props?.dimColor }).toEqual({ where, text: `v${CLIENT_VERSION}`, dim: true })
-      expect({ where, chip: await ui.find({ key: 'version' }) }).toEqual({ where, chip: undefined })
+      if (version) {
+        expect({ where, text: textOf(version), dim: version.props?.dimColor, key: version.props?.hotkey, press: version.type })
+          .toEqual({ where, text: `v${CLIENT_VERSION}`, dim: true, key: undefined, press: 'Button' })
+      }
       await ui.unmount()
     }
   }
+  // the dim version opens /spin updates, where it is plain words that press nothing
+  const ui = await $.ui.mount(PANE(120, 'desktop'))
+  await press(ui, 'version', clock)
+  const guide = await ui.drawn()
+  // three whole phrases, which a narrow pane breaks only between
+  expect(textOf(guide)).toMatch(new RegExp(`Up to date· Spinlings ${CLIENT_VERSION.replace(/\./g, '\\.')}· checked today`))
+  expect(versionOf(guide)?.type).toBe('Text')
+  expect(await ui.find({ key: 'version' })).toBeUndefined()
+  await ui.unmount()
   await settle(clock)
   expect(await $.command.run(RUN('version'))).toEqual({})
   await settle(clock)
   // the day's handshake answers it at once: no "Asking" line, no second version check
-  expect(w.logs.at(-1)).toBe([`Spinlings ${CLIENT_VERSION} · online on spinlings.dev · server 1.0.0`, `Rules ${RULES_VERSION} · generator ${GENERATOR_VERSION}`, 'Up to date.'].join('\n'))
+  expect(report(w.logs.at(-1))).toEqual([`Spinlings ${CLIENT_VERSION} · online on spinlings.dev · server 1.0.0`, `Rules ${RULES_VERSION} · generator ${GENERATOR_VERSION}`, 'Up to date.'])
   expect(w.logs.some(l => l.startsWith('Asking'))).toBe(false)
   expect(versionChecks(w)).toBe(1)
 })
 
-test('update available: the chip is a verb with the version, u shows the command, u copies it, esc or the chip hides it', LONG, async ($, on) => {
-  const { clock, w } = await started($, on, fakeServer({ latestClient: NEWER }))
+test('update available: the chip is a verb with the version on u, whole at every width, and opens /spin updates', LONG, async ($, on) => {
+  const { clock, w } = await started($, on, fakeServer({ latestClient: NEWER, notes: NOTES }))
   expect(w.status.at(-1)).toBe('▪')
   for (const surface of SURFACES) {
     for (const columns of WIDTHS) {
@@ -227,67 +256,50 @@ test('update available: the chip is a verb with the version, u shows the command
       const chip = await ui.find({ key: 'version' })
       expect({ where, label: chip?.props.label, hotkey: chip?.props.hotkey }).toEqual({ where, label, hotkey: 'u' })
       expect({ where, end: textOf(hintRow(tree)).endsWith(label), esc: hintsOf(tree).endsWith('Close') }).toEqual({ where, end: true, esc: true })
-      expect({ where, command: await ui.find({ text: UPDATE_COMMAND }) }).toEqual({ where, command: undefined })
-
-      // open: the command with what it is for, Copy on u, the chip says it hides the row, esc says so too
+      // the footer gives no command and no row of its own: the chip opens the one place that says it all
+      expect({ where, command: commandLines(tree), copy: await ui.find({ key: 'copy-update' }) }).toEqual({ where, command: 0, copy: undefined })
       await press(ui, 'version', clock)
       tree = await ui.drawn()
-      fits(tree, columns, `${where}, command open`)
-      expect({ where, command: commandLines(tree), lead: !!(await ui.find({ type: 'Text', text: /^In a terminal: $/ })) }).toEqual({ where, command: 1, lead: true })
-      const open = await ui.find({ key: 'version' })
-      expect({ where, copy: (await ui.find({ key: 'copy-update' }))?.props.hotkey, chip: open?.props.hotkey, label: open?.props.label })
-        .toEqual({ where, copy: 'u', chip: undefined, label: CHIP_HIDE })
-      expect({ where, esc: hintsOf(tree).endsWith(ESC_HIDE) }).toEqual({ where, esc: true })
-
-      // Copy, asked where the press came from: on the terminal it lands, said in the good ink, not as a warning; the
-      // desktop has no clipboard path yet, so the pane points at the command rather than claim a copy
-      const copies = w.copied.length
-      await press(ui, 'copy-update', clock)
-      expect({ where, asked: w.copies.at(-1) }).toEqual({ where, asked: { text: UPDATE_COMMAND, surface } })
-      if (surface === 'terminal') {
-        expect({ where, copied: w.copied.slice(copies) }).toEqual({ where, copied: [UPDATE_COMMAND] })
-        const said = await ui.find({ type: 'Text', text: /Copied\. Run it in a terminal\./ })
-        expect({ where, said: !!said, color: said?.props.color }).toEqual({ where, said: true, color: INK.good })
-      } else {
-        expect({ where, copied: w.copied.slice(copies) }).toEqual({ where, copied: [] })
-        const claims = await ui.find({ type: 'Text', text: /Copied/ })
-        const points = await ui.find({ type: 'Text', text: /Select the command below to copy it/ })
-        expect({ where, claims: !!claims, points: !!points }).toEqual({ where, claims: false, points: true })
-      }
-
-      // the chip, now `Hide update`, closes the row (esc does too: game.test.ts), and takes u back
-      await press(ui, 'version', clock)
-      tree = await ui.drawn()
-      const closed = await ui.find({ key: 'version' })
-      expect({ where, command: commandLines(tree), label: closed?.props.label, hotkey: closed?.props.hotkey, esc: hintsOf(tree).endsWith('Close') })
-        .toEqual({ where, command: 0, label, hotkey: 'u', esc: true })
+      fits(tree, columns, `${where}, /spin updates`)
+      const text = textOf(tree)
+      expect({ where, out: text.includes(`Spinlings ${NEWER} is out`), notes: text.includes('Team presets'), back: hintsOf(tree).endsWith('Back') })
+        .toEqual({ where, out: true, notes: true, back: true })
+      // inside it, the chip is the plain version: nothing to press, no u
+      expect({ where, chip: await ui.find({ key: 'version' }), plain: versionOf(tree)?.type }).toEqual({ where, chip: undefined, plain: 'Text' })
+      await press(ui, 'pane-back', clock)
       await ui.unmount()
     }
   }
   expect(await $.command.run(RUN('version'))).toEqual({})
   await settle(clock)
-  expect(w.logs.at(-1)?.split('\n').at(-1)).toBe(`Spinlings ${NEWER} is out · ${UPDATE_COMMAND}`)
+  expect(report(w.logs.at(-1)).slice(-2)).toEqual([`Spinlings ${NEWER} is out · /spin updates`, `New since ${CLIENT_VERSION}: Team presets · Album stamps`])
   expect(versionChecks(w)).toBe(1)
 })
 
-test('the update row closes when the tab changes or a view opens over it', LONG, async ($, on) => {
-  const { clock } = await started($, on, fakeServer({ latestClient: NEWER }))
-  const ui = await $.ui.mount(PANE(80))
-  await press(ui, 'version', clock)
-  expect(commandLines(await ui.drawn())).toBe(1)
-  await press(ui, 'tab-cards', clock)
-  expect(commandLines(await ui.drawn())).toBe(0)
-  await press(ui, 'version', clock)
-  expect(commandLines(await ui.drawn())).toBe(1)
-  const card = buttons(await ui.drawn()).find(b => String(b.key ?? b.props?.key).startsWith('card-'))
-  expect(card).toBeDefined()
-  await press(ui, String(card!.key ?? card!.props?.key), clock)
+test('a $.state pane from before 0.3.0, the update row still open, reloads cleanly and the chip opens /spin updates', LONG, async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  const w = engine(on, fakeServer({ latestClient: NEWER }))
+  // $.state as the old module left it: the pane still carries the update row's flag
+  const probe = { state: structuredClone(INITIAL) as GameState, version: 0 }
+  probe.state.pane = { ...INITIAL.pane, showUpdate: true, stack: [{ kind: 'privacy' }] } as unknown as GameState['pane']
+  on('state.get', (_$, e) => ({ value: { value: probe.state[e.key as keyof GameState], version: probe.version } }))
+  on('state.set', (_$, e) => {
+    Object.assign(probe.state, { [e.key as keyof GameState]: e.value })
+    return { value: { isSet: true, version: ++probe.version } }
+  })
+  await $.session.start(SESSION)
+  await settle(clock)
+  const ui = await $.ui.mount(PANE(80, 'terminal'))
   const tree = await ui.drawn()
-  expect({ command: commandLines(tree), esc: hintsOf(tree).endsWith('Back') }).toEqual({ command: 0, esc: true })
+  fits(tree, 80, 'stale pane')
+  expect(hintsOf(tree).endsWith('Back')).toBe(true)
+  await press(ui, 'version', clock)
+  expect(probe.state.pane.stack.at(-1)).toEqual({ kind: 'auto-update' })
   await ui.unmount()
+  expect(w.status.at(-1)).toBe('▪')
 })
 
-test('read-only below minClient: the warning above, the chip to the version the server needs, the command once', LONG, async ($, on) => {
+test('read-only below minClient: plain words above, with Update, which opens /spin updates; the chip to the version it needs', LONG, async ($, on) => {
   // a lagging server: minClient is above this mod and latestClient names nothing newer
   const { clock, w } = await started($, on, fakeServer({ latestClient: CLIENT_VERSION, minClient: NEWER }))
   w.store.set('prefs', { ...(w.store.get('prefs') as object), world: 'online' })
@@ -301,22 +313,51 @@ test('read-only below minClient: the warning above, the chip to the version the 
       const ui = await $.ui.mount(PANE(columns, surface))
       let tree = await ui.drawn()
       fits(tree, columns, where)
-      expect({ where, warned: !!(await ui.find({ text: /This version is read-only on spinlings\.dev/ })), command: commandLines(tree) }).toEqual({ where, warned: true, command: 1 })
+      expect({ where, said: !!(await ui.find({ text: /This version can't play on spinlings\.dev until you update\./ })), command: commandLines(tree), plain: /read-only/i.test(textOf(tree)) })
+        .toEqual({ where, said: true, command: 0, plain: false })
       expect({ where, label: (await ui.find({ key: 'version' }))?.props.label }).toEqual({ where, label: chipLabel(columns) })
-      await press(ui, 'version', clock)
+      expect({ where, update: (await ui.find({ key: 'link-update' }))?.props }).toMatchObject({ where, update: { label: 'Update', dimColor: true } })
+      expect({ where, key: (await ui.find({ key: 'link-update' }))?.props.hotkey }).toEqual({ where, key: undefined })
+      await press(ui, 'link-update', clock)
       tree = await ui.drawn()
-      fits(tree, columns, `${where}, command open`)
-      // the warning stays, the command shows once: in the row that explains it
-      expect({ where, warned: !!(await ui.find({ text: /This version is read-only on spinlings\.dev\./ })), command: commandLines(tree) }).toEqual({ where, warned: true, command: 1 })
-      await press(ui, 'copy-update', clock)
-      expect({ where, copied: w.copied.at(-1) }).toEqual({ where, copied: UPDATE_COMMAND })
-      await press(ui, 'version', clock)
+      fits(tree, columns, `${where}, /spin updates`)
+      // the screen says it itself, so the note above is gone, and Copy leads on 1
+      expect({ where, head: textOf(tree).includes('Update to keep playing online'), note: !!(await ui.find({ key: 'link-update' })) }).toEqual({ where, head: true, note: false })
+      expect({ where, copy: (await ui.find({ key: 'update-copy' }))?.props }).toMatchObject({ where, copy: { hotkey: '1', variant: 'primary' } })
+      await press(ui, 'pane-back', clock)
       await ui.unmount()
     }
   }
   await $.command.run(RUN('version'))
   await settle(clock)
-  expect(w.logs.at(-1)?.split('\n').at(-1)).toBe(`Read-only on spinlings.dev until you update to ${NEWER} · ${UPDATE_COMMAND}`)
+  expect(report(w.logs.at(-1)).at(-1)).toBe(`This version can't play on spinlings.dev until you update to ${NEWER} · /spin updates`)
+})
+
+test('read-only with auto-update on and able: the chip still says Update on u, as the note above does, never that it is on its way', LONG, async ($, on) => {
+  const scene = (title: string) => structuredClone(uiScenes(NOW).find(s => s.title === title)!.state)
+  let state = scene('Version · can\'t play online, though auto-update is on')
+  on('ui.render', { component: 'Pane', requestId: 'probe' }, async ($, e) => pane({
+    el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns, rows: e.props.scroll.bodyRows, now: NOW,
+    actions: new Proxy({}, { get: () => () => Promise.resolve() }) as never, focused: true, placement: 'inline', state,
+  }))
+  for (const surface of SURFACES) {
+    for (const columns of WIDTHS) {
+      const where = `read-only, auto-update on @${columns} ${surface}`
+      state = scene('Version · can\'t play online, though auto-update is on')
+      let ui = await $.ui.mount({ ...PANE(columns, surface), requestId: 'probe' })
+      const tree = await ui.drawn()
+      fits(tree, columns, where)
+      const chip = (await ui.find({ key: 'version' }))?.props
+      expect({ where, label: chip?.label, hotkey: chip?.hotkey, dim: !!chip?.dimColor, said: textOf(tree).includes('This version can\'t play on spinlings.dev until you update.') })
+        .toEqual({ where, label: chipLabel(columns), hotkey: 'u', dim: false, said: true })
+      await ui.unmount()
+      // the same account able to play online: the release is on its way, dim
+      state = scene('Version · on its way: auto-update brings it')
+      ui = await $.ui.mount({ ...PANE(columns, surface), requestId: 'probe' })
+      expect({ where, label: (await ui.find({ key: 'version' }))?.props.label }).toEqual({ where, label: columns >= 60 ? `${NEWER} on its way` : `${NEWER} soon` })
+      await ui.unmount()
+    }
+  }
 })
 
 test('offline: the plain version where there is room, no update, and /spin version names no server and sends nothing', LONG, async ($, on) => {
@@ -330,14 +371,14 @@ test('offline: the plain version where there is room, no update, and /spin versi
       fits(tree, columns, where)
       const version = versionOf(tree)
       if (columns >= 120) expect({ where, shown: !!version }).toEqual({ where, shown: true })
-      expect({ where, version: version ? textOf(version) : `v${CLIENT_VERSION}`, chip: await ui.find({ key: 'version' }), esc: hintsOf(tree).endsWith('Close') })
+      expect({ where, version: version ? textOf(version) : `v${CLIENT_VERSION}`, chip: (await ui.find({ key: 'version' }))?.props.hotkey, esc: hintsOf(tree).endsWith('Close') })
         .toEqual({ where, version: `v${CLIENT_VERSION}`, chip: undefined, esc: true })
       await ui.unmount()
     }
   }
   await $.command.run(RUN('version'))
   await settle(clock)
-  expect(w.logs.at(-1)).toBe(`Spinlings ${CLIENT_VERSION} · offline, so no server is asked\nRules ${RULES_VERSION} · generator ${GENERATOR_VERSION}`)
+  expect(report(w.logs.at(-1))).toEqual([`Spinlings ${CLIENT_VERSION} · offline, so no server is asked`, `Rules ${RULES_VERSION} · generator ${GENERATOR_VERSION}`])
   expect(w.requests).toEqual([])
 })
 
@@ -347,7 +388,8 @@ test('switching worlds: the update shows online only, and comes back from the da
   await settle(clock)
   expect(w.status.at(-1)).toBe('▪')
   let ui = await $.ui.mount(PANE(80))
-  expect(await ui.find({ key: 'version' })).toBeUndefined()
+  expect((await ui.find({ key: 'version' }))?.props).toMatchObject({ label: `v${CLIENT_VERSION}`, dimColor: true })
+  expect((await ui.find({ key: 'version' }))?.props.hotkey).toBeUndefined()
   await ui.unmount()
   await $.command.run(RUN('world online'))
   await settle(clock)
@@ -370,10 +412,10 @@ test('/spin version never waits silently: it says it is asking, reports the last
   await $.command.run(RUN('version'))
   await settle(clock)
   expect(w.logs.at(-2)).toBe('Asking spinlings.dev…')
-  expect(w.logs.at(-1)?.split('\n')).toEqual([
+  expect(report(w.logs.at(-1))).toEqual([
     `Spinlings ${CLIENT_VERSION} · online on spinlings.dev · server 1.0.0`,
     `Rules ${RULES_VERSION} · generator ${GENERATOR_VERSION}`,
-    `Spinlings ${NEWER} is out · ${UPDATE_COMMAND}`,
+    `Spinlings ${NEWER} is out · /spin updates`,
     'Can\'t reach spinlings.dev right now, so that is its answer from yesterday.',
   ])
   expect(versionChecks(w)).toBe(before + 1)
@@ -382,13 +424,13 @@ test('/spin version never waits silently: it says it is asking, reports the last
   await $.command.run(RUN('version'))
   await settle(clock)
   expect(w.logs.slice(logs).length).toBe(1)
-  expect(w.logs.at(-1)?.split('\n').at(-1)).toBe('Can\'t reach spinlings.dev right now, so that is its answer from yesterday.')
+  expect(report(w.logs.at(-1)).at(-1)).toBe('Can\'t reach spinlings.dev right now, so that is its answer from yesterday.')
   expect(versionChecks(w)).toBe(before + 1)
 })
 
 // ---------- every screen: the way out stays whole, and u belongs to the chip alone ----------
 
-test('on every pane screen at 40, 80 and 120, current, with an update and with it open: the way out whole, u the chip\'s alone', { timeoutMs: 300_000 }, async ($, on) => {
+test('on every pane screen at 40, 80 and 120, current and with an update: the way out whole, u the chip\'s alone', { timeoutMs: 300_000 }, async ($, on) => {
   let state: GameState = INITIAL
   on('ui.render', { component: 'Pane', requestId: 'probe' }, async ($, e) => pane({
     el: $.ui.resolve(e) as unknown as El, surface: e.surface, columns: e.props.bodyColumns, rows: e.props.scroll.bodyRows, now: NOW,
@@ -406,30 +448,32 @@ test('on every pane screen at 40, 80 and 120, current, with an update and with i
   const failures: string[] = []
   for (const step of steps) {
     const variants = {
-      current: { ...step.state, account: { ...step.state.account, latest: null }, pane: { ...step.state.pane, showUpdate: false } },
-      update: { ...step.state, account: { ...step.state.account, latest: '9.9.0' }, pane: { ...step.state.pane, showUpdate: false } },
-      open: { ...step.state, account: { ...step.state.account, latest: '9.9.0' }, pane: { ...step.state.pane, showUpdate: true } },
+      current: { ...step.state, account: { ...step.state.account, latest: null } },
+      update: { ...step.state, account: { ...step.state.account, latest: '9.9.0' } },
     }
     // the screen's way out, from its hints drawn with room to spare
     const wide = hintsOf(await draw(variants.current, 400, 'terminal')).split(' · ')
     const leave = [...wide].reverse().find(h => h === 'Close' || h === 'Back' || h === 'Done') ?? null
     const online = step.state.account.world === 'online'
+    // /spin updates says all a chip would, so the chip there is plain words
+    const guide = step.state.pane.stack.at(-1)?.kind === 'auto-update'
     for (const [name, s] of Object.entries(variants)) {
-      const want = name === 'open' && online ? ESC_HIDE : leave
       for (const surface of SURFACES) {
         for (const columns of WIDTHS) {
           const where = `${step.title} @${columns} ${surface} (${name})`
           const tree = await draw(s, columns, surface)
           const hints = hintsOf(tree)
-          if (want && !hints.split(' · ').includes(want)) failures.push(`${where}: lost "${want}" from "${hints}"`)
+          if (leave && !hints.split(' · ').includes(leave)) failures.push(`${where}: lost "${leave}" from "${hints}"`)
           const keys = buttons(tree).map(b => b.props?.hotkey).filter((k): k is string => typeof k === 'string')
           const dupes = keys.filter((k, i) => keys.indexOf(k) !== i)
           if (dupes.length > 0) failures.push(`${where}: keys twice: ${dupes.join(' ')}`)
           const u = buttons(tree).filter(b => b.props?.hotkey === 'u').map(b => String(b.key ?? b.props?.key))
-          const owner = name === 'current' || !online ? [] : [name === 'open' ? 'copy-update' : 'version']
+          const owner = name === 'current' || !online || guide ? [] : ['version']
           if (u.join() !== owner.join()) failures.push(`${where}: u on [${u.join()}], not [${owner.join()}]`)
-          // the update chip always shows when there is one
-          if (name !== 'current' && online && !buttons(tree).some(b => String(b.key ?? b.props?.key) === 'version')) failures.push(`${where}: no update chip`)
+          // the update chip always shows when there is one, and is never cut
+          const chip = buttons(tree).find(b => String(b.key ?? b.props?.key) === 'version' && b.props?.hotkey === 'u')
+          if (name !== 'current' && online && !guide && !chip) failures.push(`${where}: no update chip`)
+          if (chip && String(chip.props?.label).includes('…')) failures.push(`${where}: the chip is cut`)
           const problems: string[] = []
           if (measure(tree, columns, problems).w > columns || problems.length > 0) failures.push(`${where}: ${problems.join('; ') || 'overflow'}`)
         }
