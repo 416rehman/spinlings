@@ -420,6 +420,8 @@ export type PageOptions = {
   mainClass?: string
   status?: number
   cache?: string
+  /** structured JSON-LD block embedded unexecuted in head */
+  jsonLd?: Record<string, unknown>
   /** @deprecated use kind: 'passkey' */
   script?: boolean
 }
@@ -485,6 +487,7 @@ ${scripted ? html`<script src="/static/${SITE_ASSETS.sky}"></script>` : ''}
 ${kind === 'passkey' ? html`<script src="/static/passkey.js" defer></script>` : ''}
 ${kind === 'account' ? html`<script src="/static/account.js?v=${ACCOUNT_HASH}" defer></script>` : ''}
 ${scripted ? html`<script type="module" src="/static/${SITE_ASSETS.site}"></script>` : ''}
+${o.jsonLd ? html`<script type="application/ld+json">${raw(JSON.stringify(o.jsonLd).replace(/</g, '\\u003c'))}</script>` : ''}
 </head>
 <body class="${kind === 'home' ? 'home' : kind}">
 ${raw(boldDefs(o.body.__html))}

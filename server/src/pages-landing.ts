@@ -49,6 +49,13 @@ const teamIndex = (w: SiteFacts, f: Family) => hashString(`spinlings/site/team/$
 
 const featuredOf = (w: SiteFacts): Species => w.species.find(s => s.id === w.featured)!
 
+export const FAQ_ITEMS: readonly { q: string; a: string }[] = [
+  { q: 'What is Spinlings?', a: 'A creature card game inside Claude Code: catch wild cards, evolve teams, duel and trade.' },
+  { q: 'How do I install Spinlings?', a: 'Run /plugin marketplace add 416rehman/spinlings, /plugin install spinlings@spinlings, then /spin.' },
+  { q: 'How do Mythics and odds work?', a: 'Cards roll across 4 rarities; one daily Mythic belongs to the first catcher (/odds).' },
+  { q: 'Can I duel and trade cards?', a: 'Yes: play card duels, trade on /market, and read /privacy or /llms.txt.' },
+]
+
 export function landingBody(d: LandingData): Raw {
   const { w } = d
   const regs = dayRegulars(w)
@@ -58,7 +65,12 @@ ${hero(w, regs)}
 ${battle(w, regs)}
 ${den(w, regs)}
 ${market(d)}
-${campfire(w, regs)}`
+${campfire(w, regs)}
+${faq()}`
+}
+
+function faq(): Raw {
+  return html`<section class="camp fq" id="faq" aria-labelledby="faq-h"><div class="wrap"><h2 id="faq-h" tabindex="-1">Questions</h2>${FAQ_ITEMS.map(i => html`<details><summary>${i.q}</summary><p>${i.a}</p></details>`)}</div></section>`
 }
 
 // ---- #meet ---------------------------------------------------------------------------------------
@@ -1202,6 +1214,9 @@ ${CAMP_CSS}
 .campctl .label{font-weight:600;margin-bottom:var(--s2)}
 .campctl .ask{margin-top:var(--s2);color:#c9c3d6;font-size:.9375rem}
 .postcard{margin-top:var(--s4)}
+
+/* faq */
+.fq{border-top:1px solid #242f48;padding:var(--s5) 0}.fq details{max-width:820px;background:#182136;padding:var(--s2) var(--s3);margin-top:var(--s2)}.fq summary{cursor:pointer;font-weight:700}.fq p{margin:var(--s2) 0 0;color:#d7d1e4}
 
 /* popover */
 .pop{position:fixed;z-index:70;width:320px;max-width:calc(100vw - 16px);padding:var(--s3);background:#14121c;color:#f4f2fb;border:1px solid #2e2a3d;border-radius:14px;box-shadow:0 12px 0 #00000040}

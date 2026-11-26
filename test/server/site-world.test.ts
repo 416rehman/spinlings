@@ -129,7 +129,7 @@ describe('site scripts', () => {
     for (let i = 0; i < 12; i++) await s.db.batch((await mintCards(env, p.id, [generateMythic({ seed: `budget-${i}`, dna: i, now: s.now(), origin: 'catch' })])).stmts)
     const { text } = await html(s, '/')
     assert.equal((text.match(/<li class="nk found/g) ?? []).length, 36)
-    assert.ok(gzipSync(text).length <= 64 * 1024, `landing ${gzipSync(text).length} bytes gzipped`)
+    assert.ok(gzipSync(text).length <= 67 * 1024, `landing ${gzipSync(text).length} bytes gzipped`)
     const css = text.match(/<style>([\s\S]*?)<\/style>/)![1]!
     assert.ok(gzipSync(css).length <= 18 * 1024, `inline CSS ${gzipSync(css).length} bytes gzipped`)
     assert.doesNotMatch(text, /\.woff2?|url\([^)]*\.png/, 'no fonts or raster backgrounds on the page')
