@@ -56,9 +56,15 @@ function assertSelfContained(html: string, origin = ORIGIN, profilePath?: string
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i, 'no inline event handlers')
   assert.doesNotMatch(html, /javascript:/i)
   assert.doesNotMatch(html, /@import/i)
-  const allowed = [' src="/static/passkey.js" defer', ` src="/static/${SITE_ASSETS.sky}"`, ` type="module" src="/static/${SITE_ASSETS.site}"`]
-  for (const [, tag] of html.matchAll(/<script\b([^>]*)>/gi)) assert.ok(allowed.includes(tag!), `only first-party scripts (${tag})`)
-  assert.doesNotMatch(html, /<script\b[^>]*>[^<]+<\/script>/i, 'no inline script')
+  const allowed = [' src="/static/passkey.js" defer', ` src="/static/${SITE_ASSETS.sky}"`, ` type="module" src="/static/${SITE_ASSETS.site}"`, ' type="application/ld+json"']
+  for (const [, attrs, body] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    assert.ok(allowed.includes(attrs!), `only allowed scripts (${attrs})`)
+    if (attrs === ' type="application/ld+json"') {
+      assert.equal(JSON.parse(body!)['@context'], 'https://schema.org', 'json-ld parses cleanly')
+    } else {
+      assert.equal(body, '', 'no inline script')
+    }
+  }
   for (const [, url] of html.matchAll(/\ssrc="([^"]*)"/gi)) assert.match(url!, /^\//, `src ${url} is same-origin`)
   for (const [, tag] of html.matchAll(/<link\b([^>]*)>/gi)) {
     if (/rel="canonical"/.test(tag!)) assert.ok(tag!.includes(`href="${origin}/`), 'canonical links stay on this origin')
@@ -66,7 +72,7 @@ function assertSelfContained(html: string, origin = ORIGIN, profilePath?: string
   }
   for (const [, url] of html.matchAll(/url\(\s*["']?([^"')]*)/gi)) assert.match(url!, /^(data:|#[a-z0-9-]+$)/, `css url ${url} is inline or in this document`)
   for (const [url] of html.matchAll(/https?:\/\/[^\s"'<>)]+/gi)) {
-    assert.ok(url.startsWith(REPO) || url.startsWith(origin + '/'), `${url} is our repo or this origin`)
+    assert.ok(url === 'https://schema.org' || url.startsWith(REPO) || url.startsWith(origin + '/'), `${url} is schema.org, our repo or this origin`)
   }
   for (const [, href] of html.matchAll(/<a\b[^>]*href="([^"]*)"/gi)) assert.ok(href!.startsWith('/') || href!.startsWith(REPO) || /^#[a-z0-9-]+$/.test(href!), `link ${href}`)
 }
@@ -79,7 +85,7 @@ function assertSiteScripts(p: Page, csp = SITE_CSP) {
   const head = p.html.slice(0, p.html.indexOf('</head>'))
   assert.equal(head.split(SKY_TAG).length, 2, 'one synchronous sky.js in <head>')
   assert.equal(p.html.split(SITE_TAG).length, 2, 'one site.js module')
-  assert.equal((p.html.match(/<script\b/g) ?? []).length, 2)
+  assert.equal((p.html.match(/<script\b(?![^>]*\btype="application\/ld\+json")/g) ?? []).length, 2)
 }
 
 /** SPEC 36: marketing pages never defend themselves, and privacy and odds sit quietly in the footer. */
@@ -785,6 +791,31 @@ describe('reference pages', () => {
     const text = textOf((await get(s, '/privacy')).html)
     for (const want of ['Never kept: your IP address', 'Never visible to anyone else', '/spin privacy', 'handle, team, cards marked for trade, album count and league']) {
       assert.ok(text.includes(want), want)
+    }
+  })
+
+  it('publishes /llms.txt, /llms-full.txt, AI crawler rules in /robots.txt, and FAQPage JSON-LD on /', async () => {
+    const { s } = await world()
+    const home = await get(s, '/')
+    assert.match(home.html, /<section class="camp fq" id="faq" aria-labelledby="faq-h"><div class="wrap"><h2 id="faq-h" tabindex="-1">/)
+    const ldMatch = home.html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)
+    assert.ok(ldMatch, 'landing has JSON-LD')
+    const graph = JSON.parse(ldMatch![1]!)['@graph'] as { '@type': string; mainEntity?: unknown[] }[]
+    assert.ok(graph.some(node => node['@type'] === 'FAQPage' && (node.mainEntity?.length ?? 0) >= 4), 'FAQPage has Q&As')
+
+    const llms = await s.request('GET', '/llms.txt', { client: null })
+    assert.equal(llms.status, 200)
+    assert.match(await llms.text(), /# Spinlings/)
+
+    const llmsFull = await s.request('GET', '/llms-full.txt', { client: null })
+    assert.equal(llmsFull.status, 200)
+    assert.match(await llmsFull.text(), /What is Spinlings\?/)
+
+    const robots = await s.request('GET', '/robots.txt', { client: null })
+    assert.equal(robots.status, 200)
+    const robotsText = await robots.text()
+    for (const bot of ['OAI-SearchBot', 'GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended']) {
+      assert.ok(robotsText.includes(`User-agent: ${bot}\n`), bot)
     }
   })
 })

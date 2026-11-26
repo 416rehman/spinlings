@@ -29,7 +29,7 @@ import {
 } from './pages-html.ts'
 import type { Raw } from './pages-html.ts'
 import { oddsBody, privacyBody, PROSE_CSS, WHATS_NEW_CSS, whatsNewBody } from './pages-info.ts'
-import { CAMP_CSS, LANDING_CSS, landingBody, teamCamp } from './pages-landing.ts'
+import { CAMP_CSS, FAQ_ITEMS, LANDING_CSS, landingBody, teamCamp } from './pages-landing.ts'
 import { captureResponse } from './pages-media.ts'
 import { registerCatalogue } from './pages-catalogue.ts'
 import { registerSearch } from './pages-search.ts'
@@ -55,6 +55,34 @@ const a = (word: string) => (/^[aeiou]/i.test(word) ? 'an' : 'a')
 
 const TITLE = 'Spinlings: wild creatures that find you while Claude works'
 const DESCRIPTION = 'A creature card game inside Claude Code. While Claude works, wild ones rustle up above your prompt. Battle, catch, fuse and trade one-of-a-kind cards.'
+const REPO_URL = 'https://github.com/416rehman/spinlings'
+const BOT_DISALLOW = ['/v1/', '/account', '/passkey/', '/g/'] as const
+const ROBOT_AGENTS = ['*', 'OAI-SearchBot', 'GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended'] as const
+
+function homeJsonLd(origin: string): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'SoftwareApplication',
+        name: 'Spinlings',
+        applicationCategory: 'GameApplication',
+        operatingSystem: 'Linux, macOS, Windows',
+        url: `${origin}/`,
+        downloadUrl: REPO_URL,
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      },
+      {
+        '@type': 'FAQPage',
+        mainEntity: FAQ_ITEMS.map(item => ({
+          '@type': 'Question',
+          name: item.q,
+          acceptedAnswer: { '@type': 'Answer', text: item.a },
+        })),
+      },
+    ],
+  }
+}
 
 /**
  * The dev preview (`?preview=rule:wildBloom,shiny:1,...`): only on a local server started with
@@ -100,18 +128,65 @@ export function pages(api: Api): void {
       ...(preview?.scheme === 'dark' || preview?.scheme === 'light' ? { scheme: preview.scheme } : {}),
       ...(preview?.motion === 'reduce' ? { motion: 'reduce' as const } : {}),
       world: worldJson(w, preview),
+      jsonLd: homeJsonLd(ctx.origin),
       body: landingBody({ w, ...shown, deals: traderDeals(ctx.now) }),
     })
   })
 
   // Only generic pages belong in a search index. Player, card, gift, postcard and passkey links
   // remain outside the sitemap; no database read or query parameter becomes a crawler hint.
-  page('/robots.txt', ctx => new Response(`User-agent: *\nAllow: /\nDisallow: /v1/\nDisallow: /account\nDisallow: /passkey/\nDisallow: /g/\nSitemap: ${ctx.origin}/sitemap.xml\n`, {
-    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': HOUR_CACHE },
-  }))
+  page('/robots.txt', ctx => {
+    const disallow = BOT_DISALLOW.map(path => `Disallow: ${path}`).join('\n')
+    const stanzas = ROBOT_AGENTS.map(agent => `User-agent: ${agent}\nAllow: /\n${disallow}`).join('\n\n')
+    return new Response(`${stanzas}\nSitemap: ${ctx.origin}/sitemap.xml\n`, {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': HOUR_CACHE },
+    })
+  })
   page('/sitemap.xml', ctx => new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/boards', '/market', '/odds', '/privacy', '/whats-new'].map(path => `<url><loc>${escapeHtml(ctx.origin + path)}</loc></url>`).join('')}</urlset>\n`, {
     headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': HOUR_CACHE },
   }))
+  page('/llms.txt', ctx => new Response([
+    '# Spinlings',
+    '',
+    `> ${DESCRIPTION}`,
+    '',
+    '## Pages',
+    '',
+    `- [Home](${ctx.origin}/): Meadow, battle demo, den collection, night market, install guide and FAQ`,
+    `- [Leaderboards](${ctx.origin}/boards): Season and all-time rankings`,
+    `- [Market](${ctx.origin}/market): Live creature card listings and offers`,
+    `- [Odds & drop rates](${ctx.origin}/odds): Rarity weights, mythic spawn odds and evolution rules`,
+    `- [What\'s new](${ctx.origin}/whats-new): Release notes and highlights`,
+    `- [Privacy](${ctx.origin}/privacy): What data stays local vs public`,
+    `- [Full guide & FAQ](${ctx.origin}/llms-full.txt)`,
+    `- [Source repository](${REPO_URL})`,
+    '',
+  ].join('\n'), { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': HOUR_CACHE } }))
+  page('/llms-full.txt', ctx => new Response([
+    '# Spinlings: Full Reference',
+    '',
+    `> ${DESCRIPTION}`,
+    '',
+    '## Quick Install (Claude Code)',
+    '',
+    '- `/plugin marketplace add 416rehman/spinlings`',
+    '- `/plugin install spinlings@spinlings`',
+    '- `/spin`',
+    '',
+    '## Frequently Asked Questions',
+    '',
+    ...FAQ_ITEMS.flatMap(item => [`### ${item.q}`, item.a, '']),
+    '## Public Endpoints',
+    '',
+    `- ${ctx.origin}/`,
+    `- ${ctx.origin}/boards`,
+    `- ${ctx.origin}/market`,
+    `- ${ctx.origin}/odds`,
+    `- ${ctx.origin}/whats-new`,
+    `- ${ctx.origin}/privacy`,
+    `- Repository: ${REPO_URL}`,
+    '',
+  ].join('\n'), { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': HOUR_CACHE } }))
 
   // first-party scripts, content-hashed and immutable (SPEC 36); only the table's own names, never
   // one it inherits (constructor, __proto__, toString)
